@@ -1,4 +1,4 @@
-import { anthropic } from "@ai-sdk/anthropic";
+import { anthropic, createAnthropic } from "@ai-sdk/anthropic";
 import type { LanguageModel } from "ai";
 
 interface UserForModel {
@@ -16,7 +16,10 @@ interface UserForModel {
 export function getModelForUser(user: UserForModel): LanguageModel {
   // 1. BYOK: user has their own Anthropic API key
   if (user.preferences?.apiKeys?.anthropic) {
-    return anthropic("claude-opus-4-6");
+    const byokProvider = createAnthropic({
+      apiKey: user.preferences.apiKeys.anthropic,
+    });
+    return byokProvider("claude-opus-4-6");
   }
 
   // 2. User preference: user selected a specific model in settings

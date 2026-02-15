@@ -1,0 +1,23 @@
+{
+  "name": "@repo/cv-parser",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "UNLICENSED",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@repo/supabase": "workspace:*",
+    "pdf-parse": "^2.4.5"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^22.15.3",
+    "@types/pdf-parse": "^1.1.5",
+    "typescript": "5.9.2"
+  }
+}

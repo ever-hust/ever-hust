@@ -1,0 +1,142 @@
+import { tool } from "ai";
+import { z } from "zod";
+import { db } from "@repo/db";
+import { jobs } from "@repo/db";
+import { and, eq, ilike, or, gte, lte, desc, sql } from "drizzle-orm";
+
+export const searchJobsTool = tool({
+  description:
+    "Search for jobs based on keywords, location, remote preference, salary range, and job type. Returns matching jobs from the database. Always use this when the user asks to find, search, or look for jobs.",
+  inputSchema: z.object({
+    keywords: z
+      .string()
+      .optional()
+      .describe("Search keywords for job title or description"),
+    location: z
+      .string()
+      .optional()
+      .describe("City, state, or country to filter jobs by"),
+    isRemote: z
+      .boolean()
+      .optional()
+      .describe("Filter for remote jobs only"),
+    jobType: z
+      .enum(["fulltime", "parttime", "internship", "contract"])
+      .optional()
+      .describe("Type of employment"),
+    salaryMin: z
+      .number()
+      .optional()
+      .describe("Minimum annual salary in USD"),
+    salaryMax: z
+      .number()
+      .optional()
+      .describe("Maximum annual salary in USD"),
+    skills: z
+      .array(z.string())
+      .optional()
+      .describe("Required skills to filter by"),
+    limit: z
+      .number()
+      .optional()
+      .default(25)
+      .describe("Number of results to return (max 50)"),
+    offset: z
+      .number()
+      .optional()
+      .default(0)
+      .describe("Offset for pagination"),
+  }),
+  execute: async (params) => {
+    const conditions = [];
+
+    if (params.keywords) {
+      const kw = `%${params.keywords}%`;
+      conditions.push(
+        or(ilike(jobs.title, kw), ilike(jobs.description, kw))
+      );
+    }
+
+    if (params.location) {
+      const loc = `%${params.location}%`;
+      conditions.push(
+        or(
+          ilike(jobs.locationCity, loc),
+          ilike(jobs.locationState, loc),
+          ilike(jobs.locationCountry, loc)
+        )
+      );
+    }
+
+    if (params.isRemote !== undefined) {
+      conditions.push(eq(jobs.isRemote, params.isRemote));
+    }
+
+    if (params.salaryMin) {
+      conditions.push(gte(jobs.salaryMin, String(params.salaryMin)));
+    }
+
+    if (params.salaryMax) {
+      conditions.push(lte(jobs.salaryMax, String(params.salaryMax)));
+    }
+
+    const limit = Math.min(params.limit ?? 25, 50);
+
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const results = await db
+      .select({
+        id: jobs.id,
+        externalId: jobs.externalId,
+        title: jobs.title,
+        companyName: jobs.companyName,
+        companyLogo: jobs.companyLogo,
+        companyUrl: jobs.companyUrl,
+        jobUrl: jobs.jobUrl,
+        applyUrl: jobs.applyUrl,
+        locationCity: jobs.locationCity,
+        locationState: jobs.locationState,
+        locationCountry: jobs.locationCountry,
+        isRemote: jobs.isRemote,
+        jobType: jobs.jobType,
+        salaryMin: jobs.salaryMin,
+        salaryMax: jobs.salaryMax,
+        salaryCurrency: jobs.salaryCurrency,
+        salaryInterval: jobs.salaryInterval,
+        description: jobs.description,
+        skills: jobs.skills,
+        site: jobs.site,
+        datePosted: jobs.datePosted,
+        jobLevel: jobs.jobLevel,
+        companyIndustry: jobs.companyIndustry,
+      })
+      .from(jobs)
+      .where(where)
+      .orderBy(desc(jobs.datePosted))
+      .limit(limit)
+      .offset(params.offset ?? 0);
+
+    // Truncate descriptions for the response
+    const jobResults = results.map((job) => ({
+      ...job,
+      description: job.description
+        ? job.description.substring(0, 300) + "..."
+        : null,
+    }));
+
+    const countResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(jobs)
+      .where(where);
+
+    const totalCount = Number(countResult[0]?.count ?? 0);
+
+    return {
+      jobs: jobResults,
+      totalCount,
+      limit,
+      offset: params.offset ?? 0,
+      hasMore: (params.offset ?? 0) + limit < totalCount,
+    };
+  },
+});

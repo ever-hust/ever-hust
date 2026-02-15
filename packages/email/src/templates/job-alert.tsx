@@ -40,7 +40,7 @@ export function JobAlertEmail({
     <Html>
       <Head />
       <Preview>
-        {jobs.length} new job{jobs.length !== 1 ? "s" : ""} matching your alert
+        {`${jobs.length} new job${jobs.length !== 1 ? "s" : ""} matching your alert`}
       </Preview>
       <Body style={main}>
         <Container style={container}>

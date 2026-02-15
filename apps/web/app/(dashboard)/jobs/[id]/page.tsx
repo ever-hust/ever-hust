@@ -103,8 +103,8 @@ function renderDescription(text: string) {
     // Detect heading-like lines (starting with #)
     const headingMatch = cleaned.match(/^(#{1,3})\s+(.+)/);
     if (headingMatch) {
-      const level = headingMatch[1].length;
-      const content = headingMatch[2];
+      const level = headingMatch[1]!.length;
+      const content = headingMatch[2]!;
       if (level === 1)
         return (
           <h3 key={i} className="mb-3 mt-6 text-lg font-semibold first:mt-0">
@@ -180,7 +180,7 @@ export async function generateMetadata({
 
   if (result.length === 0) return { title: "Job Not Found" };
 
-  const job = result[0];
+  const job = result[0]!;
   const company = job.companyName ?? "Unknown Company";
   return {
     title: `${job.title} at ${company}`,
@@ -206,7 +206,7 @@ export default async function JobDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  const job = result[0];
+  const job = result[0]!;
 
   // Check if current user has favorited this job
   let isFavorited = false;

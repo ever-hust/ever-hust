@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const uiMessages = parsed.data.messages as UIMessage[];
+  const uiMessages = parsed.data.messages as unknown as UIMessage[];
 
   const messages = await convertToModelMessages(uiMessages);
 
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
 
   // Check message rate limit for free users
   if (!gate.isActive) {
-    const { allowed, remaining } = checkMessageLimit(userId);
+    const { allowed, remaining } = await checkMessageLimit(userId);
     if (!allowed) {
       return NextResponse.json(
         {

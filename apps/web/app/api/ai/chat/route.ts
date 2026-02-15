@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const uiMessages = parsed.data.messages as UIMessage[];
+  const uiMessages = parsed.data.messages as unknown as UIMessage[];
 
   const messages = await convertToModelMessages(uiMessages);
 

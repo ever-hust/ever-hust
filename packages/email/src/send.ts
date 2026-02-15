@@ -1,4 +1,4 @@
-import { resend, EMAIL_FROM } from "./index";
+import { resend, EMAIL_FROM, getAppUrl } from "./index";
 import { render } from "@react-email/components";
 import { JobAlertEmail } from "./templates/job-alert";
 import { WelcomeEmail } from "./templates/welcome";
@@ -26,9 +26,12 @@ export async function sendJobAlertEmail({
   userName,
   alertCriteria,
   jobs,
-  manageUrl = "https://everjobs.ai/settings",
-  unsubscribeUrl = "https://everjobs.ai/settings",
+  manageUrl,
+  unsubscribeUrl,
 }: SendJobAlertParams) {
+  const appUrl = getAppUrl();
+  if (!manageUrl) manageUrl = `${appUrl}/settings`;
+  if (!unsubscribeUrl) unsubscribeUrl = `${appUrl}/settings`;
   const element = JobAlertEmail({
     userName,
     alertCriteria,
@@ -66,8 +69,9 @@ interface SendWelcomeParams {
 export async function sendWelcomeEmail({
   to,
   userName,
-  loginUrl = "https://everjobs.ai/login",
+  loginUrl,
 }: SendWelcomeParams) {
+  if (!loginUrl) loginUrl = `${getAppUrl()}/login`;
   const element = WelcomeEmail({
     userName,
     loginUrl,
@@ -104,8 +108,9 @@ export async function sendSubscriptionConfirmedEmail({
   to,
   userName,
   planName,
-  dashboardUrl = "https://everjobs.ai/chat",
+  dashboardUrl,
 }: SendSubscriptionConfirmedParams) {
+  if (!dashboardUrl) dashboardUrl = `${getAppUrl()}/chat`;
   const element = SubscriptionConfirmedEmail({
     userName,
     planName,

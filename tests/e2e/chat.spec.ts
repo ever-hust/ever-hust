@@ -13,7 +13,7 @@ test.describe("Chat/Dashboard Page", () => {
       await page.goto("/chat");
       await expect(page.getByRole("navigation")).toBeVisible();
       await expect(
-        page.getByRole("link", { name: /dashboard/i })
+        page.getByRole("link", { name: /chat/i })
       ).toBeVisible();
     });
 

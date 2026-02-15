@@ -10,7 +10,7 @@ export default function LoginPage() {
   const handleLinkedInLogin = async () => {
     await signIn.social({
       provider: "linkedin",
-      callbackURL: "/dashboard/chat",
+      callbackURL: "/chat",
     });
   };
 

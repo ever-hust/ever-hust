@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "@repo/db/client";
+import { sendWelcomeEmail } from "@repo/email";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -31,6 +32,26 @@ export const auth = betterAuth({
     cookieCache: {
       enabled: true,
       maxAge: 60 * 5, // 5 minutes
+    },
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user) => {
+          // Send welcome email on new user registration (non-blocking)
+          if (user.email) {
+            try {
+              await sendWelcomeEmail({
+                to: user.email,
+                userName: user.name ?? "there",
+              });
+            } catch {
+              // Don't fail registration if email fails
+              console.error("Failed to send welcome email to", user.email);
+            }
+          }
+        },
+      },
     },
   },
 });

@@ -2,10 +2,16 @@ import { db, users } from "@repo/db";
 import { createCheckoutSession } from "@repo/stripe";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { requireSessionUser } from "../../../../lib/get-session-user";
 
 export async function POST(req: Request) {
-  // TODO: Get actual user from session
-  const userId = "dev-user";
+  let sessionUser;
+  try {
+    sessionUser = await requireSessionUser();
+  } catch (response) {
+    return response as NextResponse;
+  }
+  const userId = sessionUser.id;
 
   const body = (await req.json()) as { planId?: string };
   if (!body.planId) {
@@ -26,15 +32,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  const user = userResult[0]!;
+  const dbUser = userResult[0]!;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
   try {
     const { url } = await createCheckoutSession({
       userId,
-      email: user.email,
+      email: dbUser.email,
       planId: body.planId,
-      stripeCustomerId: user.stripeCustomerId,
+      stripeCustomerId: dbUser.stripeCustomerId,
       successUrl: `${appUrl}/settings?session_id={CHECKOUT_SESSION_ID}&success=true`,
       cancelUrl: `${appUrl}/settings?canceled=true`,
     });

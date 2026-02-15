@@ -2,10 +2,16 @@ import { db, users } from "@repo/db";
 import { createPortalSession } from "@repo/stripe";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { requireSessionUser } from "../../../../lib/get-session-user";
 
 export async function POST() {
-  // TODO: Get actual user from session
-  const userId = "dev-user";
+  let sessionUser;
+  try {
+    sessionUser = await requireSessionUser();
+  } catch (response) {
+    return response as NextResponse;
+  }
+  const userId = sessionUser.id;
 
   const userResult = await db
     .select({ stripeCustomerId: users.stripeCustomerId })
@@ -17,8 +23,8 @@ export async function POST() {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  const user = userResult[0]!;
-  if (!user.stripeCustomerId) {
+  const dbUser = userResult[0]!;
+  if (!dbUser.stripeCustomerId) {
     return NextResponse.json(
       { error: "No active subscription" },
       { status: 400 }
@@ -29,7 +35,7 @@ export async function POST() {
 
   try {
     const { url } = await createPortalSession({
-      stripeCustomerId: user.stripeCustomerId,
+      stripeCustomerId: dbUser.stripeCustomerId,
       returnUrl: `${appUrl}/settings`,
     });
 

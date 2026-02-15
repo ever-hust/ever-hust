@@ -6,6 +6,7 @@ import { Button } from "@repo/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@repo/ui/card";
 import { Badge } from "@repo/ui/badge";
 import { Check, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 const plans = [
   {
@@ -79,8 +80,9 @@ export function PricingSection() {
           return;
         }
       }
+      toast.error("Failed to start checkout. Please try again.");
     } catch {
-      // Silently fail
+      toast.error("Failed to start checkout. Please try again.");
     }
     setLoadingPlan(null);
   }

@@ -3,11 +3,17 @@ import { userJobs } from "@repo/db";
 import { jobs } from "@repo/db";
 import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { requireSessionUser } from "../../../../lib/get-session-user";
 
 // GET /api/user/favorites - Get user's favorited job IDs
 export async function GET() {
-  // TODO: Get actual user from session
-  const userId = "dev-user";
+  let user;
+  try {
+    user = await requireSessionUser();
+  } catch (response) {
+    return response as NextResponse;
+  }
+  const userId = user.id;
 
   const favorites = await db
     .select({ jobId: userJobs.jobId })
@@ -21,7 +27,13 @@ export async function GET() {
 
 // POST /api/user/favorites - Toggle favorite for a job
 export async function POST(req: Request) {
-  const userId = "dev-user";
+  let user;
+  try {
+    user = await requireSessionUser();
+  } catch (response) {
+    return response as NextResponse;
+  }
+  const userId = user.id;
   const { jobId } = (await req.json()) as { jobId: number };
 
   if (!jobId) {

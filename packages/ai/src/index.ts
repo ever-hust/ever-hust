@@ -1,5 +1,6 @@
 export { getModelForUser } from "./model-router";
 export { createOrchestratorStream } from "./agents/orchestrator";
+export { checkSearchLimit, checkCoverLetterLimit } from "./rate-limit";
 export {
   searchJobsTool,
   updateFiltersTool,

@@ -99,8 +99,9 @@ export default function SettingsPage() {
           return;
         }
       }
+      toast.error("Failed to start checkout. Please try again.");
     } catch {
-      // Silently fail
+      toast.error("Failed to start checkout. Please try again.");
     }
     setStripeLoading(false);
   }, []);
@@ -116,8 +117,9 @@ export default function SettingsPage() {
           return;
         }
       }
+      toast.error("Failed to open subscription portal. Please try again.");
     } catch {
-      // Silently fail
+      toast.error("Failed to open subscription portal. Please try again.");
     }
     setStripeLoading(false);
   }, []);

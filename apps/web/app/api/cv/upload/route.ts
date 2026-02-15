@@ -3,10 +3,16 @@ import { parseCV } from "@repo/cv-parser";
 import { db } from "@repo/db";
 import { users } from "@repo/db";
 import { eq } from "drizzle-orm";
+import { requireSessionUser } from "../../../../lib/get-session-user";
 
 export async function POST(req: Request) {
-  // TODO: Get actual user from session
-  const userId = "dev-user";
+  let user;
+  try {
+    user = await requireSessionUser();
+  } catch (response) {
+    return response as NextResponse;
+  }
+  const userId = user.id;
 
   const formData = await req.formData();
   const file = formData.get("cv") as File | null;

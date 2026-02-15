@@ -12,6 +12,7 @@ import {
   applyJobTool,
   interviewPrepTool,
 } from "../tools";
+import { checkSearchLimit, checkCoverLetterLimit } from "../rate-limit";
 
 const SYSTEM_PROMPT = `You are Ever Jobs AI, a friendly and professional job search assistant. You help users find jobs, understand job listings, prepare for interviews, and manage their job search.
 
@@ -104,19 +105,41 @@ interface OrchestratorOptions {
   model: LanguageModel;
   messages: ModelMessage[];
   userId: string;
+  /** Whether the user has an active paid subscription (skips tool-level rate limits). */
+  isSubscribed?: boolean;
 }
 
 export function createOrchestratorStream({
   model,
   messages,
   userId,
+  isSubscribed = false,
 }: OrchestratorOptions) {
   return streamText({
     model,
     system: SYSTEM_PROMPT,
     messages,
     tools: {
-      searchJobs: searchJobsTool,
+      searchJobs: {
+        ...searchJobsTool,
+        execute: async (params, execOptions) => {
+          // Enforce free-tier search limit
+          if (!isSubscribed) {
+            const { allowed, remaining } = checkSearchLimit(userId);
+            if (!allowed) {
+              return {
+                error:
+                  "The user has reached their free-tier search limit (5 searches/day). " +
+                  "Let them know they can upgrade to Pro for unlimited searches.",
+                limitType: "searches",
+                remaining: 0,
+                requiresUpgrade: true,
+              };
+            }
+          }
+          return searchJobsTool.execute!(params, execOptions);
+        },
+      },
       updateFilters: updateFiltersTool,
       favoriteJob: {
         ...favoriteJobTool,
@@ -149,6 +172,21 @@ export function createOrchestratorStream({
       generateCoverLetter: {
         ...generateCoverLetterTool,
         execute: async (params) => {
+          // Enforce free-tier cover letter limit
+          if (!isSubscribed) {
+            const { allowed, remaining } = checkCoverLetterLimit(userId);
+            if (!allowed) {
+              return {
+                error:
+                  "The user has reached their free-tier cover letter limit (1 per week). " +
+                  "Let them know they can upgrade to Pro for unlimited cover letters.",
+                limitType: "coverLetters",
+                remaining: 0,
+                requiresUpgrade: true,
+                generated: false,
+              };
+            }
+          }
           return generateCoverLetterTool.execute!(
             { ...params, userId },
             { toolCallId: "", messages: [], abortSignal: undefined as never }

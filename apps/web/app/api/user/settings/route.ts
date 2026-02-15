@@ -2,11 +2,17 @@ import { db } from "@repo/db";
 import { users } from "@repo/db";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { requireSessionUser } from "../../../../lib/get-session-user";
 
 // PATCH /api/user/settings - Update user settings
 export async function PATCH(req: Request) {
-  // TODO: Get actual user from session
-  const userId = "dev-user";
+  let user;
+  try {
+    user = await requireSessionUser();
+  } catch (response) {
+    return response as NextResponse;
+  }
+  const userId = user.id;
 
   const body = (await req.json()) as Record<string, unknown>;
 

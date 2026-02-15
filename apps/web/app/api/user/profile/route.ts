@@ -2,10 +2,16 @@ import { db } from "@repo/db";
 import { users, userJobs, jobs } from "@repo/db";
 import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { requireSessionUser } from "../../../../lib/get-session-user";
 
 export async function GET() {
-  // TODO: Get actual user from session
-  const userId = "dev-user";
+  let sessionUser;
+  try {
+    sessionUser = await requireSessionUser();
+  } catch (response) {
+    return response as NextResponse;
+  }
+  const userId = sessionUser.id;
 
   const userResult = await db
     .select()

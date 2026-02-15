@@ -5,16 +5,22 @@ import {
   checkSubscription,
   checkMessageLimit,
 } from "../../../../lib/subscription-gate";
+import { requireSessionUser } from "../../../../lib/get-session-user";
 
 export async function POST(req: Request) {
+  let user;
+  try {
+    user = await requireSessionUser();
+  } catch (response) {
+    return response as NextResponse;
+  }
+  const userId = user.id;
+
   const { messages: uiMessages } = (await req.json()) as {
     messages: UIMessage[];
   };
 
   const messages = await convertToModelMessages(uiMessages);
-
-  // TODO: Get actual user from session when auth is wired up
-  const userId = "dev-user";
 
   const gate = await checkSubscription(userId);
 
@@ -46,6 +52,7 @@ export async function POST(req: Request) {
     model,
     messages,
     userId,
+    isSubscribed: gate.isActive,
   });
 
   return result.toUIMessageStreamResponse();

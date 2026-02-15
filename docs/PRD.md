@@ -1,8 +1,9 @@
 # Ever Jobs - Product Requirements Document (PRD)
 
-**Version**: 1.0
-**Date**: 2026-02-14
-**Status**: Approved
+**Version**: 1.1
+**Date**: 2026-02-15
+**Status**: MVP Implemented
+**Previous Version**: 1.0 (2026-02-14, Approved)
 **Domain**: everjobs.ai
 **License**: Proprietary (All Rights Reserved)
 **Repository**: github.com/ever-co/ever-jobs-website
@@ -42,6 +43,8 @@
 18. [API Contracts](#18-api-contracts)
 19. [Non-Functional Requirements](#19-non-functional-requirements)
 20. [Success Metrics](#20-success-metrics)
+- [Appendix A: Implementation Status](#appendix-a-implementation-status-v11)
+- [Appendix B: License](#appendix-b-license)
 
 ---
 
@@ -957,8 +960,8 @@ This means the chat and canvas are synchronized through the AI tool result strea
    - `email` -> email
    - `picture` -> photoUrl
    - `locale.country` -> location (approximate)
-5. For new users: `onboardingCompleted = 0`
-6. Redirect to `/dashboard`
+5. For new users: `onboardingCompleted = 0`, welcome email sent via Resend
+6. Redirect to `/chat`
 
 **Session**: HTTP-only cookie, 30-day expiry, refreshed every 24 hours.
 
@@ -1094,7 +1097,7 @@ Topics to explore naturally during conversation (NOT hardcoded question sequence
 
 ### 10.9 User Profile
 
-**Route**: `/dashboard/profile`
+**Route**: `/profile`
 
 **Sections**:
 1. Header card (photo, name, headline, location, LinkedIn link)
@@ -1235,21 +1238,25 @@ Trigger.dev task (`packages/triggers/src/jobs/sync-jobs.ts`) runs every 15 minut
 
 ## 12. Routing & Navigation
 
+> **Important**: The `(dashboard)` directory is a Next.js **route group** — parentheses mean it does NOT add a URL segment. The actual URLs are `/chat`, `/jobs`, etc., NOT `/dashboard/chat`.
+
 | Route | Access | Description |
 |-------|--------|-------------|
 | `/` | Public | Landing page |
 | `/pricing` | Public | Pricing page |
 | `/login` | Public | LinkedIn OAuth login |
-| `/dashboard` | Protected | Redirect to /dashboard/chat |
-| `/dashboard/chat` | Protected | Main chat + canvas view |
-| `/dashboard/jobs` | Protected | Jobs browse (canvas only) |
-| `/dashboard/jobs/[id]` | Protected | Job detail page |
-| `/dashboard/profile` | Protected | User profile |
-| `/dashboard/settings` | Protected | Settings + subscription management |
+| `/chat` | Protected | Main chat + canvas view |
+| `/jobs` | Protected | Jobs browse (canvas only) |
+| `/jobs/[id]` | Protected | Job detail page |
+| `/profile` | Protected | User profile |
+| `/settings` | Protected | Settings + subscription management |
+| `/dashboard` | Legacy | Redirects to `/chat` |
 
 **Middleware** (`apps/web/middleware.ts`):
-- All `/dashboard/*` routes require valid BetterAuth session
+- Routes `/chat`, `/jobs`, `/profile`, `/settings` require valid BetterAuth session
 - Redirect to `/login` if not authenticated
+- Legacy `/dashboard` and `/dashboard/*` redirect to `/chat`
+- Security headers (CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy)
 - Rate limiting headers on API routes
 
 ---
@@ -1663,7 +1670,44 @@ Response: {
 
 ---
 
-## Appendix: License
+## Appendix A: Implementation Status (v1.1)
+
+> Updated 2026-02-15. See [MVP Implementation Summary](./MVP-IMPLEMENTATION-SUMMARY.md) for detailed change log.
+
+### Phase Completion
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 0: Documentation & Setup | ✅ Complete | PRD, LICENSE, .gitignore, .env.example, README |
+| Phase 1: Foundation | ✅ Complete | Monorepo, DB schema, auth, UI, landing, theme, middleware |
+| Phase 2: Core Experience | ✅ Complete | Split-screen, AI chat, job sync, canvas, mobile responsive |
+| Phase 3: Enhanced Features | ✅ Complete | Favorites, cover letters, CV upload, profile, settings |
+| Phase 4: Monetization & Alerts | ✅ Complete | Stripe, pricing, gating, email templates, alert cron tasks |
+| Phase 5: AI Agents | ✅ Complete | Application agent (HITL), interview prep, BYOK, agent status |
+| Phase 6: Testing & Polish | 🔶 Partial | E2E + unit tests done; accessibility audit, bundle optimization pending |
+
+### Key Architectural Decisions Made During Implementation
+
+1. **Route Groups**: `(dashboard)` does NOT add URL segments. Actual routes are `/chat`, `/jobs`, `/profile`, `/settings`.
+2. **BYOK Provider**: Uses `createAnthropic({ apiKey })` from `@ai-sdk/anthropic` (not just the default `anthropic()` helper).
+3. **Email URLs**: Centralized `getAppUrl()` helper reads `NEXT_PUBLIC_APP_URL` env var for all email template links.
+4. **Welcome Email Hook**: Sent via BetterAuth's `databaseHooks.user.create.after`, not a separate API call.
+5. **Application Tracking**: `applyJobTool` upserts into both `applications` and `userJobs` tables for complete tracking.
+6. **Model Router Priority**: BYOK key → user preference → subscription tier default → environment variable default.
+
+### Known Limitations (Out of MVP Scope)
+
+- Automated job applications (Phase 5+, requires external auto-apply API)
+- Supabase Realtime WebSocket live updates
+- Redis-based rate limiting (Upstash)
+- BYOK API key encryption at rest
+- WCAG 2.1 AA accessibility audit
+- Bundle optimization and code splitting
+- Vercel Analytics integration
+
+---
+
+## Appendix B: License
 
 This project is proprietary software. All rights reserved.
 

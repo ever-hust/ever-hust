@@ -17,10 +17,10 @@ import { signOut } from "@repo/auth/client";
 import { cn } from "@repo/ui/lib/utils";
 
 const navItems = [
-  { href: "/dashboard/chat", label: "Chat", icon: MessageSquare },
-  { href: "/dashboard/jobs", label: "Jobs", icon: Briefcase },
-  { href: "/dashboard/profile", label: "Profile", icon: User },
-  { href: "/dashboard/settings", label: "Settings", icon: Settings },
+  { href: "/chat", label: "Chat", icon: MessageSquare },
+  { href: "/jobs", label: "Jobs", icon: Briefcase },
+  { href: "/profile", label: "Profile", icon: User },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function Sidebar() {
@@ -30,7 +30,7 @@ export function Sidebar() {
     <aside aria-label="Sidebar navigation" className="flex h-full w-16 flex-col items-center border-r bg-card py-4 lg:w-56">
       {/* Logo */}
       <Link
-        href="/dashboard/chat"
+        href="/chat"
         className="mb-6 flex items-center gap-2 px-3"
       >
         <BriefcaseBusiness className="h-7 w-7 shrink-0 text-primary" />

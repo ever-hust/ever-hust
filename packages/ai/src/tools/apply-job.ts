@@ -1,8 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { db } from "@repo/db";
-import { users, jobs, applications, agentInstances } from "@repo/db";
-import { eq } from "drizzle-orm";
+import { users, jobs, applications, agentInstances, userJobs } from "@repo/db";
+import { eq, and } from "drizzle-orm";
 
 export const applyJobTool = tool({
   description:
@@ -90,6 +90,27 @@ export const applyJobTool = tool({
       .returning({ id: applications.id });
 
     const applicationId = appResult[0]?.id;
+
+    // Track in userJobs as "applied" (upsert: change existing favorited → applied)
+    const existingUserJob = await db
+      .select({ id: userJobs.id })
+      .from(userJobs)
+      .where(and(eq(userJobs.userId, userId), eq(userJobs.jobId, jobId)))
+      .limit(1);
+
+    if (existingUserJob.length > 0) {
+      await db
+        .update(userJobs)
+        .set({ status: "applied", appliedAt: new Date(), updatedAt: new Date() })
+        .where(eq(userJobs.id, existingUserJob[0]!.id));
+    } else {
+      await db.insert(userJobs).values({
+        userId,
+        jobId,
+        status: "applied",
+        appliedAt: new Date(),
+      });
+    }
 
     return {
       applied: true,

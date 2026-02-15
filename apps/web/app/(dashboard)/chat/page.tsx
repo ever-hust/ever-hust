@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useCallback, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { SplitScreen } from "@/components/layout/split-screen";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { JobsCanvas } from "@/components/canvas/jobs-canvas";
@@ -12,8 +12,37 @@ import { toast } from "sonner";
 export default function ChatPage() {
   const canvas = useCanvasSync();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [coverLetterText, setCoverLetterText] = useState("");
   const [coverLetterOpen, setCoverLetterOpen] = useState(false);
+  const [initialPrompt, setInitialPrompt] = useState<string | null>(null);
+
+  // Read ?job= query parameter and build an initial prompt
+  useEffect(() => {
+    const jobId = searchParams.get("job");
+    if (!jobId) return;
+
+    async function loadJobContext() {
+      try {
+        const res = await fetch(`/api/jobs/${jobId}`);
+        if (res.ok) {
+          const data = await res.json();
+          const job = data.job;
+          if (job) {
+            setInitialPrompt(
+              `I'd like help with the "${job.title}" position at ${job.companyName ?? "this company"}. Can you generate a cover letter for job ID ${job.id}?`
+            );
+          }
+        }
+      } catch {
+        // If job fetch fails, use a simpler prompt
+        setInitialPrompt(
+          `I'd like help with job ID ${jobId}. Can you generate a cover letter for it?`
+        );
+      }
+    }
+    loadJobContext();
+  }, [searchParams]);
 
   // Load user's favorites on mount
   useEffect(() => {
@@ -75,6 +104,7 @@ export default function ChatPage() {
           <ChatPanel
             onToolResult={canvas.handleToolResult}
             onCoverLetter={handleCoverLetter}
+            initialPrompt={initialPrompt}
           />
         }
         canvasPanel={

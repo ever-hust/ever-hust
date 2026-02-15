@@ -58,13 +58,11 @@ export const submitAnswersTool = tool({
       };
     }
 
-    // Update application with answers
+    // Update application with answers (column is `answersProvided` jsonb)
     await db
       .update(applications)
       .set({
-        answers: JSON.stringify(answers),
-        resumeUrl: resumeUrl ?? null,
-        notes: notes ?? null,
+        answersProvided: answers,
         status: "submitted",
         updatedAt: new Date(),
       })

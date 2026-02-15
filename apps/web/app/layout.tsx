@@ -38,6 +38,9 @@ export const metadata: Metadata = {
     description:
       "Chat with AI to find, apply, and land your dream job.",
   },
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

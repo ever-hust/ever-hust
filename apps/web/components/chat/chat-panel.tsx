@@ -9,12 +9,14 @@ import { ChatInput } from "./chat-input";
 interface ChatPanelProps {
   onToolResult?: (toolName: string, result: unknown) => void;
   onCoverLetter?: (text: string) => void;
+  initialPrompt?: string | null;
 }
 
-export function ChatPanel({ onToolResult, onCoverLetter }: ChatPanelProps) {
+export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
   const coverLetterPending = useRef(false);
+  const initialPromptSent = useRef(false);
 
   const transport = useMemo(
     () => new DefaultChatTransport({ api: "/api/ai/chat" }),
@@ -54,6 +56,13 @@ export function ChatPanel({ onToolResult, onCoverLetter }: ChatPanelProps) {
       coverLetterPending.current = false;
     }
   }, [messages, isLoading, onCoverLetter]);
+
+  // Auto-send initial prompt (e.g. from ?job= query param)
+  useEffect(() => {
+    if (!initialPrompt || initialPromptSent.current || isLoading) return;
+    initialPromptSent.current = true;
+    sendMessage({ text: initialPrompt });
+  }, [initialPrompt, isLoading, sendMessage]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {

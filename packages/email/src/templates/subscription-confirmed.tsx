@@ -21,8 +21,11 @@ interface SubscriptionConfirmedEmailProps {
 export function SubscriptionConfirmedEmail({
   userName = "there",
   planName = "Pro Quarterly",
-  dashboardUrl = "https://everjobs.ai/dashboard/chat",
+  dashboardUrl = "https://everjobs.ai/chat",
 }: SubscriptionConfirmedEmailProps) {
+  // Derive settings URL from dashboard URL base
+  const settingsUrl = dashboardUrl.replace(/\/chat$/, "/settings");
+
   return (
     <Html>
       <Head />
@@ -73,7 +76,7 @@ export function SubscriptionConfirmedEmail({
 
           <Text style={footer}>
             Manage your subscription anytime from{" "}
-            <Link href="https://everjobs.ai/dashboard/settings" style={link}>
+            <Link href={settingsUrl} style={link}>
               Settings
             </Link>
             .

@@ -12,4 +12,5 @@ export {
   createAlertTool,
   applyJobTool,
   interviewPrepTool,
+  submitAnswersTool,
 } from "./tools";

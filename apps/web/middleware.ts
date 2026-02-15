@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const protectedRoutes = ["/dashboard", "/chat", "/jobs", "/profile", "/settings"];
+// Route group (dashboard) does NOT add a URL segment.
+// Actual URLs: /chat, /jobs, /jobs/[id], /profile, /settings
+const protectedRoutes = ["/chat", "/jobs", "/profile", "/settings"];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -11,9 +13,9 @@ export function middleware(request: NextRequest) {
     pathname.startsWith(route)
   );
 
-  // Redirect /dashboard to /dashboard/chat
-  if (pathname === "/dashboard") {
-    const chatUrl = new URL("/dashboard/chat", request.url);
+  // Legacy redirect: /dashboard → /chat
+  if (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) {
+    const chatUrl = new URL("/chat", request.url);
     return NextResponse.redirect(chatUrl);
   }
 

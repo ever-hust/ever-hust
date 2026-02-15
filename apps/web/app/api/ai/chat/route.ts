@@ -1,4 +1,6 @@
 import { createOrchestratorStream, getModelForUser } from "@repo/ai";
+import { db, users } from "@repo/db";
+import { eq } from "drizzle-orm";
 import { convertToModelMessages, type UIMessage } from "ai";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -62,9 +64,18 @@ export async function POST(req: Request) {
     headers.set("X-RateLimit-Remaining", String(remaining));
   }
 
+  // Fetch user preferences from DB for BYOK / model selection
+  const userRecord = await db
+    .select({ preferences: users.preferences })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  const preferences = (userRecord[0]?.preferences as Record<string, unknown> | null) ?? null;
+
   const model = getModelForUser({
     subscriptionStatus: gate.isActive ? "active" : "free",
-    preferences: null,
+    preferences,
   });
 
   const result = createOrchestratorStream({

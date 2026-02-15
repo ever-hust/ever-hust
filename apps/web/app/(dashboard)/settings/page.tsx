@@ -91,8 +91,9 @@ export default function SettingsPage() {
 
           // Load existing BYOK key from preferences
           const prefs = u.preferences as Record<string, unknown> | null;
-          if (prefs?.apiKey) {
-            setApiKey(prefs.apiKey as string);
+          const apiKeys = prefs?.apiKeys as Record<string, string> | undefined;
+          if (apiKeys?.anthropic) {
+            setApiKey(apiKeys.anthropic);
           }
         }
       } catch {
@@ -178,7 +179,7 @@ export default function SettingsPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          preferences: { apiKey: apiKey || null },
+          preferences: { apiKeys: { anthropic: apiKey || null } },
         }),
       });
       if (res.ok) {

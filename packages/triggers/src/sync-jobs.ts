@@ -4,16 +4,52 @@ import { everJobsClient, type JobPostDto } from "@repo/jobs-api";
 import { eq } from "drizzle-orm";
 
 const SEARCH_TERMS = [
+  // Engineering
   "software engineer",
   "frontend developer",
   "backend developer",
   "full stack developer",
-  "data scientist",
-  "product manager",
-  "designer",
-  "devops engineer",
-  "machine learning engineer",
   "mobile developer",
+  "devops engineer",
+  "site reliability engineer",
+  "platform engineer",
+  "cloud engineer",
+  "security engineer",
+  "embedded engineer",
+  "QA engineer",
+  // Data & AI
+  "data scientist",
+  "data engineer",
+  "machine learning engineer",
+  "AI engineer",
+  "data analyst",
+  "business intelligence analyst",
+  // Product & Design
+  "product manager",
+  "product designer",
+  "UX designer",
+  "UI designer",
+  "UX researcher",
+  "graphic designer",
+  // Leadership
+  "engineering manager",
+  "VP of engineering",
+  "CTO",
+  "technical lead",
+  "director of product",
+  // Business & Operations
+  "marketing manager",
+  "sales engineer",
+  "solutions architect",
+  "technical writer",
+  "project manager",
+  "scrum master",
+  // Emerging
+  "blockchain developer",
+  "web3 engineer",
+  "AR/VR developer",
+  "robotics engineer",
+  "computer vision engineer",
 ];
 
 /**

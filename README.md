@@ -91,7 +91,9 @@ pnpm db:studio    # Open Drizzle Studio
 
 ## Documentation
 
-- [Product Requirements Document](docs/PRD.md)
+- [Product Requirements Document](docs/PRD.md) — Full PRD with implementation status
+- [MVP Implementation Summary](docs/MVP-IMPLEMENTATION-SUMMARY.md) — Detailed changelog of all MVP work
+- [Architecture Decisions](docs/ARCHITECTURE-DECISIONS.md) — Key architectural decisions and rationale
 
 ## License
 

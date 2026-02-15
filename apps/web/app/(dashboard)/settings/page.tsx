@@ -9,6 +9,12 @@ import {
   User,
   Check,
   Loader2,
+  Key,
+  Trash2,
+  Eye,
+  EyeOff,
+  ToggleLeft,
+  ToggleRight,
 } from "lucide-react";
 import { Badge } from "@repo/ui/badge";
 import { Button } from "@repo/ui/button";
@@ -27,6 +33,15 @@ interface UserSettings {
   preferences: Record<string, unknown> | null;
 }
 
+interface UserAlert {
+  id: number;
+  email: string;
+  frequency: string;
+  isActive: boolean;
+  criteria: Record<string, unknown> | null;
+  createdAt: string;
+}
+
 export default function SettingsPage() {
   const [user, setUser] = useState<UserSettings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,6 +51,31 @@ export default function SettingsPage() {
   const [formHeadline, setFormHeadline] = useState("");
   const [formLocation, setFormLocation] = useState("");
   const [stripeLoading, setStripeLoading] = useState(false);
+
+  // BYOK state
+  const [apiKey, setApiKey] = useState("");
+  const [apiKeyVisible, setApiKeyVisible] = useState(false);
+  const [savingApiKey, setSavingApiKey] = useState(false);
+
+  // Alerts state
+  const [alerts, setAlerts] = useState<UserAlert[]>([]);
+  const [alertsLoading, setAlertsLoading] = useState(true);
+  const [togglingAlert, setTogglingAlert] = useState<number | null>(null);
+  const [deletingAlert, setDeletingAlert] = useState<number | null>(null);
+
+  const loadAlerts = useCallback(async () => {
+    try {
+      const res = await fetch("/api/user/alerts");
+      if (res.ok) {
+        const data = await res.json();
+        setAlerts(data.alerts ?? []);
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      setAlertsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     async function loadUser() {
@@ -48,6 +88,12 @@ export default function SettingsPage() {
           setFormName(u.name ?? "");
           setFormHeadline(u.headline ?? "");
           setFormLocation(u.location ?? "");
+
+          // Load existing BYOK key from preferences
+          const prefs = u.preferences as Record<string, unknown> | null;
+          if (prefs?.apiKey) {
+            setApiKey(prefs.apiKey as string);
+          }
         }
       } catch {
         // Silently fail
@@ -56,7 +102,8 @@ export default function SettingsPage() {
       }
     }
     loadUser();
-  }, []);
+    loadAlerts();
+  }, [loadAlerts]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -122,6 +169,74 @@ export default function SettingsPage() {
       toast.error("Failed to open subscription portal. Please try again.");
     }
     setStripeLoading(false);
+  }, []);
+
+  const handleSaveApiKey = useCallback(async () => {
+    setSavingApiKey(true);
+    try {
+      const res = await fetch("/api/user/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          preferences: { apiKey: apiKey || null },
+        }),
+      });
+      if (res.ok) {
+        toast.success(apiKey ? "API key saved" : "API key removed");
+      } else {
+        toast.error("Failed to save API key");
+      }
+    } catch {
+      toast.error("Failed to save API key");
+    } finally {
+      setSavingApiKey(false);
+    }
+  }, [apiKey]);
+
+  const handleToggleAlert = useCallback(async (alertId: number, currentActive: boolean) => {
+    setTogglingAlert(alertId);
+    try {
+      const res = await fetch("/api/user/alerts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ alertId, isActive: !currentActive }),
+      });
+      if (res.ok) {
+        setAlerts((prev) =>
+          prev.map((a) =>
+            a.id === alertId ? { ...a, isActive: !currentActive } : a
+          )
+        );
+        toast.success(`Alert ${!currentActive ? "enabled" : "paused"}`);
+      } else {
+        toast.error("Failed to update alert");
+      }
+    } catch {
+      toast.error("Failed to update alert");
+    } finally {
+      setTogglingAlert(null);
+    }
+  }, []);
+
+  const handleDeleteAlert = useCallback(async (alertId: number) => {
+    setDeletingAlert(alertId);
+    try {
+      const res = await fetch("/api/user/alerts", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ alertId }),
+      });
+      if (res.ok) {
+        setAlerts((prev) => prev.filter((a) => a.id !== alertId));
+        toast.success("Alert deleted");
+      } else {
+        toast.error("Failed to delete alert");
+      }
+    } catch {
+      toast.error("Failed to delete alert");
+    } finally {
+      setDeletingAlert(null);
+    }
   }, []);
 
   if (loading) {
@@ -326,25 +441,157 @@ export default function SettingsPage() {
         </div>
       </Card>
 
-      {/* Notifications */}
+      {/* BYOK - Bring Your Own Key */}
+      <Card className="p-6">
+        <h2 className="flex items-center gap-2 text-lg font-semibold">
+          <Key className="h-5 w-5" />
+          API Key (BYOK)
+        </h2>
+        <div className="mt-4 space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Optionally provide your own Anthropic API key for unlimited usage.
+            Your key is stored securely and only used for your conversations.
+          </p>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Input
+                id="apiKey"
+                type={apiKeyVisible ? "text" : "password"}
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="sk-ant-..."
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setApiKeyVisible(!apiKeyVisible)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {apiKeyVisible ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+            <Button
+              onClick={handleSaveApiKey}
+              disabled={savingApiKey}
+              variant="outline"
+            >
+              {savingApiKey ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Save"
+              )}
+            </Button>
+          </div>
+          {apiKey && (
+            <p className="text-xs text-muted-foreground">
+              Key set. Clear the field and save to remove it.
+            </p>
+          )}
+        </div>
+      </Card>
+
+      {/* Job Alerts Management */}
       <Card className="p-6">
         <h2 className="flex items-center gap-2 text-lg font-semibold">
           <Bell className="h-5 w-5" />
-          Notifications
+          Job Alerts
         </h2>
         <div className="mt-4">
           <p className="text-sm text-muted-foreground">
-            Configure job alert notifications. Use the chat to create and manage
-            alerts by saying &quot;Set up job alerts&quot;.
+            Manage your job alert notifications. Create new alerts in the AI
+            chat by saying &quot;Set up job alerts&quot;.
           </p>
-          <div className="mt-3 rounded-md border bg-muted/30 p-4 text-center">
-            <Bell className="mx-auto h-8 w-8 text-muted-foreground/50" />
-            <p className="mt-2 text-sm text-muted-foreground">
-              {user?.subscriptionStatus === "active"
-                ? "No alerts configured yet. Use the AI chat to set them up."
-                : "Upgrade to Pro to enable job alerts."}
-            </p>
-          </div>
+
+          {user?.subscriptionStatus !== "active" ? (
+            <div className="mt-3 rounded-md border bg-muted/30 p-4 text-center">
+              <Bell className="mx-auto h-8 w-8 text-muted-foreground/50" />
+              <p className="mt-2 text-sm text-muted-foreground">
+                Upgrade to Pro to enable job alerts.
+              </p>
+            </div>
+          ) : alertsLoading ? (
+            <div className="mt-3 space-y-2">
+              <Skeleton className="h-16 w-full rounded-md" />
+              <Skeleton className="h-16 w-full rounded-md" />
+            </div>
+          ) : alerts.length === 0 ? (
+            <div className="mt-3 rounded-md border bg-muted/30 p-4 text-center">
+              <Bell className="mx-auto h-8 w-8 text-muted-foreground/50" />
+              <p className="mt-2 text-sm text-muted-foreground">
+                No alerts configured yet. Use the AI chat to set them up.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-3 space-y-2">
+              {alerts.map((alert) => {
+                const criteria = alert.criteria as Record<string, unknown> | null;
+                const keywords = (criteria?.keywords as string[]) ?? [];
+                const locations = (criteria?.locations as string[]) ?? [];
+                return (
+                  <div
+                    key={alert.id}
+                    className="flex items-center gap-3 rounded-md border p-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium truncate">
+                          {keywords.length > 0
+                            ? keywords.join(", ")
+                            : "All jobs"}
+                        </p>
+                        <Badge
+                          variant={alert.isActive ? "default" : "secondary"}
+                          className="shrink-0 text-[10px]"
+                        >
+                          {alert.isActive ? "Active" : "Paused"}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {alert.frequency.replace("_", " ")}
+                        {locations.length > 0
+                          ? ` · ${locations.join(", ")}`
+                          : ""}
+                        {" · "}
+                        {alert.email}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleAlert(alert.id, alert.isActive)}
+                      disabled={togglingAlert === alert.id}
+                      className="shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-50"
+                      title={alert.isActive ? "Pause alert" : "Enable alert"}
+                    >
+                      {togglingAlert === alert.id ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : alert.isActive ? (
+                        <ToggleRight className="h-5 w-5 text-primary" />
+                      ) : (
+                        <ToggleLeft className="h-5 w-5" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteAlert(alert.id)}
+                      disabled={deletingAlert === alert.id}
+                      className="shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-50"
+                      title="Delete alert"
+                    >
+                      {deletingAlert === alert.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </Card>
     </div>

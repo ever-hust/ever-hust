@@ -8,6 +8,9 @@ import {
 } from "../../../../lib/subscription-gate";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 
+// Allow long-running AI streaming responses (60 seconds)
+export const maxDuration = 60;
+
 const chatSchema = z.object({
   messages: z.array(z.object({
     role: z.string(),

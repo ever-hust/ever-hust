@@ -2,6 +2,7 @@ import type { UIMessage } from "ai";
 import { Bot, User } from "lucide-react";
 import { Avatar, AvatarFallback } from "@repo/ui/avatar";
 import { cn } from "@repo/ui/lib/utils";
+import { AgentStatus } from "./agent-status";
 
 interface ChatMessagesProps {
   messages: UIMessage[];
@@ -55,24 +56,13 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
                   (toolPart.type.startsWith("tool-")
                     ? toolPart.type.slice(5)
                     : "tool");
+                const isComplete = toolPart.state === "output-available";
                 return (
-                  <div
+                  <AgentStatus
                     key={i}
-                    className="my-1 rounded border bg-background/50 p-2 text-xs text-muted-foreground"
-                  >
-                    <span className="font-medium">{toolName}</span>
-                    {toolPart.state === "output-available" && (
-                      <span className="ml-2 text-green-600 dark:text-green-400">
-                        Done
-                      </span>
-                    )}
-                    {(toolPart.state === "input-streaming" ||
-                      toolPart.state === "input-available") && (
-                      <span className="ml-2 text-yellow-600 dark:text-yellow-400">
-                        Running...
-                      </span>
-                    )}
-                  </div>
+                    toolName={toolName}
+                    state={isComplete ? "complete" : "running"}
+                  />
                 );
               }
               return null;

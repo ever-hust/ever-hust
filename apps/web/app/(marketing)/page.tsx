@@ -9,6 +9,9 @@ import { CTA } from "@/components/landing/cta";
 import { Footer } from "@/components/landing/footer";
 import { StructuredData } from "@/components/landing/structured-data";
 
+// ISR: revalidate landing page every hour
+export const revalidate = 3600;
+
 export default function HomePage() {
   return (
     <div className="flex min-h-screen flex-col">

@@ -11,6 +11,7 @@ import {
   createAlertTool,
   applyJobTool,
   interviewPrepTool,
+  submitAnswersTool,
 } from "../tools";
 import { checkSearchLimit, checkCoverLetterLimit } from "../rate-limit";
 
@@ -28,6 +29,7 @@ You have access to these tools:
 - **createAlert**: Create a job alert to get email notifications for matching new jobs (Pro only)
 - **applyJob**: Initiate a job application (opens the apply URL and tracks it). ALWAYS confirm with the user before calling this tool.
 - **interviewPrep**: Prepare for a job interview with company research, common questions, and STAR method coaching (Pro only)
+- **submitAnswers**: Submit pre-filled screening question answers for a job application. Use after applyJob when the user has answered screening questions. ALWAYS confirm with the user before calling.
 
 ## Onboarding Flow
 When a user first interacts (onboarding not completed), guide them through a **conversational** preference-collection flow. This is NOT a rigid questionnaire — it's a natural conversation. Follow these guidelines:
@@ -215,6 +217,15 @@ export function createOrchestratorStream({
         ...interviewPrepTool,
         execute: async (params) => {
           return interviewPrepTool.execute!(
+            { ...params, userId },
+            { toolCallId: "", messages: [], abortSignal: undefined as never }
+          );
+        },
+      },
+      submitAnswers: {
+        ...submitAnswersTool,
+        execute: async (params) => {
+          return submitAnswersTool.execute!(
             { ...params, userId },
             { toolCallId: "", messages: [], abortSignal: undefined as never }
           );

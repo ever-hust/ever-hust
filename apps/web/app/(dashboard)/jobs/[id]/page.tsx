@@ -241,14 +241,79 @@ export default async function JobDetailPage({ params }: PageProps) {
   const postedAgo = timeAgo(job.datePosted);
   const applyLink = job.applyUrl || job.jobUrl || job.jobUrlDirect;
 
+  // Build JobPosting JSON-LD structured data
+  const jobPostingJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "JobPosting",
+    title: job.title,
+    description: job.description ?? undefined,
+    datePosted: job.datePosted
+      ? typeof job.datePosted === "string"
+        ? job.datePosted
+        : job.datePosted.toISOString()
+      : undefined,
+    employmentType: job.employmentType ?? (job.jobType?.[0]?.toUpperCase()) ?? undefined,
+    jobLocationType: job.isRemote ? "TELECOMMUTE" : undefined,
+    ...(job.companyName && {
+      hiringOrganization: {
+        "@type": "Organization",
+        name: job.companyName,
+        sameAs: job.companyUrl ?? undefined,
+        logo: job.companyLogo ?? undefined,
+      },
+    }),
+    ...(location && {
+      jobLocation: {
+        "@type": "Place",
+        address: {
+          "@type": "PostalAddress",
+          addressLocality: job.locationCity ?? undefined,
+          addressRegion: job.locationState ?? undefined,
+          addressCountry: job.locationCountry ?? undefined,
+        },
+      },
+    }),
+    ...((job.salaryMin || job.salaryMax) && {
+      baseSalary: {
+        "@type": "MonetaryAmount",
+        currency: job.salaryCurrency ?? "USD",
+        value: {
+          "@type": "QuantitativeValue",
+          ...(job.salaryMin && { minValue: Number(job.salaryMin) }),
+          ...(job.salaryMax && { maxValue: Number(job.salaryMax) }),
+          unitText:
+            job.salaryInterval === "yearly"
+              ? "YEAR"
+              : job.salaryInterval === "monthly"
+                ? "MONTH"
+                : job.salaryInterval === "hourly"
+                  ? "HOUR"
+                  : "YEAR",
+        },
+      },
+    }),
+    ...(job.skills &&
+      job.skills.length > 0 && {
+        skills: job.skills.join(", "),
+      }),
+  };
+
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
+      {/* JobPosting Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(jobPostingJsonLd),
+        }}
+      />
+
       <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
         {/* ----------------------------------------------------------------- */}
         {/* Back Navigation                                                   */}
         {/* ----------------------------------------------------------------- */}
         <Link
-          href="/dashboard/jobs"
+          href="/jobs"
           className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -349,7 +414,7 @@ export default async function JobDetailPage({ params }: PageProps) {
               </Button>
             </a>
           )}
-          <Link href={`/dashboard/chat?job=${job.id}`}>
+          <Link href={`/chat?job=${job.id}`}>
             <Button variant="outline" size="lg">
               <FileText className="mr-1 h-4 w-4" />
               Generate Cover Letter

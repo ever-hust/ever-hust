@@ -8,3 +8,4 @@ export { generateCoverLetterTool } from "./generate-cover-letter";
 export { createAlertTool } from "./create-alert";
 export { applyJobTool } from "./apply-job";
 export { interviewPrepTool } from "./interview-prep";
+export { submitAnswersTool } from "./submit-answers";

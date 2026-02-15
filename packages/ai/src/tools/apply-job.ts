@@ -1,0 +1,105 @@
+import { tool } from "ai";
+import { z } from "zod";
+import { db } from "@repo/db";
+import { users, jobs, applications, agentInstances } from "@repo/db";
+import { eq } from "drizzle-orm";
+
+export const applyJobTool = tool({
+  description:
+    "Initiate a job application for the user. This will open the job's application page and track the application. REQUIRES USER APPROVAL before executing.",
+  inputSchema: z.object({
+    userId: z.string().describe("The current user's ID"),
+    jobId: z.number().describe("The job ID to apply for"),
+    coverLetter: z
+      .string()
+      .optional()
+      .describe("Optional cover letter text to include"),
+  }),
+  execute: async ({ userId, jobId, coverLetter }) => {
+    // Get user profile
+    const userResult = await db
+      .select({
+        name: users.name,
+        email: users.email,
+        subscriptionStatus: users.subscriptionStatus,
+      })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (userResult.length === 0) {
+      return { applied: false, error: "User not found" };
+    }
+
+    const user = userResult[0]!;
+    if (user.subscriptionStatus !== "active") {
+      return {
+        applied: false,
+        error: "Job applications require a Pro subscription.",
+        requiresUpgrade: true,
+      };
+    }
+
+    // Get job details
+    const jobResult = await db
+      .select({
+        title: jobs.title,
+        companyName: jobs.companyName,
+        jobUrl: jobs.jobUrl,
+        applyUrl: jobs.applyUrl,
+      })
+      .from(jobs)
+      .where(eq(jobs.id, jobId))
+      .limit(1);
+
+    if (jobResult.length === 0) {
+      return { applied: false, error: "Job not found" };
+    }
+
+    const job = jobResult[0]!;
+    const applicationUrl = job.applyUrl ?? job.jobUrl;
+
+    if (!applicationUrl) {
+      return { applied: false, error: "No application URL available for this job" };
+    }
+
+    // Create agent instance to track this application
+    const agentResult = await db
+      .insert(agentInstances)
+      .values({
+        userId,
+        agentType: "application",
+        jobId,
+        status: "running",
+        state: { step: "initiated", coverLetter: coverLetter ?? null },
+      })
+      .returning({ id: agentInstances.id });
+
+    const agentId = agentResult[0]?.id;
+
+    // Create application record
+    const appResult = await db
+      .insert(applications)
+      .values({
+        userId,
+        jobId,
+        agentInstanceId: agentId,
+        status: "in_progress",
+        coverLetter: coverLetter ?? null,
+      })
+      .returning({ id: applications.id });
+
+    const applicationId = appResult[0]?.id;
+
+    return {
+      applied: true,
+      applicationId,
+      agentInstanceId: agentId,
+      jobTitle: job.title,
+      companyName: job.companyName,
+      applicationUrl,
+      instruction:
+        "The application has been initiated. Direct the user to open the application URL to complete their application. If a cover letter was provided, let them know it's ready to paste. Track the application status in the user's profile.",
+    };
+  },
+});

@@ -72,12 +72,27 @@ export const searchJobsTool = tool({
       conditions.push(eq(jobs.isRemote, params.isRemote));
     }
 
+    if (params.jobType) {
+      conditions.push(
+        sql`${jobs.jobType}::jsonb @> ${JSON.stringify([params.jobType])}::jsonb`
+      );
+    }
+
     if (params.salaryMin) {
-      conditions.push(gte(jobs.salaryMin, String(params.salaryMin)));
+      conditions.push(sql`${jobs.salaryMin}::numeric >= ${params.salaryMin}`);
     }
 
     if (params.salaryMax) {
-      conditions.push(lte(jobs.salaryMax, String(params.salaryMax)));
+      conditions.push(sql`${jobs.salaryMax}::numeric <= ${params.salaryMax}`);
+    }
+
+    if (params.skills && params.skills.length > 0) {
+      // Check if the job's skills JSONB array contains any of the requested skills
+      for (const skill of params.skills) {
+        conditions.push(
+          sql`${jobs.skills}::jsonb @> ${JSON.stringify([skill])}::jsonb`
+        );
+      }
     }
 
     const limit = Math.min(params.limit ?? 25, 50);

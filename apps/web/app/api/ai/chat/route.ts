@@ -47,7 +47,7 @@ export async function POST(req: Request) {
 
   // Check message rate limit for free users
   if (!gate.isActive) {
-    const { allowed, remaining } = checkMessageLimit(userId);
+    const { allowed, remaining } = await checkMessageLimit(userId);
     if (!allowed) {
       return NextResponse.json(
         {

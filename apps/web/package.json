@@ -30,6 +30,8 @@
     "@repo/stripe": "workspace:*",
     "@repo/ui": "workspace:*",
     "@repo/utils": "workspace:*",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.36.2",
     "ai": "^6.0.86",
     "better-auth": "^1.2.0",
     "drizzle-orm": "^0.45.1",

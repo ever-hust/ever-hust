@@ -127,7 +127,7 @@ export function createOrchestratorStream({
         execute: async (params, execOptions) => {
           // Enforce free-tier search limit
           if (!isSubscribed) {
-            const { allowed, remaining } = checkSearchLimit(userId);
+            const { allowed, remaining } = await checkSearchLimit(userId);
             if (!allowed) {
               return {
                 error:
@@ -176,7 +176,7 @@ export function createOrchestratorStream({
         execute: async (params) => {
           // Enforce free-tier cover letter limit
           if (!isSubscribed) {
-            const { allowed, remaining } = checkCoverLetterLimit(userId);
+            const { allowed, remaining } = await checkCoverLetterLimit(userId);
             if (!allowed) {
               return {
                 error:

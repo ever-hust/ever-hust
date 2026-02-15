@@ -32,12 +32,20 @@ export async function GET(req: Request) {
     conditions.push(eq(jobs.isRemote, true));
   }
 
+  if (jobType) {
+    // jobType is stored as a JSONB string array — check if the array contains the value
+    conditions.push(
+      sql`${jobs.jobType}::jsonb @> ${JSON.stringify([jobType])}::jsonb`
+    );
+  }
+
   if (salaryMin !== undefined) {
-    conditions.push(gte(jobs.salaryMin, salaryMin.toString()));
+    // Use numeric comparison (salary columns are numeric type in DB)
+    conditions.push(sql`${jobs.salaryMin}::numeric >= ${salaryMin}`);
   }
 
   if (salaryMax !== undefined) {
-    conditions.push(lte(jobs.salaryMax, salaryMax.toString()));
+    conditions.push(sql`${jobs.salaryMax}::numeric <= ${salaryMax}`);
   }
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;

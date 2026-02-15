@@ -3,7 +3,12 @@ import { userJobs } from "@repo/db";
 import { jobs } from "@repo/db";
 import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { requireSessionUser } from "../../../../lib/get-session-user";
+
+const favoriteSchema = z.object({
+  jobId: z.number({ required_error: "jobId is required" }).int().positive(),
+});
 
 // GET /api/user/favorites - Get user's favorited job IDs
 export async function GET() {
@@ -34,11 +39,17 @@ export async function POST(req: Request) {
     return response as NextResponse;
   }
   const userId = user.id;
-  const { jobId } = (await req.json()) as { jobId: number };
+  const body = await req.json();
+  const parsed = favoriteSchema.safeParse(body);
 
-  if (!jobId) {
-    return NextResponse.json({ error: "jobId is required" }, { status: 400 });
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid input", details: parsed.error.flatten() },
+      { status: 400 }
+    );
   }
+
+  const { jobId } = parsed.data;
 
   // Check if already favorited
   const existing = await db

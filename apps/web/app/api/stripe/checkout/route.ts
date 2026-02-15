@@ -2,7 +2,12 @@ import { db, users } from "@repo/db";
 import { createCheckoutSession } from "@repo/stripe";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { requireSessionUser } from "../../../../lib/get-session-user";
+
+const checkoutSchema = z.object({
+  planId: z.string().min(1, "planId is required"),
+});
 
 export async function POST(req: Request) {
   let sessionUser;
@@ -13,10 +18,17 @@ export async function POST(req: Request) {
   }
   const userId = sessionUser.id;
 
-  const body = (await req.json()) as { planId?: string };
-  if (!body.planId) {
-    return NextResponse.json({ error: "planId is required" }, { status: 400 });
+  const raw = await req.json();
+  const parsed = checkoutSchema.safeParse(raw);
+
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid input", details: parsed.error.flatten() },
+      { status: 400 }
+    );
   }
+
+  const body = parsed.data;
 
   // Get user for email and existing Stripe customer ID
   const userResult = await db

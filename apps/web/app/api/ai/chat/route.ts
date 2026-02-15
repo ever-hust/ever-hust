@@ -1,11 +1,19 @@
 import { createOrchestratorStream, getModelForUser } from "@repo/ai";
 import { convertToModelMessages, type UIMessage } from "ai";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import {
   checkSubscription,
   checkMessageLimit,
 } from "../../../../lib/subscription-gate";
 import { requireSessionUser } from "../../../../lib/get-session-user";
+
+const chatSchema = z.object({
+  messages: z.array(z.object({
+    role: z.string(),
+    content: z.unknown(),
+  }).passthrough()).min(1, "At least one message is required"),
+});
 
 export async function POST(req: Request) {
   let user;
@@ -16,9 +24,17 @@ export async function POST(req: Request) {
   }
   const userId = user.id;
 
-  const { messages: uiMessages } = (await req.json()) as {
-    messages: UIMessage[];
-  };
+  const raw = await req.json();
+  const parsed = chatSchema.safeParse(raw);
+
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid input", details: parsed.error.flatten() },
+      { status: 400 }
+    );
+  }
+
+  const uiMessages = parsed.data.messages as UIMessage[];
 
   const messages = await convertToModelMessages(uiMessages);
 

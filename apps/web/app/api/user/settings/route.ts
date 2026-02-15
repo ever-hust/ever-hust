@@ -2,7 +2,15 @@ import { db } from "@repo/db";
 import { users } from "@repo/db";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { requireSessionUser } from "../../../../lib/get-session-user";
+
+const settingsSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  headline: z.string().max(500).optional(),
+  location: z.string().max(200).optional(),
+  preferences: z.record(z.unknown()).optional(),
+});
 
 // PATCH /api/user/settings - Update user settings
 export async function PATCH(req: Request) {
@@ -14,7 +22,17 @@ export async function PATCH(req: Request) {
   }
   const userId = user.id;
 
-  const body = (await req.json()) as Record<string, unknown>;
+  const raw = await req.json();
+  const parsed = settingsSchema.safeParse(raw);
+
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid input", details: parsed.error.flatten() },
+      { status: 400 }
+    );
+  }
+
+  const body = parsed.data;
 
   // Only allow updating specific fields
   const allowedFields: Record<string, unknown> = {};

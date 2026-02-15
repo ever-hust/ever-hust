@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { db, jobs } from "@repo/db";
-import { eq } from "drizzle-orm";
+import { db, jobs, userJobs } from "@repo/db";
+import { eq, and } from "drizzle-orm";
 import { Badge } from "@repo/ui/badge";
 import { Button } from "@repo/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@repo/ui/card";
@@ -13,7 +13,6 @@ import {
   MapPin,
   Building2,
   Clock,
-  Heart,
   Briefcase,
   Users,
   DollarSign,
@@ -22,6 +21,8 @@ import {
   Globe,
   Calendar,
 } from "lucide-react";
+import { getSessionUser } from "../../../../lib/get-session-user";
+import { FavoriteButton } from "../../../../components/shared/favorite-button";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -207,6 +208,24 @@ export default async function JobDetailPage({ params }: PageProps) {
 
   const job = result[0];
 
+  // Check if current user has favorited this job
+  let isFavorited = false;
+  const sessionUser = await getSessionUser();
+  if (sessionUser) {
+    const fav = await db
+      .select({ id: userJobs.id })
+      .from(userJobs)
+      .where(
+        and(
+          eq(userJobs.userId, sessionUser.id),
+          eq(userJobs.jobId, jobId),
+          eq(userJobs.status, "favorited")
+        )
+      )
+      .limit(1);
+    isFavorited = fav.length > 0;
+  }
+
   const salary = formatSalary(
     job.salaryMin,
     job.salaryMax,
@@ -336,9 +355,7 @@ export default async function JobDetailPage({ params }: PageProps) {
               Generate Cover Letter
             </Button>
           </Link>
-          <Button variant="outline" size="icon" className="h-10 w-10" aria-label="Add to favorites">
-            <Heart className="h-5 w-5" />
-          </Button>
+          <FavoriteButton jobId={job.id} initialFavorited={isFavorited} />
         </div>
 
         <Separator className="mb-6" />

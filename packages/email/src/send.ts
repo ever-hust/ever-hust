@@ -104,7 +104,7 @@ export async function sendSubscriptionConfirmedEmail({
   to,
   userName,
   planName,
-  dashboardUrl = "https://everjobs.ai/dashboard/chat",
+  dashboardUrl = "https://everjobs.ai/chat",
 }: SendSubscriptionConfirmedParams) {
   const element = SubscriptionConfirmedEmail({
     userName,

@@ -2,6 +2,7 @@ import { db, users, subscriptions } from "@repo/db";
 import { getStripe, parseWebhookEvent } from "@repo/stripe";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { sendSubscriptionConfirmedEmail } from "@repo/email";
 
 export async function POST(req: Request) {
   const body = await req.text();
@@ -56,6 +57,32 @@ export async function POST(req: Request) {
         currentPeriodEnd: new Date(sub.current_period_end * 1000),
         cancelAtPeriodEnd: sub.cancel_at_period_end,
       });
+
+      // Send subscription confirmation email
+      const userRecord = await db
+        .select({ name: users.name, email: users.email })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (userRecord.length > 0 && userRecord[0]!.email) {
+        const planNames: Record<string, string> = {
+          monthly: "Monthly Pro",
+          quarterly: "Quarterly Pro",
+          annual: "Annual Pro",
+        };
+        try {
+          await sendSubscriptionConfirmedEmail({
+            to: userRecord[0]!.email,
+            userName: userRecord[0]!.name ?? "there",
+            planName: planNames[planId] ?? "Pro",
+            dashboardUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://everjobs.ai"}/chat`,
+          });
+        } catch {
+          // Don't fail the webhook if email fails
+          console.error("Failed to send subscription confirmation email");
+        }
+      }
 
       break;
     }

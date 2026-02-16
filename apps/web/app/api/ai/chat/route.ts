@@ -78,7 +78,8 @@ export async function POST(req: Request) {
     preferences,
   });
 
-  const result = createOrchestratorStream({
+  // createOrchestratorStream is now async (fetches prompt from Langfuse)
+  const result = await createOrchestratorStream({
     model,
     messages,
     userId,

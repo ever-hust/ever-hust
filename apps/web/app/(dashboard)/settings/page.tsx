@@ -71,7 +71,7 @@ export default function SettingsPage() {
         setAlerts(data.alerts ?? []);
       }
     } catch {
-      // Silently fail
+      // Alerts are non-critical on initial load
     } finally {
       setAlertsLoading(false);
     }
@@ -95,9 +95,11 @@ export default function SettingsPage() {
           if (apiKeys?.anthropic) {
             setApiKey(apiKeys.anthropic);
           }
+        } else {
+          toast.error("Failed to load settings");
         }
       } catch {
-        // Silently fail
+        toast.error("Connection error. Please refresh the page.");
       } finally {
         setLoading(false);
       }
@@ -411,16 +413,22 @@ export default function SettingsPage() {
           <div className="space-y-2">
             {[
               {
-                id: "claude-haiku-4-5",
+                id: "claude-haiku-4-5-20251001",
                 name: "Claude Haiku 4.5",
                 desc: "Fast, efficient. Great for basic queries.",
-                free: true,
+                tier: "free" as const,
+              },
+              {
+                id: "claude-sonnet-4-20250514",
+                name: "Claude Sonnet 4",
+                desc: "Balanced performance. Default for Pro users.",
+                tier: "pro" as const,
               },
               {
                 id: "claude-opus-4-6",
-                name: "Claude Opus 4.6",
+                name: "Claude Opus 4",
                 desc: "Most capable. Best for complex tasks.",
-                free: false,
+                tier: "byok" as const,
               },
             ].map((model) => (
               <div
@@ -431,10 +439,14 @@ export default function SettingsPage() {
                   <p className="text-sm font-medium">{model.name}</p>
                   <p className="text-xs text-muted-foreground">{model.desc}</p>
                 </div>
-                {!model.free && user?.subscriptionStatus !== "active" ? (
+                {model.tier === "free" ? (
+                  <Badge variant="outline">Free</Badge>
+                ) : model.tier === "byok" ? (
+                  <Badge variant="secondary">BYOK</Badge>
+                ) : user?.subscriptionStatus !== "active" ? (
                   <Badge variant="secondary">Pro only</Badge>
                 ) : (
-                  <Badge variant="outline">Available</Badge>
+                  <Badge variant="outline">Active</Badge>
                 )}
               </div>
             ))}

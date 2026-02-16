@@ -5,7 +5,7 @@ import { favoriteJobTool } from "../favorite-job";
 
 describe("searchJobsTool schema", () => {
   it("should validate valid input with all fields", () => {
-    const result = searchJobsTool.parameters.safeParse({
+    const result = searchJobsTool.inputSchema.safeParse({
       keywords: "react developer",
       location: "San Francisco",
       isRemote: true,
@@ -21,12 +21,12 @@ describe("searchJobsTool schema", () => {
   });
 
   it("should validate minimal valid input", () => {
-    const result = searchJobsTool.parameters.safeParse({});
+    const result = searchJobsTool.inputSchema.safeParse({});
     expect(result.success).toBe(true);
   });
 
   it("should validate input with only keywords", () => {
-    const result = searchJobsTool.parameters.safeParse({
+    const result = searchJobsTool.inputSchema.safeParse({
       keywords: "python",
     });
 
@@ -37,7 +37,7 @@ describe("searchJobsTool schema", () => {
   });
 
   it("should validate input with only location", () => {
-    const result = searchJobsTool.parameters.safeParse({
+    const result = searchJobsTool.inputSchema.safeParse({
       location: "New York",
     });
 
@@ -48,7 +48,7 @@ describe("searchJobsTool schema", () => {
   });
 
   it("should apply default values for limit and offset", () => {
-    const result = searchJobsTool.parameters.safeParse({});
+    const result = searchJobsTool.inputSchema.safeParse({});
 
     expect(result.success).toBe(true);
     if (result.success) {
@@ -58,7 +58,7 @@ describe("searchJobsTool schema", () => {
   });
 
   it("should reject invalid jobType", () => {
-    const result = searchJobsTool.parameters.safeParse({
+    const result = searchJobsTool.inputSchema.safeParse({
       jobType: "invalid-type",
     });
 
@@ -69,13 +69,13 @@ describe("searchJobsTool schema", () => {
     const validTypes = ["fulltime", "parttime", "internship", "contract"];
 
     for (const jobType of validTypes) {
-      const result = searchJobsTool.parameters.safeParse({ jobType });
+      const result = searchJobsTool.inputSchema.safeParse({ jobType });
       expect(result.success).toBe(true);
     }
   });
 
   it("should validate skills as array of strings", () => {
-    const result = searchJobsTool.parameters.safeParse({
+    const result = searchJobsTool.inputSchema.safeParse({
       skills: ["JavaScript", "Node.js", "Docker"],
     });
 
@@ -83,7 +83,7 @@ describe("searchJobsTool schema", () => {
   });
 
   it("should reject non-array skills", () => {
-    const result = searchJobsTool.parameters.safeParse({
+    const result = searchJobsTool.inputSchema.safeParse({
       skills: "JavaScript",
     });
 
@@ -91,7 +91,7 @@ describe("searchJobsTool schema", () => {
   });
 
   it("should validate salaryMin as number", () => {
-    const result = searchJobsTool.parameters.safeParse({
+    const result = searchJobsTool.inputSchema.safeParse({
       salaryMin: 50000,
     });
 
@@ -99,7 +99,7 @@ describe("searchJobsTool schema", () => {
   });
 
   it("should reject string salaryMin", () => {
-    const result = searchJobsTool.parameters.safeParse({
+    const result = searchJobsTool.inputSchema.safeParse({
       salaryMin: "50000",
     });
 
@@ -109,7 +109,7 @@ describe("searchJobsTool schema", () => {
 
 describe("updateFiltersTool schema", () => {
   it("should validate valid input with all fields", () => {
-    const result = updateFiltersTool.parameters.safeParse({
+    const result = updateFiltersTool.inputSchema.safeParse({
       keywords: "developer",
       location: "Remote",
       isRemote: true,
@@ -123,12 +123,12 @@ describe("updateFiltersTool schema", () => {
   });
 
   it("should validate empty object", () => {
-    const result = updateFiltersTool.parameters.safeParse({});
+    const result = updateFiltersTool.inputSchema.safeParse({});
     expect(result.success).toBe(true);
   });
 
   it("should validate partial input", () => {
-    const result = updateFiltersTool.parameters.safeParse({
+    const result = updateFiltersTool.inputSchema.safeParse({
       keywords: "engineer",
       isRemote: false,
     });
@@ -137,7 +137,7 @@ describe("updateFiltersTool schema", () => {
   });
 
   it("should reject invalid jobType", () => {
-    const result = updateFiltersTool.parameters.safeParse({
+    const result = updateFiltersTool.inputSchema.safeParse({
       jobType: "freelance",
     });
 
@@ -148,16 +148,16 @@ describe("updateFiltersTool schema", () => {
     const validTypes = ["fulltime", "parttime", "internship", "contract"];
 
     for (const jobType of validTypes) {
-      const result = updateFiltersTool.parameters.safeParse({ jobType });
+      const result = updateFiltersTool.inputSchema.safeParse({ jobType });
       expect(result.success).toBe(true);
     }
   });
 
   it("should validate boolean isRemote", () => {
-    const trueResult = updateFiltersTool.parameters.safeParse({
+    const trueResult = updateFiltersTool.inputSchema.safeParse({
       isRemote: true,
     });
-    const falseResult = updateFiltersTool.parameters.safeParse({
+    const falseResult = updateFiltersTool.inputSchema.safeParse({
       isRemote: false,
     });
 
@@ -166,7 +166,7 @@ describe("updateFiltersTool schema", () => {
   });
 
   it("should reject string isRemote", () => {
-    const result = updateFiltersTool.parameters.safeParse({
+    const result = updateFiltersTool.inputSchema.safeParse({
       isRemote: "true",
     });
 
@@ -176,7 +176,7 @@ describe("updateFiltersTool schema", () => {
 
 describe("createAlertTool schema", () => {
   it("should validate valid input with required fields", () => {
-    const result = createAlertTool.parameters.safeParse({
+    const result = createAlertTool.inputSchema.safeParse({
       userId: "user_123",
       frequency: "daily",
     });
@@ -185,7 +185,7 @@ describe("createAlertTool schema", () => {
   });
 
   it("should validate input with all fields", () => {
-    const result = createAlertTool.parameters.safeParse({
+    const result = createAlertTool.inputSchema.safeParse({
       userId: "user_123",
       frequency: "weekly",
       keywords: ["typescript", "react"],
@@ -200,7 +200,7 @@ describe("createAlertTool schema", () => {
   });
 
   it("should reject missing userId", () => {
-    const result = createAlertTool.parameters.safeParse({
+    const result = createAlertTool.inputSchema.safeParse({
       frequency: "daily",
     });
 
@@ -208,7 +208,7 @@ describe("createAlertTool schema", () => {
   });
 
   it("should reject missing frequency", () => {
-    const result = createAlertTool.parameters.safeParse({
+    const result = createAlertTool.inputSchema.safeParse({
       userId: "user_123",
     });
 
@@ -216,7 +216,7 @@ describe("createAlertTool schema", () => {
   });
 
   it("should reject invalid frequency", () => {
-    const result = createAlertTool.parameters.safeParse({
+    const result = createAlertTool.inputSchema.safeParse({
       userId: "user_123",
       frequency: "hourly",
     });
@@ -228,7 +228,7 @@ describe("createAlertTool schema", () => {
     const validFrequencies = ["daily", "twice_daily", "weekly"];
 
     for (const frequency of validFrequencies) {
-      const result = createAlertTool.parameters.safeParse({
+      const result = createAlertTool.inputSchema.safeParse({
         userId: "user_123",
         frequency,
       });
@@ -237,7 +237,7 @@ describe("createAlertTool schema", () => {
   });
 
   it("should reject invalid remoteType", () => {
-    const result = createAlertTool.parameters.safeParse({
+    const result = createAlertTool.inputSchema.safeParse({
       userId: "user_123",
       frequency: "daily",
       remoteType: "hybrid",
@@ -250,7 +250,7 @@ describe("createAlertTool schema", () => {
     const validRemoteTypes = ["remote", "onsite", "any"];
 
     for (const remoteType of validRemoteTypes) {
-      const result = createAlertTool.parameters.safeParse({
+      const result = createAlertTool.inputSchema.safeParse({
         userId: "user_123",
         frequency: "daily",
         remoteType,
@@ -260,7 +260,7 @@ describe("createAlertTool schema", () => {
   });
 
   it("should validate arrays for optional fields", () => {
-    const result = createAlertTool.parameters.safeParse({
+    const result = createAlertTool.inputSchema.safeParse({
       userId: "user_123",
       frequency: "daily",
       keywords: ["javascript"],
@@ -274,7 +274,7 @@ describe("createAlertTool schema", () => {
   });
 
   it("should reject non-array keywords", () => {
-    const result = createAlertTool.parameters.safeParse({
+    const result = createAlertTool.inputSchema.safeParse({
       userId: "user_123",
       frequency: "daily",
       keywords: "javascript",
@@ -286,7 +286,7 @@ describe("createAlertTool schema", () => {
 
 describe("favoriteJobTool schema", () => {
   it("should validate valid input", () => {
-    const result = favoriteJobTool.parameters.safeParse({
+    const result = favoriteJobTool.inputSchema.safeParse({
       jobId: 123,
       userId: "user_abc",
     });
@@ -295,7 +295,7 @@ describe("favoriteJobTool schema", () => {
   });
 
   it("should reject missing jobId", () => {
-    const result = favoriteJobTool.parameters.safeParse({
+    const result = favoriteJobTool.inputSchema.safeParse({
       userId: "user_abc",
     });
 
@@ -303,7 +303,7 @@ describe("favoriteJobTool schema", () => {
   });
 
   it("should reject missing userId", () => {
-    const result = favoriteJobTool.parameters.safeParse({
+    const result = favoriteJobTool.inputSchema.safeParse({
       jobId: 123,
     });
 
@@ -311,7 +311,7 @@ describe("favoriteJobTool schema", () => {
   });
 
   it("should reject string jobId", () => {
-    const result = favoriteJobTool.parameters.safeParse({
+    const result = favoriteJobTool.inputSchema.safeParse({
       jobId: "123",
       userId: "user_abc",
     });
@@ -320,7 +320,7 @@ describe("favoriteJobTool schema", () => {
   });
 
   it("should accept numeric userId as string", () => {
-    const result = favoriteJobTool.parameters.safeParse({
+    const result = favoriteJobTool.inputSchema.safeParse({
       jobId: 456,
       userId: "123456",
     });
@@ -329,7 +329,7 @@ describe("favoriteJobTool schema", () => {
   });
 
   it("should reject number userId", () => {
-    const result = favoriteJobTool.parameters.safeParse({
+    const result = favoriteJobTool.inputSchema.safeParse({
       jobId: 123,
       userId: 456,
     });
@@ -338,7 +338,7 @@ describe("favoriteJobTool schema", () => {
   });
 
   it("should validate with large jobId", () => {
-    const result = favoriteJobTool.parameters.safeParse({
+    const result = favoriteJobTool.inputSchema.safeParse({
       jobId: 999999,
       userId: "user_xyz",
     });

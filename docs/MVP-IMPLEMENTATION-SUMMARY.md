@@ -1,8 +1,8 @@
 # Ever Jobs — MVP Implementation Summary
 
-**Date**: 2026-02-15
+**Date**: 2026-02-16 (updated)
 **Branch**: `claude/affectionate-panini`
-**Status**: MVP Complete (7 implementation batches)
+**Status**: MVP Complete + Production Hardening (10 implementation batches)
 
 ---
 
@@ -238,20 +238,58 @@ The `(dashboard)` directory is a **Next.js route group** — it does NOT add a U
 
 ---
 
+## Batch 8 — Langfuse Prompt Management, OpenRouter, Orchestrator Rewrite
+
+### What was done
+- **Langfuse integration** (`packages/ai/src/prompts.ts`): New `getPrompt()` helper fetches prompts from Langfuse with graceful fallback to hardcoded defaults when Langfuse is unavailable
+- **OpenRouter model routing** (`packages/ai/src/model-router.ts`): Complete rewrite to route through OpenRouter as primary provider with `ANTHROPIC_TO_OPENROUTER` translation map; BYOK → user preference → tier default → env default priority chain
+- **Orchestrator async rewrite** (`packages/ai/src/agents/orchestrator.ts`): Converted prompt loading to async to support Langfuse fetch at runtime
+- **OTEL instrumentation** (`apps/web/instrumentation.ts`): Added OpenTelemetry auto-detection for Next.js 16
+- **Environment variables**: Added `OPENROUTER_API_KEY`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL` to `.env.example`
+
+---
+
+## Batch 9 — Jest Fixes, Comprehensive Test Suite, CI/CD
+
+### What was done
+- **Jest OOM fix** (`jest.config.ts`): Added `diagnostics: false` and `tsconfig: { isolatedModules: true }` to ts-jest config, preventing OOM on deeply-nested AI SDK generics
+- **Tool schema tests fixed** (`packages/ai/src/tools/__tests__/tool-schemas.test.ts`): Changed `.parameters.` → `.inputSchema.` to match AI SDK v6 runtime shape
+- **New test suites**:
+  - `packages/ai/src/model-router.test.ts` — 13 tests for model routing logic
+  - `packages/ai/src/prompts.test.ts` — 7 tests for Langfuse prompt management
+  - `packages/email/src/send.test.ts` — 13 tests for email retry logic and all 3 email types
+- **Package.json test script**: Added `--max-old-space-size=4096` and `--experimental-vm-modules` flags
+- **GitHub Actions CI/CD** (`.github/workflows/ci.yml`): 3-job pipeline: lint/typecheck, unit tests with coverage, E2E tests on main
+- **Result**: 9 test suites, 131 tests, ALL PASSING
+
+---
+
+## Batch 10 — Error Handling, SEO, Env Validation, Polish
+
+### What was done
+- **API error handling** (`apps/web/app/api/jobs/search/route.ts`): Added try-catch with proper 500 error response; NaN-safe numeric parameter parsing
+- **SEO metadata**: Added page-level metadata to all dashboard pages via layout files (chat, jobs, profile, settings) and the marketing home page
+- **Environment validation** (`apps/web/lib/env.ts`): Updated AI section to make both `OPENROUTER_API_KEY` and `ANTHROPIC_API_KEY` optional (at least one required); added Langfuse env vars; cross-field validation warning
+- **Client-side error handling**: Replaced silent `catch {}` blocks in jobs page and settings page with user-visible toast notifications
+- **Settings page AI models**: Updated from 2 outdated models to 3 current models (Haiku 4.5, Sonnet 4, Opus 4) with correct IDs and tier badges
+
+---
+
 ## Known Limitations / Future Work
 
 These items are intentionally out of MVP scope (Phase 5+ in PRD):
 
 1. **Automated job applications**: Currently opens `applyUrl` in new tab. Full auto-apply requires external API integration (Phase 5)
 2. **Supabase Realtime**: WebSocket-based live updates for canvas not yet wired (jobs update on search/refresh)
-3. **Redis rate limiting**: Current rate limiting is header-based; production should use Upstash Redis
+3. ~~**Redis rate limiting**~~: ✅ **DONE** — Upstash Redis rate limiting implemented with in-memory fallback for dev/CI
 4. **API key encryption**: BYOK keys stored as plaintext in JSONB; production should encrypt at rest
 5. **CV drag-and-drop in canvas**: Upload exists on profile page; dedicated canvas dropzone planned
 6. **Supabase Storage buckets**: CV upload endpoint exists but Supabase Storage integration needs env configuration
 7. **Database branching**: Supabase database branching for preview deployments not configured
-8. **Accessibility audit**: WCAG 2.1 AA compliance needs manual audit
+8. **Accessibility audit**: WCAG 2.1 AA compliance needs manual audit (basic a11y in place: skip links, aria labels, semantic HTML)
 9. **Bundle optimization**: Code splitting, lazy loading, bundle analysis (Phase 6)
-10. **Vercel Analytics**: Web Vitals monitoring integration
+10. ~~**Vercel Analytics**~~: Consider adding; OTEL instrumentation already in place for observability
+11. **LLM Observability**: Langfuse integration complete for prompt management; tracing can be enabled by setting Langfuse env vars
 
 ---
 
@@ -263,11 +301,22 @@ See `.env.example` for the complete list. Key additions from this implementation
 # App URL (used in all email links)
 NEXT_PUBLIC_APP_URL=https://everjobs.ai
 
+# AI — at least one required
+OPENROUTER_API_KEY=sk-or-v1-...
+ANTHROPIC_API_KEY=sk-ant-...    # optional if OpenRouter set
+
+# Langfuse (optional — falls back to hardcoded prompts)
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_BASE_URL=https://cloud.langfuse.com
+
 # Email
 RESEND_API_KEY=
 EMAIL_FROM=alerts@everjobs.ai
 ```
 
+Runtime validation is in `apps/web/lib/env.ts` — missing required vars throw at startup, optional vars warn.
+
 ---
 
-*Generated on 2026-02-15 as part of the MVP implementation review.*
+*Generated on 2026-02-15, updated 2026-02-16 with Batches 8-10.*

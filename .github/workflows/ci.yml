@@ -1,0 +1,131 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "9"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Lint & Type Check
+  # ---------------------------------------------------------------------------
+  lint-typecheck:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check (all packages)
+        run: pnpm run build
+        env:
+          # Provide dummy env vars so type generation + build doesn't fail
+          DATABASE_URL: "postgresql://localhost:5432/test"
+          BETTER_AUTH_SECRET: "test-secret-at-least-32-characters-long"
+          BETTER_AUTH_URL: "http://localhost:3000"
+          NEXT_PUBLIC_SUPABASE_URL: "https://test.supabase.co"
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "test-anon-key"
+          NEXT_PUBLIC_APP_URL: "http://localhost:3000"
+          NEXT_PUBLIC_APP_NAME: "Ever Jobs"
+          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_placeholder"
+
+  # ---------------------------------------------------------------------------
+  # Unit Tests
+  # ---------------------------------------------------------------------------
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run unit tests
+        run: pnpm test -- --ci --coverage --passWithNoTests
+        env:
+          NODE_OPTIONS: "--experimental-vm-modules --max-old-space-size=4096"
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # E2E Tests (Playwright)
+  # ---------------------------------------------------------------------------
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    # Only run on main or PRs targeting main (e2e tests are expensive)
+    if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        run: pnpm exec playwright test
+        env:
+          CI: true
+          DATABASE_URL: "postgresql://localhost:5432/test"
+          BETTER_AUTH_SECRET: "test-secret-at-least-32-characters-long"
+          BETTER_AUTH_URL: "http://localhost:3000"
+          NEXT_PUBLIC_SUPABASE_URL: "https://test.supabase.co"
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "test-anon-key"
+          NEXT_PUBLIC_APP_URL: "http://localhost:3000"
+          NEXT_PUBLIC_APP_NAME: "Ever Jobs"
+          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_placeholder"
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

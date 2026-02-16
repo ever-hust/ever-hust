@@ -40,9 +40,11 @@ export const env = {
   LINKEDIN_CLIENT_ID: required("LINKEDIN_CLIENT_ID"),
   LINKEDIN_CLIENT_SECRET: required("LINKEDIN_CLIENT_SECRET"),
 
-  // AI
-  ANTHROPIC_API_KEY: required("ANTHROPIC_API_KEY"),
-  DEFAULT_AI_MODEL: optional("DEFAULT_AI_MODEL", "claude-opus-4-6"),
+  // AI — at least one of OPENROUTER_API_KEY or ANTHROPIC_API_KEY must be set.
+  // OpenRouter is the primary provider; Anthropic is the fallback / BYOK provider.
+  OPENROUTER_API_KEY: optional("OPENROUTER_API_KEY"),
+  ANTHROPIC_API_KEY: optional("ANTHROPIC_API_KEY"),
+  DEFAULT_AI_MODEL: optional("DEFAULT_AI_MODEL", "claude-sonnet-4-20250514"),
 
   // Stripe
   STRIPE_SECRET_KEY: required("STRIPE_SECRET_KEY"),
@@ -59,6 +61,11 @@ export const env = {
   NEXT_PUBLIC_APP_URL: optional("NEXT_PUBLIC_APP_URL", "http://localhost:3000"),
   NEXT_PUBLIC_APP_NAME: optional("NEXT_PUBLIC_APP_NAME", "Ever Jobs"),
 
+  // Langfuse (optional — falls back to hardcoded prompts)
+  LANGFUSE_PUBLIC_KEY: optional("LANGFUSE_PUBLIC_KEY"),
+  LANGFUSE_SECRET_KEY: optional("LANGFUSE_SECRET_KEY"),
+  LANGFUSE_BASE_URL: optional("LANGFUSE_BASE_URL", "https://cloud.langfuse.com"),
+
   // Upstash (optional — falls back to in-memory rate limiting)
   UPSTASH_REDIS_REST_URL: optional("UPSTASH_REDIS_REST_URL"),
   UPSTASH_REDIS_REST_TOKEN: optional("UPSTASH_REDIS_REST_TOKEN"),
@@ -70,3 +77,14 @@ export const env = {
   EVER_JOBS_API_URL: optional("EVER_JOBS_API_URL"),
   EVER_JOBS_API_KEY: optional("EVER_JOBS_API_KEY"),
 } as const;
+
+// ---------------------------------------------------------------------------
+// Cross-field validations (run once at import time)
+// ---------------------------------------------------------------------------
+
+if (!env.OPENROUTER_API_KEY && !env.ANTHROPIC_API_KEY) {
+  console.warn(
+    "[env] WARNING: Neither OPENROUTER_API_KEY nor ANTHROPIC_API_KEY is set. " +
+      "AI features will not work. Set at least one in your .env.local.",
+  );
+}

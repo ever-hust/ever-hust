@@ -182,6 +182,105 @@ This document captures key architectural decisions made during the MVP implement
 
 ---
 
+## ADR-011: OpenRouter as Primary LLM Provider
+
+**Context**: The app previously called Anthropic's API directly. We need multi-model support, cost optimization, and the ability to switch providers without code changes.
+
+**Decision**: Route all non-BYOK LLM requests through OpenRouter. The model router translates Anthropic model IDs to OpenRouter model IDs using a constant map (`ANTHROPIC_TO_OPENROUTER`).
+
+**Priority chain**:
+1. BYOK → `createAnthropic({ apiKey })` (direct to Anthropic)
+2. Non-BYOK → `createOpenRouter()` with translated model ID
+3. Fallback → `anthropic()` if neither OpenRouter nor Anthropic key set
+
+**Consequence**:
+- Model switching happens at the config level, not code level
+- OpenRouter handles load balancing and fallbacks
+- Anthropic keys only needed for BYOK users
+- Tier defaults updated: Free → Haiku 4.5, Paid → Sonnet 4, BYOK → Opus 4
+
+**Status**: Implemented.
+
+---
+
+## ADR-012: Langfuse for Prompt Management
+
+**Context**: AI prompts need to be iterable without code deployments. Prompt engineering should be decoupled from application code.
+
+**Decision**: Use Langfuse's prompt management API via `packages/ai/src/prompts.ts`. The `getPrompt()` helper:
+1. Fetches prompt from Langfuse by name/version
+2. Falls back to hardcoded defaults if Langfuse is unavailable (no env vars, network error, etc.)
+3. Caches prompts in-memory to avoid repeated API calls
+
+**Consequence**:
+- Prompts can be edited in Langfuse dashboard without redeployment
+- App works offline/without Langfuse (graceful degradation)
+- All Langfuse env vars are optional
+- Orchestrator agent's system prompt is async (fetched at request time)
+
+**Status**: Implemented.
+
+---
+
+## ADR-013: Jest Configuration for AI SDK Compatibility
+
+**Context**: ts-jest would OOM when type-checking files that import AI SDK v6's deeply-nested generics (`tool<T>`, `generateObject<T>`). Tests would crash before running.
+
+**Decision**: Configure ts-jest with `diagnostics: false` and `tsconfig: { isolatedModules: true }`. This skips type-checking during test compilation (type-checking happens separately via `tsc --noEmit` in the build step).
+
+**Key findings**:
+- AI SDK v6 `tool()` returns objects with `inputSchema` (not `parameters`) at runtime
+- `--max-old-space-size=4096` heap allocation needed in CI
+- `--experimental-vm-modules` required for ESM support in Jest
+
+**Consequence**:
+- Tests compile fast without OOM
+- Type safety maintained via separate build step
+- CI/CD allocates sufficient memory for test runs
+- Test count: 9 suites, 131 tests
+
+**Status**: Implemented.
+
+---
+
+## ADR-014: GitHub Actions CI/CD Pipeline
+
+**Context**: Need automated quality gates before code reaches production.
+
+**Decision**: Three-job GitHub Actions pipeline:
+1. **Lint & Type Check**: Runs `turbo build` with dummy env vars on every push to main/develop
+2. **Unit Tests**: Runs Jest with coverage, uploads coverage artifact
+3. **E2E Tests**: Runs Playwright on PRs targeting main only (expensive)
+
+**Consequence**:
+- Concurrency groups cancel redundant runs
+- Node 22, pnpm 9 cached for speed
+- E2E tests gated to main PRs to save CI minutes
+- Coverage reports uploaded as build artifacts
+
+**Status**: Implemented.
+
+---
+
+## ADR-015: Environment Variable Validation
+
+**Context**: Multiple packages read env vars with `!` non-null assertions, which crash at runtime if vars are missing. Need fail-fast behavior.
+
+**Decision**: `apps/web/lib/env.ts` validates all env vars at import time:
+- `required()`: throws if missing
+- `optional()`: returns undefined or fallback
+- Cross-field validations: warns if no AI provider key is set
+
+**Consequence**:
+- Missing required vars fail at server startup, not at request time
+- Clear error messages reference `.env.example`
+- AI keys are both optional (at least one required, validated via cross-field check)
+- Langfuse, Redis, Trigger.dev are fully optional
+
+**Status**: Implemented.
+
+---
+
 ## Document Index
 
 | Document | Location | Description |
@@ -189,9 +288,10 @@ This document captures key architectural decisions made during the MVP implement
 | Product Requirements | [docs/PRD.md](./PRD.md) | Full PRD with implementation status |
 | MVP Summary | [docs/MVP-IMPLEMENTATION-SUMMARY.md](./MVP-IMPLEMENTATION-SUMMARY.md) | Detailed implementation changelog |
 | Architecture Decisions | [docs/ARCHITECTURE-DECISIONS.md](./ARCHITECTURE-DECISIONS.md) | This document |
+| Testing Guide | [docs/TESTING.md](./TESTING.md) | Test setup, running, writing tests |
 | README | [README.md](../README.md) | Project setup and getting started |
 | Environment Variables | [.env.example](../.env.example) | Required environment variables |
 
 ---
 
-*Generated on 2026-02-15 as part of the MVP documentation.*
+*Generated on 2026-02-15, updated 2026-02-16 with ADR-011 through ADR-015.*

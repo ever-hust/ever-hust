@@ -3,6 +3,7 @@ import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../../lib/get-session-user";
 import { applyRateLimit } from "../../../../../lib/rate-limit";
+import { apiNotFound } from "../../../../../lib/api-response";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -31,7 +32,7 @@ export async function DELETE(_req: Request, context: RouteContext) {
     .limit(1);
 
   if (session.length === 0) {
-    return NextResponse.json({ error: "Session not found" }, { status: 404 });
+    return apiNotFound("Session not found");
   }
 
   // Delete messages first, then the session

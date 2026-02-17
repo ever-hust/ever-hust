@@ -3,6 +3,7 @@ import { eq, and, asc } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
 import { requireSessionUser } from "../../../../../../lib/get-session-user";
 import { applyRateLimit } from "../../../../../../lib/rate-limit";
+import { apiSuccess, apiBadRequest, apiNotFound } from "../../../../../../lib/api-response";
 import { z } from "zod";
 
 const saveMessagesSchema = z.object({
@@ -48,10 +49,7 @@ export async function GET(
     .limit(1);
 
   if (session.length === 0) {
-    return NextResponse.json(
-      { error: "Session not found" },
-      { status: 404 }
-    );
+    return apiNotFound("Session not found");
   }
 
   const messages = await db
@@ -68,7 +66,7 @@ export async function GET(
     .where(eq(chatMessages.sessionId, sessionId))
     .orderBy(asc(chatMessages.createdAt));
 
-  return NextResponse.json({ messages });
+  return apiSuccess({ messages });
 }
 
 /**
@@ -101,19 +99,13 @@ export async function POST(
     .limit(1);
 
   if (session.length === 0) {
-    return NextResponse.json(
-      { error: "Session not found" },
-      { status: 404 }
-    );
+    return apiNotFound("Session not found");
   }
 
   const body = await req.json();
   const parsed = saveMessagesSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid request body", details: parsed.error.flatten() },
-      { status: 400 }
-    );
+    return apiBadRequest("Invalid request body", parsed.error.flatten());
   }
 
   // Insert messages (using onConflictDoNothing to skip duplicates)
@@ -135,5 +127,5 @@ export async function POST(
     .set({ updatedAt: new Date() })
     .where(eq(chatSessions.id, sessionId));
 
-  return NextResponse.json({ saved: rows.length });
+  return apiSuccess({ saved: rows.length });
 }

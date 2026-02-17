@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { applyRateLimit } from "../../../../lib/rate-limit";
+import { apiError } from "../../../../lib/api-response";
 
 /**
  * DELETE /api/user/account — Permanently delete the user account.
@@ -29,9 +30,6 @@ export async function DELETE() {
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     console.error("Account deletion failed:", error);
-    return NextResponse.json(
-      { error: "Failed to delete account" },
-      { status: 500 }
-    );
+    return apiError("Failed to delete account");
   }
 }

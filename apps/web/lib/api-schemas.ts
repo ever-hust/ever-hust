@@ -65,6 +65,8 @@ export const alertPatchSchema = z.object({
   criteria: alertCreateSchema.shape.criteria,
 });
 
+export type AlertCriteria = z.infer<typeof alertCreateSchema>["criteria"];
+
 export const alertDeleteSchema = z.object({
   id: z.number().int().positive(),
 });

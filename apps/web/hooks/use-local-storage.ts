@@ -6,7 +6,8 @@ import { useState, useEffect, useCallback } from "react";
  * React hook that syncs state with localStorage.
  *
  * Works safely with SSR — returns `initialValue` during hydration and
- * reads from localStorage after mount.
+ * reads from localStorage after mount. Invalid JSON in localStorage is
+ * handled gracefully (the key is removed and `initialValue` is used).
  *
  * @example
  * const [sidebarCollapsed, setSidebarCollapsed] = useLocalStorage("sidebar-collapsed", false);
@@ -17,19 +18,30 @@ export function useLocalStorage<T>(
 ): [T, (value: T | ((prev: T) => T)) => void] {
   // Use initialValue for SSR, then sync from localStorage after mount
   const [storedValue, setStoredValue] = useState<T>(initialValue);
-  const [isHydrated, setIsHydrated] = useState(false);
 
   // Read from localStorage on mount
   useEffect(() => {
     try {
       const item = window.localStorage.getItem(key);
       if (item !== null) {
-        setStoredValue(JSON.parse(item) as T);
+        const parsed: unknown = JSON.parse(item);
+        // Basic sanity check: the parsed type should broadly match initialValue's type
+        if (parsed !== undefined) {
+          setStoredValue(parsed as T);
+        }
       }
-    } catch {
-      // If reading fails, use initial value
+    } catch (error) {
+      // Corrupted or unparseable JSON — remove the bad value and fall back
+      console.warn(
+        `[useLocalStorage] Failed to parse key "${key}", resetting to initial value:`,
+        error instanceof Error ? error.message : error
+      );
+      try {
+        window.localStorage.removeItem(key);
+      } catch {
+        // localStorage may be unavailable (e.g., private browsing with quota 0)
+      }
     }
-    setIsHydrated(true);
   }, [key]);
 
   const setValue = useCallback(
@@ -40,7 +52,7 @@ export function useLocalStorage<T>(
         try {
           window.localStorage.setItem(key, JSON.stringify(nextValue));
         } catch {
-          // Quota exceeded or other error — still update state
+          // Quota exceeded or other error — still update in-memory state
         }
         return nextValue;
       });

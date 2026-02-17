@@ -27,8 +27,11 @@ export function useFavorites() {
           const data = (await res.json()) as { favoriteJobIds: number[] };
           setFavoritedJobIds(new Set(data.favoriteJobIds));
         }
-      } catch {
-        // Silently fail — favorites will be empty
+      } catch (error) {
+        console.warn(
+          "[useFavorites] Failed to load favorites:",
+          error instanceof Error ? error.message : error
+        );
       } finally {
         if (!cancelled) setIsLoading(false);
       }

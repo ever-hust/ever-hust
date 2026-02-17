@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+
+/** Time window (ms) for the second key after pressing "g". */
+const GO_TO_MODE_TIMEOUT_MS = 1_000;
 
 /**
  * Hook that registers global keyboard shortcuts for sidebar navigation.
@@ -20,6 +23,23 @@ import { useRouter } from "next/navigation";
 export function useKeyboardNavigation() {
   const router = useRouter();
 
+  // Track the current go-to handler + timeout so we can clean up previous
+  // registrations if the user presses "g" multiple times quickly.
+  const goToHandlerRef = useRef<((e: KeyboardEvent) => void) | null>(null);
+  const goToTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** Remove any in-flight go-to mode listener/timer. */
+  const cleanupGoToMode = useCallback(() => {
+    if (goToHandlerRef.current) {
+      window.removeEventListener("keydown", goToHandlerRef.current);
+      goToHandlerRef.current = null;
+    }
+    if (goToTimeoutRef.current) {
+      clearTimeout(goToTimeoutRef.current);
+      goToTimeoutRef.current = null;
+    }
+  }, []);
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       // Don't trigger when typing in inputs
@@ -37,10 +57,11 @@ export function useKeyboardNavigation() {
 
       // Handle "g" prefix - start listening for next key
       if (e.key === "g" && !e.shiftKey) {
-        // Set a flag that we're in "go to" mode
+        // Clean up any previous go-to mode (e.g. user pressed "g" twice)
+        cleanupGoToMode();
+
         const handler = (next: KeyboardEvent) => {
-          window.removeEventListener("keydown", handler);
-          clearTimeout(timeout);
+          cleanupGoToMode();
 
           // Check the target again
           const nextTarget = next.target as HTMLElement;
@@ -80,20 +101,22 @@ export function useKeyboardNavigation() {
           }
         };
 
-        // Listen for the next key within 1 second
-        const timeout = setTimeout(() => {
-          window.removeEventListener("keydown", handler);
-        }, 1000);
+        goToHandlerRef.current = handler;
+        goToTimeoutRef.current = setTimeout(cleanupGoToMode, GO_TO_MODE_TIMEOUT_MS);
 
         window.addEventListener("keydown", handler);
         return;
       }
     },
-    [router]
+    [router, cleanupGoToMode]
   );
 
   useEffect(() => {
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleKeyDown]);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      // Clean up any pending go-to mode on unmount
+      cleanupGoToMode();
+    };
+  }, [handleKeyDown, cleanupGoToMode]);
 }

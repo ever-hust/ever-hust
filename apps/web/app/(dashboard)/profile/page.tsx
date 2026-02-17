@@ -71,20 +71,20 @@ export default function ProfilePage() {
   const [data, setData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
 
   const reloadProfile = useCallback(() => {
-    setLoading(true);
     router.refresh();
-    // Re-trigger the effect by resetting state
-    setData(null);
-    setError(null);
+    setRetryKey((k) => k + 1);
   }, [router]);
 
   useEffect(() => {
     const controller = new AbortController();
+    setLoading(true);
+    setError(null);
+    setData(null);
     async function loadProfile() {
       try {
-        setError(null);
         const res = await fetch("/api/user/profile", { signal: controller.signal });
         if (!res.ok) {
           if (res.status === 401) throw new Error("Please sign in to view your profile.");
@@ -102,7 +102,7 @@ export default function ProfilePage() {
     }
     loadProfile();
     return () => controller.abort();
-  }, []);
+  }, [retryKey]);
 
   if (loading) {
     return (

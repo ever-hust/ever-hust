@@ -262,14 +262,14 @@ export default function ApplicationsPage() {
         )}
 
         {/* Filter tabs */}
-        <div className="mt-4 flex items-center gap-1" role="tablist" aria-label="Filter by status">
+        <div className="mt-4 flex items-center gap-1" role="radiogroup" aria-label="Filter by status">
           <Filter className="mr-1 h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
           {FILTER_OPTIONS.map((opt) => (
             <button
               key={opt.value}
               type="button"
-              role="tab"
-              aria-selected={statusFilter === opt.value}
+              role="radio"
+              aria-checked={statusFilter === opt.value}
               onClick={() => setStatusFilter(opt.value)}
               className={cn(
                 "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",

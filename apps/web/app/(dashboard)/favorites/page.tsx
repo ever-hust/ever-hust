@@ -159,7 +159,7 @@ export default function FavoritesPage() {
             </Link>
           </EmptyState>
         ) : (
-          <ul className="space-y-3" aria-label="Favorited jobs">
+          <ul className="space-y-3" role="list" aria-label="Favorited jobs">
             {favorites.map((job) => {
               const location = formatLocation(
                 job.locationCity,
@@ -176,11 +176,11 @@ export default function FavoritesPage() {
                 <li
                   key={job.id}
                   className={cn(
-                    "group list-none rounded-lg border p-4 transition-colors hover:bg-accent/30",
+                    "group rounded-lg border p-4 transition-colors hover:bg-accent/30",
                     isRemoving && "opacity-50"
                   )}
-                  aria-label={`${job.title} at ${job.companyName ?? "Unknown Company"}`}
                 >
+                  <article aria-label={`${job.title} at ${job.companyName ?? "Unknown Company"}`}>
                   <div className="flex items-start gap-3">
                     {/* Company logo */}
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-background">
@@ -316,6 +316,7 @@ export default function FavoritesPage() {
                       </div>
                     </div>
                   </div>
+                  </article>
                 </li>
               );
             })}

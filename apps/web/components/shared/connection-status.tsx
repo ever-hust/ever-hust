@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Wifi, WifiOff } from "lucide-react";
 import { cn } from "@repo/ui/lib/utils";
+
+/** How long to show the "back online" banner before auto-hiding (ms). */
+const RECONNECTION_BANNER_MS = 3_000;
 
 /**
  * Shows a banner when the user loses internet connection.
@@ -11,6 +14,7 @@ import { cn } from "@repo/ui/lib/utils";
 export function ConnectionStatus() {
   const [isOffline, setIsOffline] = useState(false);
   const [showBanner, setShowBanner] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     // Check initial state
@@ -20,14 +24,17 @@ export function ConnectionStatus() {
     }
 
     const handleOffline = () => {
+      // Cancel any pending "hide banner" timer from a previous reconnection
+      if (timerRef.current) clearTimeout(timerRef.current);
       setIsOffline(true);
       setShowBanner(true);
     };
 
     const handleOnline = () => {
       setIsOffline(false);
-      // Keep showing briefly to confirm reconnection
-      setTimeout(() => setShowBanner(false), 3000);
+      // Keep showing briefly to confirm reconnection, then auto-hide
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setShowBanner(false), RECONNECTION_BANNER_MS);
     };
 
     window.addEventListener("offline", handleOffline);
@@ -36,6 +43,7 @@ export function ConnectionStatus() {
     return () => {
       window.removeEventListener("offline", handleOffline);
       window.removeEventListener("online", handleOnline);
+      if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, []);
 

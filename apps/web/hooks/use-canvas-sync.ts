@@ -103,6 +103,12 @@ export function useCanvasSync() {
           }
           break;
         }
+
+        default:
+          // Unknown tool — ignore but log for debugging
+          if (process.env.NODE_ENV === "development") {
+            console.debug(`[canvas-sync] Unhandled tool result: ${toolName}`);
+          }
       }
     },
     []

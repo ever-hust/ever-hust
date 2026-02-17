@@ -4,6 +4,9 @@ import { useEffect, useState, useCallback } from "react";
 import { Download, X } from "lucide-react";
 import { Button } from "@repo/ui/button";
 
+/** Delay (ms) before showing the install banner after the event fires. */
+const PWA_PROMPT_DELAY_MS = 3_000;
+
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
   readonly userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
@@ -37,7 +40,7 @@ export function PWAInstallPrompt() {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       // Small delay so page loads first
-      setTimeout(() => setShowBanner(true), 3000);
+      setTimeout(() => setShowBanner(true), PWA_PROMPT_DELAY_MS);
     };
 
     window.addEventListener("beforeinstallprompt", handler);

@@ -129,6 +129,7 @@ export function CVDropzone({ onUploadComplete }: CVDropzoneProps) {
         accept=".pdf"
         className="hidden"
         onChange={handleFileSelect}
+        aria-label="Upload CV in PDF format"
       />
 
       {isUploading ? (

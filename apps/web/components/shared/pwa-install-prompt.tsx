@@ -31,7 +31,7 @@ export function PWAInstallPrompt() {
   useEffect(() => {
     // Don't show if already in PWA mode
     if (window.matchMedia("(display-mode: standalone)").matches) return;
-    if ((window.navigator as unknown as { standalone?: boolean }).standalone === true) return;
+    if ("standalone" in window.navigator && (window.navigator as Record<string, unknown>).standalone === true) return;
 
     // Don't show if user previously dismissed
     const dismissed = localStorage.getItem("pwa-install-dismissed");
@@ -78,7 +78,7 @@ export function PWAInstallPrompt() {
     >
       <div className="flex items-center gap-3 rounded-lg border bg-card p-4 shadow-lg">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-          <Download className="h-5 w-5 text-primary" />
+          <Download className="h-5 w-5 text-primary" aria-hidden="true" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium">Install Ever Jobs</p>

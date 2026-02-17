@@ -19,6 +19,9 @@ export default function JobsPage() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const loadMoreAbortRef = useRef<AbortController | null>(null);
+  // Track page in a ref so handleLoadMore doesn't depend on `page` state,
+  // avoiding re-creation of the callback (and re-renders) on every pagination.
+  const pageRef = useRef(1);
 
   // Load jobs on mount and when filters change
   useEffect(() => {
@@ -47,6 +50,7 @@ export default function JobsPage() {
           setTotalCount(data.total);
           setHasMore(data.hasMore);
           setPage(1);
+          pageRef.current = 1;
         }
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
@@ -70,7 +74,7 @@ export default function JobsPage() {
     const controller = new AbortController();
     loadMoreAbortRef.current = controller;
 
-    const nextPage = page + 1;
+    const nextPage = pageRef.current + 1;
     setIsLoading(true);
     try {
       const params = new URLSearchParams({ page: String(nextPage), limit: "25" });
@@ -91,6 +95,7 @@ export default function JobsPage() {
           setJobs((prev) => [...prev, ...data.jobs]);
           setHasMore(data.hasMore);
           setPage(nextPage);
+          pageRef.current = nextPage;
         }
       } else {
         toast.error("Failed to load more jobs.");
@@ -103,7 +108,7 @@ export default function JobsPage() {
         setIsLoading(false);
       }
     }
-  }, [page, filters]);
+  }, [filters]);
 
   const handleViewDetails = useCallback(
     (jobId: number) => {

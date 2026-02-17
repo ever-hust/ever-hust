@@ -105,6 +105,7 @@ export const submitAnswersTool = tool({
     }
 
     // Update the application with answers and mark as submitted
+    // Include userId in WHERE for defense-in-depth (complements the SELECT check above)
     await db
       .update(applications)
       .set({
@@ -112,7 +113,7 @@ export const submitAnswersTool = tool({
         status: "submitted",
         updatedAt: new Date(),
       })
-      .where(eq(applications.id, applicationId));
+      .where(and(eq(applications.id, applicationId), eq(applications.userId, userId)));
 
     // Update agent instance status if linked
     if (app.agentInstanceId) {

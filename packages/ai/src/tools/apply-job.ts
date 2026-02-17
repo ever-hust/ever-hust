@@ -64,6 +64,22 @@ export const applyJobTool = tool({
       return { applied: false, error: "No application URL available for this job" };
     }
 
+    // Check for duplicate applications — prevent creating multiple records
+    const existingApp = await db
+      .select({ id: applications.id, status: applications.status })
+      .from(applications)
+      .where(and(eq(applications.userId, userId), eq(applications.jobId, jobId)))
+      .limit(1);
+
+    if (existingApp.length > 0 && existingApp[0]!.status !== "failed") {
+      return {
+        applied: false,
+        error: "You already have an active application for this job.",
+        existingApplicationId: existingApp[0]!.id,
+        applicationUrl,
+      };
+    }
+
     // Create agent instance to track this application
     const agentResult = await db
       .insert(agentInstances)

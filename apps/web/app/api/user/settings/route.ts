@@ -47,10 +47,20 @@ export async function PATCH(req: Request) {
 
       const existingPrefs =
         (existing[0]?.preferences as Record<string, unknown>) ?? {};
-      allowedFields.preferences = {
-        ...existingPrefs,
-        ...body.preferences,
-      };
+
+      // Deep-merge apiKeys to prevent erasing sibling keys when only one key is updated
+      // e.g. sending { apiKeys: { anthropic: "sk-new" } } should NOT erase openai/google keys
+      const mergedPrefs = { ...existingPrefs, ...body.preferences };
+      if (body.preferences.apiKeys !== undefined) {
+        const existingApiKeys =
+          (existingPrefs.apiKeys as Record<string, unknown>) ?? {};
+        mergedPrefs.apiKeys = {
+          ...existingApiKeys,
+          ...body.preferences.apiKeys,
+        };
+      }
+
+      allowedFields.preferences = mergedPrefs;
     }
 
     if (Object.keys(allowedFields).length === 0) {

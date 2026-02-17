@@ -52,36 +52,66 @@ export function parseWebhookEvent(
       const session = event.data.object as Stripe.Checkout.Session;
       const userId = session.metadata?.userId ?? session.client_reference_id;
       const planId = session.metadata?.planId;
-      if (!userId || !planId) return null;
+      const stripeCustomerId = session.customer;
+      const stripeSubscriptionId = session.subscription;
+      // Guard against null customer/subscription — can happen with free trials
+      // or race conditions. Without this, downstream code would crash trying to
+      // retrieve a null subscription ID from Stripe.
+      if (
+        !userId ||
+        !planId ||
+        !stripeCustomerId ||
+        !stripeSubscriptionId ||
+        typeof stripeCustomerId !== "string" ||
+        typeof stripeSubscriptionId !== "string"
+      ) {
+        return null;
+      }
       return {
         type: "checkout.session.completed",
         data: {
           userId,
           planId,
-          stripeCustomerId: session.customer as string,
-          stripeSubscriptionId: session.subscription as string,
+          stripeCustomerId,
+          stripeSubscriptionId,
         },
       };
     }
 
     case "invoice.paid": {
       const invoice = event.data.object as Stripe.Invoice;
+      if (
+        !invoice.customer ||
+        !invoice.subscription ||
+        typeof invoice.customer !== "string" ||
+        typeof invoice.subscription !== "string"
+      ) {
+        return null;
+      }
       return {
         type: "invoice.paid",
         data: {
-          stripeCustomerId: invoice.customer as string,
-          stripeSubscriptionId: invoice.subscription as string,
+          stripeCustomerId: invoice.customer,
+          stripeSubscriptionId: invoice.subscription,
         },
       };
     }
 
     case "invoice.payment_failed": {
       const invoice = event.data.object as Stripe.Invoice;
+      if (
+        !invoice.customer ||
+        !invoice.subscription ||
+        typeof invoice.customer !== "string" ||
+        typeof invoice.subscription !== "string"
+      ) {
+        return null;
+      }
       return {
         type: "invoice.payment_failed",
         data: {
-          stripeCustomerId: invoice.customer as string,
-          stripeSubscriptionId: invoice.subscription as string,
+          stripeCustomerId: invoice.customer,
+          stripeSubscriptionId: invoice.subscription,
         },
       };
     }

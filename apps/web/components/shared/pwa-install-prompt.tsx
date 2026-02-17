@@ -96,7 +96,7 @@ export function PWAInstallPrompt() {
             className="rounded p-1 text-muted-foreground hover:text-foreground"
             aria-label="Dismiss install prompt"
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
       </div>

@@ -141,7 +141,7 @@ export function Sidebar() {
 
             {/* Logo */}
             <Link href="/chat" className="mb-6 flex items-center gap-2 px-4">
-              <BriefcaseBusiness className="h-7 w-7 shrink-0 text-primary" />
+              <BriefcaseBusiness className="h-7 w-7 shrink-0 text-primary" aria-hidden="true" />
               <span className="text-lg font-bold">Ever Jobs</span>
             </Link>
 
@@ -169,7 +169,7 @@ export function Sidebar() {
                       size="sm"
                       tabIndex={-1}
                     >
-                      <item.icon className="h-4 w-4 shrink-0" />
+                      <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
                       {item.label}
                     </Button>
                   </Link>
@@ -190,7 +190,7 @@ export function Sidebar() {
                 className="w-full justify-start gap-3 text-muted-foreground"
                 onClick={() => setSignOutOpen(true)}
               >
-                <LogOut className="h-4 w-4 shrink-0" />
+                <LogOut className="h-4 w-4 shrink-0" aria-hidden="true" />
                 Sign out
               </Button>
             </div>
@@ -205,7 +205,7 @@ export function Sidebar() {
       >
         {/* Logo */}
         <Link href="/chat" className="mb-6 flex items-center gap-2 px-3">
-          <BriefcaseBusiness className="h-7 w-7 shrink-0 text-primary" />
+          <BriefcaseBusiness className="h-7 w-7 shrink-0 text-primary" aria-hidden="true" />
           <span className="hidden text-lg font-bold lg:inline">Ever Jobs</span>
         </Link>
 
@@ -258,7 +258,7 @@ export function Sidebar() {
             className="w-full justify-start gap-3 text-muted-foreground"
             onClick={() => setSignOutOpen(true)}
           >
-            <LogOut className="h-4 w-4 shrink-0" />
+            <LogOut className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span className="hidden lg:inline">Sign out</span>
           </Button>
         </div>

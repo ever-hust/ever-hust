@@ -95,7 +95,7 @@ export function KeyboardShortcutsHelp() {
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Keyboard className="h-5 w-5" />
+            <Keyboard className="h-5 w-5" aria-hidden="true" />
             Keyboard Shortcuts
           </DialogTitle>
           <DialogDescription>

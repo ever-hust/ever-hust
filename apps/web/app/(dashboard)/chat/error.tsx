@@ -29,7 +29,7 @@ export default function ChatError({
         </p>
       )}
       <Button onClick={reset} className="mt-6">
-        <RefreshCw className="mr-1.5 h-4 w-4" />
+        <RefreshCw className="mr-1.5 h-4 w-4" aria-hidden="true" />
         Reload Chat
       </Button>
     </div>

@@ -113,7 +113,7 @@ function ApplicationCard({ app }: { app: Application }) {
               className="h-8 w-8 rounded object-contain"
             />
           ) : (
-            <Building2 className="h-5 w-5 text-muted-foreground" />
+            <Building2 className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
           )}
         </div>
 
@@ -274,7 +274,7 @@ export default function ApplicationsPage() {
 
         {/* Filter tabs */}
         <div className="mt-4 flex items-center gap-1" role="tablist" aria-label="Filter by status">
-          <Filter className="mr-1 h-3.5 w-3.5 text-muted-foreground" />
+          <Filter className="mr-1 h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
           {FILTER_OPTIONS.map((opt) => (
             <button
               key={opt.value}

@@ -136,7 +136,7 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
             className="h-8 gap-1 text-xs"
             onClick={clearFilters}
           >
-            <X className="h-3 w-3" />
+            <X className="h-3 w-3" aria-hidden="true" />
             Clear
           </Button>
         )}

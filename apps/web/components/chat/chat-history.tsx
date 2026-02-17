@@ -118,7 +118,7 @@ export function ChatHistory({
         aria-expanded={isOpen}
         aria-controls="chat-history-panel"
       >
-        <History className="h-3.5 w-3.5" />
+        <History className="h-3.5 w-3.5" aria-hidden="true" />
         History
         {sessions.length > 0 && (
           <span className="ml-0.5 text-[10px] text-muted-foreground">
@@ -143,7 +143,7 @@ export function ChatHistory({
               className="rounded p-1 text-muted-foreground hover:text-foreground"
               aria-label="Close history"
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           </div>
 
@@ -222,9 +222,9 @@ export function ChatHistory({
                               disabled={isDeleting}
                             >
                               {isDeleting ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
+                                <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
                               ) : (
-                                <Trash2 className="h-3 w-3" />
+                                <Trash2 className="h-3 w-3" aria-hidden="true" />
                               )}
                             </button>
                           )}

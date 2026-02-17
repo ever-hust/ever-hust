@@ -143,12 +143,12 @@ function ApplicationCard({ app }: { app: Application }) {
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             {location && (
               <span className="inline-flex items-center gap-1">
-                <MapPin className="h-3 w-3" />
+                <MapPin className="h-3 w-3" aria-hidden="true" />
                 {location}
               </span>
             )}
             <span className="inline-flex items-center gap-1">
-              <Clock className="h-3 w-3" />
+              <Clock className="h-3 w-3" aria-hidden="true" />
               Applied {timeAgo(app.createdAt) ?? "recently"}
             </span>
           </div>
@@ -158,14 +158,14 @@ function ApplicationCard({ app }: { app: Application }) {
             {app.coverLetter && (
               <Link href={`/chat?job=${app.jobId}`}>
                 <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs">
-                  <FileText className="h-3 w-3" />
+                  <FileText className="h-3 w-3" aria-hidden="true" />
                   View Cover Letter
                 </Button>
               </Link>
             )}
             <Link href={`/jobs/${app.jobId}`}>
               <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs text-muted-foreground">
-                <ExternalLink className="h-3 w-3" />
+                <ExternalLink className="h-3 w-3" aria-hidden="true" />
                 Job Details
               </Button>
             </Link>

@@ -307,7 +307,7 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
               onClick={handleNewChat}
               className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
             >
-              <MessageSquarePlus className="h-3.5 w-3.5" />
+              <MessageSquarePlus className="h-3.5 w-3.5" aria-hidden="true" />
               New Chat
             </Button>
           )}
@@ -341,7 +341,7 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
                   disabled={isLoading}
                   className="shrink-0 gap-1.5 border-destructive/30 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
                 >
-                  <RefreshCcw className="h-3 w-3" />
+                  <RefreshCcw className="h-3 w-3" aria-hidden="true" />
                   Retry
                 </Button>
               )}
@@ -359,7 +359,7 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
             className="flex items-center gap-1 rounded-full border bg-card px-3 py-1 text-xs text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground"
             aria-label="Scroll to latest messages"
           >
-            <ArrowDown className="h-3 w-3" />
+            <ArrowDown className="h-3 w-3" aria-hidden="true" />
             New messages
           </button>
         </div>

@@ -8,6 +8,7 @@ import { JobsCanvas } from "@/components/canvas/jobs-canvas";
 import { CoverLetterModal } from "@/components/shared/cover-letter-modal";
 import { JobDetailPanel } from "@/components/canvas/job-detail-panel";
 import { useCanvasSync } from "@/hooks/use-canvas-sync";
+import { useFavorites } from "@/hooks/use-favorites";
 import { useKeyboardShortcuts, getChatShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { toast } from "sonner";
 
@@ -38,25 +39,12 @@ export default function ChatPage() {
   );
   useKeyboardShortcuts(shortcuts);
 
-  // Load user's favorites on mount
+  // Sync favorites from the useFavorites hook into the canvas state
+  const { favoritedJobIds: hookFavorites } = useFavorites();
   useEffect(() => {
-    const controller = new AbortController();
-    async function loadFavorites() {
-      try {
-        const res = await fetch("/api/user/favorites", { signal: controller.signal });
-        if (res.ok && !controller.signal.aborted) {
-          const data = (await res.json()) as { favoriteJobIds: number[] };
-          canvas.setFavorites(new Set(data.favoriteJobIds));
-        }
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        // Silently fail - favorites will be empty
-      }
-    }
-    loadFavorites();
-    return () => { controller.abort(); };
+    canvas.setFavorites(hookFavorites);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [hookFavorites]);
 
   // Handle ?job= deep link — fetch job info and build initial prompt
   useEffect(() => {

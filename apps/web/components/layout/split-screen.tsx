@@ -62,7 +62,7 @@ export function SplitScreen({ chatPanel, canvasPanel, jobCount }: SplitScreenPro
           )}
           onClick={() => setActivePanel("chat")}
         >
-          <MessageSquare className="h-4 w-4" />
+          <MessageSquare className="h-4 w-4" aria-hidden="true" />
           Chat
         </button>
 
@@ -78,7 +78,7 @@ export function SplitScreen({ chatPanel, canvasPanel, jobCount }: SplitScreenPro
           )}
           onClick={switchToCanvas}
         >
-          <LayoutGrid className="h-4 w-4" />
+          <LayoutGrid className="h-4 w-4" aria-hidden="true" />
           Jobs
           {jobCount !== undefined && jobCount > 0 && (
             <span className="rounded-full bg-muted px-1.5 text-[10px] font-normal tabular-nums">

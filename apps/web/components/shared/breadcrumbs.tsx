@@ -68,7 +68,7 @@ export function Breadcrumbs({
         href="/chat"
         className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
       >
-        <Home className="h-3 w-3" />
+        <Home className="h-3 w-3" aria-hidden="true" />
         <span className="sr-only">Dashboard</span>
       </Link>
 

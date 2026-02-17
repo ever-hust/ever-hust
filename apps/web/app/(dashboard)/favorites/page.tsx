@@ -153,7 +153,7 @@ export default function FavoritesPage() {
           >
             <Link href="/chat">
               <Button size="sm" className="gap-1.5">
-                <Briefcase className="h-3.5 w-3.5" />
+                <Briefcase className="h-3.5 w-3.5" aria-hidden="true" />
                 Search Jobs
               </Button>
             </Link>

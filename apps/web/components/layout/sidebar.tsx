@@ -110,7 +110,7 @@ export function Sidebar() {
         aria-label="Open navigation menu"
         aria-expanded={mobileOpen}
       >
-        <Menu className="h-5 w-5" />
+        <Menu className="h-5 w-5" aria-hidden="true" />
       </button>
 
       {/* Mobile overlay */}
@@ -136,7 +136,7 @@ export function Sidebar() {
               onClick={() => setMobileOpen(false)}
               aria-label="Close navigation menu"
             >
-              <X className="h-5 w-5" />
+              <X className="h-5 w-5" aria-hidden="true" />
             </button>
 
             {/* Logo */}

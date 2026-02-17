@@ -17,7 +17,7 @@ export default function ProfileError({
 
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center p-6 text-center">
-      <AlertCircle className="h-12 w-12 text-destructive" />
+      <AlertCircle className="h-12 w-12 text-destructive" aria-hidden="true" />
       <h2 className="mt-4 text-xl font-semibold">
         Could not load your profile
       </h2>
@@ -30,7 +30,7 @@ export default function ProfileError({
         </p>
       )}
       <Button onClick={reset} className="mt-6 gap-1.5">
-        <RefreshCw className="h-4 w-4" />
+        <RefreshCw className="h-4 w-4" aria-hidden="true" />
         Try Again
       </Button>
     </div>

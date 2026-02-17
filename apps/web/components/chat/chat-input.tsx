@@ -102,7 +102,7 @@ export function ChatInput({
             aria-label="Stop generating"
             className="shrink-0"
           >
-            <StopCircle className="h-4 w-4" />
+            <StopCircle className="h-4 w-4" aria-hidden="true" />
           </Button>
         ) : (
           <Button
@@ -112,7 +112,7 @@ export function ChatInput({
             aria-label="Send message"
             className="shrink-0"
           >
-            <Send className="h-4 w-4" />
+            <Send className="h-4 w-4" aria-hidden="true" />
           </Button>
         )}
       </form>

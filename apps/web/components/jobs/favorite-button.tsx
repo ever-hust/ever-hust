@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Button } from "@repo/ui/button";
 import { Heart } from "lucide-react";
 import { toast } from "sonner";
@@ -14,23 +14,22 @@ interface FavoriteButtonProps {
 export function FavoriteButton({ jobId, className }: FavoriteButtonProps) {
   const [isFavorited, setIsFavorited] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [initialized, setInitialized] = useState(false);
 
-  // Lazy-load the initial favorite state on first render
-  if (!initialized) {
-    setInitialized(true);
-    // Fire-and-forget check — non-blocking
-    fetch("/api/user/favorites")
+  // Load the initial favorite state once on mount
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/user/favorites", { signal: controller.signal })
       .then((res) => res.json())
       .then((data: { favoriteJobIds: number[] }) => {
-        if (data.favoriteJobIds?.includes(jobId)) {
+        if (!controller.signal.aborted && data.favoriteJobIds?.includes(jobId)) {
           setIsFavorited(true);
         }
       })
       .catch(() => {
-        // Silently fail
+        // Silently fail — non-critical
       });
-  }
+    return () => { controller.abort(); };
+  }, [jobId]);
 
   const handleToggle = useCallback(async () => {
     if (isLoading) return;
@@ -82,6 +81,7 @@ export function FavoriteButton({ jobId, className }: FavoriteButtonProps) {
           "h-5 w-5 transition-colors",
           isFavorited && "fill-red-500 text-red-500"
         )}
+        aria-hidden="true"
       />
     </Button>
   );

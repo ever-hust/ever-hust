@@ -32,6 +32,11 @@ const STATS = [
   { label: "Cover Letters", value: "100K+" },
 ];
 
+/** Delay before the first chat line appears (ms). */
+const INITIAL_LINE_DELAY_MS = 800;
+/** Delay between subsequent chat lines (ms). */
+const SUBSEQUENT_LINE_DELAY_MS = 1_200;
+
 export function Hero() {
   const [visibleLines, setVisibleLines] = useState(0);
 
@@ -39,7 +44,7 @@ export function Hero() {
     if (visibleLines >= CHAT_LINES.length) return;
     const timer = setTimeout(
       () => setVisibleLines((v) => v + 1),
-      visibleLines === 0 ? 800 : 1200
+      visibleLines === 0 ? INITIAL_LINE_DELAY_MS : SUBSEQUENT_LINE_DELAY_MS
     );
     return () => clearTimeout(timer);
   }, [visibleLines]);
@@ -57,7 +62,7 @@ export function Hero() {
           {/* Left column: Text content */}
           <div className="text-center lg:text-left">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border bg-background px-4 py-1.5 text-sm font-medium text-muted-foreground shadow-sm">
-              <Sparkles className="h-4 w-4 text-primary" />
+              <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
               <span>AI-Powered Job Search</span>
             </div>
 
@@ -77,7 +82,7 @@ export function Hero() {
             <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center lg:justify-start">
               <Link href="/login">
                 <Button size="lg" className="gap-2 shadow-md">
-                  Start Free <ArrowRight className="h-4 w-4" />
+                  Start Free <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Button>
               </Link>
               <Link href="#how-it-works">
@@ -110,7 +115,7 @@ export function Hero() {
               {/* Chat header */}
               <div className="flex items-center gap-3 border-b px-5 py-3.5">
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-                  <Bot className="h-4 w-4 text-primary" />
+                  <Bot className="h-4 w-4 text-primary" aria-hidden="true" />
                 </div>
                 <div>
                   <p className="text-sm font-semibold">Ever Jobs AI</p>
@@ -119,7 +124,7 @@ export function Hero() {
                   </p>
                 </div>
                 <div className="ml-auto flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-green-500" />
+                  <span className="h-2 w-2 rounded-full bg-green-500" aria-hidden="true" />
                   <span className="text-[11px] text-muted-foreground">
                     Online
                   </span>
@@ -164,7 +169,7 @@ export function Hero() {
                     Ask about jobs, cover letters, interviews...
                   </span>
                   <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary">
-                    <ArrowRight className="h-3.5 w-3.5 text-primary-foreground" />
+                    <ArrowRight className="h-3.5 w-3.5 text-primary-foreground" aria-hidden="true" />
                   </div>
                 </div>
               </div>
@@ -173,15 +178,15 @@ export function Hero() {
             {/* Feature pills below the chat */}
             <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
               <Badge variant="secondary" className="gap-1.5 px-3 py-1">
-                <Search className="h-3 w-3" />
+                <Search className="h-3 w-3" aria-hidden="true" />
                 Job Search
               </Badge>
               <Badge variant="secondary" className="gap-1.5 px-3 py-1">
-                <FileText className="h-3 w-3" />
+                <FileText className="h-3 w-3" aria-hidden="true" />
                 Cover Letters
               </Badge>
               <Badge variant="secondary" className="gap-1.5 px-3 py-1">
-                <MessageSquare className="h-3 w-3" />
+                <MessageSquare className="h-3 w-3" aria-hidden="true" />
                 Interview Prep
               </Badge>
             </div>

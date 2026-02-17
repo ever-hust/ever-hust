@@ -40,18 +40,21 @@ export default function ChatPage() {
 
   // Load user's favorites on mount
   useEffect(() => {
+    const controller = new AbortController();
     async function loadFavorites() {
       try {
-        const res = await fetch("/api/user/favorites");
-        if (res.ok) {
+        const res = await fetch("/api/user/favorites", { signal: controller.signal });
+        if (res.ok && !controller.signal.aborted) {
           const data = (await res.json()) as { favoriteJobIds: number[] };
           canvas.setFavorites(new Set(data.favoriteJobIds));
         }
-      } catch {
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
         // Silently fail - favorites will be empty
       }
     }
     loadFavorites();
+    return () => { controller.abort(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -65,10 +68,11 @@ export default function ChatPage() {
     const jobId = Number(jobParam);
     if (isNaN(jobId)) return;
 
+    const controller = new AbortController();
     async function fetchJobAndBuildPrompt() {
       try {
-        const res = await fetch(`/api/jobs/${jobId}`);
-        if (!res.ok) return;
+        const res = await fetch(`/api/jobs/${jobId}`, { signal: controller.signal });
+        if (!res.ok || controller.signal.aborted) return;
         const data = (await res.json()) as {
           job: { title: string; companyName?: string | null; locationCity?: string | null; isRemote?: boolean };
         };
@@ -82,11 +86,13 @@ export default function ChatPage() {
         setInitialPrompt(
           `Write me a cover letter for the "${title}" position at ${company}${locationStr}. Make it professional and tailored.`
         );
-      } catch {
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
         // Failed to fetch job — ignore deep link
       }
     }
     fetchJobAndBuildPrompt();
+    return () => { controller.abort(); };
   }, [searchParams]);
 
   // Toggle favorite via API (direct from UI click)

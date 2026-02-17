@@ -21,7 +21,7 @@ export function Navbar() {
     <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-sm">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link href="/" className="flex items-center gap-2">
-          <BriefcaseBusiness className="h-7 w-7 text-primary" />
+          <BriefcaseBusiness className="h-7 w-7 text-primary" aria-hidden="true" />
           <span className="text-xl font-bold">Ever Jobs</span>
         </Link>
 
@@ -63,9 +63,9 @@ export function Navbar() {
             aria-label={mobileOpen ? "Close menu" : "Open menu"}
           >
             {mobileOpen ? (
-              <X className="h-5 w-5" />
+              <X className="h-5 w-5" aria-hidden="true" />
             ) : (
-              <Menu className="h-5 w-5" />
+              <Menu className="h-5 w-5" aria-hidden="true" />
             )}
           </Button>
         </div>

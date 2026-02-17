@@ -259,6 +259,7 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
     setActiveToolName(undefined);
     coverLetterPending.current = false;
     hasCreatedSession.current = false;
+    initialPromptUsed.current = false;
     await startNewSession();
   }, [setMessages, startNewSession]);
 

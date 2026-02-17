@@ -189,6 +189,7 @@ export function ChatHistory({
                       <div
                         role="button"
                         tabIndex={isSessionLoading || isDeleting ? -1 : 0}
+                        aria-disabled={isSessionLoading || isDeleting || undefined}
                         className={cn(
                           "group/item flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-accent/50 cursor-pointer",
                           isActive && "bg-accent/30",

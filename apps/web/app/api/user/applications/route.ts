@@ -1,5 +1,5 @@
 import { db, applications, jobs } from "@repo/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import type { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { applyRateLimit } from "../../../../lib/rate-limit";
@@ -46,34 +46,45 @@ export async function GET(req: Request) {
       conditions.push(eq(applications.status, status));
     }
 
-    const results = await db
-      .select({
-        id: applications.id,
-        jobId: applications.jobId,
-        status: applications.status,
-        coverLetter: applications.coverLetter,
-        createdAt: applications.createdAt,
-        updatedAt: applications.updatedAt,
-        // Join job info
-        jobTitle: jobs.title,
-        companyName: jobs.companyName,
-        companyLogo: jobs.companyLogo,
-        locationCity: jobs.locationCity,
-        locationState: jobs.locationState,
-        isRemote: jobs.isRemote,
-      })
-      .from(applications)
-      .innerJoin(jobs, eq(applications.jobId, jobs.id))
-      .where(and(...conditions))
-      .orderBy(desc(applications.updatedAt))
-      .limit(limit)
-      .offset(offset);
+    const where = and(...conditions);
+
+    const [results, countResult] = await Promise.all([
+      db
+        .select({
+          id: applications.id,
+          jobId: applications.jobId,
+          status: applications.status,
+          coverLetter: applications.coverLetter,
+          createdAt: applications.createdAt,
+          updatedAt: applications.updatedAt,
+          // Join job info
+          jobTitle: jobs.title,
+          companyName: jobs.companyName,
+          companyLogo: jobs.companyLogo,
+          locationCity: jobs.locationCity,
+          locationState: jobs.locationState,
+          isRemote: jobs.isRemote,
+        })
+        .from(applications)
+        .innerJoin(jobs, eq(applications.jobId, jobs.id))
+        .where(where)
+        .orderBy(desc(applications.updatedAt))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ count: sql<number>`count(*)` })
+        .from(applications)
+        .where(eq(applications.userId, userId)),
+    ]);
+
+    const total = Number(countResult[0]?.count ?? 0);
 
     return apiSuccess({
       applications: results,
-      count: results.length,
+      total,
       offset,
       limit,
+      hasMore: offset + results.length < total,
     });
   } catch (err) {
     console.error("[api/user/applications] GET failed:", err instanceof Error ? err.message : err);

@@ -20,9 +20,14 @@ export async function GET(
   if (rateLimited) return rateLimited;
 
   const { id } = await params;
+
+  if (!id || id.trim() === "") {
+    return apiBadRequest("Job ID is required");
+  }
+
   const jobId = Number(id);
 
-  if (isNaN(jobId)) {
+  if (isNaN(jobId) || jobId <= 0 || !Number.isInteger(jobId)) {
     return apiBadRequest("Invalid job ID");
   }
 
@@ -40,7 +45,7 @@ export async function GET(
     // Job posts change infrequently — cache for 5 minutes at the edge
     return apiSuccess({ job: result[0] }, { cacheSeconds: 300 });
   } catch (err) {
-    console.error("[api/jobs/id] Database query failed:", err);
+    console.error("[api/jobs/id] Database query failed:", err instanceof Error ? err.message : err);
     return apiError("Failed to fetch job details");
   }
 }

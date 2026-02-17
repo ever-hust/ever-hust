@@ -131,7 +131,7 @@ export default function ProfilePage() {
   }
 
   const { user, favorites, applications } = data;
-  const skills = (user.skills as string[]) ?? [];
+  const skills = user.skills ?? [];
   const prefs = user.preferences ?? {};
   const memberSince = user.createdAt
     ? new Date(user.createdAt).toLocaleDateString(undefined, {

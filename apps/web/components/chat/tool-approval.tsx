@@ -19,7 +19,7 @@ function getToolDisplay(toolName: string, args: Record<string, unknown>) {
       return {
         title: "Apply to Job",
         description: `The AI wants to initiate an application for job #${args.jobId}.`,
-        icon: <Briefcase className="h-5 w-5" />,
+        icon: <Briefcase className="h-5 w-5" aria-hidden="true" />,
         details: args.coverLetter
           ? "A cover letter will be included with your application."
           : null,
@@ -28,7 +28,7 @@ function getToolDisplay(toolName: string, args: Record<string, unknown>) {
       return {
         title: `Confirm: ${toolName}`,
         description: "The AI wants to perform an action that requires your approval.",
-        icon: <Briefcase className="h-5 w-5" />,
+        icon: <Briefcase className="h-5 w-5" aria-hidden="true" />,
         details: null,
       };
   }
@@ -67,11 +67,11 @@ export function ToolApproval({
           >
             {decided === "approved" ? (
               <>
-                <Check className="mr-1 h-3 w-3" /> Approved
+                <Check className="mr-1 h-3 w-3" aria-hidden="true" /> Approved
               </>
             ) : (
               <>
-                <X className="mr-1 h-3 w-3" /> Denied
+                <X className="mr-1 h-3 w-3" aria-hidden="true" /> Denied
               </>
             )}
           </Badge>
@@ -97,7 +97,7 @@ export function ToolApproval({
           <div className="mt-3 flex gap-2">
             <Button size="sm" onClick={handleApprove} disabled={loading}>
               {loading ? (
-                <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                <Loader2 className="mr-1.5 h-3 w-3 animate-spin" aria-hidden="true" />
               ) : (
                 <Check className="mr-1.5 h-3 w-3" aria-hidden="true" />
               )}

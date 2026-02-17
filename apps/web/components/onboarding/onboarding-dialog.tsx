@@ -183,15 +183,24 @@ export function OnboardingDialog({
         </div>
         <div>
           <Label>Experience level</Label>
-          <div className="flex flex-wrap gap-2 mt-2">
+          <div className="flex flex-wrap gap-2 mt-2" role="radiogroup" aria-label="Experience level">
             {JOB_LEVELS.map((level) => (
               <Badge
                 key={level}
+                role="radio"
+                tabIndex={0}
+                aria-checked={selectedLevel === level}
                 variant={selectedLevel === level ? "default" : "outline"}
-                className="cursor-pointer transition-colors"
+                className="cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 onClick={() =>
                   setSelectedLevel(selectedLevel === level ? null : level)
                 }
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setSelectedLevel(selectedLevel === level ? null : level);
+                  }
+                }}
               >
                 {level}
               </Badge>
@@ -209,13 +218,22 @@ export function OnboardingDialog({
           Select the skills that match your expertise. You can always update these later.
         </p>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Skills">
         {COMMON_SKILLS.map((skill) => (
           <Badge
             key={skill}
+            role="checkbox"
+            tabIndex={0}
+            aria-checked={selectedSkills.has(skill)}
             variant={selectedSkills.has(skill) ? "default" : "outline"}
-            className="cursor-pointer transition-colors"
+            className="cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             onClick={() => toggleSkill(skill)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                toggleSkill(skill);
+              }
+            }}
           >
             {selectedSkills.has(skill) && (
               <Check className="mr-1 h-3 w-3" aria-hidden="true" />
@@ -226,6 +244,7 @@ export function OnboardingDialog({
       </div>
       <div className="flex items-center gap-2">
         <Input
+          aria-label="Add a custom skill"
           placeholder="Add a custom skill..."
           value={customSkill}
           onChange={(e) => setCustomSkill(e.target.value)}
@@ -256,13 +275,13 @@ export function OnboardingDialog({
           </DialogDescription>
           {/* Progress bar + step label */}
           <div className="space-y-1.5 pt-1">
-            <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+            <div className="flex items-center justify-between text-[10px] text-muted-foreground" aria-live="polite">
               <span>Step {step + 1} of {steps.length}</span>
               <span>
                 {step === 0 ? "Welcome" : step === 1 ? "About you" : "Skills"}
               </span>
             </div>
-            <div className="h-1 overflow-hidden rounded-full bg-muted">
+            <div className="h-1 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={step + 1} aria-valuemin={1} aria-valuemax={steps.length} aria-label="Setup progress">
               <div
                 className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
                 style={{ width: `${((step + 1) / steps.length) * 100}%` }}

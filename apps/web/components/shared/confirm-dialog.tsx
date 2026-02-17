@@ -63,8 +63,13 @@ export function ConfirmDialog({
     try {
       await onConfirm();
       onOpenChange(false);
-    } catch {
-      // Caller should handle errors
+    } catch (err) {
+      // Log so callers and developers can see what went wrong.
+      // The error is re-thrown so callers can also handle it if needed.
+      console.warn(
+        "[ConfirmDialog] onConfirm threw:",
+        err instanceof Error ? err.message : err
+      );
     } finally {
       setLoading(false);
     }

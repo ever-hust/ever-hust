@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { MessageSquare, Search, FileText, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@repo/ui/button";
 import { useUsageStats } from "@/hooks/use-usage-stats";
@@ -63,15 +64,17 @@ export function UsageQuota() {
         limit={usage.coverLetters.limit}
         period={usage.coverLetters.period}
       />
-      <Button
-        variant="outline"
-        size="sm"
-        className="mt-1 h-7 w-full gap-1 text-[10px]"
-        onClick={() => (window.location.href = "/settings")}
-      >
-        <Sparkles className="h-3 w-3" />
-        Upgrade to Pro
-      </Button>
+      <Link href="/settings" className="mt-1 block">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 w-full gap-1 text-[10px]"
+          tabIndex={-1}
+        >
+          <Sparkles className="h-3 w-3" />
+          Upgrade to Pro
+        </Button>
+      </Link>
     </div>
   );
 }

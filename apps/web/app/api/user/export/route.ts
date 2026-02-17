@@ -12,6 +12,7 @@ import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { applyRateLimit } from "../../../../lib/rate-limit";
 import { apiError } from "../../../../lib/api-response";
+import type { UserPreferences } from "../../../../lib/api-schemas";
 
 /**
  * GET /api/user/export — Export all user data as a JSON download.
@@ -85,15 +86,14 @@ export async function GET() {
     // Redact sensitive BYOK API keys from the export
     const profileData = profile[0] ?? null;
     if (profileData) {
-      const prefs = profileData.preferences as Record<string, unknown> | null;
-      if (prefs && typeof prefs === "object" && prefs.apiKeys) {
-        const keys = prefs.apiKeys as Record<string, string | undefined>;
+      const prefs = profileData.preferences as UserPreferences | null;
+      if (prefs?.apiKeys) {
         (profileData as Record<string, unknown>).preferences = {
           ...prefs,
           apiKeys: {
-            anthropic: !!keys.anthropic,
-            openai: !!keys.openai,
-            google: !!keys.google,
+            anthropic: !!prefs.apiKeys.anthropic,
+            openai: !!prefs.apiKeys.openai,
+            google: !!prefs.apiKeys.google,
           },
         };
       }

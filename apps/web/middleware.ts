@@ -92,8 +92,11 @@ export function middleware(request: NextRequest) {
     return applySecurityHeaders(NextResponse.next());
   }
 
-  // Check for BetterAuth session cookie
+  // Check for BetterAuth session cookie.
+  // In production with HTTPS, Better Auth prefixes cookies with "__Secure-".
+  // Check both variants to handle all environments correctly.
   const sessionToken =
+    request.cookies.get("__Secure-better-auth.session_token")?.value ??
     request.cookies.get("better-auth.session_token")?.value;
 
   if (!sessionToken) {

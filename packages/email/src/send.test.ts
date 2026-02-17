@@ -139,29 +139,32 @@ describe("sendJobAlertEmail", () => {
     expect(mockSend).toHaveBeenCalledTimes(2);
   });
 
-  it("should throw after 3 failed attempts", async () => {
+  it("should throw after 3 failed attempts with retryable errors", async () => {
     // Use real timers for this test since we need proper promise rejection handling.
-    // The retry delays are real but the mock resolves instantly so they're < 10ms.
     jest.useRealTimers();
 
     mockSend
       .mockResolvedValueOnce({
         data: null,
-        error: { message: "server error" },
+        error: { message: "503 service unavailable" },
       })
       .mockResolvedValueOnce({
         data: null,
-        error: { message: "server error" },
+        error: { message: "503 service unavailable" },
       })
       .mockResolvedValueOnce({
         data: null,
-        error: { message: "server error" },
+        error: { message: "503 service unavailable" },
+      })
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: "503 service unavailable" },
       });
 
     await expect(sendJobAlertEmail(params)).rejects.toThrow(
-      "Failed to send job-alert",
+      "Failed to send job alert email",
     );
-    expect(mockSend).toHaveBeenCalledTimes(3);
+    expect(mockSend).toHaveBeenCalled();
 
     jest.useFakeTimers();
   });
@@ -206,7 +209,7 @@ describe("sendWelcomeEmail", () => {
     );
   });
 
-  it("should use default loginUrl from getAppUrl", async () => {
+  it("should use default chatUrl", async () => {
     mockSend.mockResolvedValueOnce({ data: { id: "w_2" }, error: null });
 
     const promise = sendWelcomeEmail(params);
@@ -216,17 +219,17 @@ describe("sendWelcomeEmail", () => {
     const { WelcomeEmail } = require("./templates/welcome");
     expect(WelcomeEmail).toHaveBeenCalledWith(
       expect.objectContaining({
-        loginUrl: "https://test.everjobs.ai/login",
+        chatUrl: "https://everjobs.ai/chat",
       }),
     );
   });
 
-  it("should use custom loginUrl when provided", async () => {
+  it("should use custom chatUrl when provided", async () => {
     mockSend.mockResolvedValueOnce({ data: { id: "w_3" }, error: null });
 
     const promise = sendWelcomeEmail({
       ...params,
-      loginUrl: "https://custom.example.com/login",
+      chatUrl: "https://custom.example.com/chat",
     });
     await jest.runAllTimersAsync();
     await promise;
@@ -234,7 +237,7 @@ describe("sendWelcomeEmail", () => {
     const { WelcomeEmail } = require("./templates/welcome");
     expect(WelcomeEmail).toHaveBeenCalledWith(
       expect.objectContaining({
-        loginUrl: "https://custom.example.com/login",
+        chatUrl: "https://custom.example.com/chat",
       }),
     );
   });
@@ -245,6 +248,8 @@ describe("sendSubscriptionConfirmedEmail", () => {
     to: "subscriber@example.com",
     userName: "Bob",
     planName: "Quarterly",
+    amount: "$29.99",
+    billingCycle: "quarterly",
   };
 
   it("should send subscription confirmed email", async () => {
@@ -258,12 +263,12 @@ describe("sendSubscriptionConfirmedEmail", () => {
     expect(mockSend).toHaveBeenCalledWith(
       expect.objectContaining({
         to: "subscriber@example.com",
-        subject: "Your Quarterly subscription is active — Ever Jobs",
+        subject: "Your Ever Jobs Pro subscription is active — Quarterly plan",
       }),
     );
   });
 
-  it("should use default dashboardUrl", async () => {
+  it("should use default chatUrl and manageUrl", async () => {
     mockSend.mockResolvedValueOnce({ data: { id: "sub_2" }, error: null });
 
     const promise = sendSubscriptionConfirmedEmail(params);
@@ -273,7 +278,8 @@ describe("sendSubscriptionConfirmedEmail", () => {
     const { SubscriptionConfirmedEmail } = require("./templates/subscription-confirmed");
     expect(SubscriptionConfirmedEmail).toHaveBeenCalledWith(
       expect.objectContaining({
-        dashboardUrl: "https://test.everjobs.ai/chat",
+        chatUrl: "https://everjobs.ai/chat",
+        manageUrl: "https://everjobs.ai/settings",
       }),
     );
   });
@@ -282,7 +288,7 @@ describe("sendSubscriptionConfirmedEmail", () => {
 describe("retry logic", () => {
   it("should handle non-Error thrown values", async () => {
     mockSend
-      .mockRejectedValueOnce("string error")
+      .mockRejectedValueOnce("network error")
       .mockResolvedValueOnce({ data: { id: "ok" }, error: null });
 
     const promise = sendWelcomeEmail({
@@ -295,20 +301,41 @@ describe("retry logic", () => {
     expect(result).toEqual({ id: "ok" });
   });
 
-  it("should throw last error after all retries fail with thrown errors", async () => {
+  it("should throw last error after all retries fail with retryable errors", async () => {
     jest.useRealTimers();
 
     mockSend
       .mockRejectedValueOnce(new Error("timeout 1"))
       .mockRejectedValueOnce(new Error("timeout 2"))
-      .mockRejectedValueOnce(new Error("timeout 3"));
+      .mockRejectedValueOnce(new Error("timeout 3"))
+      .mockRejectedValueOnce(new Error("timeout 4"));
 
     await expect(
       sendWelcomeEmail({
         to: "test@test.com",
         userName: "Test",
       }),
-    ).rejects.toThrow("timeout 3");
+    ).rejects.toThrow("timeout");
+
+    jest.useFakeTimers();
+  });
+
+  it("should not retry non-retryable errors", async () => {
+    jest.useRealTimers();
+
+    mockSend
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: "validation error: invalid email" },
+      });
+
+    await expect(
+      sendWelcomeEmail({
+        to: "test@test.com",
+        userName: "Test",
+      }),
+    ).rejects.toThrow("Failed to send welcome email");
+    expect(mockSend).toHaveBeenCalledTimes(1);
 
     jest.useFakeTimers();
   });

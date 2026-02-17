@@ -171,12 +171,6 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
             ))}
           </div>
           <span className="sr-only">Assistant is thinking...</span>
-          <style>{`
-            @keyframes typing-bounce {
-              0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-              30% { transform: translateY(-6px); opacity: 1; }
-            }
-          `}</style>
         </div>
       )}
     </div>

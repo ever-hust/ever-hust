@@ -1,79 +1,115 @@
-import { checkRateLimit, checkMessageLimit, checkSearchLimit, checkCoverLetterLimit } from "./subscription-gate";
-
-describe("checkRateLimit", () => {
-  it("should allow the first request", () => {
-    const result = checkRateLimit("test-rate-1", 5, 60000);
-    expect(result.allowed).toBe(true);
-    expect(result.remaining).toBe(4);
-  });
-
-  it("should track consecutive requests", () => {
-    const key = "test-rate-track";
-    checkRateLimit(key, 5, 60000);
-    checkRateLimit(key, 5, 60000);
-    const result = checkRateLimit(key, 5, 60000);
-    expect(result.allowed).toBe(true);
-    expect(result.remaining).toBe(2);
-  });
-
-  it("should block after limit is reached", () => {
-    const key = "test-rate-block";
-    for (let i = 0; i < 5; i++) {
-      checkRateLimit(key, 5, 60000);
-    }
-    const result = checkRateLimit(key, 5, 60000);
-    expect(result.allowed).toBe(false);
-    expect(result.remaining).toBe(0);
-  });
-
-  it("should use separate counters for different keys", () => {
-    const result1 = checkRateLimit("test-rate-a", 3, 60000);
-    const result2 = checkRateLimit("test-rate-b", 3, 60000);
-    expect(result1.allowed).toBe(true);
-    expect(result2.allowed).toBe(true);
-    expect(result1.remaining).toBe(2);
-    expect(result2.remaining).toBe(2);
-  });
-});
+/**
+ * Unit tests for subscription-gate rate limiting.
+ *
+ * Note: checkRateLimit is now async (returns Promise) and private.
+ * We test through the public API functions: checkMessageLimit, checkSearchLimit, checkCoverLetterLimit.
+ */
+import {
+  checkMessageLimit,
+  checkSearchLimit,
+  checkCoverLetterLimit,
+  peekRateLimit,
+  peekMessageUsage,
+  peekSearchUsage,
+  peekCoverLetterUsage,
+} from "./subscription-gate";
 
 describe("checkMessageLimit", () => {
-  it("should allow first message for a user", () => {
-    const result = checkMessageLimit("test-msg-user-1");
+  it("should allow first message for a user", async () => {
+    const result = await checkMessageLimit("test-msg-user-1");
     expect(result.allowed).toBe(true);
     expect(result.remaining).toBe(9); // FREE_LIMITS.messagesPerDay = 10
   });
 
-  it("should block after 10 messages", () => {
+  it("should block after 10 messages", async () => {
     const userId = "test-msg-user-block";
     for (let i = 0; i < 10; i++) {
-      checkMessageLimit(userId);
+      await checkMessageLimit(userId);
     }
-    const result = checkMessageLimit(userId);
+    const result = await checkMessageLimit(userId);
     expect(result.allowed).toBe(false);
     expect(result.remaining).toBe(0);
   });
 });
 
 describe("checkSearchLimit", () => {
-  it("should allow first search for a user", () => {
-    const result = checkSearchLimit("test-search-user-1");
+  it("should allow first search for a user", async () => {
+    const result = await checkSearchLimit("test-search-user-1");
     expect(result.allowed).toBe(true);
     expect(result.remaining).toBe(4); // FREE_LIMITS.searchesPerDay = 5
+  });
+
+  it("should block after 5 searches", async () => {
+    const userId = "test-search-user-block";
+    for (let i = 0; i < 5; i++) {
+      await checkSearchLimit(userId);
+    }
+    const result = await checkSearchLimit(userId);
+    expect(result.allowed).toBe(false);
+    expect(result.remaining).toBe(0);
   });
 });
 
 describe("checkCoverLetterLimit", () => {
-  it("should allow first cover letter for a user", () => {
-    const result = checkCoverLetterLimit("test-cover-user-1");
+  it("should allow first cover letter for a user", async () => {
+    const result = await checkCoverLetterLimit("test-cover-user-1");
     expect(result.allowed).toBe(true);
     expect(result.remaining).toBe(0); // FREE_LIMITS.coverLettersPerWeek = 1
   });
 
-  it("should block second cover letter", () => {
+  it("should block second cover letter", async () => {
     const userId = "test-cover-user-block";
-    checkCoverLetterLimit(userId);
-    const result = checkCoverLetterLimit(userId);
+    await checkCoverLetterLimit(userId);
+    const result = await checkCoverLetterLimit(userId);
     expect(result.allowed).toBe(false);
     expect(result.remaining).toBe(0);
+  });
+});
+
+describe("peekRateLimit", () => {
+  it("returns full remaining when no usage exists", () => {
+    const result = peekRateLimit("peek-unused-key", 10, 86400000);
+    expect(result.used).toBe(0);
+    expect(result.remaining).toBe(10);
+    expect(result.limit).toBe(10);
+  });
+
+  it("does not consume quota (read-only)", () => {
+    const key = "peek-readonly-key";
+    const first = peekRateLimit(key, 10, 86400000);
+    const second = peekRateLimit(key, 10, 86400000);
+    expect(first).toEqual(second);
+    expect(first.used).toBe(0);
+  });
+});
+
+describe("peek usage functions", () => {
+  it("peekMessageUsage reflects actual usage", async () => {
+    const userId = "peek-msg-user";
+    await checkMessageLimit(userId);
+    await checkMessageLimit(userId);
+
+    const stats = peekMessageUsage(userId);
+    expect(stats.used).toBe(2);
+    expect(stats.remaining).toBe(8);
+    expect(stats.limit).toBe(10);
+  });
+
+  it("peekSearchUsage reflects actual usage", async () => {
+    const userId = "peek-search-user";
+    await checkSearchLimit(userId);
+
+    const stats = peekSearchUsage(userId);
+    expect(stats.used).toBe(1);
+    expect(stats.remaining).toBe(4);
+  });
+
+  it("peekCoverLetterUsage reflects actual usage", async () => {
+    const userId = "peek-cover-user";
+    await checkCoverLetterLimit(userId);
+
+    const stats = peekCoverLetterUsage(userId);
+    expect(stats.used).toBe(1);
+    expect(stats.remaining).toBe(0);
   });
 });

@@ -59,12 +59,12 @@ export function SubscriptionGate({
           Upgrade to Pro
         </Button>
       ) : (
-        <Link href="/settings">
-          <Button size="sm" className="gap-1.5" tabIndex={-1}>
+        <Button size="sm" className="gap-1.5" asChild>
+          <Link href="/settings">
             <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
             Upgrade to Pro
-          </Button>
-        </Link>
+          </Link>
+        </Button>
       )}
     </Card>
   );

@@ -107,10 +107,24 @@ export function CVDropzone({ onUploadComplete }: CVDropzoneProps) {
     [handleUpload]
   );
 
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        fileInputRef.current?.click();
+      }
+    },
+    []
+  );
+
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label="Upload CV — drag and drop a PDF file or press Enter to browse"
       className={cn(
         "rounded-lg border-2 border-dashed p-6 text-center transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         isDragging
           ? "border-primary bg-primary/5"
           : uploadResult?.success
@@ -122,6 +136,7 @@ export function CVDropzone({ onUploadComplete }: CVDropzoneProps) {
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
+      onKeyDown={handleKeyDown}
     >
       <input
         ref={fileInputRef}

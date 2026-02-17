@@ -14,6 +14,7 @@ interface FavoriteButtonProps {
 export function FavoriteButton({ jobId, className }: FavoriteButtonProps) {
   const [isFavorited, setIsFavorited] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
 
   // Refs to avoid re-creating handleToggle on every state change
   const isFavoritedRef = useRef(isFavorited);
@@ -36,6 +37,9 @@ export function FavoriteButton({ jobId, className }: FavoriteButtonProps) {
       })
       .catch(() => {
         // Silently fail — non-critical (AbortError, network, etc.)
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsChecking(false);
       });
     return () => { controller.abort(); };
   }, [jobId]);
@@ -82,13 +86,20 @@ export function FavoriteButton({ jobId, className }: FavoriteButtonProps) {
       size="icon"
       className={cn("h-10 w-10", className)}
       onClick={handleToggle}
-      disabled={isLoading}
-      aria-label={isFavorited ? "Remove from favorites" : "Add to favorites"}
+      disabled={isLoading || isChecking}
+      aria-label={
+        isChecking
+          ? "Loading favorite status"
+          : isFavorited
+            ? "Remove from favorites"
+            : "Add to favorites"
+      }
     >
       <Heart
         className={cn(
           "h-5 w-5 transition-colors",
-          isFavorited && "fill-red-500 text-red-500"
+          isChecking && "animate-pulse text-muted-foreground/50",
+          !isChecking && isFavorited && "fill-red-500 text-red-500"
         )}
         aria-hidden="true"
       />

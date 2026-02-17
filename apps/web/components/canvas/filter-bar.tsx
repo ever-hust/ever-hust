@@ -35,6 +35,9 @@ export const FilterBar = memo(function FilterBar({ filters, onFiltersChange }: F
   const [localKeywords, setLocalKeywords] = useState(filters.keywords ?? "");
   const [localLocation, setLocalLocation] = useState(filters.location ?? "");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const filtersRef = useRef(filters);
+  filtersRef.current = filters;
+  const pendingPatchRef = useRef<Partial<JobFilters>>({});
 
   // Sync local state when filters change externally (e.g. clear)
   useEffect(() => {
@@ -42,12 +45,15 @@ export const FilterBar = memo(function FilterBar({ filters, onFiltersChange }: F
     setLocalLocation(filters.location ?? "");
   }, [filters.keywords, filters.location]);
 
-  // Debounced update for text inputs
+  // Debounced update for text inputs — accumulates patches so concurrent
+  // changes within the debounce window don't overwrite each other.
   const debouncedUpdate = useCallback(
-    (newFilters: JobFilters) => {
+    (patch: Partial<JobFilters>) => {
+      pendingPatchRef.current = { ...pendingPatchRef.current, ...patch };
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
-        onFiltersChange(newFilters);
+        onFiltersChange({ ...filtersRef.current, ...pendingPatchRef.current });
+        pendingPatchRef.current = {};
       }, FILTER_DEBOUNCE_MS);
     },
     [onFiltersChange]
@@ -83,7 +89,7 @@ export const FilterBar = memo(function FilterBar({ filters, onFiltersChange }: F
             onChange={(e) => {
               const value = e.target.value;
               setLocalKeywords(value);
-              debouncedUpdate({ ...filters, keywords: value || undefined });
+              debouncedUpdate({ keywords: value || undefined });
             }}
             className="h-8 pl-8 text-sm"
           />
@@ -96,7 +102,7 @@ export const FilterBar = memo(function FilterBar({ filters, onFiltersChange }: F
             onChange={(e) => {
               const value = e.target.value;
               setLocalLocation(value);
-              debouncedUpdate({ ...filters, location: value || undefined });
+              debouncedUpdate({ location: value || undefined });
             }}
             className="h-8 text-sm"
           />

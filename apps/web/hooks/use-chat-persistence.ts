@@ -44,6 +44,12 @@ export function useChatPersistence() {
   const savedMessageIds = useRef<Set<string>>(new Set());
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
+  const activeSessionIdRef = useRef<string | null>(null);
+
+  // Keep ref in sync with state so debounced callbacks see the latest value
+  useEffect(() => {
+    activeSessionIdRef.current = activeSessionId;
+  }, [activeSessionId]);
 
   // Clean up debounce timer on unmount to prevent state-update-after-unmount
   useEffect(() => {
@@ -161,7 +167,9 @@ export function useChatPersistence() {
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(async () => {
         if (!mountedRef.current) return;
-        const sessionId = activeSessionId;
+        // Use ref to get the latest session ID at execution time,
+        // avoiding stale closures when the session changes during debounce
+        const sessionId = activeSessionIdRef.current;
         if (!sessionId) return;
 
         const payload = unsaved.map((m) => {

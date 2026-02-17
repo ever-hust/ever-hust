@@ -192,7 +192,7 @@ export function JobDetailPanel({
                   {job.companyLogo ? (
                     <img
                       src={job.companyLogo}
-                      alt={job.companyName ?? ""}
+                      alt={job.companyName ? `${job.companyName} logo` : "Company logo"}
                       className="h-8 w-8 rounded object-contain"
                     />
                   ) : (

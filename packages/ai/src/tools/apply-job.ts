@@ -64,25 +64,24 @@ export const applyJobTool = tool({
       return { applied: false, error: "No application URL available for this job" };
     }
 
-    // Check for duplicate applications — prevent creating multiple records
-    const existingApp = await db
-      .select({ id: applications.id, status: applications.status })
-      .from(applications)
-      .where(and(eq(applications.userId, userId), eq(applications.jobId, jobId)))
-      .limit(1);
-
-    if (existingApp.length > 0 && existingApp[0]!.status !== "failed") {
-      return {
-        applied: false,
-        error: "You already have an active application for this job.",
-        existingApplicationId: existingApp[0]!.id,
-        applicationUrl,
-      };
-    }
-
     // Create agent instance, application record, and update userJobs
-    // inside a transaction to prevent orphaned records on partial failure.
-    const { agentId, applicationId } = await db.transaction(async (tx) => {
+    // inside a transaction to prevent orphaned records on partial failure
+    // and eliminate the TOCTOU race on the duplicate check.
+    const txResult = await db.transaction(async (tx) => {
+      // Duplicate check INSIDE the transaction for atomicity
+      const existingApp = await tx
+        .select({ id: applications.id, status: applications.status })
+        .from(applications)
+        .where(and(eq(applications.userId, userId), eq(applications.jobId, jobId)))
+        .limit(1);
+
+      if (existingApp.length > 0 && existingApp[0]!.status !== "failed") {
+        return {
+          duplicate: true as const,
+          existingApplicationId: existingApp[0]!.id,
+          applicationUrl,
+        };
+      }
       // Create agent instance to track this application
       const agentResult = await tx
         .insert(agentInstances)
@@ -132,13 +131,27 @@ export const applyJobTool = tool({
         });
       }
 
-      return { agentId: newAgentId, applicationId: newApplicationId };
+      return {
+        duplicate: false as const,
+        agentId: newAgentId,
+        applicationId: newApplicationId,
+      };
     });
+
+    // Handle duplicate early-return from within the transaction
+    if (txResult.duplicate) {
+      return {
+        applied: false,
+        error: "You already have an active application for this job.",
+        existingApplicationId: txResult.existingApplicationId,
+        applicationUrl: txResult.applicationUrl,
+      };
+    }
 
     return {
       applied: true,
-      applicationId,
-      agentInstanceId: agentId,
+      applicationId: txResult.applicationId,
+      agentInstanceId: txResult.agentId,
       jobTitle: job.title,
       companyName: job.companyName,
       applicationUrl,

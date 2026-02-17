@@ -90,18 +90,13 @@ export const savePreferencesTool = tool({
     // Merge preferences
     const merged = { ...existingPrefs, ...preferences };
 
-    const updateData: Record<string, unknown> = {
-      preferences: merged,
-      updatedAt: new Date(),
-    };
-
-    if (markOnboardingComplete) {
-      updateData.onboardingCompleted = true;
-    }
-
     await db
       .update(users)
-      .set(updateData)
+      .set({
+        preferences: merged,
+        updatedAt: new Date(),
+        ...(markOnboardingComplete ? { onboardingCompleted: true } : {}),
+      })
       .where(eq(users.id, userId));
 
     return {

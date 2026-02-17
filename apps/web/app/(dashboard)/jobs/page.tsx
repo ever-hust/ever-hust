@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { JobsCanvas } from "@/components/canvas/jobs-canvas";
 import type { JobCardData } from "@/components/canvas/job-card";
@@ -18,6 +18,7 @@ export default function JobsPage() {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
+  const loadMoreAbortRef = useRef<AbortController | null>(null);
 
   // Load jobs on mount and when filters change
   useEffect(() => {
@@ -59,7 +60,16 @@ export default function JobsPage() {
     return () => controller.abort();
   }, [filters]);
 
+  // Abort any pending load-more request on unmount
+  useEffect(() => {
+    return () => loadMoreAbortRef.current?.abort();
+  }, []);
+
   const handleLoadMore = useCallback(async () => {
+    loadMoreAbortRef.current?.abort();
+    const controller = new AbortController();
+    loadMoreAbortRef.current = controller;
+
     const nextPage = page + 1;
     setIsLoading(true);
     try {
@@ -68,23 +78,30 @@ export default function JobsPage() {
       if (filters.location) params.set("location", filters.location);
       if (filters.isRemote) params.set("isRemote", "true");
 
-      const res = await fetch(`/api/jobs/search?${params.toString()}`);
+      const res = await fetch(`/api/jobs/search?${params.toString()}`, {
+        signal: controller.signal,
+      });
       if (res.ok) {
         const data = (await res.json()) as {
           jobs: JobCardData[];
           total: number;
           hasMore: boolean;
         };
-        setJobs((prev) => [...prev, ...data.jobs]);
-        setHasMore(data.hasMore);
-        setPage(nextPage);
+        if (!controller.signal.aborted) {
+          setJobs((prev) => [...prev, ...data.jobs]);
+          setHasMore(data.hasMore);
+          setPage(nextPage);
+        }
       } else {
         toast.error("Failed to load more jobs.");
       }
-    } catch {
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       toast.error("Failed to load more jobs");
     } finally {
-      setIsLoading(false);
+      if (!controller.signal.aborted) {
+        setIsLoading(false);
+      }
     }
   }, [page, filters]);
 

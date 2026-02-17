@@ -326,6 +326,7 @@ export function JobDetailPanel({
                   type="button"
                   role="tab"
                   aria-selected={activeTab === tab.id}
+                  aria-controls="job-detail-tabpanel"
                   onClick={() => setActiveTab(tab.id)}
                   className={cn(
                     "border-b-2 px-3 py-2 text-xs font-medium transition-colors",
@@ -340,7 +341,7 @@ export function JobDetailPanel({
             </div>
 
             {/* Scrollable content */}
-            <div className="max-h-[50vh] overflow-y-auto px-6 py-4" role="tabpanel">
+            <div id="job-detail-tabpanel" className="max-h-[50vh] overflow-y-auto px-6 py-4" role="tabpanel">
               {/* Overview tab */}
               {activeTab === "overview" && (
                 <>

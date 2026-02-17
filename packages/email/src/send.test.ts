@@ -138,9 +138,6 @@ describe("sendJobAlertEmail", () => {
   });
 
   it("should throw after 3 failed attempts with retryable errors", async () => {
-    // Use real timers for this test since we need proper promise rejection handling.
-    jest.useRealTimers();
-
     mockSend
       .mockResolvedValueOnce({
         data: null,
@@ -159,12 +156,15 @@ describe("sendJobAlertEmail", () => {
         error: { message: "503 service unavailable" },
       });
 
-    await expect(sendJobAlertEmail(params)).rejects.toThrow(
+    // Start the send — it will retry with setTimeout-based backoff.
+    // Attach the rejection expectation first, then advance fake timers
+    // so the promise settles without an unhandled rejection warning.
+    const assertion = expect(sendJobAlertEmail(params)).rejects.toThrow(
       "Failed to send job alert email",
     );
+    await jest.runAllTimersAsync();
+    await assertion;
     expect(mockSend).toHaveBeenCalled();
-
-    jest.useFakeTimers();
   });
 
   it("should use default manageUrl and unsubscribeUrl", async () => {
@@ -300,41 +300,37 @@ describe("retry logic", () => {
   });
 
   it("should throw last error after all retries fail with retryable errors", async () => {
-    jest.useRealTimers();
-
     mockSend
       .mockRejectedValueOnce(new Error("timeout 1"))
       .mockRejectedValueOnce(new Error("timeout 2"))
       .mockRejectedValueOnce(new Error("timeout 3"))
       .mockRejectedValueOnce(new Error("timeout 4"));
 
-    await expect(
+    const assertion = expect(
       sendWelcomeEmail({
         to: "test@test.com",
         userName: "Test",
       }),
     ).rejects.toThrow("timeout");
-
-    jest.useFakeTimers();
+    await jest.runAllTimersAsync();
+    await assertion;
   });
 
   it("should not retry non-retryable errors", async () => {
-    jest.useRealTimers();
-
     mockSend
       .mockResolvedValueOnce({
         data: null,
         error: { message: "validation error: invalid email" },
       });
 
-    await expect(
+    const assertion = expect(
       sendWelcomeEmail({
         to: "test@test.com",
         userName: "Test",
       }),
     ).rejects.toThrow("Failed to send welcome email");
+    await jest.runAllTimersAsync();
+    await assertion;
     expect(mockSend).toHaveBeenCalledTimes(1);
-
-    jest.useFakeTimers();
   });
 });

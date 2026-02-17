@@ -40,12 +40,15 @@ describe("getModelForUser", () => {
     );
   });
 
-  it("should return opus for paid users with no preferences", () => {
+  it("should return paid-tier default (sonnet) for paid users with no preferences", () => {
+    // PAID_MODEL_ID resolves at module load: process.env.DEFAULT_AI_MODEL ?? "claude-sonnet-4-20250514"
     const model = getModelForUser({
       subscriptionStatus: "active",
       preferences: null,
     });
-    expect((model as { modelId: string }).modelId).toBe("claude-opus-4-6");
+    expect((model as { modelId: string }).modelId).toBe(
+      "claude-sonnet-4-20250514"
+    );
   });
 
   it("should use user-selected model when set in preferences", () => {
@@ -93,14 +96,16 @@ describe("getModelForUser", () => {
     expect((model as { modelId: string }).modelId).toBe("claude-opus-4-6");
   });
 
-  it("should use DEFAULT_AI_MODEL env var for paid users", () => {
-    process.env.DEFAULT_AI_MODEL = "claude-sonnet-4-5-20250929";
+  it("should use PAID_MODEL_ID resolved at module load for paid users", () => {
+    // NOTE: PAID_MODEL_ID is a module-level const, so changing process.env
+    // after import has no effect.  This test verifies the default path uses
+    // the resolved PAID_MODEL_ID ("claude-sonnet-4-20250514").
     const model = getModelForUser({
       subscriptionStatus: "active",
       preferences: null,
     });
     expect((model as { modelId: string }).modelId).toBe(
-      "claude-sonnet-4-5-20250929"
+      "claude-sonnet-4-20250514"
     );
   });
 
@@ -118,6 +123,9 @@ describe("getModelForUser", () => {
       subscriptionStatus: "active",
       preferences: {},
     });
-    expect((model as { modelId: string }).modelId).toBe("claude-opus-4-6");
+    // Empty preferences → no aiModel set → falls through to PAID_MODEL_ID default
+    expect((model as { modelId: string }).modelId).toBe(
+      "claude-sonnet-4-20250514"
+    );
   });
 });

@@ -4,6 +4,7 @@ import { eq, and } from "drizzle-orm";
 import type { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { profilePatchSchema, parseBody } from "../../../../lib/api-schemas";
+import type { UserPreferences } from "../../../../lib/api-schemas";
 import { applyRateLimit } from "../../../../lib/rate-limit";
 import { apiSuccess, apiBadRequest, apiNotFound, apiError, safeJsonParse } from "../../../../lib/api-response";
 
@@ -64,16 +65,15 @@ export async function GET() {
     // Redact sensitive BYOK API keys from the response — only indicate
     // whether each key is configured (true/false) so the UI can show status
     // without exposing the raw secret.
-    const prefs = user.preferences as Record<string, unknown> | null;
-    let safePreferences = prefs;
-    if (prefs && typeof prefs === "object" && prefs.apiKeys) {
-      const keys = prefs.apiKeys as Record<string, string | undefined>;
+    const prefs = user.preferences as UserPreferences | null;
+    let safePreferences: Record<string, unknown> | null = prefs;
+    if (prefs?.apiKeys) {
       safePreferences = {
         ...prefs,
         apiKeys: {
-          anthropic: !!keys.anthropic,
-          openai: !!keys.openai,
-          google: !!keys.google,
+          anthropic: !!prefs.apiKeys.anthropic,
+          openai: !!prefs.apiKeys.openai,
+          google: !!prefs.apiKeys.google,
         },
       };
     }

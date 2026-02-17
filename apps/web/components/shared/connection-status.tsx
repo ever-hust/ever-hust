@@ -32,7 +32,8 @@ export function ConnectionStatus() {
 
     const handleOnline = () => {
       setIsOffline(false);
-      // Keep showing briefly to confirm reconnection, then auto-hide
+      // Show "back online" banner briefly to confirm reconnection, then auto-hide
+      setShowBanner(true);
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => setShowBanner(false), RECONNECTION_BANNER_MS);
     };

@@ -60,18 +60,25 @@ export function CVDropzone({ onUploadComplete }: CVDropzoneProps) {
         });
 
         if (!res.ok) {
-          throw new Error(`Upload failed (${res.status})`);
+          const body = await res.json().catch(() => ({}));
+          const serverMsg = (body as { error?: string }).error;
+          throw new Error(serverMsg ?? `Upload failed (${res.status})`);
         }
 
-        const data = (await res.json()) as CVUploadResult;
+        const raw = await res.json();
+        const data: CVUploadResult = { success: true, parsed: raw.parsed };
         setUploadResult(data);
         onUploadComplete?.(data);
       } catch (err) {
-        const message =
-          err instanceof Error && err.message.includes("fetch")
-            ? "Network error. Please check your connection."
-            : "Upload failed. Please try again.";
-        const result = { success: false, error: message };
+        const raw = err instanceof Error ? err.message : "Upload failed";
+        // Distinguish network errors from server errors
+        const isNetwork =
+          raw.toLowerCase().includes("failed to fetch") ||
+          raw.toLowerCase().includes("network");
+        const message = isNetwork
+          ? "Network error. Please check your connection."
+          : raw;
+        const result: CVUploadResult = { success: false, error: message };
         setUploadResult(result);
       } finally {
         setIsUploading(false);
@@ -95,8 +102,12 @@ export function CVDropzone({ onUploadComplete }: CVDropzoneProps) {
     setIsDragging(true);
   }, []);
 
-  const handleDragLeave = useCallback(() => {
-    setIsDragging(false);
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    // Only clear isDragging when the pointer leaves the dropzone entirely,
+    // not when it moves into a child element (which fires dragLeave too).
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsDragging(false);
+    }
   }, []);
 
   const handleFileSelect = useCallback(

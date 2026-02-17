@@ -1,7 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "@repo/db/client";
-import { sendWelcomeEmail } from "@repo/email";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -11,8 +10,8 @@ export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
   socialProviders: {
     linkedin: {
-      clientId: process.env.LINKEDIN_CLIENT_ID!,
-      clientSecret: process.env.LINKEDIN_CLIENT_SECRET!,
+      clientId: process.env.LINKEDIN_CLIENT_ID ?? "",
+      clientSecret: process.env.LINKEDIN_CLIENT_SECRET ?? "",
       scope: ["openid", "profile", "email"],
       mapProfileToUser: (profile) => {
         const raw = profile as unknown as Record<string, unknown>;
@@ -49,7 +48,7 @@ export const auth = betterAuth({
             // Log but don't block user creation if email fails
             console.error(
               `[Auth] Failed to send welcome email to ${user.email}:`,
-              error
+              error instanceof Error ? error.message : error
             );
           }
         },

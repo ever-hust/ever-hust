@@ -37,6 +37,9 @@ export async function GET(
     return response as NextResponse;
   }
 
+  const rateLimited = applyRateLimit(user.id, "authenticated");
+  if (rateLimited) return rateLimited;
+
   const { id: sessionId } = await params;
 
   // Verify session belongs to user

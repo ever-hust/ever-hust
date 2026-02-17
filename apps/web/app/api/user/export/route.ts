@@ -87,9 +87,26 @@ export async function GET() {
       messages = messageResults.flat();
     }
 
+    // Redact sensitive BYOK API keys from the export
+    const profileData = profile[0] ?? null;
+    if (profileData) {
+      const prefs = profileData.preferences as Record<string, unknown> | null;
+      if (prefs && typeof prefs === "object" && prefs.apiKeys) {
+        const keys = prefs.apiKeys as Record<string, string | undefined>;
+        (profileData as Record<string, unknown>).preferences = {
+          ...prefs,
+          apiKeys: {
+            anthropic: !!keys.anthropic,
+            openai: !!keys.openai,
+            google: !!keys.google,
+          },
+        };
+      }
+    }
+
     const exportData = {
       exportDate: new Date().toISOString(),
-      profile: profile[0] ?? null,
+      profile: profileData,
       favorites,
       applications: apps,
       chatSessions: sessions,

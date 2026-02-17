@@ -20,7 +20,7 @@ export default function Error({
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-4 text-center">
       <div className="rounded-full bg-destructive/10 p-4">
-        <AlertTriangle className="h-8 w-8 text-destructive" />
+        <AlertTriangle className="h-8 w-8 text-destructive" aria-hidden="true" />
       </div>
       <h1 className="mt-6 text-2xl font-bold">Something went wrong</h1>
       <p className="mt-2 max-w-md text-sm text-muted-foreground">
@@ -34,7 +34,7 @@ export default function Error({
       )}
       <div className="mt-6 flex gap-3">
         <Button onClick={reset} variant="outline" className="gap-2">
-          <RefreshCcw className="h-4 w-4" />
+          <RefreshCcw className="h-4 w-4" aria-hidden="true" />
           Try Again
         </Button>
         <Link href="/chat">

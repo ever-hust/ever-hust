@@ -143,7 +143,7 @@ export function PricingSection() {
         {/* Header */}
         <div className="mx-auto max-w-2xl text-center">
           <Badge variant="outline" className="mb-4">
-            <Zap className="mr-1 h-3 w-3" />
+            <Zap className="mr-1 h-3 w-3" aria-hidden="true" />
             Simple Pricing
           </Badge>
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
@@ -185,7 +185,7 @@ export function PricingSection() {
                 <ul className="mb-6 space-y-3">
                   {plan.features.map((feature) => (
                     <li key={feature} className="flex items-start gap-2">
-                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                       <span className="text-sm">{feature}</span>
                     </li>
                   ))}
@@ -198,7 +198,7 @@ export function PricingSection() {
                     onClick={() => handleSubscribe(plan.planId!)}
                   >
                     {loadingPlan === plan.planId ? (
-                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
                     ) : null}
                     {plan.cta}
                   </Button>

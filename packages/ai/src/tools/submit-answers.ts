@@ -26,6 +26,7 @@ export const submitAnswersTool = tool({
   execute: async ({ userId, applicationId, answers }) => {
     if (!userId) return { submitted: false, error: "Not authenticated" };
 
+    try {
     // Check subscription — submitting answers is a Pro feature
     const userResult = await db
       .select({ subscriptionStatus: users.subscriptionStatus })
@@ -141,5 +142,9 @@ export const submitAnswersTool = tool({
       instruction:
         "The answers have been submitted successfully. Let the user know their application answers have been saved and the application status is now 'submitted'. If there's an external application URL, remind them to complete the process there.",
     };
+    } catch (err) {
+      console.error("[submit-answers] execute failed:", err instanceof Error ? err.message : err);
+      return { submitted: false, error: "Something went wrong while submitting answers. Please try again." };
+    }
   },
 });

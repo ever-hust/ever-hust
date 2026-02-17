@@ -33,10 +33,11 @@ export async function GET() {
     const gate = await checkSubscription(user.id);
 
     if (gate.isActive) {
-      // Usage stats are relatively stable — brief cache for pro users
+      // Usage stats are relatively stable — brief cache for pro users.
+      // isPrivate prevents CDN from sharing one user's plan status with another.
       return apiSuccess(
         { plan: "pro", unlimited: true, usage: null },
-        { cacheSeconds: 30 },
+        { cacheSeconds: 30, isPrivate: true },
       );
     }
 

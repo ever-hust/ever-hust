@@ -25,6 +25,7 @@ export const interviewPrepTool = tool({
   execute: async ({ userId, jobId, focusArea = "general" }) => {
     if (!userId) return { prepared: false, error: "Not authenticated" };
 
+    try {
     // Get user profile
     const userResult = await db
       .select({
@@ -109,5 +110,9 @@ export const interviewPrepTool = tool({
 
 Highlight matching skills as strengths and missing skills as areas to prepare. Be specific and actionable.`,
     };
+    } catch (err) {
+      console.error("[interview-prep] execute failed:", err instanceof Error ? err.message : err);
+      return { prepared: false, error: "Something went wrong while preparing interview materials. Please try again." };
+    }
   },
 });

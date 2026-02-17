@@ -80,6 +80,7 @@ export const savePreferencesTool = tool({
   execute: async ({ userId, preferences, markOnboardingComplete }) => {
     if (!userId) return { saved: false, error: "Not authenticated" };
 
+    try {
     // Get existing preferences
     const existing = await db
       .select({ preferences: users.preferences })
@@ -110,5 +111,9 @@ export const savePreferencesTool = tool({
         ? "Preferences saved and onboarding completed! Ready to find jobs."
         : "Preferences updated successfully.",
     };
+    } catch (err) {
+      console.error("[save-preferences] execute failed:", err instanceof Error ? err.message : err);
+      return { saved: false, error: "Something went wrong while saving preferences. Please try again." };
+    }
   },
 });

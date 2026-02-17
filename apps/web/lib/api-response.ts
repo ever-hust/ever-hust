@@ -14,16 +14,23 @@ export function apiSuccess<T>(
     status?: number;
     /** Cache-Control max-age in seconds (0 = no-cache) */
     cacheSeconds?: number;
+    /**
+     * Whether the response contains user-specific data.
+     * When true, uses `private` Cache-Control to prevent CDN from
+     * serving one user's data to another. Defaults to false (public).
+     */
+    isPrivate?: boolean;
     /** Additional headers */
     headers?: Record<string, string>;
   },
 ) {
-  const { status = 200, cacheSeconds, headers: extraHeaders } = options ?? {};
+  const { status = 200, cacheSeconds, isPrivate = false, headers: extraHeaders } = options ?? {};
 
   const headers: Record<string, string> = { ...extraHeaders };
 
   if (cacheSeconds !== undefined && cacheSeconds > 0) {
-    headers["Cache-Control"] = `public, s-maxage=${cacheSeconds}, stale-while-revalidate=${cacheSeconds * 2}`;
+    const scope = isPrivate ? "private" : "public";
+    headers["Cache-Control"] = `${scope}, s-maxage=${cacheSeconds}, stale-while-revalidate=${cacheSeconds * 2}`;
   } else if (cacheSeconds === 0) {
     headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
   }

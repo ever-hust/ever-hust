@@ -20,6 +20,7 @@ export const applyJobTool = tool({
   execute: async ({ userId, jobId, coverLetter }) => {
     if (!userId) return { applied: false, error: "Not authenticated" };
 
+    try {
     // Get user profile
     const userResult = await db
       .select({
@@ -161,5 +162,9 @@ export const applyJobTool = tool({
       instruction:
         "The application has been initiated. Direct the user to open the application URL to complete their application. If a cover letter was provided, let them know it's ready to paste. Track the application status in the user's profile.",
     };
+    } catch (err) {
+      console.error("[apply-job] execute failed:", err instanceof Error ? err.message : err);
+      return { applied: false, error: "Something went wrong while processing the application. Please try again." };
+    }
   },
 });

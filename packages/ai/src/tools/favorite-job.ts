@@ -15,6 +15,7 @@ export const favoriteJobTool = tool({
   execute: async ({ jobId, userId }) => {
     if (!userId) return { jobId, favorited: false, message: "Not authenticated" };
 
+    try {
     // Check for any existing userJobs record (regardless of status)
     // to avoid unique constraint violations when toggling favorites
     const existing = await db
@@ -58,5 +59,9 @@ export const favoriteJobTool = tool({
       favorited: true,
       message: "Job added to favorites!",
     };
+    } catch (err) {
+      console.error("[favorite-job] execute failed:", err instanceof Error ? err.message : err);
+      return { jobId, favorited: false, message: "Something went wrong while updating favorites. Please try again." };
+    }
   },
 });

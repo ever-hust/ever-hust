@@ -74,7 +74,7 @@ export async function GET(req: Request) {
       db
         .select({ count: sql<number>`count(*)` })
         .from(applications)
-        .where(eq(applications.userId, userId)),
+        .where(where),
     ]);
 
     const total = Number(countResult[0]?.count ?? 0);

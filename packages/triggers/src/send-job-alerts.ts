@@ -37,6 +37,11 @@ async function processAlerts(
       const criteria = alert.criteria;
       const conditions = [];
 
+      // Escape ILIKE wildcard characters (%, _) in user input to prevent
+      // unintended pattern matching. Backslash-escape is the Postgres default.
+      const escapeIlike = (str: string) =>
+        str.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+
       // Time filter: jobs posted since last alert
       const since = alert.lastSentAt ?? new Date(Date.now() - 24 * 60 * 60 * 1000);
       conditions.push(gte(jobs.createdAt, since));
@@ -45,8 +50,8 @@ async function processAlerts(
       if (criteria?.keywords && criteria.keywords.length > 0) {
         const keywordConditions = criteria.keywords.map((kw) =>
           or(
-            ilike(jobs.title, `%${kw}%`),
-            ilike(jobs.description, `%${kw}%`)
+            ilike(jobs.title, `%${escapeIlike(kw)}%`),
+            ilike(jobs.description, `%${escapeIlike(kw)}%`)
           )
         );
         if (keywordConditions.length > 0) {
@@ -58,9 +63,9 @@ async function processAlerts(
       if (criteria?.locations && criteria.locations.length > 0) {
         const locConditions = criteria.locations.map((loc) =>
           or(
-            ilike(jobs.locationCity, `%${loc}%`),
-            ilike(jobs.locationState, `%${loc}%`),
-            ilike(jobs.locationCountry, `%${loc}%`)
+            ilike(jobs.locationCity, `%${escapeIlike(loc)}%`),
+            ilike(jobs.locationState, `%${escapeIlike(loc)}%`),
+            ilike(jobs.locationCountry, `%${escapeIlike(loc)}%`)
           )
         );
         if (locConditions.length > 0) {

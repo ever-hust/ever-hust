@@ -32,8 +32,44 @@ export async function GET(
   }
 
   try {
+    // Explicit column projection — omit rawData (large internal JSONB blob)
     const result = await db
-      .select()
+      .select({
+        id: jobs.id,
+        externalId: jobs.externalId,
+        site: jobs.site,
+        title: jobs.title,
+        companyName: jobs.companyName,
+        companyUrl: jobs.companyUrl,
+        companyLogo: jobs.companyLogo,
+        companyIndustry: jobs.companyIndustry,
+        companyNumEmployees: jobs.companyNumEmployees,
+        companyDescription: jobs.companyDescription,
+        jobUrl: jobs.jobUrl,
+        jobUrlDirect: jobs.jobUrlDirect,
+        applyUrl: jobs.applyUrl,
+        locationCity: jobs.locationCity,
+        locationState: jobs.locationState,
+        locationCountry: jobs.locationCountry,
+        isRemote: jobs.isRemote,
+        jobType: jobs.jobType,
+        description: jobs.description,
+        skills: jobs.skills,
+        department: jobs.department,
+        team: jobs.team,
+        employmentType: jobs.employmentType,
+        jobLevel: jobs.jobLevel,
+        jobFunction: jobs.jobFunction,
+        salaryMin: jobs.salaryMin,
+        salaryMax: jobs.salaryMax,
+        salaryCurrency: jobs.salaryCurrency,
+        salaryInterval: jobs.salaryInterval,
+        salarySource: jobs.salarySource,
+        datePosted: jobs.datePosted,
+        expiresAt: jobs.expiresAt,
+        createdAt: jobs.createdAt,
+        updatedAt: jobs.updatedAt,
+      })
       .from(jobs)
       .where(eq(jobs.id, jobId))
       .limit(1);

@@ -55,6 +55,7 @@ export const createAlertTool = tool({
   }) => {
     if (!userId) return { created: false, error: "Not authenticated" };
 
+    try {
     // Check subscription
     const userResult = await db
       .select({
@@ -119,5 +120,9 @@ export const createAlertTool = tool({
         skills: skills ?? [],
       },
     };
+    } catch (err) {
+      console.error("[create-alert] execute failed:", err instanceof Error ? err.message : err);
+      return { created: false, error: "Something went wrong while creating the alert. Please try again." };
+    }
   },
 });

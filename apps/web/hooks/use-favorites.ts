@@ -3,6 +3,17 @@
 import { useState, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 
+/** Toggle a job ID in a Set — returns a new Set with the item added or removed. */
+function toggleInSet(set: Set<number>, id: number): Set<number> {
+  const next = new Set(set);
+  if (next.has(id)) {
+    next.delete(id);
+  } else {
+    next.add(id);
+  }
+  return next;
+}
+
 /**
  * Hook for managing the user's favorited jobs.
  *
@@ -18,43 +29,34 @@ export function useFavorites() {
 
   // Load favorites on mount
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
 
     async function load() {
       try {
-        const res = await fetch("/api/user/favorites");
-        if (res.ok && !cancelled) {
+        const res = await fetch("/api/user/favorites", { signal: controller.signal });
+        if (res.ok && !controller.signal.aborted) {
           const data = (await res.json()) as { favoriteJobIds: number[] };
           setFavoritedJobIds(new Set(data.favoriteJobIds));
         }
       } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
         console.warn(
           "[useFavorites] Failed to load favorites:",
           error instanceof Error ? error.message : error
         );
       } finally {
-        if (!cancelled) setIsLoading(false);
+        if (!controller.signal.aborted) setIsLoading(false);
       }
     }
 
     load();
-    return () => {
-      cancelled = true;
-    };
+    return () => { controller.abort(); };
   }, []);
 
   // Optimistic toggle with API persist
   const toggleFavorite = useCallback(async (jobId: number) => {
     // Optimistic update
-    setFavoritedJobIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(jobId)) {
-        next.delete(jobId);
-      } else {
-        next.add(jobId);
-      }
-      return next;
-    });
+    setFavoritedJobIds((prev) => toggleInSet(prev, jobId));
 
     try {
       const res = await fetch("/api/user/favorites", {
@@ -85,29 +87,17 @@ export function useFavorites() {
         );
       } else {
         // Revert on failure
-        setFavoritedJobIds((prev) => {
-          const next = new Set(prev);
-          if (next.has(jobId)) {
-            next.delete(jobId);
-          } else {
-            next.add(jobId);
-          }
-          return next;
-        });
+        setFavoritedJobIds((prev) => toggleInSet(prev, jobId));
         toast.error("Failed to update favorite");
       }
-    } catch {
+    } catch (err) {
       // Revert on error
-      setFavoritedJobIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(jobId)) {
-          next.delete(jobId);
-        } else {
-          next.add(jobId);
-        }
-        return next;
-      });
+      setFavoritedJobIds((prev) => toggleInSet(prev, jobId));
       toast.error("Failed to update favorite");
+      console.warn(
+        "[useFavorites] Failed to toggle favorite:",
+        err instanceof Error ? err.message : err
+      );
     }
   }, []);
 

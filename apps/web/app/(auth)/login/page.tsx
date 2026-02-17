@@ -29,8 +29,12 @@ function getSafeCallbackUrl(raw: string | null): string {
   // Reject backslash tricks (e.g. "/\evil.com")
   if (raw.includes("\\")) return "/chat";
   // Reject any URL that contains a colon before the first slash (e.g. "/javascript:...")
+  // If there's no second slash, indexOf("/") returns -1 which would bypass the check,
+  // so we treat "no slash" as Infinity to always reject colons in that case.
   const withoutLeadingSlash = raw.slice(1);
-  if (withoutLeadingSlash.includes(":") && withoutLeadingSlash.indexOf(":") < withoutLeadingSlash.indexOf("/")) {
+  const colonIdx = withoutLeadingSlash.indexOf(":");
+  const slashIdx = withoutLeadingSlash.indexOf("/");
+  if (colonIdx !== -1 && (slashIdx === -1 || colonIdx < slashIdx)) {
     return "/chat";
   }
   return raw;

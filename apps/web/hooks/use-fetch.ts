@@ -53,6 +53,13 @@ export function useFetch<T>(
   // due to new array references on every render.
   const depsKey = useMemo(() => JSON.stringify(deps), deps);
 
+  // Keep transform in a ref to avoid stale closures without re-creating
+  // fetchData on every render (transform is typically an inline arrow).
+  const transformRef = useRef(transform);
+  useEffect(() => {
+    transformRef.current = transform;
+  });
+
   const [data, setData] = useState<T | null>(initialData ?? null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(immediate);
@@ -78,7 +85,7 @@ export function useFetch<T>(
       }
 
       const json = await res.json();
-      const result = transform ? transform(json) : (json as T);
+      const result = transformRef.current ? transformRef.current(json) : (json as T);
       setData(result);
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {

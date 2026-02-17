@@ -48,6 +48,11 @@ export async function apiFetch<T>(
       return null;
     }
 
+    // 204 No Content — no body to parse
+    if (res.status === 204) {
+      return null as T;
+    }
+
     return (await res.json()) as T;
   } catch (err) {
     // Network error or JSON parse error

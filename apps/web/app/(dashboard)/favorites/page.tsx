@@ -151,12 +151,12 @@ export default function FavoritesPage() {
             title="No favorites yet"
             description="Browse jobs and click the heart icon to save them here for easy access later."
           >
-            <Link href="/chat">
-              <Button size="sm" className="gap-1.5">
+            <Button size="sm" className="gap-1.5" asChild>
+              <Link href="/chat">
                 <Briefcase className="h-3.5 w-3.5" aria-hidden="true" />
                 Search Jobs
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </EmptyState>
         ) : (
           <ul className="space-y-3" role="list" aria-label="Favorited jobs">

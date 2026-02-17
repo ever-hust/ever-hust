@@ -17,18 +17,18 @@ export default function NotFound() {
         Let&apos;s get you back on track.
       </p>
       <div className="mt-8 flex flex-wrap justify-center gap-3">
-        <Link href="/">
-          <Button className="gap-2">
+        <Button className="gap-2" asChild>
+          <Link href="/">
             <Home className="h-4 w-4" aria-hidden="true" />
             Go Home
-          </Button>
-        </Link>
-        <Link href="/chat">
-          <Button variant="outline" className="gap-2">
+          </Link>
+        </Button>
+        <Button variant="outline" className="gap-2" asChild>
+          <Link href="/chat">
             <MessageSquare className="h-4 w-4" aria-hidden="true" />
             Go to Chat
-          </Button>
-        </Link>
+          </Link>
+        </Button>
       </div>
       <div className="mt-12 rounded-lg border bg-card p-4 text-left shadow-sm">
         <p className="mb-2 text-xs font-medium text-muted-foreground">

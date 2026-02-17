@@ -35,12 +35,12 @@ export default function AuthError({
           <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
           Try Again
         </Button>
-        <Link href="/login">
-          <Button size="sm" className="gap-2">
+        <Button size="sm" className="gap-2" asChild>
+          <Link href="/login">
             <LogIn className="h-3.5 w-3.5" aria-hidden="true" />
             Back to Sign In
-          </Button>
-        </Link>
+          </Link>
+        </Button>
       </div>
     </div>
   );

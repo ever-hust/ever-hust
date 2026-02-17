@@ -23,11 +23,11 @@ export function CTA() {
           AI-powered assistance.
         </p>
         <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-          <Link href="/login">
-            <Button size="lg" className="gap-2 shadow-md">
+          <Button size="lg" className="gap-2 shadow-md" asChild>
+            <Link href="/login">
               Get Started for Free <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         </div>
         <p className="mt-4 text-sm text-muted-foreground">
           No credit card required. Start finding jobs in under 60 seconds.

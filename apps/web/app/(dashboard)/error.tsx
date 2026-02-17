@@ -35,12 +35,12 @@ export default function DashboardError({
           <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
           Try Again
         </Button>
-        <Link href="/chat">
-          <Button size="sm" className="gap-2">
+        <Button size="sm" className="gap-2" asChild>
+          <Link href="/chat">
             <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
             Go to Chat
-          </Button>
-        </Link>
+          </Link>
+        </Button>
       </div>
     </div>
   );

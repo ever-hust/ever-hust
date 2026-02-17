@@ -145,19 +145,19 @@ const ApplicationCard = memo(function ApplicationCard({ app }: { app: Applicatio
           {/* Actions */}
           <div className="mt-3 flex items-center gap-2">
             {app.coverLetter && (
-              <Link href={`/chat?job=${app.jobId}`}>
-                <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs">
+              <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" asChild>
+                <Link href={`/chat?job=${app.jobId}`}>
                   <FileText className="h-3 w-3" aria-hidden="true" />
                   View Cover Letter
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             )}
-            <Link href={`/jobs/${app.jobId}`}>
-              <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs text-muted-foreground">
+            <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs text-muted-foreground" asChild>
+              <Link href={`/jobs/${app.jobId}`}>
                 <ExternalLink className="h-3 w-3" aria-hidden="true" />
                 Job Details
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </div>
         </div>
       </div>
@@ -304,9 +304,9 @@ export default function ApplicationsPage() {
                 : "Start by searching for jobs in the chat and applying to positions you like."
             }
           >
-            <Link href="/chat">
-              <Button size="sm">Go to Chat</Button>
-            </Link>
+            <Button size="sm" asChild>
+              <Link href="/chat">Go to Chat</Link>
+            </Button>
           </EmptyState>
         ) : (
           <div className="space-y-3">

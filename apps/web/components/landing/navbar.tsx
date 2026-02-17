@@ -43,14 +43,14 @@ export function Navbar() {
 
         <div className="flex items-center gap-3">
           <ThemeToggle />
-          <Link href="/login" className="hidden sm:inline-flex">
-            <Button variant="ghost" size="sm">
+          <Button variant="ghost" size="sm" className="hidden sm:inline-flex" asChild>
+            <Link href="/login">
               Log in
-            </Button>
-          </Link>
-          <Link href="/login" className="hidden sm:inline-flex">
-            <Button size="sm">Get Started</Button>
-          </Link>
+            </Link>
+          </Button>
+          <Button size="sm" className="hidden sm:inline-flex" asChild>
+            <Link href="/login">Get Started</Link>
+          </Button>
 
           {/* Mobile menu button */}
           <Button
@@ -91,14 +91,16 @@ export function Navbar() {
             ))}
           </div>
           <div className="mt-3 flex flex-col gap-2 border-t pt-3 sm:hidden">
-            <Link href="/login" onClick={closeMobile}>
-              <Button variant="outline" className="w-full">
+            <Button variant="outline" className="w-full" asChild>
+              <Link href="/login" onClick={closeMobile}>
                 Log in
-              </Button>
-            </Link>
-            <Link href="/login" onClick={closeMobile}>
-              <Button className="w-full">Get Started</Button>
-            </Link>
+              </Link>
+            </Button>
+            <Button className="w-full" asChild>
+              <Link href="/login" onClick={closeMobile}>
+                Get Started
+              </Link>
+            </Button>
           </div>
         </nav>
       )}

@@ -205,11 +205,11 @@ export function PricingSection() {
                     {plan.cta}
                   </Button>
                 ) : (
-                  <Link href="/login" className="block">
-                    <Button variant={plan.variant} className="w-full">
+                  <Button variant={plan.variant} className="block w-full" asChild>
+                    <Link href="/login">
                       {plan.cta}
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
                 )}
               </CardContent>
             </Card>

@@ -37,9 +37,9 @@ export default function Error({
           <RefreshCcw className="h-4 w-4" aria-hidden="true" />
           Try Again
         </Button>
-        <Link href="/chat">
-          <Button>Go to Dashboard</Button>
-        </Link>
+        <Button asChild>
+          <Link href="/chat">Go to Dashboard</Link>
+        </Button>
       </div>
     </div>
   );

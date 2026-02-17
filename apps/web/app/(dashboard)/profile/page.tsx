@@ -148,12 +148,12 @@ export default function ProfilePage() {
         title="Profile"
         className="border-b-0 px-0 py-0"
         actions={
-          <Link href="/settings">
-            <Button variant="outline" size="sm" className="gap-1.5">
+          <Button variant="outline" size="sm" className="gap-1.5" asChild>
+            <Link href="/settings">
               <Settings className="h-3.5 w-3.5" aria-hidden="true" />
               Edit Profile
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         }
       />
 
@@ -236,12 +236,12 @@ export default function ProfilePage() {
             <p className="text-sm text-muted-foreground">
               No skills added yet.
             </p>
-            <Link href="/settings" className="mt-2 inline-block">
-              <Button variant="outline" size="sm" className="gap-1.5 mt-2">
+            <Button variant="outline" size="sm" className="mt-2 inline-block gap-1.5" asChild>
+              <Link href="/settings">
                 <Settings className="h-3.5 w-3.5" aria-hidden="true" />
                 Add Skills in Settings
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </div>
         )}
       </Card>
@@ -355,11 +355,11 @@ export default function ProfilePage() {
             Favorite Jobs ({favorites.length})
           </h2>
           {favorites.length > 0 && (
-            <Link href="/favorites">
-              <Button variant="ghost" size="sm" className="text-xs">
+            <Button variant="ghost" size="sm" className="text-xs" asChild>
+              <Link href="/favorites">
                 View All
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           )}
         </div>
         {favorites.length > 0 ? (
@@ -418,11 +418,11 @@ export default function ProfilePage() {
             Applications ({applications.length})
           </h2>
           {applications.length > 0 && (
-            <Link href="/applications">
-              <Button variant="ghost" size="sm" className="text-xs">
+            <Button variant="ghost" size="sm" className="text-xs" asChild>
+              <Link href="/applications">
                 View All
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           )}
         </div>
         {applications.length > 0 ? (

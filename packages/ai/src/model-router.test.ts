@@ -68,7 +68,7 @@ describe("getModelForUser", () => {
     expect((model as { modelId: string }).modelId).toBe("claude-opus-4-6");
   });
 
-  it("should prioritize BYOK over user model preference", () => {
+  it("should use BYOK with user's preferred model", () => {
     const model = getModelForUser({
       subscriptionStatus: "free",
       preferences: {
@@ -76,7 +76,20 @@ describe("getModelForUser", () => {
         apiKeys: { anthropic: "sk-ant-123" },
       },
     });
-    // BYOK takes priority (step 1 in the function)
+    // BYOK uses user's own key but respects their model preference
+    expect((model as { modelId: string }).modelId).toBe(
+      "claude-haiku-4-5-20251001"
+    );
+  });
+
+  it("should use BYOK with opus when no model preference set", () => {
+    const model = getModelForUser({
+      subscriptionStatus: "free",
+      preferences: {
+        apiKeys: { anthropic: "sk-ant-123" },
+      },
+    });
+    // BYOK without model preference defaults to opus
     expect((model as { modelId: string }).modelId).toBe("claude-opus-4-6");
   });
 

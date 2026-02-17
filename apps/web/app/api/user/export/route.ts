@@ -7,7 +7,7 @@ import {
   chatMessages,
   userAlerts,
 } from "@repo/db";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { applyRateLimit } from "../../../../lib/rate-limit";
@@ -72,19 +72,14 @@ export async function GET() {
         .where(eq(userAlerts.userId, userId)),
     ]);
 
-    // Fetch chat messages for user's sessions
+    // Fetch chat messages for user's sessions in a single query (avoids N+1)
     const sessionIds = sessions.map((s) => s.id);
     let messages: unknown[] = [];
     if (sessionIds.length > 0) {
-      const messageResults = await Promise.all(
-        sessionIds.map((sid) =>
-          db
-            .select()
-            .from(chatMessages)
-            .where(eq(chatMessages.sessionId, sid))
-        )
-      );
-      messages = messageResults.flat();
+      messages = await db
+        .select()
+        .from(chatMessages)
+        .where(inArray(chatMessages.sessionId, sessionIds));
     }
 
     // Redact sensitive BYOK API keys from the export

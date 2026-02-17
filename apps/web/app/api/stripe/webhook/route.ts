@@ -162,15 +162,30 @@ async function handleCheckoutCompleted(data: {
       })
       .where(eq(users.id, userId));
 
-    await tx.insert(subscriptions).values({
-      userId,
-      stripeSubscriptionId,
-      planType: planId as "monthly" | "quarterly" | "annual",
-      status: "active",
-      currentPeriodStart: new Date(sub.current_period_start * 1000),
-      currentPeriodEnd: new Date(sub.current_period_end * 1000),
-      cancelAtPeriodEnd: sub.cancel_at_period_end,
-    });
+    // Use onConflictDoUpdate so Stripe retries don't fail with a unique
+    // constraint violation on stripe_subscription_id.
+    await tx
+      .insert(subscriptions)
+      .values({
+        userId,
+        stripeSubscriptionId,
+        planType: planId as "monthly" | "quarterly" | "annual",
+        status: "active",
+        currentPeriodStart: new Date(sub.current_period_start * 1000),
+        currentPeriodEnd: new Date(sub.current_period_end * 1000),
+        cancelAtPeriodEnd: sub.cancel_at_period_end,
+      })
+      .onConflictDoUpdate({
+        target: subscriptions.stripeSubscriptionId,
+        set: {
+          status: "active",
+          planType: planId as "monthly" | "quarterly" | "annual",
+          currentPeriodStart: new Date(sub.current_period_start * 1000),
+          currentPeriodEnd: new Date(sub.current_period_end * 1000),
+          cancelAtPeriodEnd: sub.cancel_at_period_end,
+          updatedAt: new Date(),
+        },
+      });
   });
 
   // Send subscription confirmation email (non-blocking, outside transaction)

@@ -7,7 +7,7 @@ export const chatRequestSchema = z.object({
       z.object({
         id: z.string(),
         role: z.enum(["user", "assistant"]),
-        content: z.string().max(50_000),
+        content: z.string().min(1).max(50_000),
         parts: z.array(z.unknown()).optional(),
       })
     )
@@ -30,7 +30,7 @@ export const settingsPatchSchema = z.object({
         })
         .optional(),
     })
-    .passthrough()
+    .strict()
     .optional(),
 });
 

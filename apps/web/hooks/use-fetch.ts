@@ -81,7 +81,9 @@ export function useFetch<T>(
       }
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
-      setIsLoading(false);
+      if (!controller.signal.aborted) {
+        setIsLoading(false);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url, ...deps]);

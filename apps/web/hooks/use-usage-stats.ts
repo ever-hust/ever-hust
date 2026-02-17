@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 interface UsageCategory {
   used: number;
@@ -43,11 +43,16 @@ export function useUsageStats(): UseUsageStatsReturn {
   const [data, setData] = useState<UsageStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const fetchUsage = useCallback(async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       setError(null);
-      const res = await fetch("/api/user/usage");
+      const res = await fetch("/api/user/usage", { signal: controller.signal });
 
       if (!res.ok) {
         if (res.status === 401) {
@@ -58,16 +63,22 @@ export function useUsageStats(): UseUsageStatsReturn {
       }
 
       const json = (await res.json()) as UsageStats;
-      setData(json);
+      if (!controller.signal.aborted) {
+        setData(json);
+      }
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setError(err instanceof Error ? err.message : "Failed to fetch usage stats");
     } finally {
-      setIsLoading(false);
+      if (!controller.signal.aborted) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     fetchUsage();
+    return () => { abortRef.current?.abort(); };
   }, [fetchUsage]);
 
   return { data, isLoading, error, refetch: fetchUsage };

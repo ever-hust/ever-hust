@@ -77,7 +77,7 @@ export function Breadcrumbs({
 
         return (
           <span key={item.href} className="inline-flex items-center">
-            <ChevronRight className="mx-1.5 h-3 w-3" />
+            <ChevronRight className="mx-1.5 h-3 w-3" aria-hidden="true" />
             {isLast ? (
               <span className="font-medium text-foreground" aria-current="page">
                 {item.label}

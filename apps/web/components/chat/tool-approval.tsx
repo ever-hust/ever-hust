@@ -99,7 +99,7 @@ export function ToolApproval({
               {loading ? (
                 <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
               ) : (
-                <Check className="mr-1.5 h-3 w-3" />
+                <Check className="mr-1.5 h-3 w-3" aria-hidden="true" />
               )}
               Approve
             </Button>
@@ -109,7 +109,7 @@ export function ToolApproval({
               onClick={handleDeny}
               disabled={loading}
             >
-              <X className="mr-1.5 h-3 w-3" />
+              <X className="mr-1.5 h-3 w-3" aria-hidden="true" />
               Deny
             </Button>
           </div>

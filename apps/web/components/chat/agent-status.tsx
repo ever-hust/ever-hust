@@ -74,9 +74,9 @@ export function AgentStatus({
       )}
     >
       {state === "done" ? (
-        <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+        <CheckCircle2 className="h-3.5 w-3.5 text-green-500" aria-hidden="true" />
       ) : (
-        <Icon className="h-3.5 w-3.5 animate-spin" />
+        <Icon className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
       )}
       <span>{label}</span>
       {state === "tool-running" && (

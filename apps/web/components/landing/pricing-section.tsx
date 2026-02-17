@@ -86,8 +86,9 @@ const FAQ_ITEMS = [
   },
 ];
 
-function FAQItem({ q, a }: { q: string; a: string }) {
+function FAQItem({ q, a, id }: { q: string; a: string; id: string }) {
   const [open, setOpen] = useState(false);
+  const answerId = `faq-answer-${id}`;
 
   return (
     <div className="border-b last:border-b-0">
@@ -96,6 +97,7 @@ function FAQItem({ q, a }: { q: string; a: string }) {
         className="flex w-full items-center justify-between py-4 text-left text-sm font-medium transition-colors hover:text-primary"
         onClick={() => setOpen(!open)}
         aria-expanded={open}
+        aria-controls={answerId}
       >
         {q}
         <ChevronDown
@@ -104,7 +106,7 @@ function FAQItem({ q, a }: { q: string; a: string }) {
         />
       </button>
       {open && (
-        <p className="pb-4 text-sm text-muted-foreground leading-relaxed">
+        <p id={answerId} className="pb-4 text-sm text-muted-foreground leading-relaxed">
           {a}
         </p>
       )}
@@ -242,8 +244,8 @@ export function PricingSection() {
           <Separator className="my-8" />
 
           <div>
-            {FAQ_ITEMS.map((item) => (
-              <FAQItem key={item.q} q={item.q} a={item.a} />
+            {FAQ_ITEMS.map((item, index) => (
+              <FAQItem key={item.q} q={item.q} a={item.a} id={String(index)} />
             ))}
           </div>
         </div>

@@ -59,6 +59,10 @@ export function CVDropzone({ onUploadComplete }: CVDropzoneProps) {
           body: formData,
         });
 
+        if (!res.ok) {
+          throw new Error(`Upload failed (${res.status})`);
+        }
+
         const data = (await res.json()) as CVUploadResult;
         setUploadResult(data);
         onUploadComplete?.(data);
@@ -129,12 +133,12 @@ export function CVDropzone({ onUploadComplete }: CVDropzoneProps) {
 
       {isUploading ? (
         <div className="flex flex-col items-center gap-2">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden="true" />
           <p className="text-sm text-muted-foreground">Parsing your CV...</p>
         </div>
       ) : uploadResult?.success ? (
         <div className="flex flex-col items-center gap-2">
-          <Check className="h-8 w-8 text-green-500" />
+          <Check className="h-8 w-8 text-green-500" aria-hidden="true" />
           <p className="text-sm font-medium">CV uploaded successfully!</p>
           {uploadResult.parsed && (
             <div className="mt-1 text-xs text-muted-foreground">
@@ -157,7 +161,7 @@ export function CVDropzone({ onUploadComplete }: CVDropzoneProps) {
         </div>
       ) : uploadResult?.error ? (
         <div className="flex flex-col items-center gap-2">
-          <X className="h-8 w-8 text-destructive" />
+          <X className="h-8 w-8 text-destructive" aria-hidden="true" />
           <p className="text-sm text-destructive">{uploadResult.error}</p>
           <Button
             variant="ghost"
@@ -175,9 +179,9 @@ export function CVDropzone({ onUploadComplete }: CVDropzoneProps) {
         <div className="flex flex-col items-center gap-2">
           <div className="rounded-full bg-muted p-3">
             {isDragging ? (
-              <FileText className="h-6 w-6 text-primary" />
+              <FileText className="h-6 w-6 text-primary" aria-hidden="true" />
             ) : (
-              <Upload className="h-6 w-6 text-muted-foreground" />
+              <Upload className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
             )}
           </div>
           <div>

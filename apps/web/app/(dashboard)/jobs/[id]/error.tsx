@@ -34,7 +34,7 @@ export default function JobDetailError({
       <div className="mt-6 flex items-center gap-3">
         <Link href="/jobs">
           <Button variant="outline">
-            <ArrowLeft className="mr-1.5 h-4 w-4" />
+            <ArrowLeft className="mr-1.5 h-4 w-4" aria-hidden="true" />
             Back to Jobs
           </Button>
         </Link>

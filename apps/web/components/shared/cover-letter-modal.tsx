@@ -97,7 +97,7 @@ export function CoverLetterModal({
                   className="text-xs capitalize"
                   onClick={() => onRegenerate(tone)}
                 >
-                  <RefreshCw className="mr-1 h-3 w-3" />
+                  <RefreshCw className="mr-1 h-3 w-3" aria-hidden="true" />
                   {tone}
                 </Button>
               ))}

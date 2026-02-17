@@ -71,7 +71,7 @@ export function UsageQuota() {
           className="h-7 w-full gap-1 text-[10px]"
           tabIndex={-1}
         >
-          <Sparkles className="h-3 w-3" />
+          <Sparkles className="h-3 w-3" aria-hidden="true" />
           Upgrade to Pro
         </Button>
       </Link>

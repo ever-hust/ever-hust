@@ -186,7 +186,7 @@ export default function ProfilePage() {
               >
                 {user.subscriptionStatus === "active" ? (
                   <>
-                    <Star className="mr-1 h-3 w-3" />
+                    <Star className="mr-1 h-3 w-3" aria-hidden="true" />
                     Pro
                   </>
                 ) : (

@@ -72,7 +72,7 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
       {/* Main search row */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input
             aria-label="Search jobs by keyword"
             placeholder="Search jobs..."

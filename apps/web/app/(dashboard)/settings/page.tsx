@@ -292,18 +292,25 @@ export default function SettingsPage() {
 
   const handleDeleteAlertConfirm = useCallback(async () => {
     if (deleteAlertId === null) return;
-    const res = await fetch("/api/user/alerts", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: deleteAlertId }),
-    });
-    if (res.ok || res.status === 204) {
-      setAlerts((prev) => prev.filter((a) => a.id !== deleteAlertId));
-      setDeleteAlertId(null);
-      toast.success("Alert deleted");
-    } else {
-      toast.error("Failed to delete alert");
-      throw new Error("Failed to delete alert");
+    try {
+      const res = await fetch("/api/user/alerts", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: deleteAlertId }),
+      });
+      if (res.ok || res.status === 204) {
+        setAlerts((prev) => prev.filter((a) => a.id !== deleteAlertId));
+        setDeleteAlertId(null);
+        toast.success("Alert deleted");
+      } else {
+        toast.error("Failed to delete alert");
+        throw new Error("Failed to delete alert");
+      }
+    } catch (err) {
+      if (!(err instanceof Error && err.message === "Failed to delete alert")) {
+        toast.error("Failed to delete alert");
+      }
+      throw err; // Re-throw so ConfirmDialog keeps the dialog open
     }
   }, [deleteAlertId]);
 
@@ -401,12 +408,19 @@ export default function SettingsPage() {
   }, []);
 
   const handleClearChatHistory = useCallback(async () => {
-    const res = await fetch("/api/chat/sessions", { method: "DELETE" });
-    if (res.ok || res.status === 204) {
-      toast.success("Chat history cleared");
-    } else {
-      toast.error("Failed to clear chat history");
-      throw new Error("Failed to clear chat history");
+    try {
+      const res = await fetch("/api/chat/sessions", { method: "DELETE" });
+      if (res.ok || res.status === 204) {
+        toast.success("Chat history cleared");
+      } else {
+        toast.error("Failed to clear chat history");
+        throw new Error("Failed to clear chat history");
+      }
+    } catch (err) {
+      if (!(err instanceof Error && err.message === "Failed to clear chat history")) {
+        toast.error("Failed to clear chat history");
+      }
+      throw err; // Re-throw so ConfirmDialog keeps the dialog open
     }
   }, []);
 
@@ -529,9 +543,9 @@ export default function SettingsPage() {
           <div className="flex items-center gap-2">
             <Button onClick={handleSave} disabled={saving}>
               {saving ? (
-                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
               ) : saved ? (
-                <Check className="mr-1.5 h-4 w-4" />
+                <Check className="mr-1.5 h-4 w-4" aria-hidden="true" />
               ) : null}
               {saved ? "Saved" : "Save Changes"}
             </Button>
@@ -603,7 +617,7 @@ export default function SettingsPage() {
                 disabled={stripeLoading}
               >
                 {stripeLoading ? (
-                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
                 ) : null}
                 Upgrade to Pro
               </Button>
@@ -615,7 +629,7 @@ export default function SettingsPage() {
                 disabled={stripeLoading}
               >
                 {stripeLoading ? (
-                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
                 ) : null}
                 Manage Subscription
               </Button>
@@ -662,7 +676,7 @@ export default function SettingsPage() {
                     <Badge variant="secondary">Pro only</Badge>
                   ) : isSelected ? (
                     <Badge variant="default">
-                      <Check className="mr-1 h-3 w-3" />
+                      <Check className="mr-1 h-3 w-3" aria-hidden="true" />
                       Active
                     </Badge>
                   ) : (
@@ -766,7 +780,7 @@ export default function SettingsPage() {
           ))}
           <Button onClick={handleSaveApiKeys} disabled={keySaving}>
             {keySaving ? (
-              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
             ) : null}
             Save API Keys
           </Button>
@@ -897,9 +911,9 @@ export default function SettingsPage() {
               disabled={exportLoading}
             >
               {exportLoading ? (
-                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
               ) : (
-                <Download className="mr-1.5 h-4 w-4" />
+                <Download className="mr-1.5 h-4 w-4" aria-hidden="true" />
               )}
               Export My Data
             </Button>
@@ -907,7 +921,7 @@ export default function SettingsPage() {
               variant="outline"
               onClick={() => setClearChatDialogOpen(true)}
             >
-              <Trash2 className="mr-1.5 h-4 w-4" />
+              <Trash2 className="mr-1.5 h-4 w-4" aria-hidden="true" />
               Clear Chat History
             </Button>
           </div>
@@ -930,7 +944,7 @@ export default function SettingsPage() {
             className="mt-4"
             onClick={() => setDeleteDialogOpen(true)}
           >
-            <Trash2 className="mr-1.5 h-4 w-4" />
+            <Trash2 className="mr-1.5 h-4 w-4" aria-hidden="true" />
             Delete Account
           </Button>
         </div>
@@ -1005,7 +1019,7 @@ export default function SettingsPage() {
             >
               {deleting ? (
                 <>
-                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
                   Deleting...
                 </>
               ) : (

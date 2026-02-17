@@ -14,18 +14,18 @@ export default function DashboardNotFound() {
         Try navigating back or use one of the shortcuts below.
       </p>
       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-        <Link href="/chat">
-          <Button className="gap-2">
+        <Button className="gap-2" asChild>
+          <Link href="/chat">
             <MessageSquare className="h-4 w-4" aria-hidden="true" />
             Go to Chat
-          </Button>
-        </Link>
-        <Link href="/jobs">
-          <Button variant="outline" className="gap-2">
+          </Link>
+        </Button>
+        <Button variant="outline" className="gap-2" asChild>
+          <Link href="/jobs">
             <Briefcase className="h-4 w-4" aria-hidden="true" />
             Browse Jobs
-          </Button>
-        </Link>
+          </Link>
+        </Button>
       </div>
       <Link
         href="/chat"

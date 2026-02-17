@@ -354,20 +354,20 @@ export default async function JobDetailPage({ params }: PageProps) {
         {/* ----------------------------------------------------------------- */}
         <div className="mb-6 flex flex-wrap items-center gap-3">
           {applyLink && (
-            <a href={applyLink} target="_blank" rel="noopener noreferrer">
-              <Button size="lg">
+            <Button size="lg" asChild>
+              <a href={applyLink} target="_blank" rel="noopener noreferrer">
                 Apply on{" "}
                 <span className="capitalize">{job.site}</span>
                 <ExternalLink className="ml-1 h-4 w-4" aria-hidden="true" />
-              </Button>
-            </a>
+              </a>
+            </Button>
           )}
-          <Link href={`/chat?job=${job.id}`}>
-            <Button variant="outline" size="lg">
+          <Button variant="outline" size="lg" asChild>
+            <Link href={`/chat?job=${job.id}`}>
               <FileText className="mr-1 h-4 w-4" aria-hidden="true" />
               Generate Cover Letter
-            </Button>
-          </Link>
+            </Link>
+          </Button>
           <FavoriteButton jobId={job.id} />
         </div>
 
@@ -625,17 +625,16 @@ export default async function JobDetailPage({ params }: PageProps) {
 
             {/* Apply CTA in sidebar */}
             {applyLink && (
-              <a
-                href={applyLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block"
-              >
-                <Button className="w-full" size="lg">
+              <Button className="block w-full" size="lg" asChild>
+                <a
+                  href={applyLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   Apply Now
                   <ExternalLink className="ml-1 h-4 w-4" aria-hidden="true" />
-                </Button>
-              </a>
+                </a>
+              </Button>
             )}
           </div>
         </div>

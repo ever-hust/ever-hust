@@ -32,12 +32,12 @@ export default function JobDetailError({
         </p>
       )}
       <div className="mt-6 flex items-center gap-3">
-        <Link href="/jobs">
-          <Button variant="outline">
+        <Button variant="outline" asChild>
+          <Link href="/jobs">
             <ArrowLeft className="mr-1.5 h-4 w-4" aria-hidden="true" />
             Back to Jobs
-          </Button>
-        </Link>
+          </Link>
+        </Button>
         <Button onClick={reset}>Try Again</Button>
       </div>
     </div>

@@ -6,6 +6,16 @@ jest.mock("@ai-sdk/anthropic", () => ({
     modelId,
     provider: "anthropic",
   }),
+  createAnthropic: (opts: { apiKey: string }) => (modelId: string) => ({
+    modelId,
+    provider: "anthropic-byok",
+    apiKey: opts.apiKey,
+  }),
+}));
+
+// Mock the @openrouter/ai-sdk-provider module
+jest.mock("@openrouter/ai-sdk-provider", () => ({
+  createOpenRouter: () => null, // Not configured in test env
 }));
 
 describe("getModelForUser", () => {

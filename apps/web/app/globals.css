@@ -130,3 +130,15 @@
     height: 0;
   }
 }
+
+/* Chat typing indicator bounce animation */
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-6px); opacity: 1; }
+}
+
+/* Smooth pulse for skeleton loading states */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}

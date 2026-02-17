@@ -114,6 +114,72 @@ export const jobSearchParamsSchema = z.object({
   salaryMax: z.coerce.number().int().min(0).optional(),
 });
 
+// === User Preferences (stored as JSONB, shared by multiple routes) ===
+export const userPreferencesSchema = z.object({
+  /** Desired job types (fulltime, parttime, contract, internship) */
+  jobTypes: z.array(z.string().max(50)).max(10).optional(),
+  /** Desired salary range */
+  salaryMin: z.number().int().min(0).max(10_000_000).optional(),
+  salaryMax: z.number().int().min(0).max(10_000_000).optional(),
+  salaryCurrency: z.string().max(10).default("USD").optional(),
+  /** Preferred industries */
+  industries: z.array(z.string().max(200)).max(20).optional(),
+  /** Role level (junior, mid, senior, lead, manager, executive) */
+  roleLevel: z.array(z.string().max(50)).max(10).optional(),
+  /** Preferred locations */
+  locations: z.array(z.string().max(200)).max(20).optional(),
+  /** Remote preference */
+  remotePreference: z.enum(["remote", "hybrid", "onsite", "any"]).optional(),
+  /** Key skills */
+  skills: z.array(z.string().max(100)).max(50).optional(),
+  /** Company size preference */
+  companySizes: z.array(z.enum(["startup", "small", "medium", "large", "enterprise"])).optional(),
+  /** Job search timeline */
+  timeline: z.enum(["immediately", "1-2-weeks", "1-month", "just-exploring"]).optional(),
+  /** Things to avoid / deal-breakers */
+  dealBreakers: z.array(z.string().max(200)).max(10).optional(),
+  /** AI model preference */
+  aiModel: z.string().max(100).optional(),
+  /** BYOK API keys */
+  apiKeys: z
+    .object({
+      anthropic: z.string().max(500).optional(),
+      openai: z.string().max(500).optional(),
+      google: z.string().max(500).optional(),
+    })
+    .optional(),
+});
+
+export type UserPreferences = z.infer<typeof userPreferencesSchema>;
+
+// === CV Parsed Data (stored as JSONB in user.cvParsedData) ===
+export const cvParsedDataSchema = z.object({
+  name: z.string().optional(),
+  email: z.string().optional(),
+  phone: z.string().optional(),
+  location: z.string().optional(),
+  headline: z.string().optional(),
+  summary: z.string().optional(),
+  skills: z.array(z.string()).optional(),
+  experience: z.array(z.object({
+    company: z.string(),
+    title: z.string(),
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
+    description: z.string().optional(),
+  })).optional(),
+  education: z.array(z.object({
+    institution: z.string(),
+    degree: z.string(),
+    field: z.string().optional(),
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
+  })).optional(),
+  rawText: z.string().optional(),
+});
+
+export type CVParsedData = z.infer<typeof cvParsedDataSchema>;
+
 // === Helper to safely parse and return 400 on failure ===
 export function parseBody<T>(
   schema: z.ZodSchema<T>,

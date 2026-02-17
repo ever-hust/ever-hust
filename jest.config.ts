@@ -76,6 +76,17 @@ const config: Config = {
       testMatch: [`${rootDir}/packages/email/src/**/*.test.ts`],
       ...sharedConfig,
     },
+    {
+      displayName: "web-lib",
+      rootDir,
+      testMatch: [`${rootDir}/apps/web/lib/**/*.test.ts`],
+      moduleNameMapper: {
+        ...workspaceModuleMapper,
+        // Next.js path alias resolution for the web app
+        "^@/(.*)$": `${rootDir}/apps/web/$1`,
+      },
+      ...sharedConfig,
+    },
   ],
 };
 

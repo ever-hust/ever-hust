@@ -17,10 +17,12 @@ export function OnboardingCheck() {
     // Don't show onboarding if user already dismissed in this session
     if (sessionStorage.getItem("onboarding_dismissed")) return;
 
+    const controller = new AbortController();
+
     async function check() {
       try {
-        const res = await fetch("/api/user/profile");
-        if (!res.ok) return;
+        const res = await fetch("/api/user/profile", { signal: controller.signal });
+        if (!res.ok || controller.signal.aborted) return;
         const data = (await res.json()) as {
           user: {
             name?: string;
@@ -28,16 +30,17 @@ export function OnboardingCheck() {
           };
         };
 
-        if (!data.user.onboardingCompleted) {
+        if (!controller.signal.aborted && !data.user.onboardingCompleted) {
           setUserName(data.user.name ?? undefined);
           setShowOnboarding(true);
         }
       } catch {
-        // Non-blocking
+        // Non-blocking (AbortError, network, etc.)
       }
     }
 
     check();
+    return () => { controller.abort(); };
   }, []);
 
   const handleComplete = () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useCallback, useEffect } from "react";
+import { useRef, useCallback, useEffect, memo } from "react";
 import { Briefcase, Loader2 } from "lucide-react";
 import { JobCard, type JobCardData } from "./job-card";
 import { JobCardSkeletonList } from "./job-card-skeleton";
@@ -20,7 +20,7 @@ interface JobsCanvasProps {
   onViewDetails: (jobId: number) => void;
 }
 
-export function JobsCanvas({
+export const JobsCanvas = memo(function JobsCanvas({
   jobs,
   filters,
   totalCount,
@@ -120,4 +120,4 @@ export function JobsCanvas({
       </div>
     </div>
   );
-}
+});

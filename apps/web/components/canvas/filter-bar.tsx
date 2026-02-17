@@ -1,7 +1,7 @@
 "use client";
 
 import { Search, X, SlidersHorizontal } from "lucide-react";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, memo } from "react";
 import { Input } from "@repo/ui/input";
 import { Button } from "@repo/ui/button";
 import { Badge } from "@repo/ui/badge";
@@ -29,7 +29,7 @@ const FILTER_DEBOUNCE_MS = 300;
  * Text inputs (keywords, location) are debounced to prevent excessive API calls.
  * Toggle/select inputs fire immediately.
  */
-export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
+export const FilterBar = memo(function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   // Local state for text inputs (debounced)
   const [localKeywords, setLocalKeywords] = useState(filters.keywords ?? "");
@@ -195,4 +195,4 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
       )}
     </div>
   );
-}
+});

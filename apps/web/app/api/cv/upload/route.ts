@@ -5,6 +5,17 @@ import { users } from "@repo/db";
 import { eq } from "drizzle-orm";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { applyRateLimit } from "../../../../lib/rate-limit";
+import {
+  apiSuccess,
+  apiBadRequest,
+  apiError,
+} from "../../../../lib/api-response";
+
+/** Allowed MIME types for CV uploads */
+const ALLOWED_MIME_TYPES = new Set(["application/pdf"]);
+
+/** Maximum file size: 10 MB */
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 export async function POST(req: Request) {
   let user;
@@ -23,23 +34,22 @@ export async function POST(req: Request) {
   const file = formData.get("cv") as File | null;
 
   if (!file) {
-    return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    return apiBadRequest("No file provided");
   }
 
-  // Validate file type
-  if (file.type !== "application/pdf") {
-    return NextResponse.json(
-      { error: "Only PDF files are supported" },
-      { status: 400 }
-    );
+  // Validate file type (MIME + extension)
+  if (!ALLOWED_MIME_TYPES.has(file.type)) {
+    return apiBadRequest("Only PDF files are supported");
   }
 
-  // Validate file size (max 10MB)
-  if (file.size > 10 * 1024 * 1024) {
-    return NextResponse.json(
-      { error: "File must be under 10MB" },
-      { status: 400 }
-    );
+  const fileName = file.name?.toLowerCase() ?? "";
+  if (fileName && !fileName.endsWith(".pdf")) {
+    return apiBadRequest("File must have a .pdf extension");
+  }
+
+  // Validate file size
+  if (file.size > MAX_FILE_SIZE) {
+    return apiBadRequest("File must be under 10MB");
   }
 
   try {
@@ -75,8 +85,7 @@ export async function POST(req: Request) {
       .set(updateFields)
       .where(eq(users.id, userId));
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       parsed: {
         name: parsed.name,
         email: parsed.email,
@@ -89,10 +98,10 @@ export async function POST(req: Request) {
       },
     });
   } catch (error) {
-    console.error("CV parsing error:", error);
-    return NextResponse.json(
-      { error: "Failed to parse CV" },
-      { status: 500 }
+    console.error(
+      "[cv/upload] CV parsing error:",
+      error instanceof Error ? error.message : error,
     );
+    return apiError("Failed to parse CV. Please ensure the file is a valid PDF.");
   }
 }

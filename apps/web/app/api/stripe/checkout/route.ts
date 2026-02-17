@@ -5,6 +5,12 @@ import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { checkoutSchema, parseBody } from "../../../../lib/api-schemas";
 import { applyRateLimit } from "../../../../lib/rate-limit";
+import {
+  apiSuccess,
+  apiBadRequest,
+  apiNotFound,
+  apiError,
+} from "../../../../lib/api-response";
 
 export async function POST(req: Request) {
   let sessionUser;
@@ -21,7 +27,7 @@ export async function POST(req: Request) {
   const rawBody = await req.json();
   const validation = parseBody(checkoutSchema, rawBody);
   if (!validation.success) {
-    return NextResponse.json({ error: validation.error }, { status: 400 });
+    return apiBadRequest(validation.error);
   }
   const body = validation.data;
 
@@ -36,7 +42,7 @@ export async function POST(req: Request) {
     .limit(1);
 
   if (userResult.length === 0) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
+    return apiNotFound("User not found");
   }
 
   const dbUser = userResult[0]!;
@@ -52,10 +58,12 @@ export async function POST(req: Request) {
       cancelUrl: `${appUrl}/settings?canceled=true`,
     });
 
-    return NextResponse.json({ url });
+    return apiSuccess({ url });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Failed to create checkout";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error(
+      "[stripe/checkout] Failed to create checkout session:",
+      error instanceof Error ? error.message : error,
+    );
+    return apiError("Failed to create checkout session");
   }
 }

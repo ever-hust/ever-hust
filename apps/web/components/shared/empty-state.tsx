@@ -53,6 +53,7 @@ export function EmptyState({
       <div className="rounded-full bg-muted p-4">
         <Icon
           className={cn("h-8 w-8 text-muted-foreground", iconClassName)}
+          aria-hidden="true"
         />
       </div>
       <h2 className="mt-4 text-lg font-semibold">{title}</h2>

@@ -43,10 +43,13 @@ export function useChatPersistence() {
   const [isLoadingSessions, setIsLoadingSessions] = useState(true);
   const savedMessageIds = useRef<Set<string>>(new Set());
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
 
   // Clean up debounce timer on unmount to prevent state-update-after-unmount
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
   }, []);
@@ -157,6 +160,7 @@ export function useChatPersistence() {
       // Debounce saves
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(async () => {
+        if (!mountedRef.current) return;
         const sessionId = activeSessionId;
         if (!sessionId) return;
 

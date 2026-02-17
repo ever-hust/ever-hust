@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useRef } from "react";
 
 interface KeyboardShortcut {
   /** Keyboard shortcut key (e.g., "k", "Escape", "/") */
@@ -19,14 +19,21 @@ interface KeyboardShortcut {
 /**
  * Global keyboard shortcuts for the chat interface.
  *
+ * Uses a ref to hold the latest shortcuts so the event listener is only
+ * registered once per mount, avoiding unnecessary add/removeEventListener
+ * churn when callers pass a new array reference on each render.
+ *
  * Shortcuts:
  * - Cmd/Ctrl + K: Focus the chat input
  * - Escape: Clear current selection / close modals
  * - /: Focus the chat input (when not already focused)
  */
 export function useKeyboardShortcuts(shortcuts: KeyboardShortcut[]) {
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent) => {
+  const shortcutsRef = useRef(shortcuts);
+  shortcutsRef.current = shortcuts;
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
       // Ignore shortcuts when typing in inputs/textareas (except Escape)
       const target = event.target as HTMLElement;
       const isInputFocused =
@@ -34,7 +41,7 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcut[]) {
         target.tagName === "TEXTAREA" ||
         target.isContentEditable;
 
-      for (const shortcut of shortcuts) {
+      for (const shortcut of shortcutsRef.current) {
         const ctrlOrMeta = shortcut.ctrl || shortcut.meta;
         const modifierMatch = ctrlOrMeta
           ? event.ctrlKey || event.metaKey
@@ -60,14 +67,11 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcut[]) {
           break;
         }
       }
-    },
-    [shortcuts]
-  );
+    }
 
-  useEffect(() => {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [handleKeyDown]);
+  }, []);
 }
 
 /**

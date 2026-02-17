@@ -18,6 +18,10 @@ export function FavoriteButton({
   const [isPending, startTransition] = useTransition();
 
   function handleToggle() {
+    // Optimistic update — flip immediately, revert on error
+    const previous = favorited;
+    setFavorited(!previous);
+
     startTransition(async () => {
       try {
         const res = await fetch("/api/user/favorites", {
@@ -37,6 +41,8 @@ export function FavoriteButton({
           data.favorited ? "Added to favorites" : "Removed from favorites"
         );
       } catch (error) {
+        // Revert optimistic update
+        setFavorited(previous);
         toast.error(
           error instanceof Error ? error.message : "Failed to update favorite"
         );
@@ -57,6 +63,7 @@ export function FavoriteButton({
         className={`h-5 w-5 transition-colors ${
           favorited ? "fill-red-500 text-red-500" : ""
         }`}
+        aria-hidden="true"
       />
     </Button>
   );

@@ -36,6 +36,7 @@ import { toast } from "sonner";
 import { ScrollToTop } from "@/components/shared/scroll-to-top";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { PageHeader } from "@/components/shared/page-header";
+import type { UserPreferences, AlertCriteria } from "@/lib/api-schemas";
 
 interface UserSettings {
   name: string;
@@ -43,7 +44,7 @@ interface UserSettings {
   headline: string | null;
   location: string | null;
   subscriptionStatus: string;
-  preferences: Record<string, unknown> | null;
+  preferences: UserPreferences | null;
 }
 
 interface Alert {
@@ -51,7 +52,7 @@ interface Alert {
   frequency: string;
   email: string;
   isActive: boolean;
-  criteria: Record<string, unknown> | null;
+  criteria: AlertCriteria | null;
   createdAt: string;
 }
 
@@ -153,19 +154,18 @@ export default function SettingsPage() {
         setFormHeadline(u.headline ?? "");
         setFormLocation(u.location ?? "");
         // Set selected model from preferences
-        const prefs = u.preferences as Record<string, unknown> | null;
+        const prefs = u.preferences as UserPreferences | null;
         if (prefs?.aiModel) {
-          setSelectedModel(prefs.aiModel as string);
+          setSelectedModel(prefs.aiModel);
         } else if (u.subscriptionStatus === "active") {
           setSelectedModel("claude-opus-4-6");
         }
         // Load existing BYOK keys (masked — we only show presence)
-        const keys = prefs?.apiKeys as Record<string, string> | undefined;
-        if (keys) {
+        if (prefs?.apiKeys) {
           setApiKeys({
-            anthropic: keys.anthropic ? "••••••••••••" : "",
-            openai: keys.openai ? "••••••••••••" : "",
-            google: keys.google ? "••••••••••••" : "",
+            anthropic: prefs.apiKeys.anthropic ? "••••••••••••" : "",
+            openai: prefs.apiKeys.openai ? "••••••••••••" : "",
+            google: prefs.apiKeys.google ? "••••••••••••" : "",
           });
         }
       } catch (err) {
@@ -871,8 +871,7 @@ export default function SettingsPage() {
                           <>
                             {" "}
                             &middot;{" "}
-                            {(alert.criteria as { keywords?: string[] })
-                              .keywords?.join(", ") ?? "All jobs"}
+                            {alert.criteria.keywords?.join(", ") ?? "All jobs"}
                           </>
                         )}
                     </p>

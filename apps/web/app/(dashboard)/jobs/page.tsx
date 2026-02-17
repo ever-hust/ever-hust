@@ -5,38 +5,19 @@ import { useRouter } from "next/navigation";
 import { JobsCanvas } from "@/components/canvas/jobs-canvas";
 import type { JobCardData } from "@/components/canvas/job-card";
 import type { JobFilters } from "@/components/canvas/filter-bar";
-import { Skeleton } from "@repo/ui/skeleton";
+import { useFavorites } from "@/hooks/use-favorites";
 import { toast } from "sonner";
 
 export default function JobsPage() {
   const router = useRouter();
+  const { favoritedJobIds, toggleFavorite } = useFavorites();
   const [jobs, setJobs] = useState<JobCardData[]>([]);
   const [filters, setFilters] = useState<JobFilters>({});
   const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [favoritedJobIds, setFavoritedJobIds] = useState<Set<number>>(new Set());
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
-
-  // Load favorites
-  useEffect(() => {
-    const controller = new AbortController();
-    async function loadFavorites() {
-      try {
-        const res = await fetch("/api/user/favorites", { signal: controller.signal });
-        if (res.ok && !controller.signal.aborted) {
-          const data = (await res.json()) as { favoriteJobIds: number[] };
-          setFavoritedJobIds(new Set(data.favoriteJobIds));
-        }
-      } catch (err) {
-        // Favorites are non-critical — ignore abort errors and fail silently
-        if (err instanceof DOMException && err.name === "AbortError") return;
-      }
-    }
-    loadFavorites();
-    return () => controller.abort();
-  }, []);
 
   // Load jobs on mount and when filters change
   useEffect(() => {
@@ -107,32 +88,6 @@ export default function JobsPage() {
     }
   }, [page, filters]);
 
-  const handleFavorite = useCallback(async (jobId: number) => {
-    try {
-      const res = await fetch("/api/user/favorites", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId }),
-      });
-      if (res.ok) {
-        const data = (await res.json()) as { jobId: number; favorited: boolean };
-        setFavoritedJobIds((prev) => {
-          const next = new Set(prev);
-          if (data.favorited) {
-            next.add(jobId);
-            toast.success("Job added to favorites");
-          } else {
-            next.delete(jobId);
-            toast.success("Job removed from favorites");
-          }
-          return next;
-        });
-      }
-    } catch {
-      toast.error("Failed to update favorite");
-    }
-  }, []);
-
   const handleViewDetails = useCallback(
     (jobId: number) => {
       router.push(`/jobs/${jobId}`);
@@ -150,7 +105,7 @@ export default function JobsPage() {
       favoritedJobIds={favoritedJobIds}
       onFiltersChange={setFilters}
       onLoadMore={handleLoadMore}
-      onFavorite={handleFavorite}
+      onFavorite={toggleFavorite}
       onViewDetails={handleViewDetails}
     />
   );

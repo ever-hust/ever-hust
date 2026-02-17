@@ -743,9 +743,9 @@ export default function SettingsPage() {
                     }
                   >
                     {keyVisibility[provider.key] ? (
-                      <EyeOff className="h-4 w-4" />
+                      <EyeOff className="h-4 w-4" aria-hidden="true" />
                     ) : (
-                      <Eye className="h-4 w-4" />
+                      <Eye className="h-4 w-4" aria-hidden="true" />
                     )}
                   </button>
                 </div>
@@ -758,7 +758,7 @@ export default function SettingsPage() {
                     onClick={() => handleClearApiKey(provider.key)}
                     disabled={keySaving}
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-4 w-4" aria-hidden="true" />
                   </Button>
                 )}
               </div>
@@ -860,7 +860,7 @@ export default function SettingsPage() {
                         handleToggleAlert(alert.id, alert.isActive)
                       }
                     >
-                      <Power className="h-3.5 w-3.5" />
+                      <Power className="h-3.5 w-3.5" aria-hidden="true" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -869,7 +869,7 @@ export default function SettingsPage() {
                       aria-label="Delete alert"
                       onClick={() => setDeleteAlertId(alert.id)}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                     </Button>
                   </div>
                 </div>

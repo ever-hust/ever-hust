@@ -6,7 +6,7 @@ export default function DashboardNotFound() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-4 text-center">
       <div className="rounded-full bg-muted p-4">
-        <SearchX className="h-10 w-10 text-muted-foreground" />
+        <SearchX className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
       </div>
       <h1 className="mt-6 text-3xl font-bold">Page Not Found</h1>
       <p className="mt-2 max-w-md text-sm text-muted-foreground">
@@ -16,13 +16,13 @@ export default function DashboardNotFound() {
       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
         <Link href="/chat">
           <Button className="gap-2">
-            <MessageSquare className="h-4 w-4" />
+            <MessageSquare className="h-4 w-4" aria-hidden="true" />
             Go to Chat
           </Button>
         </Link>
         <Link href="/jobs">
           <Button variant="outline" className="gap-2">
-            <Briefcase className="h-4 w-4" />
+            <Briefcase className="h-4 w-4" aria-hidden="true" />
             Browse Jobs
           </Button>
         </Link>
@@ -31,7 +31,7 @@ export default function DashboardNotFound() {
         href="/chat"
         className="mt-4 inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
       >
-        <ArrowLeft className="h-3 w-3" />
+        <ArrowLeft className="h-3 w-3" aria-hidden="true" />
         Back to Dashboard
       </Link>
     </div>

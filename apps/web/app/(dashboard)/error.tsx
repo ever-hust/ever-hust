@@ -19,7 +19,7 @@ export default function DashboardError({
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-4 text-center">
       <div className="rounded-full bg-destructive/10 p-4">
-        <AlertTriangle className="h-8 w-8 text-destructive" />
+        <AlertTriangle className="h-8 w-8 text-destructive" aria-hidden="true" />
       </div>
       <h2 className="mt-4 text-xl font-semibold">Something went wrong</h2>
       <p className="mt-2 max-w-sm text-sm text-muted-foreground">
@@ -32,12 +32,12 @@ export default function DashboardError({
       )}
       <div className="mt-6 flex gap-3">
         <Button onClick={reset} variant="outline" size="sm" className="gap-2">
-          <RefreshCcw className="h-3.5 w-3.5" />
+          <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
           Try Again
         </Button>
         <Link href="/chat">
           <Button size="sm" className="gap-2">
-            <MessageSquare className="h-3.5 w-3.5" />
+            <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
             Go to Chat
           </Button>
         </Link>

@@ -149,7 +149,7 @@ export default function ProfilePage() {
         actions={
           <Link href="/settings">
             <Button variant="outline" size="sm" className="gap-1.5">
-              <Settings className="h-3.5 w-3.5" />
+              <Settings className="h-3.5 w-3.5" aria-hidden="true" />
               Edit Profile
             </Button>
           </Link>
@@ -168,7 +168,7 @@ export default function ProfilePage() {
               />
             ) : (
               <AvatarFallback className="text-lg">
-                <User className="h-8 w-8" />
+                <User className="h-8 w-8" aria-hidden="true" />
               </AvatarFallback>
             )}
           </Avatar>
@@ -237,7 +237,7 @@ export default function ProfilePage() {
             </p>
             <Link href="/settings" className="mt-2 inline-block">
               <Button variant="outline" size="sm" className="gap-1.5 mt-2">
-                <Settings className="h-3.5 w-3.5" />
+                <Settings className="h-3.5 w-3.5" aria-hidden="true" />
                 Add Skills in Settings
               </Button>
             </Link>
@@ -385,7 +385,7 @@ export default function ProfilePage() {
                     className="text-muted-foreground transition-colors hover:text-foreground"
                     aria-label={`View ${fav.jobTitle ?? "job"} details`}
                   >
-                    <ExternalLink className="h-4 w-4" />
+                    <ExternalLink className="h-4 w-4" aria-hidden="true" />
                   </Link>
                 </div>
               </div>
@@ -451,7 +451,7 @@ export default function ProfilePage() {
                     className="text-muted-foreground transition-colors hover:text-foreground"
                     aria-label={`View ${app.jobTitle ?? "job"} details`}
                   >
-                    <ExternalLink className="h-4 w-4" />
+                    <ExternalLink className="h-4 w-4" aria-hidden="true" />
                   </Link>
                 </div>
               </div>

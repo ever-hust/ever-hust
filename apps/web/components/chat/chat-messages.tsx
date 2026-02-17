@@ -64,7 +64,7 @@ const TypingIndicator = memo(function TypingIndicator() {
     <div className="flex gap-2 sm:gap-3" role="status" aria-label="Assistant is typing">
       <Avatar className="mt-0.5 hidden h-7 w-7 shrink-0 sm:flex">
         <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-          <Bot className="h-4 w-4" />
+          <Bot className="h-4 w-4" aria-hidden="true" />
         </AvatarFallback>
       </Avatar>
       <div className="flex items-center gap-1.5 rounded-xl bg-muted px-4 py-3">

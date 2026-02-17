@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@repo/ui/button";
 import { Heart } from "lucide-react";
 import { toast } from "sonner";
@@ -14,6 +14,12 @@ interface FavoriteButtonProps {
 export function FavoriteButton({ jobId, className }: FavoriteButtonProps) {
   const [isFavorited, setIsFavorited] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Refs to avoid re-creating handleToggle on every state change
+  const isFavoritedRef = useRef(isFavorited);
+  const isLoadingRef = useRef(isLoading);
+  isFavoritedRef.current = isFavorited;
+  isLoadingRef.current = isLoading;
 
   // Load the initial favorite state once on mount
   useEffect(() => {
@@ -35,11 +41,11 @@ export function FavoriteButton({ jobId, className }: FavoriteButtonProps) {
   }, [jobId]);
 
   const handleToggle = useCallback(async () => {
-    if (isLoading) return;
+    if (isLoadingRef.current) return;
     setIsLoading(true);
 
     // Optimistic update
-    const prev = isFavorited;
+    const prev = isFavoritedRef.current;
     setIsFavorited(!prev);
 
     try {
@@ -68,7 +74,7 @@ export function FavoriteButton({ jobId, className }: FavoriteButtonProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [jobId, isFavorited, isLoading]);
+  }, [jobId]);
 
   return (
     <Button

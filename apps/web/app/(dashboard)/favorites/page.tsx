@@ -187,7 +187,7 @@ export default function FavoritesPage() {
                       {job.companyLogo ? (
                         <img
                           src={job.companyLogo}
-                          alt={job.companyName ?? ""}
+                          alt={job.companyName ? `${job.companyName} logo` : "Company logo"}
                           className="h-7 w-7 rounded object-contain"
                         />
                       ) : (

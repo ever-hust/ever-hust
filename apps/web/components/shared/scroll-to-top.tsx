@@ -54,7 +54,7 @@ export function ScrollToTop({
       onClick={scrollToTop}
       className={cn(
         "fixed bottom-6 right-6 z-40 flex h-10 w-10 items-center justify-center rounded-full border bg-card shadow-lg transition-all hover:bg-accent hover:shadow-xl active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-        "animate-in fade-in slide-in-from-bottom-4 duration-200",
+        "transition-all duration-200",
         className
       )}
       aria-label="Scroll to top"

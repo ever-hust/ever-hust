@@ -46,7 +46,7 @@ export function ConnectionStatus() {
       role="alert"
       aria-live="assertive"
       className={cn(
-        "fixed inset-x-0 top-0 z-[9999] flex items-center justify-center gap-2 px-4 py-2 text-xs font-medium text-white shadow-md transition-all duration-300 animate-in fade-in slide-in-from-top-2",
+        "fixed inset-x-0 top-0 z-[9999] flex items-center justify-center gap-2 px-4 py-2 text-xs font-medium text-white shadow-md transition-all duration-300",
         isOffline ? "bg-destructive" : "bg-emerald-500"
       )}
     >

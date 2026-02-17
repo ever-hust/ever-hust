@@ -6,7 +6,7 @@ import { z } from "zod";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { settingsPatchSchema, parseBody } from "../../../../lib/api-schemas";
 import { applyRateLimit } from "../../../../lib/rate-limit";
-import { apiSuccess, apiBadRequest } from "../../../../lib/api-response";
+import { apiSuccess, apiBadRequest, apiError } from "../../../../lib/api-response";
 
 const settingsSchema = z.object({
   name: z.string().min(1).max(200).optional(),
@@ -43,30 +43,35 @@ export async function PATCH(req: Request) {
   if (body.headline !== undefined) allowedFields.headline = body.headline;
   if (body.location !== undefined) allowedFields.location = body.location;
 
-  // Handle preferences merge (deep merge with existing preferences)
-  if (body.preferences) {
-    const existing = await db
-      .select({ preferences: users.preferences })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
+  try {
+    // Handle preferences merge (deep merge with existing preferences)
+    if (body.preferences) {
+      const existing = await db
+        .select({ preferences: users.preferences })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
 
-    const existingPrefs =
-      (existing[0]?.preferences as Record<string, unknown>) ?? {};
-    allowedFields.preferences = {
-      ...existingPrefs,
-      ...body.preferences,
-    };
+      const existingPrefs =
+        (existing[0]?.preferences as Record<string, unknown>) ?? {};
+      allowedFields.preferences = {
+        ...existingPrefs,
+        ...body.preferences,
+      };
+    }
+
+    if (Object.keys(allowedFields).length === 0) {
+      return apiBadRequest("No valid fields to update");
+    }
+
+    await db
+      .update(users)
+      .set({ ...allowedFields, updatedAt: new Date() })
+      .where(eq(users.id, userId));
+
+    return apiSuccess({ updated: true });
+  } catch (err) {
+    console.error("[api/user/settings] PATCH failed:", err instanceof Error ? err.message : err);
+    return apiError("Failed to update settings");
   }
-
-  if (Object.keys(allowedFields).length === 0) {
-    return apiBadRequest("No valid fields to update");
-  }
-
-  await db
-    .update(users)
-    .set({ ...allowedFields, updatedAt: new Date() })
-    .where(eq(users.id, userId));
-
-  return apiSuccess({ updated: true });
 }

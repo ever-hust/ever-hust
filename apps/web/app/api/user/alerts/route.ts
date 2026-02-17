@@ -16,6 +16,7 @@ import {
   apiBadRequest,
   apiForbidden,
   apiNotFound,
+  apiError,
 } from "../../../../lib/api-response";
 
 // GET /api/user/alerts - List user's alerts
@@ -30,13 +31,18 @@ export async function GET() {
   const rateLimited = applyRateLimit(user.id, "authenticated");
   if (rateLimited) return rateLimited;
 
-  const alerts = await db
-    .select()
-    .from(userAlerts)
-    .where(eq(userAlerts.userId, user.id))
-    .orderBy(userAlerts.createdAt);
+  try {
+    const alerts = await db
+      .select()
+      .from(userAlerts)
+      .where(eq(userAlerts.userId, user.id))
+      .orderBy(userAlerts.createdAt);
 
-  return apiSuccess({ alerts });
+    return apiSuccess({ alerts });
+  } catch (err) {
+    console.error("[api/user/alerts] GET failed:", err instanceof Error ? err.message : err);
+    return apiError("Failed to load alerts");
+  }
 }
 
 // POST /api/user/alerts - Create a new alert
@@ -64,17 +70,22 @@ export async function POST(req: Request) {
   }
   const body = validation.data;
 
-  const [alert] = await db
-    .insert(userAlerts)
-    .values({
-      userId: user.id,
-      frequency: body.frequency,
-      email: body.email,
-      criteria: body.criteria ?? null,
-    })
-    .returning();
+  try {
+    const [alert] = await db
+      .insert(userAlerts)
+      .values({
+        userId: user.id,
+        frequency: body.frequency,
+        email: body.email,
+        criteria: body.criteria ?? null,
+      })
+      .returning();
 
-  return apiSuccess({ alert }, { status: 201 });
+    return apiSuccess({ alert }, { status: 201 });
+  } catch (err) {
+    console.error("[api/user/alerts] POST failed:", err instanceof Error ? err.message : err);
+    return apiError("Failed to create alert");
+  }
 }
 
 // PATCH /api/user/alerts - Update an alert (expects { id, ...fields })
@@ -103,17 +114,22 @@ export async function PATCH(req: Request) {
   if (body.email !== undefined) updates.email = body.email;
   if (body.criteria !== undefined) updates.criteria = body.criteria;
 
-  const result = await db
-    .update(userAlerts)
-    .set(updates)
-    .where(and(eq(userAlerts.id, body.id), eq(userAlerts.userId, user.id)))
-    .returning();
+  try {
+    const result = await db
+      .update(userAlerts)
+      .set(updates)
+      .where(and(eq(userAlerts.id, body.id), eq(userAlerts.userId, user.id)))
+      .returning();
 
-  if (result.length === 0) {
-    return apiNotFound("Alert not found");
+    if (result.length === 0) {
+      return apiNotFound("Alert not found");
+    }
+
+    return apiSuccess({ alert: result[0] });
+  } catch (err) {
+    console.error("[api/user/alerts] PATCH failed:", err instanceof Error ? err.message : err);
+    return apiError("Failed to update alert");
   }
-
-  return apiSuccess({ alert: result[0] });
 }
 
 // DELETE /api/user/alerts - Delete an alert (expects { id })
@@ -135,14 +151,19 @@ export async function DELETE(req: Request) {
   }
   const { id } = validation.data;
 
-  const result = await db
-    .delete(userAlerts)
-    .where(and(eq(userAlerts.id, id), eq(userAlerts.userId, user.id)))
-    .returning();
+  try {
+    const result = await db
+      .delete(userAlerts)
+      .where(and(eq(userAlerts.id, id), eq(userAlerts.userId, user.id)))
+      .returning();
 
-  if (result.length === 0) {
-    return apiNotFound("Alert not found");
+    if (result.length === 0) {
+      return apiNotFound("Alert not found");
+    }
+
+    return new NextResponse(null, { status: 204 });
+  } catch (err) {
+    console.error("[api/user/alerts] DELETE failed:", err instanceof Error ? err.message : err);
+    return apiError("Failed to delete alert");
   }
-
-  return new NextResponse(null, { status: 204 });
 }

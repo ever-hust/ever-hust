@@ -121,7 +121,11 @@ export async function PATCH(req: Request) {
     return apiBadRequest("No valid fields to update");
   }
 
-  await db.update(users).set(updates).where(eq(users.id, userId));
-
-  return apiSuccess({ updated: true });
+  try {
+    await db.update(users).set(updates).where(eq(users.id, userId));
+    return apiSuccess({ updated: true });
+  } catch (err) {
+    console.error("[api/user/profile] PATCH failed:", err instanceof Error ? err.message : err);
+    return apiError("Failed to update profile");
+  }
 }

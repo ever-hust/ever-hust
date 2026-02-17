@@ -86,16 +86,21 @@ export async function POST() {
   const rateLimited = applyRateLimit(user.id, "authenticated");
   if (rateLimited) return rateLimited;
 
-  const [session] = await db
-    .insert(chatSessions)
-    .values({
-      userId: user.id,
-      agentType: "orchestrator",
-      status: "active",
-    })
-    .returning();
+  try {
+    const [session] = await db
+      .insert(chatSessions)
+      .values({
+        userId: user.id,
+        agentType: "orchestrator",
+        status: "active",
+      })
+      .returning();
 
-  return apiSuccess({ session }, { status: 201 });
+    return apiSuccess({ session }, { status: 201 });
+  } catch (err) {
+    console.error("[api/chat/sessions] POST failed:", err instanceof Error ? err.message : err);
+    return apiError("Failed to create chat session");
+  }
 }
 
 /**
@@ -113,25 +118,30 @@ export async function DELETE() {
   const rateLimited = applyRateLimit(user.id, "authenticated");
   if (rateLimited) return rateLimited;
 
-  // Get all session IDs for this user
-  const userSessions = await db
-    .select({ id: chatSessions.id })
-    .from(chatSessions)
-    .where(eq(chatSessions.userId, user.id));
+  try {
+    // Get all session IDs for this user
+    const userSessions = await db
+      .select({ id: chatSessions.id })
+      .from(chatSessions)
+      .where(eq(chatSessions.userId, user.id));
 
-  const sessionIds = userSessions.map((s) => s.id);
+    const sessionIds = userSessions.map((s) => s.id);
 
-  if (sessionIds.length > 0) {
-    // Delete all messages for these sessions first
+    if (sessionIds.length > 0) {
+      // Delete all messages for these sessions first
+      await db
+        .delete(chatMessages)
+        .where(inArray(chatMessages.sessionId, sessionIds));
+    }
+
+    // Delete all sessions
     await db
-      .delete(chatMessages)
-      .where(inArray(chatMessages.sessionId, sessionIds));
+      .delete(chatSessions)
+      .where(eq(chatSessions.userId, user.id));
+
+    return new NextResponse(null, { status: 204 });
+  } catch (err) {
+    console.error("[api/chat/sessions] DELETE failed:", err instanceof Error ? err.message : err);
+    return apiError("Failed to delete chat sessions");
   }
-
-  // Delete all sessions
-  await db
-    .delete(chatSessions)
-    .where(eq(chatSessions.userId, user.id));
-
-  return new NextResponse(null, { status: 204 });
 }

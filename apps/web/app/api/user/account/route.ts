@@ -29,7 +29,7 @@ export async function DELETE() {
 
     return new NextResponse(null, { status: 204 });
   } catch (error) {
-    console.error("Account deletion failed:", error);
+    console.error("[api/user/account] DELETE failed:", error instanceof Error ? error.message : error);
     return apiError("Failed to delete account");
   }
 }

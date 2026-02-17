@@ -121,7 +121,7 @@ export async function GET(req: Request) {
       { cacheSeconds: 120 },
     );
   } catch (err) {
-    console.error("[api/jobs/search] Database query failed:", err);
+    console.error("[api/jobs/search] Database query failed:", err instanceof Error ? err.message : err);
     return apiError("Failed to search jobs. Please try again.");
   }
 }

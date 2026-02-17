@@ -23,24 +23,24 @@ export async function POST() {
   const rateLimited = applyRateLimit(userId, "authenticated");
   if (rateLimited) return rateLimited;
 
-  const userResult = await db
-    .select({ stripeCustomerId: users.stripeCustomerId })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-
-  if (userResult.length === 0) {
-    return apiNotFound("User not found");
-  }
-
-  const dbUser = userResult[0]!;
-  if (!dbUser.stripeCustomerId) {
-    return apiBadRequest("No active subscription");
-  }
-
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-
   try {
+    const userResult = await db
+      .select({ stripeCustomerId: users.stripeCustomerId })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (userResult.length === 0) {
+      return apiNotFound("User not found");
+    }
+
+    const dbUser = userResult[0]!;
+    if (!dbUser.stripeCustomerId) {
+      return apiBadRequest("No active subscription");
+    }
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
     const { url } = await createPortalSession({
       stripeCustomerId: dbUser.stripeCustomerId,
       returnUrl: `${appUrl}/settings`,

@@ -39,7 +39,17 @@ export async function GET() {
           name: users.name,
           email: users.email,
           image: users.image,
+          headline: users.headline,
+          location: users.location,
+          photoUrl: users.photoUrl,
+          skills: users.skills,
+          experience: users.experience,
+          preferences: users.preferences,
+          cvParsedData: users.cvParsedData,
+          subscriptionStatus: users.subscriptionStatus,
+          onboardingCompleted: users.onboardingCompleted,
           createdAt: users.createdAt,
+          updatedAt: users.updatedAt,
         })
         .from(users)
         .where(eq(users.id, userId))

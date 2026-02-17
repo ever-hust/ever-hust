@@ -12,21 +12,18 @@ export const favoriteJobTool = tool({
     userId: z.string().describe("The current user's ID"),
   }),
   execute: async ({ jobId, userId }) => {
-    // Check if already favorited
+    // Check for any existing userJobs record (regardless of status)
+    // to avoid unique constraint violations when toggling favorites
     const existing = await db
-      .select()
+      .select({ id: userJobs.id, status: userJobs.status })
       .from(userJobs)
       .where(
-        and(
-          eq(userJobs.userId, userId),
-          eq(userJobs.jobId, jobId),
-          eq(userJobs.status, "favorited")
-        )
+        and(eq(userJobs.userId, userId), eq(userJobs.jobId, jobId))
       )
       .limit(1);
 
-    if (existing.length > 0) {
-      // Remove favorite
+    if (existing.length > 0 && existing[0]!.status === "favorited") {
+      // Already favorited — remove the favorite
       await db
         .delete(userJobs)
         .where(eq(userJobs.id, existing[0]!.id));
@@ -38,12 +35,20 @@ export const favoriteJobTool = tool({
       };
     }
 
-    // Add favorite
-    await db.insert(userJobs).values({
-      userId,
-      jobId,
-      status: "favorited",
-    });
+    if (existing.length > 0) {
+      // Existing record with different status (e.g. "applied") — update to favorited
+      await db
+        .update(userJobs)
+        .set({ status: "favorited", updatedAt: new Date() })
+        .where(eq(userJobs.id, existing[0]!.id));
+    } else {
+      // No existing record — insert new favorite
+      await db.insert(userJobs).values({
+        userId,
+        jobId,
+        status: "favorited",
+      });
+    }
 
     return {
       jobId,

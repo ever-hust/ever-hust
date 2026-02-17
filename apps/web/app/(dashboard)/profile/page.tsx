@@ -163,7 +163,7 @@ export default function ProfilePage() {
             {user.photoUrl ? (
               <img
                 src={user.photoUrl}
-                alt={user.name}
+                alt={user.name || "User profile photo"}
                 className="h-16 w-16 rounded-full object-cover"
               />
             ) : (

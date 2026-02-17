@@ -19,7 +19,8 @@ export const generateCoverLetterTool = tool({
         "Tone of the cover letter. Defaults to professional."
       ),
     focusAreas: z
-      .array(z.string())
+      .array(z.string().max(200))
+      .max(10)
       .optional()
       .describe(
         "Specific skills or experiences to emphasize in the cover letter"

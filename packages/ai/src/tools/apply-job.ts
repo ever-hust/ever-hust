@@ -12,6 +12,7 @@ export const applyJobTool = tool({
     jobId: z.number().describe("The job ID to apply for"),
     coverLetter: z
       .string()
+      .max(10_000)
       .optional()
       .describe("Optional cover letter text to include"),
   }),

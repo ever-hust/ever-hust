@@ -10,10 +10,12 @@ export const searchJobsTool = tool({
   inputSchema: z.object({
     keywords: z
       .string()
+      .max(500)
       .optional()
       .describe("Search keywords for job title or description"),
     location: z
       .string()
+      .max(200)
       .optional()
       .describe("City, state, or country to filter jobs by"),
     isRemote: z
@@ -26,23 +28,35 @@ export const searchJobsTool = tool({
       .describe("Type of employment"),
     salaryMin: z
       .number()
+      .int()
+      .min(0)
+      .max(10_000_000)
       .optional()
       .describe("Minimum annual salary in USD"),
     salaryMax: z
       .number()
+      .int()
+      .min(0)
+      .max(10_000_000)
       .optional()
       .describe("Maximum annual salary in USD"),
     skills: z
-      .array(z.string())
+      .array(z.string().max(100))
+      .max(20)
       .optional()
       .describe("Required skills to filter by"),
     limit: z
       .number()
+      .int()
+      .min(1)
+      .max(50)
       .optional()
       .default(25)
       .describe("Number of results to return (max 50)"),
     offset: z
       .number()
+      .int()
+      .min(0)
       .optional()
       .default(0)
       .describe("Offset for pagination"),

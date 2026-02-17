@@ -97,7 +97,7 @@ export function ConfirmDialog({
             onClick={handleConfirm}
             disabled={loading}
           >
-            {loading && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+            {loading && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />}
             {confirmLabel}
           </Button>
         </DialogFooter>

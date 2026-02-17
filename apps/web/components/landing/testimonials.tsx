@@ -36,6 +36,7 @@ function Stars({ count }: { count: number }) {
         <Star
           key={i}
           className="h-3.5 w-3.5 fill-primary text-primary"
+          aria-hidden="true"
         />
       ))}
     </div>

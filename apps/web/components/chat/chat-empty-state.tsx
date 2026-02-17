@@ -25,7 +25,7 @@ interface SuggestionCategory {
 
 const CATEGORIES: SuggestionCategory[] = [
   {
-    icon: <Search className="h-4 w-4" />,
+    icon: <Search className="h-4 w-4" aria-hidden="true" />,
     title: "Job Search",
     color: "text-blue-500 bg-blue-500/10",
     suggestions: [
@@ -35,7 +35,7 @@ const CATEGORIES: SuggestionCategory[] = [
     ],
   },
   {
-    icon: <FileText className="h-4 w-4" />,
+    icon: <FileText className="h-4 w-4" aria-hidden="true" />,
     title: "Cover Letters",
     color: "text-emerald-500 bg-emerald-500/10",
     suggestions: [
@@ -45,7 +45,7 @@ const CATEGORIES: SuggestionCategory[] = [
     ],
   },
   {
-    icon: <TrendingUp className="h-4 w-4" />,
+    icon: <TrendingUp className="h-4 w-4" aria-hidden="true" />,
     title: "Career Advice",
     color: "text-amber-500 bg-amber-500/10",
     suggestions: [
@@ -55,7 +55,7 @@ const CATEGORIES: SuggestionCategory[] = [
     ],
   },
   {
-    icon: <GraduationCap className="h-4 w-4" />,
+    icon: <GraduationCap className="h-4 w-4" aria-hidden="true" />,
     title: "Interview Prep",
     color: "text-purple-500 bg-purple-500/10",
     suggestions: [
@@ -67,10 +67,10 @@ const CATEGORIES: SuggestionCategory[] = [
 ];
 
 const QUICK_PROMPTS = [
-  { icon: <MapPin className="h-3.5 w-3.5" />, text: "Remote jobs in my field" },
-  { icon: <Briefcase className="h-3.5 w-3.5" />, text: "Jobs matching my profile" },
-  { icon: <Sparkles className="h-3.5 w-3.5" />, text: "AI/ML job opportunities" },
-  { icon: <MessageSquare className="h-3.5 w-3.5" />, text: "Help me with my job search" },
+  { icon: <MapPin className="h-3.5 w-3.5" aria-hidden="true" />, text: "Remote jobs in my field" },
+  { icon: <Briefcase className="h-3.5 w-3.5" aria-hidden="true" />, text: "Jobs matching my profile" },
+  { icon: <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />, text: "AI/ML job opportunities" },
+  { icon: <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />, text: "Help me with my job search" },
 ];
 
 function ChatEmptyStateInner({ onSuggestionClick }: ChatEmptyStateProps) {

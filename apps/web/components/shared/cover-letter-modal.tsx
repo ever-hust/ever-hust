@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Copy, Download, RefreshCw, Check } from "lucide-react";
 import {
   Dialog,
@@ -11,6 +11,9 @@ import {
   DialogFooter,
 } from "@repo/ui/dialog";
 import { Button } from "@repo/ui/button";
+
+/** Duration to show the "Copied!" feedback (ms). */
+const COPY_FEEDBACK_MS = 2_000;
 
 interface CoverLetterModalProps {
   open: boolean;
@@ -30,12 +33,25 @@ export function CoverLetterModal({
   onRegenerate,
 }: CoverLetterModalProps) {
   const [copied, setCopied] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(coverLetter);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  // Clean up the feedback timer on unmount to prevent state-update-after-unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(coverLetter);
+      setCopied(true);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
+    } catch {
+      // clipboard API not available — fail silently
+    }
+  }, [coverLetter]);
 
   const handleDownload = () => {
     const blob = new Blob([coverLetter], { type: "text/plain" });
@@ -70,14 +86,14 @@ export function CoverLetterModal({
         <DialogFooter className="flex-row gap-2 sm:gap-2">
           <Button variant="outline" size="sm" onClick={handleCopy}>
             {copied ? (
-              <Check className="mr-1.5 h-3.5 w-3.5" />
+              <Check className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
             ) : (
-              <Copy className="mr-1.5 h-3.5 w-3.5" />
+              <Copy className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
             )}
             {copied ? "Copied" : "Copy"}
           </Button>
           <Button variant="outline" size="sm" onClick={handleDownload}>
-            <Download className="mr-1.5 h-3.5 w-3.5" />
+            <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
             Download
           </Button>
           {onRegenerate && (

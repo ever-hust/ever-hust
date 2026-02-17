@@ -140,6 +140,7 @@ export function JobDetailPanel({
   const salary = job ? formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency, job.salaryInterval, "full") : null;
   const location = job ? formatLocation(job.locationCity, job.locationState, job.locationCountry) : null;
   const posted = job ? timeAgo(job.datePosted) : null;
+  const safeLogo = job ? safeExternalUrl(job.companyLogo) : undefined;
   const applyLink = job ? safeExternalUrl(job.applyUrl) ?? safeExternalUrl(job.jobUrl) ?? null : null;
 
   return (
@@ -177,9 +178,9 @@ export function JobDetailPanel({
             <DialogHeader className="border-b px-6 py-4">
               <div className="flex items-start gap-3">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border bg-background">
-                  {job.companyLogo ? (
+                  {safeLogo ? (
                     <img
-                      src={job.companyLogo}
+                      src={safeLogo}
                       alt={job.companyName ? `${job.companyName} logo` : "Company logo"}
                       className="h-8 w-8 rounded object-contain"
                       onError={(e) => {

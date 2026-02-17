@@ -21,6 +21,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { timeAgo, formatDate, formatLocation } from "@/lib/format-date";
+import { safeExternalUrl } from "@/lib/safe-url";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -85,6 +86,7 @@ function ApplicationSkeleton() {
 
 const ApplicationCard = memo(function ApplicationCard({ app }: { app: Application }) {
   const statusConfig = STATUS_CONFIG[app.status];
+  const safeLogo = safeExternalUrl(app.companyLogo);
   const location = formatLocation(app.locationCity, app.locationState, null, app.isRemote);
 
   return (
@@ -95,9 +97,9 @@ const ApplicationCard = memo(function ApplicationCard({ app }: { app: Applicatio
       <div className="flex items-start gap-3">
         {/* Company logo */}
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-background">
-          {app.companyLogo ? (
+          {safeLogo ? (
             <img
-              src={app.companyLogo}
+              src={safeLogo}
               alt={app.companyName ? `${app.companyName} logo` : "Company logo"}
               className="h-8 w-8 rounded object-contain"
               onError={(e) => {

@@ -193,6 +193,7 @@ export default async function JobDetailPage({ params }: PageProps) {
   );
   const postedDate = formatLongDate(job.datePosted);
   const postedAgo = timeAgo(job.datePosted);
+  const safeLogo = safeExternalUrl(job.companyLogo);
   const applyLink = safeExternalUrl(job.applyUrl) ?? safeExternalUrl(job.jobUrl) ?? safeExternalUrl(job.jobUrlDirect) ?? null;
 
   // Build JSON-LD structured data for SEO (Google for Jobs)
@@ -211,7 +212,7 @@ export default async function JobDetailPage({ params }: PageProps) {
       "@type": "Organization",
       name: job.companyName ?? "Unknown",
       ...(safeExternalUrl(job.companyUrl) ? { sameAs: safeExternalUrl(job.companyUrl) } : {}),
-      ...(job.companyLogo ? { logo: job.companyLogo } : {}),
+      ...(safeLogo ? { logo: safeLogo } : {}),
     },
     jobLocation: {
       "@type": "Place",
@@ -276,9 +277,9 @@ export default async function JobDetailPage({ params }: PageProps) {
           <div className="flex items-start gap-4">
             {/* Company Logo */}
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border bg-background">
-              {job.companyLogo ? (
+              {safeLogo ? (
                 <img
-                  src={job.companyLogo}
+                  src={safeLogo}
                   alt={job.companyName ?? "Company"}
                   className="h-10 w-10 rounded object-contain"
                 />
@@ -573,10 +574,10 @@ export default async function JobDetailPage({ params }: PageProps) {
                     {job.companyName && (
                       <div className="flex items-center gap-3">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-background">
-                          {job.companyLogo ? (
+                          {safeLogo ? (
                             <img
-                              src={job.companyLogo}
-                              alt={job.companyName}
+                              src={safeLogo}
+                              alt={job.companyName ?? "Company"}
                               className="h-8 w-8 rounded object-contain"
                             />
                           ) : (

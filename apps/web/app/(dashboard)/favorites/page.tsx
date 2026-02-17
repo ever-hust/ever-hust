@@ -169,6 +169,7 @@ export default function FavoritesPage() {
               const salary = formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency);
               const posted = timeAgo(job.datePosted);
               const saved = timeAgo(job.savedAt);
+              const safeLogo = safeExternalUrl(job.companyLogo);
               const applyLink = safeExternalUrl(job.applyUrl) ?? safeExternalUrl(job.jobUrl) ?? null;
               const isRemoving = removingId === job.id;
 
@@ -184,9 +185,9 @@ export default function FavoritesPage() {
                   <div className="flex items-start gap-3">
                     {/* Company logo */}
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-background">
-                      {job.companyLogo ? (
+                      {safeLogo ? (
                         <img
-                          src={job.companyLogo}
+                          src={safeLogo}
                           alt={job.companyName ? `${job.companyName} logo` : "Company logo"}
                           className="h-7 w-7 rounded object-contain"
                           onError={(e) => {

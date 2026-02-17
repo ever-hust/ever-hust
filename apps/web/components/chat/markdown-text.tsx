@@ -1,7 +1,10 @@
 "use client";
 
-import { memo, useMemo, useState, useCallback } from "react";
+import { memo, useMemo, useState, useCallback, useRef, useEffect } from "react";
 import { Check, Copy } from "lucide-react";
+
+/** Duration to show the "Copied!" feedback (ms). */
+const COPY_FEEDBACK_MS = 2_000;
 
 /**
  * Lightweight markdown renderer for chat messages.
@@ -19,25 +22,37 @@ export const MarkdownText = memo(MarkdownTextInner);
 /** Copy button for code blocks */
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clean up timer on unmount to prevent state-update-after-unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   const handleCopy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback for older browsers
-      const textarea = document.createElement("textarea");
-      textarea.value = text;
-      textarea.style.position = "fixed";
-      textarea.style.opacity = "0";
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textarea);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      // Fallback for older browsers — use a temporary textarea
+      try {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      } catch {
+        // Both clipboard methods failed — nothing we can do
+        return;
+      }
     }
+    setCopied(true);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
   }, [text]);
 
   return (

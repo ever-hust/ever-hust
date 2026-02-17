@@ -56,11 +56,15 @@ export function ChatHistory({
 
   // Focus search input when panel opens; clear search when closing
   useEffect(() => {
+    let rafId: number | null = null;
     if (isOpen && sessions.length > 3) {
-      // Small delay to wait for DOM render
-      requestAnimationFrame(() => searchInputRef.current?.focus());
+      // Small delay to wait for DOM render — track for cleanup
+      rafId = requestAnimationFrame(() => searchInputRef.current?.focus());
     }
     if (!isOpen) setSearchQuery("");
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
   }, [isOpen, sessions.length]);
 
   const handleSelect = useCallback(

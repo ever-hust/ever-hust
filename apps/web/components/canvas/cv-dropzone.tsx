@@ -24,6 +24,9 @@ export interface CVUploadResult {
   error?: string;
 }
 
+/** Maximum allowed file size for CV uploads (10 MB). */
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+
 export function CVDropzone({ onUploadComplete }: CVDropzoneProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -38,7 +41,7 @@ export function CVDropzone({ onUploadComplete }: CVDropzoneProps) {
         return;
       }
 
-      if (file.size > 10 * 1024 * 1024) {
+      if (file.size > MAX_FILE_SIZE_BYTES) {
         const result = { success: false, error: "File must be under 10MB" };
         setUploadResult(result);
         return;
@@ -59,8 +62,12 @@ export function CVDropzone({ onUploadComplete }: CVDropzoneProps) {
         const data = (await res.json()) as CVUploadResult;
         setUploadResult(data);
         onUploadComplete?.(data);
-      } catch {
-        const result = { success: false, error: "Upload failed" };
+      } catch (err) {
+        const message =
+          err instanceof Error && err.message.includes("fetch")
+            ? "Network error. Please check your connection."
+            : "Upload failed. Please try again.";
+        const result = { success: false, error: message };
         setUploadResult(result);
       } finally {
         setIsUploading(false);

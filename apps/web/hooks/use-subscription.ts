@@ -65,8 +65,11 @@ export function useSubscription(): SubscriptionInfo {
             setStatus("free");
           }
         }
-      } catch {
-        // Default to free on error
+      } catch (error) {
+        console.warn(
+          "[useSubscription] Failed to load subscription status:",
+          error instanceof Error ? error.message : error
+        );
       } finally {
         if (!cancelled) setIsLoading(false);
       }

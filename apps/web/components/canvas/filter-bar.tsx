@@ -21,9 +21,12 @@ interface FilterBarProps {
   onFiltersChange: (filters: JobFilters) => void;
 }
 
+/** Debounce delay (ms) for text-input filter changes. */
+const FILTER_DEBOUNCE_MS = 300;
+
 /**
  * Debounced filter bar for job search.
- * Text inputs (keywords, location) are debounced (300ms) to prevent excessive API calls.
+ * Text inputs (keywords, location) are debounced to prevent excessive API calls.
  * Toggle/select inputs fire immediately.
  */
 export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
@@ -44,7 +47,7 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       onFiltersChange(newFilters);
-    }, 300);
+    }, FILTER_DEBOUNCE_MS);
   };
 
   // Cleanup on unmount

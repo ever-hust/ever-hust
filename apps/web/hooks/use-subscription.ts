@@ -45,12 +45,12 @@ export function useSubscription(): SubscriptionInfo {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
 
     async function loadSubscription() {
       try {
-        const res = await fetch("/api/user/profile");
-        if (res.ok && !cancelled) {
+        const res = await fetch("/api/user/profile", { signal: controller.signal });
+        if (res.ok && !controller.signal.aborted) {
           const data = (await res.json()) as {
             user: { subscriptionStatus: string };
           };
@@ -66,19 +66,18 @@ export function useSubscription(): SubscriptionInfo {
           }
         }
       } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
         console.warn(
           "[useSubscription] Failed to load subscription status:",
           error instanceof Error ? error.message : error
         );
       } finally {
-        if (!cancelled) setIsLoading(false);
+        if (!controller.signal.aborted) setIsLoading(false);
       }
     }
 
     loadSubscription();
-    return () => {
-      cancelled = true;
-    };
+    return () => { controller.abort(); };
   }, []);
 
   const isSubscribed = useMemo(() => status === "active", [status]);

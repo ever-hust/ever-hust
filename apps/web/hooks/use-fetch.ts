@@ -33,7 +33,7 @@ interface UseFetchReturn<T> {
  * ```tsx
  * const { data: favorites, isLoading, error, refetch } = useFetch<FavoriteJob[]>(
  *   "/api/user/favorites/list",
- *   { transform: (d) => (d as any).favorites }
+ *   { transform: (d) => (d as { favorites: FavoriteJob[] }).favorites }
  * );
  * ```
  */

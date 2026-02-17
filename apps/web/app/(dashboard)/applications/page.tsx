@@ -20,7 +20,7 @@ import { ScrollToTop } from "@/components/shared/scroll-to-top";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { PageHeader } from "@/components/shared/page-header";
-import { timeAgo, formatDate } from "@/lib/format-date";
+import { timeAgo, formatDate, formatLocation } from "@/lib/format-date";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -57,17 +57,6 @@ const STATUS_CONFIG: Record<
   failed: { label: "Failed", variant: "destructive" },
 };
 
-function formatLocation(
-  city: string | null,
-  state: string | null,
-  isRemote: boolean | null
-) {
-  const parts = [city, state].filter(Boolean);
-  const loc = parts.join(", ");
-  if (isRemote) return loc ? `${loc} (Remote)` : "Remote";
-  return loc || null;
-}
-
 // ---------------------------------------------------------------------------
 // Loading skeleton
 // ---------------------------------------------------------------------------
@@ -96,7 +85,7 @@ function ApplicationSkeleton() {
 
 const ApplicationCard = memo(function ApplicationCard({ app }: { app: Application }) {
   const statusConfig = STATUS_CONFIG[app.status];
-  const location = formatLocation(app.locationCity, app.locationState, app.isRemote);
+  const location = formatLocation(app.locationCity, app.locationState, null, app.isRemote);
 
   return (
     <article

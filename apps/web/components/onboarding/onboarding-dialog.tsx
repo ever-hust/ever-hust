@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -135,7 +135,9 @@ export function OnboardingDialog({
     onComplete();
   }, [headline, location, selectedSkills, selectedLevel, onComplete]);
 
-  const steps = [
+  // Memoize the steps array so it's only rebuilt when its dependencies change,
+  // not on every render (e.g. when `step` changes).
+  const steps = useMemo(() => [
     // Step 0: Welcome
     <div key="welcome" className="flex flex-col items-center text-center py-4">
       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 mb-4">
@@ -240,7 +242,7 @@ export function OnboardingDialog({
         </p>
       )}
     </div>,
-  ];
+  ], [userName, headline, location, selectedSkills, customSkill, selectedLevel, toggleSkill, addCustomSkill]);
 
   const isLastStep = step === steps.length - 1;
 

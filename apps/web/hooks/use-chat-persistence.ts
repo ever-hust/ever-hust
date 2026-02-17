@@ -2,6 +2,11 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 
+const LOG_PREFIX = "[chat-persistence]";
+
+/** Debounce delay for auto-saving messages (ms). */
+const SAVE_DEBOUNCE_MS = 1_000;
+
 interface ChatSession {
   id: string;
   status: string;
@@ -28,6 +33,9 @@ interface PersistedMessage {
  * - Creating new sessions
  * - Loading session history
  * - Auto-saving messages as they come in (debounced)
+ *
+ * All persistence operations are non-blocking — the chat works even if the
+ * API is unavailable. Failures are logged to the console for debugging.
  */
 export function useChatPersistence() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -35,6 +43,13 @@ export function useChatPersistence() {
   const [isLoadingSessions, setIsLoadingSessions] = useState(true);
   const savedMessageIds = useRef<Set<string>>(new Set());
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clean up debounce timer on unmount to prevent state-update-after-unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+  }, []);
 
   // Load sessions on mount
   useEffect(() => {
@@ -48,9 +63,16 @@ export function useChatPersistence() {
       if (res.ok) {
         const data = (await res.json()) as { sessions: ChatSession[] };
         setSessions(data.sessions);
+      } else {
+        console.warn(
+          `${LOG_PREFIX} Failed to load sessions: ${res.status} ${res.statusText}`
+        );
       }
-    } catch {
-      // Silently fail — chat still works without persistence
+    } catch (error) {
+      console.warn(
+        `${LOG_PREFIX} Failed to load sessions:`,
+        error instanceof Error ? error.message : error
+      );
     } finally {
       setIsLoadingSessions(false);
     }
@@ -67,8 +89,14 @@ export function useChatPersistence() {
         savedMessageIds.current = new Set();
         return session.id;
       }
-    } catch {
-      // Non-blocking
+      console.warn(
+        `${LOG_PREFIX} Failed to create session: ${res.status} ${res.statusText}`
+      );
+    } catch (error) {
+      console.warn(
+        `${LOG_PREFIX} Failed to create session:`,
+        error instanceof Error ? error.message : error
+      );
     }
     return null;
   }, []);
@@ -90,8 +118,14 @@ export function useChatPersistence() {
           setActiveSessionId(sessionId);
           return data.messages;
         }
-      } catch {
-        // Non-blocking
+        console.warn(
+          `${LOG_PREFIX} Failed to load messages for ${sessionId}: ${res.status}`
+        );
+      } catch (error) {
+        console.warn(
+          `${LOG_PREFIX} Failed to load messages for ${sessionId}:`,
+          error instanceof Error ? error.message : error
+        );
       }
       return [];
     },
@@ -120,7 +154,7 @@ export function useChatPersistence() {
       );
       if (unsaved.length === 0) return;
 
-      // Debounce saves (wait 1s after last message)
+      // Debounce saves
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(async () => {
         const sessionId = activeSessionId;
@@ -162,11 +196,18 @@ export function useChatPersistence() {
             for (const m of payload) {
               savedMessageIds.current.add(m.id);
             }
+          } else {
+            console.warn(
+              `${LOG_PREFIX} Failed to save ${payload.length} message(s) to ${sessionId}: ${res.status}`
+            );
           }
-        } catch {
-          // Non-blocking
+        } catch (error) {
+          console.warn(
+            `${LOG_PREFIX} Failed to save messages to ${sessionId}:`,
+            error instanceof Error ? error.message : error
+          );
         }
-      }, 1000);
+      }, SAVE_DEBOUNCE_MS);
     },
     [activeSessionId]
   );
@@ -191,8 +232,14 @@ export function useChatPersistence() {
           }
           return true;
         }
-      } catch {
-        // Non-blocking
+        console.warn(
+          `${LOG_PREFIX} Failed to delete session ${sessionId}: ${res.status}`
+        );
+      } catch (error) {
+        console.warn(
+          `${LOG_PREFIX} Failed to delete session ${sessionId}:`,
+          error instanceof Error ? error.message : error
+        );
       }
       return false;
     },

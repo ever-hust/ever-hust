@@ -210,25 +210,19 @@ export function ChatHistory({
                         </div>
                         <div className="flex items-center gap-1">
                           {onDeleteSession && (
-                            <span
-                              role="button"
-                              tabIndex={0}
-                              className="rounded p-1 opacity-0 transition-opacity group-hover/item:opacity-100 hover:bg-destructive/10 hover:text-destructive focus:opacity-100"
-                              aria-label="Delete conversation"
+                            <button
+                              type="button"
+                              className="rounded p-1 opacity-0 transition-opacity group-hover/item:opacity-100 hover:bg-destructive/10 hover:text-destructive focus:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              aria-label={`Delete conversation: ${session.preview ?? "untitled"}`}
                               onClick={(e) => handleDeleteClick(e, session.id)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === " ") {
-                                  e.preventDefault();
-                                  handleDeleteClick(e as unknown as React.MouseEvent, session.id);
-                                }
-                              }}
+                              disabled={isDeleting}
                             >
                               {isDeleting ? (
                                 <Loader2 className="h-3 w-3 animate-spin" />
                               ) : (
                                 <Trash2 className="h-3 w-3" />
                               )}
-                            </span>
+                            </button>
                           )}
                           {isSessionLoading ? (
                             <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />

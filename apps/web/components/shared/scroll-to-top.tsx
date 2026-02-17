@@ -25,10 +25,16 @@ export function ScrollToTop({
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
+    // Read .current inside the effect — the ref may not be populated on
+    // the first render (e.g. the container hasn't mounted yet).  We fall
+    // back to `window` when it's still null.
     const target = containerRef?.current ?? window;
+
     const handleScroll = () => {
-      if (containerRef?.current) {
-        setVisible(containerRef.current.scrollTop > threshold);
+      // Always read .current at event time so we never compare a stale element.
+      const el = containerRef?.current;
+      if (el) {
+        setVisible(el.scrollTop > threshold);
       } else {
         setVisible(window.scrollY > threshold);
       }

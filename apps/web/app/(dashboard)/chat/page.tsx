@@ -100,6 +100,10 @@ export default function ChatPage() {
     return () => { controller.abort(); };
   }, [searchParams]);
 
+  // Destructure the stable callback ref so we can depend on it directly
+  // instead of the entire canvas object (which changes identity on state updates).
+  const { handleToolResult } = canvas;
+
   // Toggle favorite via API (direct from UI click)
   const handleFavorite = useCallback(async (jobId: number) => {
     try {
@@ -116,13 +120,12 @@ export default function ChatPage() {
         jobId: number;
         favorited: boolean;
       };
-      canvas.handleToolResult("favoriteJob", data);
+      handleToolResult("favoriteJob", data);
       toast.success(data.favorited ? "Job added to favorites" : "Job removed from favorites");
     } catch {
       toast.error("Failed to update favorite");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [handleToolResult]);
 
   // Open job detail panel instead of navigating away
   const handleViewDetails = useCallback((jobId: number) => {

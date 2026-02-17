@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 
 interface UseFetchOptions<T> {
   /** Initial data before the first fetch completes */
@@ -48,6 +48,11 @@ export function useFetch<T>(
     transform,
   } = options;
 
+  // Serialize deps to a stable string so callers can pass inline arrays
+  // (e.g. `{ deps: [userId] }`) without triggering infinite refetch loops
+  // due to new array references on every render.
+  const depsKey = useMemo(() => JSON.stringify(deps), deps);
+
   const [data, setData] = useState<T | null>(initialData ?? null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(immediate);
@@ -86,7 +91,7 @@ export function useFetch<T>(
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url, ...deps]);
+  }, [url, depsKey]);
 
   useEffect(() => {
     if (immediate) {

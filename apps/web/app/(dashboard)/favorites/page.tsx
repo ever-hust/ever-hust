@@ -188,6 +188,9 @@ export default function FavoritesPage() {
                           src={job.companyLogo}
                           alt={job.companyName ? `${job.companyName} logo` : "Company logo"}
                           className="h-7 w-7 rounded object-contain"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).style.display = "none";
+                          }}
                         />
                       ) : (
                         <Building2 className="h-5 w-5 text-muted-foreground" aria-hidden="true" />

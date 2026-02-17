@@ -14,6 +14,12 @@ interface ChatInputProps {
 
 const MAX_ROWS = 6;
 const LINE_HEIGHT = 20; // ~text-sm line height in px
+const PADDING_PX = 20; // py-2.5 top + bottom padding
+
+/** Show character counter when input exceeds this many characters. */
+const CHAR_COUNT_VISIBLE_THRESHOLD = 200;
+/** Show character counter in destructive color at this threshold. */
+const CHAR_COUNT_WARNING_THRESHOLD = 4_000;
 
 export function ChatInput({
   input,
@@ -32,8 +38,7 @@ export function ChatInput({
     // Reset to single row to measure scrollHeight accurately
     textarea.style.height = "auto";
 
-    // Calculate max height (MAX_ROWS * line-height + padding)
-    const maxHeight = MAX_ROWS * LINE_HEIGHT + 20; // 20px for py-2.5 padding
+    const maxHeight = MAX_ROWS * LINE_HEIGHT + PADDING_PX;
     const newHeight = Math.min(textarea.scrollHeight, maxHeight);
 
     textarea.style.height = `${newHeight}px`;
@@ -113,8 +118,8 @@ export function ChatInput({
       </form>
       <div className="mt-1.5 hidden items-center justify-between text-[10px] text-muted-foreground/60 sm:flex">
         <span>Press Enter to send, Shift+Enter for new line</span>
-        {input.length > 200 && (
-          <span className={input.length > 4000 ? "text-destructive" : ""}>
+        {input.length > CHAR_COUNT_VISIBLE_THRESHOLD && (
+          <span className={input.length > CHAR_COUNT_WARNING_THRESHOLD ? "text-destructive" : ""}>
             {input.length.toLocaleString()} chars
           </span>
         )}

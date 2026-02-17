@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, memo } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo, memo } from "react";
 import type { UIMessage } from "ai";
 import { Bot, User, Copy, Check } from "lucide-react";
 import { Avatar, AvatarFallback } from "@repo/ui/avatar";
@@ -10,17 +10,29 @@ interface ChatMessagesProps {
   isLoading: boolean;
 }
 
+/** Duration to show the "Copied!" feedback (ms). */
+const COPY_FEEDBACK_MS = 2_000;
+
 /** Small copy-to-clipboard button shown on hover over assistant messages */
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clean up the feedback timer on unmount to prevent state-update-after-unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   const handleCopy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
     } catch {
-      // clipboard API not available
+      // clipboard API not available — fail silently
     }
   }, [text]);
 
@@ -180,7 +192,7 @@ const MessageBubble = memo(function MessageBubble({
 
 export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
   return (
-    <div className="space-y-4" role="log" aria-label="Conversation">
+    <div className="space-y-4" role="log" aria-live="polite" aria-label="Conversation">
       {messages.map((message) => (
         <MessageBubble key={message.id} message={message} />
       ))}

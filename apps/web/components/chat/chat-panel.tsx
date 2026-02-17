@@ -12,6 +12,57 @@ import { useChatPersistence } from "@/hooks/use-chat-persistence";
 import { MessageSquarePlus, RefreshCcw, ArrowDown } from "lucide-react";
 import { Button } from "@repo/ui/button";
 
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/** Minimum character length to treat an AI response as a cover letter. */
+const COVER_LETTER_MIN_CHARS = 200;
+
+/** Distance from the bottom (px) within which we auto-scroll on new messages. */
+const AUTO_SCROLL_THRESHOLD_PX = 150;
+
+/** Distance from the bottom (px) before showing the "scroll to bottom" button. */
+const SHOW_SCROLL_BUTTON_PX = 100;
+
+/** Duration of the "done" flash before returning to idle (ms). */
+const DONE_FLASH_MS = 1_500;
+
+// ---------------------------------------------------------------------------
+// Error classification — replaces fragile substring matching
+// ---------------------------------------------------------------------------
+
+type ChatErrorKind = "auth" | "rate-limit" | "network" | "unknown";
+
+function classifyError(error: Error): ChatErrorKind {
+  const msg = (error.message ?? "").toLowerCase();
+  if (msg.includes("401") || msg.includes("sign in") || msg.includes("unauthorized"))
+    return "auth";
+  if (msg.includes("429") || msg.includes("rate") || msg.includes("limit") || msg.includes("too many"))
+    return "rate-limit";
+  if (msg.includes("fetch") || msg.includes("network") || msg.includes("econnrefused") || msg.includes("failed to fetch"))
+    return "network";
+  return "unknown";
+}
+
+const ERROR_TITLES: Record<ChatErrorKind, string> = {
+  auth: "Session expired",
+  "rate-limit": "Rate limit reached",
+  network: "Connection error",
+  unknown: "Something went wrong",
+};
+
+const ERROR_DESCRIPTIONS: Record<ChatErrorKind, string> = {
+  auth: "Please refresh the page to sign in again.",
+  "rate-limit": "You\u2019ve sent too many messages. Wait a moment and try again.",
+  network: "Check your internet connection and try again.",
+  unknown: "An unexpected error occurred. Please try again.",
+};
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
 interface ChatPanelProps {
   onToolResult?: (toolName: string, result: unknown) => void;
   onCoverLetter?: (text: string) => void;
@@ -68,10 +119,10 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
     if (initialPrompt && !initialPromptUsed.current && messages.length === 0) {
       initialPromptUsed.current = true;
       setInput(initialPrompt);
-      // Focus the chat input after a tick so the textarea renders
-      setTimeout(() => {
+      // Focus the chat input after a frame so the textarea renders
+      requestAnimationFrame(() => {
         document.getElementById("chat-input")?.focus();
-      }, 100);
+      });
     }
   }, [initialPrompt, messages.length]);
 
@@ -92,7 +143,7 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
         const timer = setTimeout(() => {
           setAgentState("idle");
           setActiveToolName(undefined);
-        }, 1500);
+        }, DONE_FLASH_MS);
         return () => clearTimeout(timer);
       }
     }
@@ -125,8 +176,7 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
       .map((p) => (p as { type: "text"; text: string }).text)
       .join("\n");
 
-    // If the text is long enough to be a cover letter (>200 chars), emit it
-    if (textParts.length > 200 && onCoverLetter) {
+    if (textParts.length > COVER_LETTER_MIN_CHARS && onCoverLetter) {
       onCoverLetter(textParts);
       coverLetterPending.current = false;
     }
@@ -140,7 +190,7 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
     if (!el) return;
     const handleScroll = () => {
       const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-      setShowScrollButton(distanceFromBottom > 100);
+      setShowScrollButton(distanceFromBottom > SHOW_SCROLL_BUTTON_PX);
     };
     el.addEventListener("scroll", handleScroll, { passive: true });
     return () => el.removeEventListener("scroll", handleScroll);
@@ -151,8 +201,7 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
     const el = scrollRef.current;
     if (!el) return;
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    // If user is near bottom (within 150px), auto-scroll
-    if (distanceFromBottom < 150) {
+    if (distanceFromBottom < AUTO_SCROLL_THRESHOLD_PX) {
       el.scrollTop = el.scrollHeight;
     }
   }, [messages]);
@@ -180,14 +229,12 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
     if (!lastUserMessage.current || isLoading) return;
     // Remove the last user message + any incomplete assistant response
     const trimmed = [...messages];
-    // Pop messages from the end until we remove the last user message
     while (trimmed.length > 0) {
       const last = trimmed[trimmed.length - 1];
       trimmed.pop();
       if (last?.role === "user") break;
     }
     setMessages(trimmed);
-    // Resend
     await sendMessage({ text: lastUserMessage.current });
   }, [messages, isLoading, setMessages, sendMessage]);
 
@@ -198,7 +245,6 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
   };
 
   const handleNewChat = async () => {
-    // Clear current messages and start a fresh session
     setMessages([]);
     setAgentState("idle");
     setActiveToolName(undefined);
@@ -211,7 +257,6 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
     async (sessionId: string) => {
       const persisted = await loadMessages(sessionId);
       if (persisted.length > 0) {
-        // Convert persisted messages to the format useChat expects
         const restored = persisted.map((m) => ({
           id: m.id,
           role: m.role as "user" | "assistant" | "system",
@@ -231,6 +276,9 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
     },
     [loadMessages, setMessages]
   );
+
+  // Classify error once for cleaner rendering
+  const errorKind = error ? classifyError(error) : null;
 
   return (
     <div className="flex h-full flex-col">
@@ -274,27 +322,15 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
           <ChatMessages messages={messages} isLoading={isLoading} />
         )}
 
-        {error && (
+        {error && errorKind && (
           <div role="alert" className="mt-2 rounded-md border border-destructive/50 bg-destructive/10 p-3">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="text-sm font-medium text-destructive">
-                  {error.message?.includes("401") || error.message?.includes("sign in")
-                    ? "Session expired"
-                    : error.message?.includes("429") || error.message?.includes("limit")
-                      ? "Rate limit reached"
-                      : error.message?.includes("fetch") || error.message?.includes("network")
-                        ? "Connection error"
-                        : "Something went wrong"}
+                  {ERROR_TITLES[errorKind]}
                 </p>
                 <p className="mt-0.5 text-xs text-destructive/80">
-                  {error.message?.includes("401") || error.message?.includes("sign in")
-                    ? "Please refresh the page to sign in again."
-                    : error.message?.includes("429") || error.message?.includes("limit")
-                      ? "You've sent too many messages. Wait a moment and try again."
-                      : error.message?.includes("fetch") || error.message?.includes("network")
-                        ? "Check your internet connection and try again."
-                        : error.message || "An unexpected error occurred. Please try again."}
+                  {ERROR_DESCRIPTIONS[errorKind]}
                 </p>
               </div>
               {lastUserMessage.current && (

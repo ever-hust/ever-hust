@@ -27,25 +27,22 @@ export async function GET(req: NextRequest) {
     await db.execute(sql`SELECT 1`);
     checks.database = { status: "ok", latencyMs: Date.now() - dbStart };
   } catch (error) {
+    console.error("[api/health] Database check failed:", error instanceof Error ? error.message : error);
     checks.database = {
       status: "error",
       latencyMs: Date.now() - dbStart,
-      error: error instanceof Error ? error.message : "Unknown DB error",
     };
   }
 
-  // Check environment variables
+  // Check environment variables (don't leak names in response)
   const requiredEnvVars = [
     "DATABASE_URL",
     "BETTER_AUTH_SECRET",
   ];
 
-  const missingEnv = requiredEnvVars.filter((key) => !process.env[key]);
-  if (missingEnv.length > 0) {
-    checks.environment = {
-      status: "error",
-      error: `Missing: ${missingEnv.join(", ")}`,
-    };
+  const missingCount = requiredEnvVars.filter((key) => !process.env[key]).length;
+  if (missingCount > 0) {
+    checks.environment = { status: "error" };
   } else {
     checks.environment = { status: "ok" };
   }

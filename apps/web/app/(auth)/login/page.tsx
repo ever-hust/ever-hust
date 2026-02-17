@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@repo
 import { Separator } from "@repo/ui/separator";
 import { BriefcaseBusiness, Linkedin, Shield, Sparkles, Search, FileText } from "lucide-react";
 import { signIn } from "@repo/auth/client";
+import { toast } from "sonner";
 
 const VALUE_PROPS = [
   { icon: Search, text: "Search 2M+ jobs across 25+ platforms" },
@@ -15,10 +16,14 @@ const VALUE_PROPS = [
 
 export default function LoginPage() {
   const handleLinkedInLogin = async () => {
-    await signIn.social({
-      provider: "linkedin",
-      callbackURL: "/chat",
-    });
+    try {
+      await signIn.social({
+        provider: "linkedin",
+        callbackURL: "/chat",
+      });
+    } catch {
+      toast.error("Failed to start sign-in. Please try again.");
+    }
   };
 
   return (

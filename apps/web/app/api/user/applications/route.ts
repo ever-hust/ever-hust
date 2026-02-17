@@ -3,7 +3,7 @@ import { eq, and, desc } from "drizzle-orm";
 import type { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { applyRateLimit } from "../../../../lib/rate-limit";
-import { apiSuccess, apiBadRequest } from "../../../../lib/api-response";
+import { apiSuccess, apiBadRequest, apiError } from "../../../../lib/api-response";
 import { z } from "zod";
 
 const applicationsQuerySchema = z.object({
@@ -39,39 +39,44 @@ export async function GET(req: Request) {
 
   const { status, limit, offset } = queryParsed.data;
 
-  // Build conditions
-  const conditions = [eq(applications.userId, userId)];
-  if (status) {
-    conditions.push(eq(applications.status, status));
+  try {
+    // Build conditions
+    const conditions = [eq(applications.userId, userId)];
+    if (status) {
+      conditions.push(eq(applications.status, status));
+    }
+
+    const results = await db
+      .select({
+        id: applications.id,
+        jobId: applications.jobId,
+        status: applications.status,
+        coverLetter: applications.coverLetter,
+        createdAt: applications.createdAt,
+        updatedAt: applications.updatedAt,
+        // Join job info
+        jobTitle: jobs.title,
+        companyName: jobs.companyName,
+        companyLogo: jobs.companyLogo,
+        locationCity: jobs.locationCity,
+        locationState: jobs.locationState,
+        isRemote: jobs.isRemote,
+      })
+      .from(applications)
+      .innerJoin(jobs, eq(applications.jobId, jobs.id))
+      .where(and(...conditions))
+      .orderBy(desc(applications.updatedAt))
+      .limit(limit)
+      .offset(offset);
+
+    return apiSuccess({
+      applications: results,
+      count: results.length,
+      offset,
+      limit,
+    });
+  } catch (err) {
+    console.error("[api/user/applications] GET failed:", err instanceof Error ? err.message : err);
+    return apiError("Failed to load applications");
   }
-
-  const results = await db
-    .select({
-      id: applications.id,
-      jobId: applications.jobId,
-      status: applications.status,
-      coverLetter: applications.coverLetter,
-      createdAt: applications.createdAt,
-      updatedAt: applications.updatedAt,
-      // Join job info
-      jobTitle: jobs.title,
-      companyName: jobs.companyName,
-      companyLogo: jobs.companyLogo,
-      locationCity: jobs.locationCity,
-      locationState: jobs.locationState,
-      isRemote: jobs.isRemote,
-    })
-    .from(applications)
-    .innerJoin(jobs, eq(applications.jobId, jobs.id))
-    .where(and(...conditions))
-    .orderBy(desc(applications.updatedAt))
-    .limit(limit)
-    .offset(offset);
-
-  return apiSuccess({
-    applications: results,
-    count: results.length,
-    offset,
-    limit,
-  });
 }

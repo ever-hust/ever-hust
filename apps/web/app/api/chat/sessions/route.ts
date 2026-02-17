@@ -3,7 +3,7 @@ import { eq, desc, inArray, asc, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { applyRateLimit } from "../../../../lib/rate-limit";
-import { apiSuccess } from "../../../../lib/api-response";
+import { apiSuccess, apiError } from "../../../../lib/api-response";
 
 /**
  * GET /api/chat/sessions
@@ -18,52 +18,57 @@ export async function GET() {
     return response as NextResponse;
   }
 
-  const sessions = await db
-    .select({
-      id: chatSessions.id,
-      status: chatSessions.status,
-      agentType: chatSessions.agentType,
-      createdAt: chatSessions.createdAt,
-      updatedAt: chatSessions.updatedAt,
-    })
-    .from(chatSessions)
-    .where(eq(chatSessions.userId, user.id))
-    .orderBy(desc(chatSessions.updatedAt))
-    .limit(50);
-
-  // Fetch first user message for each session as a preview/title
-  const sessionIds = sessions.map((s) => s.id);
-  let previews: Map<string, string> = new Map();
-
-  if (sessionIds.length > 0) {
-    const firstMessages = await db
+  try {
+    const sessions = await db
       .select({
-        sessionId: chatMessages.sessionId,
-        content: chatMessages.content,
+        id: chatSessions.id,
+        status: chatSessions.status,
+        agentType: chatSessions.agentType,
+        createdAt: chatSessions.createdAt,
+        updatedAt: chatSessions.updatedAt,
       })
-      .from(chatMessages)
-      .where(
-        and(
-          inArray(chatMessages.sessionId, sessionIds),
-          eq(chatMessages.role, "user")
-        )
-      )
-      .orderBy(asc(chatMessages.createdAt));
+      .from(chatSessions)
+      .where(eq(chatSessions.userId, user.id))
+      .orderBy(desc(chatSessions.updatedAt))
+      .limit(50);
 
-    // Keep only the first user message per session
-    for (const msg of firstMessages) {
-      if (msg.content && !previews.has(msg.sessionId)) {
-        previews.set(msg.sessionId, msg.content.slice(0, 100));
+    // Fetch first user message for each session as a preview/title
+    const sessionIds = sessions.map((s) => s.id);
+    const previews: Map<string, string> = new Map();
+
+    if (sessionIds.length > 0) {
+      const firstMessages = await db
+        .select({
+          sessionId: chatMessages.sessionId,
+          content: chatMessages.content,
+        })
+        .from(chatMessages)
+        .where(
+          and(
+            inArray(chatMessages.sessionId, sessionIds),
+            eq(chatMessages.role, "user")
+          )
+        )
+        .orderBy(asc(chatMessages.createdAt));
+
+      // Keep only the first user message per session
+      for (const msg of firstMessages) {
+        if (msg.content && !previews.has(msg.sessionId)) {
+          previews.set(msg.sessionId, msg.content.slice(0, 100));
+        }
       }
     }
+
+    const sessionsWithPreviews = sessions.map((s) => ({
+      ...s,
+      preview: previews.get(s.id) ?? null,
+    }));
+
+    return apiSuccess({ sessions: sessionsWithPreviews });
+  } catch (err) {
+    console.error("[api/chat/sessions] GET failed:", err instanceof Error ? err.message : err);
+    return apiError("Failed to load chat sessions");
   }
-
-  const sessionsWithPreviews = sessions.map((s) => ({
-    ...s,
-    preview: previews.get(s.id) ?? null,
-  }));
-
-  return apiSuccess({ sessions: sessionsWithPreviews });
 }
 
 /**

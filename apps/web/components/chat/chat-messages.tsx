@@ -1,4 +1,4 @@
-import { useState, useCallback, memo } from "react";
+import { useState, useCallback, useMemo, memo } from "react";
 import type { UIMessage } from "ai";
 import { Bot, User, Copy, Check } from "lucide-react";
 import { Avatar, AvatarFallback } from "@repo/ui/avatar";
@@ -43,16 +43,50 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
+/** Pre-computed animation delays to avoid recalculation on re-renders */
+const TYPING_DOT_DELAYS = ["0s", "0.16s", "0.32s"] as const;
+
+/** Memoized typing indicator — static content that never needs to re-render */
+const TypingIndicator = memo(function TypingIndicator() {
+  return (
+    <div className="flex gap-2 sm:gap-3" role="status" aria-label="Assistant is typing">
+      <Avatar className="mt-0.5 hidden h-7 w-7 shrink-0 sm:flex">
+        <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+          <Bot className="h-4 w-4" />
+        </AvatarFallback>
+      </Avatar>
+      <div className="flex items-center gap-1.5 rounded-xl bg-muted px-4 py-3">
+        {TYPING_DOT_DELAYS.map((delay, i) => (
+          <div
+            key={i}
+            className="h-2 w-2 rounded-full bg-muted-foreground/60"
+            style={{
+              animation: "typing-bounce 1.4s ease-in-out infinite",
+              animationDelay: delay,
+            }}
+          />
+        ))}
+      </div>
+      <span className="sr-only">Assistant is thinking...</span>
+    </div>
+  );
+});
+
 /** Memoized single message bubble to avoid re-renders when new messages arrive */
 const MessageBubble = memo(function MessageBubble({
   message,
 }: {
   message: UIMessage;
 }) {
-  const textContent = message.parts
-    .filter((p) => p.type === "text")
-    .map((p) => (p as { type: "text"; text: string }).text)
-    .join("\n");
+  // Memoize text extraction so it only recomputes when parts change
+  const textContent = useMemo(
+    () =>
+      message.parts
+        .filter((p) => p.type === "text")
+        .map((p) => (p as { type: "text"; text: string }).text)
+        .join("\n"),
+    [message.parts],
+  );
 
   return (
     <div
@@ -151,28 +185,7 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
         <MessageBubble key={message.id} message={message} />
       ))}
 
-      {isLoading && (
-        <div className="flex gap-2 sm:gap-3" role="status" aria-label="Assistant is typing">
-          <Avatar className="mt-0.5 hidden h-7 w-7 shrink-0 sm:flex">
-            <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-              <Bot className="h-4 w-4" />
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex items-center gap-1.5 rounded-xl bg-muted px-4 py-3">
-            {[0, 1, 2].map((i) => (
-              <div
-                key={i}
-                className="h-2 w-2 rounded-full bg-muted-foreground/60"
-                style={{
-                  animation: "typing-bounce 1.4s ease-in-out infinite",
-                  animationDelay: `${i * 0.16}s`,
-                }}
-              />
-            ))}
-          </div>
-          <span className="sr-only">Assistant is thinking...</span>
-        </div>
-      )}
+      {isLoading && <TypingIndicator />}
     </div>
   );
 }

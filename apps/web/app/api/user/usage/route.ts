@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import type { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import {
   checkSubscription,
@@ -7,6 +7,7 @@ import {
   peekCoverLetterUsage,
 } from "../../../../lib/subscription-gate";
 import { applyRateLimit } from "../../../../lib/rate-limit";
+import { apiSuccess } from "../../../../lib/api-response";
 
 /**
  * GET /api/user/usage
@@ -31,11 +32,11 @@ export async function GET() {
   const gate = await checkSubscription(user.id);
 
   if (gate.isActive) {
-    return NextResponse.json({
-      plan: "pro",
-      unlimited: true,
-      usage: null,
-    });
+    // Usage stats are relatively stable — brief cache for pro users
+    return apiSuccess(
+      { plan: "pro", unlimited: true, usage: null },
+      { cacheSeconds: 30 },
+    );
   }
 
   // Read-only peek at current usage stats for free users.
@@ -44,7 +45,7 @@ export async function GET() {
   const searches = peekSearchUsage(user.id);
   const coverLetters = peekCoverLetterUsage(user.id);
 
-  return NextResponse.json({
+  return apiSuccess({
     plan: "free",
     unlimited: false,
     usage: {

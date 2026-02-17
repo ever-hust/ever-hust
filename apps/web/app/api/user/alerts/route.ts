@@ -11,6 +11,12 @@ import {
   alertDeleteSchema,
   parseBody,
 } from "../../../../lib/api-schemas";
+import {
+  apiSuccess,
+  apiBadRequest,
+  apiForbidden,
+  apiNotFound,
+} from "../../../../lib/api-response";
 
 // GET /api/user/alerts - List user's alerts
 export async function GET() {
@@ -30,7 +36,7 @@ export async function GET() {
     .where(eq(userAlerts.userId, user.id))
     .orderBy(userAlerts.createdAt);
 
-  return NextResponse.json({ alerts });
+  return apiSuccess({ alerts });
 }
 
 // POST /api/user/alerts - Create a new alert
@@ -48,16 +54,13 @@ export async function POST(req: Request) {
   // Only subscribed users can create alerts
   const gate = await checkSubscription(user.id);
   if (!gate.isActive) {
-    return NextResponse.json(
-      { error: "Upgrade to Pro to create job alerts." },
-      { status: 403 }
-    );
+    return apiForbidden("Upgrade to Pro to create job alerts.");
   }
 
   const rawBody = await req.json();
   const validation = parseBody(alertCreateSchema, rawBody);
   if (!validation.success) {
-    return NextResponse.json({ error: validation.error }, { status: 400 });
+    return apiBadRequest(validation.error);
   }
   const body = validation.data;
 
@@ -71,7 +74,7 @@ export async function POST(req: Request) {
     })
     .returning();
 
-  return NextResponse.json({ alert }, { status: 201 });
+  return apiSuccess({ alert }, { status: 201 });
 }
 
 // PATCH /api/user/alerts - Update an alert (expects { id, ...fields })
@@ -89,7 +92,7 @@ export async function PATCH(req: Request) {
   const rawBody = await req.json();
   const validation = parseBody(alertPatchSchema, rawBody);
   if (!validation.success) {
-    return NextResponse.json({ error: validation.error }, { status: 400 });
+    return apiBadRequest(validation.error);
   }
   const body = validation.data;
 
@@ -107,10 +110,10 @@ export async function PATCH(req: Request) {
     .returning();
 
   if (result.length === 0) {
-    return NextResponse.json({ error: "Alert not found" }, { status: 404 });
+    return apiNotFound("Alert not found");
   }
 
-  return NextResponse.json({ alert: result[0] });
+  return apiSuccess({ alert: result[0] });
 }
 
 // DELETE /api/user/alerts - Delete an alert (expects { id })
@@ -128,7 +131,7 @@ export async function DELETE(req: Request) {
   const rawBody = await req.json();
   const validation = parseBody(alertDeleteSchema, rawBody);
   if (!validation.success) {
-    return NextResponse.json({ error: validation.error }, { status: 400 });
+    return apiBadRequest(validation.error);
   }
   const { id } = validation.data;
 
@@ -138,7 +141,7 @@ export async function DELETE(req: Request) {
     .returning();
 
   if (result.length === 0) {
-    return NextResponse.json({ error: "Alert not found" }, { status: 404 });
+    return apiNotFound("Alert not found");
   }
 
   return new NextResponse(null, { status: 204 });

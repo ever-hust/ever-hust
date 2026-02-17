@@ -1,9 +1,10 @@
 import { db } from "@repo/db";
 import { userJobs, jobs } from "@repo/db";
 import { eq, and, desc } from "drizzle-orm";
-import { NextResponse } from "next/server";
+import type { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../../lib/get-session-user";
 import { applyRateLimit } from "../../../../../lib/rate-limit";
+import { apiSuccess } from "../../../../../lib/api-response";
 
 /**
  * GET /api/user/favorites/list
@@ -51,5 +52,5 @@ export async function GET() {
     .orderBy(desc(userJobs.createdAt))
     .limit(100);
 
-  return NextResponse.json({ favorites });
+  return apiSuccess({ favorites });
 }

@@ -17,7 +17,7 @@ export default function JobsError({
 
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center p-6 text-center">
-      <AlertCircle className="h-12 w-12 text-destructive" />
+      <AlertCircle className="h-12 w-12 text-destructive" aria-hidden="true" />
       <h2 className="mt-4 text-xl font-semibold">
         Could not load jobs
       </h2>

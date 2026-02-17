@@ -50,6 +50,8 @@ function applySecurityHeaders(response: NextResponse): NextResponse {
     "base-uri 'self'",
     // Prevent embedding
     "frame-ancestors 'none'",
+    // Upgrade HTTP requests to HTTPS in production
+    ...(isProd ? ["upgrade-insecure-requests"] : []),
   ];
 
   response.headers.set(

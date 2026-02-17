@@ -20,6 +20,8 @@ const PADDING_PX = 20; // py-2.5 top + bottom padding
 const CHAR_COUNT_VISIBLE_THRESHOLD = 200;
 /** Show character counter in destructive color at this threshold. */
 const CHAR_COUNT_WARNING_THRESHOLD = 4_000;
+/** Hard limit on input length. */
+const MAX_INPUT_LENGTH = 8_000;
 
 export function ChatInput({
   input,
@@ -90,6 +92,7 @@ export function ChatInput({
           placeholder="Ask about jobs, cover letters, interviews..."
           className="flex-1 resize-none rounded-lg border bg-background px-3 py-2.5 text-sm leading-5 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
           rows={1}
+          maxLength={MAX_INPUT_LENGTH}
           disabled={isLoading && !onStop}
           style={{ overflow: "hidden" }}
         />

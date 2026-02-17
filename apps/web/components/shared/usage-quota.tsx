@@ -17,7 +17,7 @@ export function UsageQuota() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-3">
-        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden="true" />
       </div>
     );
   }
@@ -28,7 +28,7 @@ export function UsageQuota() {
   if (data.unlimited) {
     return (
       <div className="flex items-center gap-1.5 px-3 py-2 text-xs text-muted-foreground">
-        <Sparkles className="h-3 w-3 text-primary" />
+        <Sparkles className="h-3 w-3 text-primary" aria-hidden="true" />
         <span className="font-medium text-primary">Pro</span>
         <span>&middot; Unlimited usage</span>
       </div>
@@ -44,21 +44,21 @@ export function UsageQuota() {
         Free Plan Usage
       </p>
       <UsageBar
-        icon={<MessageSquare className="h-3 w-3" />}
+        icon={<MessageSquare className="h-3 w-3" aria-hidden="true" />}
         label="Messages"
         used={usage.messages.used}
         limit={usage.messages.limit}
         period={usage.messages.period}
       />
       <UsageBar
-        icon={<Search className="h-3 w-3" />}
+        icon={<Search className="h-3 w-3" aria-hidden="true" />}
         label="Searches"
         used={usage.searches.used}
         limit={usage.searches.limit}
         period={usage.searches.period}
       />
       <UsageBar
-        icon={<FileText className="h-3 w-3" />}
+        icon={<FileText className="h-3 w-3" aria-hidden="true" />}
         label="Cover Letters"
         used={usage.coverLetters.used}
         limit={usage.coverLetters.limit}

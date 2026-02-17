@@ -803,7 +803,7 @@ export default function SettingsPage() {
                 jobs match your criteria.
               </p>
               <div className="mt-3 rounded-md border bg-muted/30 p-4 text-center">
-                <Bell className="mx-auto h-8 w-8 text-muted-foreground/50" />
+                <Bell className="mx-auto h-8 w-8 text-muted-foreground/50" aria-hidden="true" />
                 <p className="mt-2 text-sm text-muted-foreground">
                   Upgrade to Pro to enable job alerts.
                 </p>
@@ -821,7 +821,7 @@ export default function SettingsPage() {
                 saying &quot;Set up job alerts for React developer roles&quot;.
               </p>
               <div className="mt-3 rounded-md border bg-muted/30 p-4 text-center">
-                <Bell className="mx-auto h-8 w-8 text-muted-foreground/50" />
+                <Bell className="mx-auto h-8 w-8 text-muted-foreground/50" aria-hidden="true" />
                 <p className="mt-2 text-sm text-muted-foreground">
                   No alerts yet. Ask the AI chat to set them up.
                 </p>

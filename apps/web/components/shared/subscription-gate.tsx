@@ -44,7 +44,7 @@ export function SubscriptionGate({
   return (
     <Card className="flex flex-col items-center gap-4 border-dashed border-primary/20 bg-primary/5 p-6 text-center">
       <div className="rounded-full bg-primary/10 p-3">
-        <Lock className="h-5 w-5 text-primary" />
+        <Lock className="h-5 w-5 text-primary" aria-hidden="true" />
       </div>
       <div className="space-y-1">
         <h3 className="text-sm font-semibold">{featureName}</h3>
@@ -55,13 +55,13 @@ export function SubscriptionGate({
       </div>
       {onUpgrade ? (
         <Button size="sm" onClick={onUpgrade} className="gap-1.5">
-          <Sparkles className="h-3.5 w-3.5" />
+          <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
           Upgrade to Pro
         </Button>
       ) : (
         <Link href="/settings">
           <Button size="sm" className="gap-1.5" tabIndex={-1}>
-            <Sparkles className="h-3.5 w-3.5" />
+            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
             Upgrade to Pro
           </Button>
         </Link>

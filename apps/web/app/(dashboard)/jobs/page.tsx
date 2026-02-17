@@ -107,9 +107,9 @@ export default function JobsPage() {
       if (err instanceof DOMException && err.name === "AbortError") return;
       toast.error("Failed to load more jobs");
     } finally {
-      if (!controller.signal.aborted) {
-        setIsLoading(false);
-      }
+      // Always reset loading — even if a newer load-more request aborted us,
+      // so the button doesn't stay stuck in a loading state.
+      setIsLoading(false);
     }
   }, [filters]);
 

@@ -39,6 +39,7 @@ export function ChatInput({
 
     // Reset to single row to measure scrollHeight accurately
     textarea.style.height = "auto";
+    textarea.style.overflowY = "hidden"; // reset before measuring
 
     const maxHeight = MAX_ROWS * LINE_HEIGHT + PADDING_PX;
     const newHeight = Math.min(textarea.scrollHeight, maxHeight);
@@ -94,7 +95,6 @@ export function ChatInput({
           rows={1}
           maxLength={MAX_INPUT_LENGTH}
           disabled={isLoading && !onStop}
-          style={{ overflow: "hidden" }}
         />
         {isLoading && onStop ? (
           <Button

@@ -52,6 +52,7 @@ interface FavoriteJob {
 }
 
 interface ApplicationJob {
+  id: number;
   jobId: number;
   jobTitle: string | null;
   companyName: string | null;
@@ -429,7 +430,7 @@ export default function ProfilePage() {
           <div className="mt-3 space-y-2">
             {applications.slice(0, 5).map((app) => (
               <div
-                key={app.jobId}
+                key={app.id}
                 className="flex items-center justify-between rounded-md border p-3 transition-colors hover:bg-muted/30"
               >
                 <div className="min-w-0">

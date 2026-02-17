@@ -167,21 +167,27 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
     }
   }, [messages, isLoading, persistMessages]);
 
-  // Detect cover letter in AI response after generateCoverLetter tool call
+  // Detect cover letter in AI response after generateCoverLetter tool call.
+  // Always reset the pending flag when the response is complete so it doesn't
+  // latch across future exchanges and accidentally match unrelated content.
   useEffect(() => {
     if (!coverLetterPending.current || isLoading) return;
     // Find the latest assistant message with text after a generateCoverLetter tool call
     const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
-    if (!lastAssistant) return;
+    if (!lastAssistant) {
+      coverLetterPending.current = false;
+      return;
+    }
 
     const textParts = lastAssistant.parts
       .filter((p) => p.type === "text")
       .map((p) => (p as { type: "text"; text: string }).text)
       .join("\n");
 
+    // Always reset — the pending flag is single-use per tool call
+    coverLetterPending.current = false;
     if (textParts.length > COVER_LETTER_MIN_CHARS && onCoverLetter) {
       onCoverLetter(textParts);
-      coverLetterPending.current = false;
     }
   }, [messages, isLoading, onCoverLetter]);
 
@@ -318,7 +324,7 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
       )}
 
       {/* Messages area */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4" aria-live="polite" aria-label="Chat messages">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4" aria-label="Chat messages">
         {messages.length === 0 ? (
           <ChatEmptyState onSuggestionClick={setInput} />
         ) : (

@@ -20,7 +20,7 @@ interface ChatHistoryProps {
   sessions: ChatSession[];
   activeSessionId: string | null;
   isLoading: boolean;
-  onSelectSession: (sessionId: string) => void;
+  onSelectSession: (sessionId: string) => void | Promise<void>;
   onDeleteSession?: (sessionId: string) => Promise<boolean>;
 }
 
@@ -186,15 +186,23 @@ export function ChatHistory({
 
                   return (
                     <li key={session.id}>
-                      <button
-                        type="button"
+                      <div
+                        role="button"
+                        tabIndex={isSessionLoading || isDeleting ? -1 : 0}
                         className={cn(
-                          "group/item flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-accent/50",
+                          "group/item flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-accent/50 cursor-pointer",
                           isActive && "bg-accent/30",
-                          isDeleting && "opacity-50"
+                          isDeleting && "pointer-events-none opacity-50"
                         )}
-                        onClick={() => handleSelect(session.id)}
-                        disabled={isSessionLoading || isDeleting}
+                        onClick={() => {
+                          if (!(isSessionLoading || isDeleting)) handleSelect(session.id);
+                        }}
+                        onKeyDown={(e) => {
+                          if ((e.key === "Enter" || e.key === " ") && !(isSessionLoading || isDeleting)) {
+                            e.preventDefault();
+                            handleSelect(session.id);
+                          }
+                        }}
                       >
                         <MessageSquare
                           className={cn(
@@ -234,7 +242,7 @@ export function ChatHistory({
                             <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
                           )}
                         </div>
-                      </button>
+                      </div>
                     </li>
                   );
                 })}

@@ -31,9 +31,11 @@ const FILTER_DEBOUNCE_MS = 300;
  */
 export const FilterBar = memo(function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
-  // Local state for text inputs (debounced)
+  // Local state for text/number inputs (debounced)
   const [localKeywords, setLocalKeywords] = useState(filters.keywords ?? "");
   const [localLocation, setLocalLocation] = useState(filters.location ?? "");
+  const [localSalaryMin, setLocalSalaryMin] = useState<string>(filters.salaryMin != null ? String(filters.salaryMin) : "");
+  const [localSalaryMax, setLocalSalaryMax] = useState<string>(filters.salaryMax != null ? String(filters.salaryMax) : "");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const filtersRef = useRef(filters);
   filtersRef.current = filters;
@@ -43,7 +45,9 @@ export const FilterBar = memo(function FilterBar({ filters, onFiltersChange }: F
   useEffect(() => {
     setLocalKeywords(filters.keywords ?? "");
     setLocalLocation(filters.location ?? "");
-  }, [filters.keywords, filters.location]);
+    setLocalSalaryMin(filters.salaryMin != null ? String(filters.salaryMin) : "");
+    setLocalSalaryMax(filters.salaryMax != null ? String(filters.salaryMax) : "");
+  }, [filters.keywords, filters.location, filters.salaryMin, filters.salaryMax]);
 
   // Debounced update for text inputs — accumulates patches so concurrent
   // changes within the debounce window don't overwrite each other.
@@ -175,26 +179,24 @@ export const FilterBar = memo(function FilterBar({ filters, onFiltersChange }: F
             type="number"
             aria-label="Minimum salary"
             placeholder="Min salary"
-            value={filters.salaryMin ?? ""}
-            onChange={(e) =>
-              onFiltersChange({
-                ...filters,
-                salaryMin: e.target.value ? Number(e.target.value) : undefined,
-              })
-            }
+            value={localSalaryMin}
+            onChange={(e) => {
+              const value = e.target.value;
+              setLocalSalaryMin(value);
+              debouncedUpdate({ salaryMin: value ? Number(value) : undefined });
+            }}
             className="h-8 w-28 text-xs"
           />
           <Input
             type="number"
             aria-label="Maximum salary"
             placeholder="Max salary"
-            value={filters.salaryMax ?? ""}
-            onChange={(e) =>
-              onFiltersChange({
-                ...filters,
-                salaryMax: e.target.value ? Number(e.target.value) : undefined,
-              })
-            }
+            value={localSalaryMax}
+            onChange={(e) => {
+              const value = e.target.value;
+              setLocalSalaryMax(value);
+              debouncedUpdate({ salaryMax: value ? Number(value) : undefined });
+            }}
             className="h-8 w-28 text-xs"
           />
         </div>

@@ -7,6 +7,7 @@ import { Button } from "@repo/ui/button";
 import { cn } from "@repo/ui/lib/utils";
 import Link from "next/link";
 import { formatSalary, formatLocation, timeAgo } from "@/lib/format-date";
+import { safeExternalUrl } from "@/lib/safe-url";
 
 export interface JobCardData {
   id: number;
@@ -73,7 +74,7 @@ export const JobCard = memo(function JobCard({
     job.isRemote
   ) ?? "Unknown";
   const posted = timeAgo(job.datePosted);
-  const applyLink = job.applyUrl ?? job.jobUrl;
+  const applyLink = safeExternalUrl(job.applyUrl) ?? safeExternalUrl(job.jobUrl) ?? null;
 
   const handleFavorite = useCallback(
     (e: React.MouseEvent) => {

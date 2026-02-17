@@ -57,19 +57,22 @@ export function ConfirmDialog({
   onConfirm,
 }: ConfirmDialogProps) {
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleConfirm = useCallback(async () => {
     setLoading(true);
+    setErrorMsg(null);
     try {
       await onConfirm();
       onOpenChange(false);
     } catch (err) {
-      // Log so callers and developers can see what went wrong.
-      // The error is re-thrown so callers can also handle it if needed.
+      // Log for developers and show user-facing feedback so the dialog
+      // doesn't silently stay open with no indication of failure.
       console.warn(
         "[ConfirmDialog] onConfirm threw:",
         err instanceof Error ? err.message : err
       );
+      setErrorMsg("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -84,6 +87,11 @@ export function ConfirmDialog({
           </DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
+        {errorMsg && (
+          <p role="alert" className="text-sm text-destructive">
+            {errorMsg}
+          </p>
+        )}
         <DialogFooter className="gap-2 sm:gap-0">
           <Button
             variant="outline"

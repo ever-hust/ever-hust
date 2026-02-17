@@ -47,9 +47,10 @@ export async function GET() {
       .where(and(eq(userJobs.userId, userId), eq(userJobs.status, "favorited")))
       .limit(20);
 
-    // Get applications
+    // Get applications — include the row id as a stable React key
     const applications = await db
       .select({
+        id: userJobs.id,
         jobId: userJobs.jobId,
         jobTitle: jobs.title,
         companyName: jobs.companyName,

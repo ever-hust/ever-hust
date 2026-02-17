@@ -5,7 +5,7 @@ import type { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { profilePatchSchema, parseBody } from "../../../../lib/api-schemas";
 import { applyRateLimit } from "../../../../lib/rate-limit";
-import { apiSuccess, apiBadRequest, apiNotFound } from "../../../../lib/api-response";
+import { apiSuccess, apiBadRequest, apiNotFound, apiError } from "../../../../lib/api-response";
 
 export async function GET() {
   let sessionUser;
@@ -16,66 +16,71 @@ export async function GET() {
   }
   const userId = sessionUser.id;
 
-  const userResult = await db
-    .select()
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
+  try {
+    const userResult = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
 
-  if (userResult.length === 0) {
-    return apiNotFound("User not found");
+    if (userResult.length === 0) {
+      return apiNotFound("User not found");
+    }
+
+    const user = userResult[0]!;
+
+    // Get favorite jobs
+    const favorites = await db
+      .select({
+        jobId: userJobs.jobId,
+        jobTitle: jobs.title,
+        companyName: jobs.companyName,
+        jobUrl: jobs.jobUrl,
+        createdAt: userJobs.createdAt,
+      })
+      .from(userJobs)
+      .innerJoin(jobs, eq(userJobs.jobId, jobs.id))
+      .where(and(eq(userJobs.userId, userId), eq(userJobs.status, "favorited")))
+      .limit(20);
+
+    // Get applications
+    const applications = await db
+      .select({
+        jobId: userJobs.jobId,
+        jobTitle: jobs.title,
+        companyName: jobs.companyName,
+        jobUrl: jobs.jobUrl,
+        appliedAt: userJobs.appliedAt,
+        status: userJobs.status,
+      })
+      .from(userJobs)
+      .innerJoin(jobs, eq(userJobs.jobId, jobs.id))
+      .where(and(eq(userJobs.userId, userId), eq(userJobs.status, "applied")))
+      .limit(20);
+
+    return apiSuccess({
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        headline: user.headline,
+        location: user.location,
+        photoUrl: user.photoUrl,
+        skills: user.skills,
+        experience: user.experience,
+        preferences: user.preferences,
+        cvParsedData: user.cvParsedData,
+        subscriptionStatus: user.subscriptionStatus,
+        onboardingCompleted: user.onboardingCompleted,
+        createdAt: user.createdAt,
+      },
+      favorites,
+      applications,
+    });
+  } catch (err) {
+    console.error("[api/user/profile] GET failed:", err instanceof Error ? err.message : err);
+    return apiError("Failed to load profile");
   }
-
-  const user = userResult[0]!;
-
-  // Get favorite jobs
-  const favorites = await db
-    .select({
-      jobId: userJobs.jobId,
-      jobTitle: jobs.title,
-      companyName: jobs.companyName,
-      jobUrl: jobs.jobUrl,
-      createdAt: userJobs.createdAt,
-    })
-    .from(userJobs)
-    .innerJoin(jobs, eq(userJobs.jobId, jobs.id))
-    .where(and(eq(userJobs.userId, userId), eq(userJobs.status, "favorited")))
-    .limit(20);
-
-  // Get applications
-  const applications = await db
-    .select({
-      jobId: userJobs.jobId,
-      jobTitle: jobs.title,
-      companyName: jobs.companyName,
-      jobUrl: jobs.jobUrl,
-      appliedAt: userJobs.appliedAt,
-      status: userJobs.status,
-    })
-    .from(userJobs)
-    .innerJoin(jobs, eq(userJobs.jobId, jobs.id))
-    .where(and(eq(userJobs.userId, userId), eq(userJobs.status, "applied")))
-    .limit(20);
-
-  return apiSuccess({
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      headline: user.headline,
-      location: user.location,
-      photoUrl: user.photoUrl,
-      skills: user.skills,
-      experience: user.experience,
-      preferences: user.preferences,
-      cvParsedData: user.cvParsedData,
-      subscriptionStatus: user.subscriptionStatus,
-      onboardingCompleted: user.onboardingCompleted,
-      createdAt: user.createdAt,
-    },
-    favorites,
-    applications,
-  });
 }
 
 /**

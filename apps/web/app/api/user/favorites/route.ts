@@ -5,7 +5,7 @@ import type { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { favoriteToggleSchema, parseBody } from "../../../../lib/api-schemas";
 import { applyRateLimit } from "../../../../lib/rate-limit";
-import { apiSuccess, apiBadRequest } from "../../../../lib/api-response";
+import { apiSuccess, apiBadRequest, apiError } from "../../../../lib/api-response";
 
 // GET /api/user/favorites - Get user's favorited job IDs
 export async function GET(req: Request) {
@@ -21,14 +21,19 @@ export async function GET(req: Request) {
   const rateLimited = applyRateLimit(userId, "authenticated");
   if (rateLimited) return rateLimited;
 
-  const favorites = await db
-    .select({ jobId: userJobs.jobId })
-    .from(userJobs)
-    .where(and(eq(userJobs.userId, userId), eq(userJobs.status, "favorited")));
+  try {
+    const favorites = await db
+      .select({ jobId: userJobs.jobId })
+      .from(userJobs)
+      .where(and(eq(userJobs.userId, userId), eq(userJobs.status, "favorited")));
 
-  return apiSuccess({
-    favoriteJobIds: favorites.map((f) => f.jobId),
-  });
+    return apiSuccess({
+      favoriteJobIds: favorites.map((f) => f.jobId),
+    });
+  } catch (err) {
+    console.error("[api/user/favorites] GET failed:", err instanceof Error ? err.message : err);
+    return apiError("Failed to load favorites");
+  }
 }
 
 // POST /api/user/favorites - Toggle favorite for a job

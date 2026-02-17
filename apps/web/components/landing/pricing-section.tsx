@@ -5,7 +5,8 @@ import Link from "next/link";
 import { Button } from "@repo/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@repo/ui/card";
 import { Badge } from "@repo/ui/badge";
-import { Check, Loader2 } from "lucide-react";
+import { Separator } from "@repo/ui/separator";
+import { Check, Loader2, Shield, Zap, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 
 const plans = [
@@ -62,6 +63,55 @@ const plans = [
   },
 ];
 
+const FAQ_ITEMS = [
+  {
+    q: "Can I cancel anytime?",
+    a: "Yes, you can cancel your subscription at any time. You'll continue to have access until the end of your billing period.",
+  },
+  {
+    q: "Is there a free trial?",
+    a: "Yes! All paid plans come with a 7-day free trial. No credit card required to start.",
+  },
+  {
+    q: "What happens when I hit the free plan limits?",
+    a: "You'll see a friendly upgrade prompt. Your data and saved jobs are never lost — just upgrade to continue where you left off.",
+  },
+  {
+    q: "Can I bring my own API key?",
+    a: "Absolutely. Pro users can bring their own Anthropic, OpenAI, or Google AI keys in Settings to use their preferred models.",
+  },
+  {
+    q: "Do you store my data securely?",
+    a: "Yes. All data is encrypted at rest and in transit. API keys are encrypted with AES-256. We never sell your data.",
+  },
+];
+
+function FAQItem({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="border-b last:border-b-0">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between py-4 text-left text-sm font-medium transition-colors hover:text-primary"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+      >
+        {q}
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          aria-hidden="true"
+        />
+      </button>
+      {open && (
+        <p className="pb-4 text-sm text-muted-foreground leading-relaxed">
+          {a}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function PricingSection() {
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
 
@@ -90,24 +140,30 @@ export function PricingSection() {
   return (
     <section id="pricing" className="px-4 py-24 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
+        {/* Header */}
         <div className="mx-auto max-w-2xl text-center">
+          <Badge variant="outline" className="mb-4">
+            <Zap className="mr-1 h-3 w-3" />
+            Simple Pricing
+          </Badge>
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
             Simple, transparent pricing
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            Start free, upgrade when you need more power.
+            Start free, upgrade when you need more power. No hidden fees.
           </p>
         </div>
 
+        {/* Pricing cards */}
         <div className="mx-auto mt-16 grid max-w-5xl gap-6 lg:grid-cols-3">
           {plans.map((plan) => (
             <Card
               key={plan.name}
-              className={
+              className={`transition-all duration-200 hover:shadow-md ${
                 plan.popular
-                  ? "relative border-primary shadow-lg"
+                  ? "relative border-primary shadow-lg scale-[1.02]"
                   : "border-border/50"
-              }
+              }`}
             >
               {plan.popular ? (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
@@ -156,6 +212,40 @@ export function PricingSection() {
               </CardContent>
             </Card>
           ))}
+        </div>
+
+        {/* Trust badges */}
+        <div className="mx-auto mt-12 flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5">
+            <Shield className="h-4 w-4 text-primary" aria-hidden="true" />
+            7-day free trial
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <Check className="h-4 w-4 text-primary" aria-hidden="true" />
+            Cancel anytime
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <Shield className="h-4 w-4 text-primary" aria-hidden="true" />
+            Secure payments via Stripe
+          </span>
+        </div>
+
+        {/* FAQ Section */}
+        <div className="mx-auto mt-24 max-w-2xl">
+          <h3 className="text-center text-2xl font-bold tracking-tight">
+            Frequently Asked Questions
+          </h3>
+          <p className="mt-2 text-center text-sm text-muted-foreground">
+            Everything you need to know about our pricing and plans.
+          </p>
+
+          <Separator className="my-8" />
+
+          <div>
+            {FAQ_ITEMS.map((item) => (
+              <FAQItem key={item.q} q={item.q} a={item.a} />
+            ))}
+          </div>
         </div>
       </div>
     </section>

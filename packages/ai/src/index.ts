@@ -11,5 +11,6 @@ export {
   generateCoverLetterTool,
   createAlertTool,
   applyJobTool,
+  submitAnswersTool,
   interviewPrepTool,
 } from "./tools";

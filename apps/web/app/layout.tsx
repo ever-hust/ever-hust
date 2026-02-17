@@ -1,6 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
+import { ServiceWorkerRegister } from "@/components/sw-register";
+import { ConnectionStatus } from "@/components/shared/connection-status";
 import { Toaster } from "@repo/ui/sonner";
 import "./globals.css";
 
@@ -14,6 +16,16 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f172a" },
+  ],
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+};
+
 export const metadata: Metadata = {
   title: {
     default: "Ever Jobs - AI-Powered Job Search Assistant",
@@ -21,22 +33,67 @@ export const metadata: Metadata = {
   },
   description:
     "Chat with AI to find, apply, and land your dream job. Search 50+ job boards, generate cover letters, and get interview prep - all through natural conversation.",
+  keywords: [
+    "AI job search",
+    "job search assistant",
+    "cover letter generator",
+    "interview prep AI",
+    "remote jobs",
+    "job board aggregator",
+    "career AI assistant",
+    "job application tracker",
+    "AI resume help",
+    "find remote work",
+  ],
+  authors: [{ name: "Ever Gauzy AI" }],
+  creator: "Ever Gauzy AI",
+  publisher: "Ever Gauzy AI",
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
   ),
+  manifest: "/manifest.json",
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  alternates: {
+    canonical: "/",
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Ever Jobs",
+  },
   openGraph: {
     title: "Ever Jobs - AI-Powered Job Search Assistant",
     description:
-      "Chat with AI to find, apply, and land your dream job.",
+      "Chat with AI to find, apply, and land your dream job. Search 50+ job boards at once.",
     url: "/",
     siteName: "Ever Jobs",
     type: "website",
+    locale: "en_US",
+    images: [
+      {
+        url: "/api/og",
+        width: 1200,
+        height: 630,
+        alt: "Ever Jobs - AI-Powered Job Search Assistant",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Ever Jobs - AI-Powered Job Search Assistant",
     description:
-      "Chat with AI to find, apply, and land your dream job.",
+      "Chat with AI to find, apply, and land your dream job. Search 50+ job boards at once.",
+    images: ["/api/og"],
   },
 };
 
@@ -67,6 +124,8 @@ export default function RootLayout({
         >
           {children}
           <Toaster />
+          <ConnectionStatus />
+          <ServiceWorkerRegister />
         </ThemeProvider>
       </body>
     </html>

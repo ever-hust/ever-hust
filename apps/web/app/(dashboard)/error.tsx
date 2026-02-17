@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 import { Button } from "@repo/ui/button";
-import { AlertCircle } from "lucide-react";
+import { AlertTriangle, RefreshCcw, MessageSquare } from "lucide-react";
 
 export default function DashboardError({
   error,
@@ -16,16 +17,31 @@ export default function DashboardError({
   }, [error]);
 
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center p-6 text-center">
-      <AlertCircle className="h-12 w-12 text-destructive" />
+    <div className="flex flex-1 flex-col items-center justify-center px-4 text-center">
+      <div className="rounded-full bg-destructive/10 p-4">
+        <AlertTriangle className="h-8 w-8 text-destructive" />
+      </div>
       <h2 className="mt-4 text-xl font-semibold">Something went wrong</h2>
-      <p className="mt-2 max-w-md text-sm text-muted-foreground">
-        An error occurred while loading this page. Please try again or contact
-        support if the issue persists.
+      <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+        This page encountered an error. Try refreshing or go back to the chat.
       </p>
-      <Button onClick={reset} className="mt-6">
-        Try Again
-      </Button>
+      {error.digest && (
+        <p className="mt-2 font-mono text-xs text-muted-foreground/50">
+          Error ID: {error.digest}
+        </p>
+      )}
+      <div className="mt-6 flex gap-3">
+        <Button onClick={reset} variant="outline" size="sm" className="gap-2">
+          <RefreshCcw className="h-3.5 w-3.5" />
+          Try Again
+        </Button>
+        <Link href="/chat">
+          <Button size="sm" className="gap-2">
+            <MessageSquare className="h-3.5 w-3.5" />
+            Go to Chat
+          </Button>
+        </Link>
+      </div>
     </div>
   );
 }

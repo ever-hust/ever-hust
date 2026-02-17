@@ -1,0 +1,130 @@
+import { z } from "zod";
+
+// === Chat Route ===
+export const chatRequestSchema = z.object({
+  messages: z.array(
+    z.object({
+      id: z.string(),
+      role: z.enum(["user", "assistant", "system"]),
+      content: z.string(),
+      parts: z.array(z.unknown()).optional(),
+    })
+  ),
+});
+
+// === User Settings Route ===
+export const settingsPatchSchema = z.object({
+  name: z.string().max(200).optional(),
+  headline: z.string().max(500).optional(),
+  location: z.string().max(200).optional(),
+  preferences: z
+    .object({
+      aiModel: z.string().max(100).optional(),
+      apiKeys: z
+        .object({
+          anthropic: z.string().max(500).optional(),
+          openai: z.string().max(500).optional(),
+          google: z.string().max(500).optional(),
+        })
+        .optional(),
+    })
+    .passthrough()
+    .optional(),
+});
+
+// === User Alerts Route ===
+export const alertCreateSchema = z.object({
+  frequency: z.enum(["daily", "twice_daily", "weekly"]),
+  email: z.string().email().max(320),
+  criteria: z
+    .object({
+      keywords: z.array(z.string().max(200)).max(20).optional(),
+      locations: z.array(z.string().max(200)).max(10).optional(),
+      remoteType: z.string().max(50).optional(),
+      salary: z
+        .object({
+          min: z.number().int().min(0).max(10_000_000).optional(),
+          max: z.number().int().min(0).max(10_000_000).optional(),
+        })
+        .optional(),
+      skills: z.array(z.string().max(100)).max(30).optional(),
+      roleLevel: z.array(z.string().max(50)).max(10).optional(),
+      industries: z.array(z.string().max(200)).max(20).optional(),
+    })
+    .optional(),
+});
+
+export const alertPatchSchema = z.object({
+  id: z.number().int().positive(),
+  isActive: z.boolean().optional(),
+  frequency: z.enum(["daily", "twice_daily", "weekly"]).optional(),
+  email: z.string().email().max(320).optional(),
+  criteria: z.record(z.unknown()).optional(),
+});
+
+export const alertDeleteSchema = z.object({
+  id: z.number().int().positive(),
+});
+
+// === Profile PATCH Route ===
+export const profilePatchSchema = z.object({
+  name: z.string().max(200).optional(),
+  headline: z.string().max(500).optional(),
+  location: z.string().max(200).optional(),
+  skills: z.array(z.string().max(100)).max(50).optional(),
+  experience: z
+    .array(
+      z.object({
+        title: z.string().max(200),
+        company: z.string().max(200),
+        location: z.string().max(200).optional(),
+        startDate: z.string().max(50).optional(),
+        endDate: z.string().max(50).optional(),
+        current: z.boolean().optional(),
+        description: z.string().max(2000).optional(),
+      })
+    )
+    .max(20)
+    .optional(),
+  onboardingCompleted: z.boolean().optional(),
+});
+
+// === Stripe Checkout Route ===
+export const checkoutSchema = z.object({
+  planId: z.enum(["monthly", "quarterly", "annual"]),
+});
+
+// === Favorites Route ===
+export const favoriteToggleSchema = z.object({
+  jobId: z.number().int().positive(),
+});
+
+// === Job Search Query Params ===
+export const jobSearchParamsSchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  keywords: z.string().max(500).optional(),
+  location: z.string().max(200).optional(),
+  isRemote: z
+    .enum(["true", "false"])
+    .transform((v) => v === "true")
+    .optional(),
+  jobType: z.string().max(50).optional(),
+  salaryMin: z.coerce.number().int().min(0).optional(),
+  salaryMax: z.coerce.number().int().min(0).optional(),
+});
+
+// === Helper to safely parse and return 400 on failure ===
+export function parseBody<T>(
+  schema: z.ZodSchema<T>,
+  data: unknown
+): { success: true; data: T } | { success: false; error: string } {
+  const result = schema.safeParse(data);
+  if (!result.success) {
+    const messages = result.error.issues
+      .map((i) => `${i.path.join(".")}: ${i.message}`)
+      .join("; ");
+    return { success: false, error: messages };
+  }
+  return { success: true, data: result.data };
+}

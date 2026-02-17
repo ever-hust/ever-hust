@@ -4,6 +4,7 @@ import { db } from "@repo/db";
 import { users } from "@repo/db";
 import { eq } from "drizzle-orm";
 import { requireSessionUser } from "../../../../lib/get-session-user";
+import { applyRateLimit } from "../../../../lib/rate-limit";
 
 export async function POST(req: Request) {
   let user;
@@ -13,6 +14,10 @@ export async function POST(req: Request) {
     return response as NextResponse;
   }
   const userId = user.id;
+
+  // Rate limit: prevent abuse of file upload (uses authenticated tier)
+  const rateLimited = applyRateLimit(userId, "authenticated");
+  if (rateLimited) return rateLimited;
 
   const formData = await req.formData();
   const file = formData.get("cv") as File | null;
@@ -45,17 +50,13 @@ export async function POST(req: Request) {
     // Parse CV
     const parsed = await parseCV(buffer);
 
-    // Store parsed data in user profile
-    await db
-      .update(users)
-      .set({
-        cvParsedData: parsed,
-        updatedAt: new Date(),
-        // Also update skills if we found any and user doesn't have them yet
-      })
-      .where(eq(users.id, userId));
+    // Store parsed data and merge skills atomically
+    const updateFields: Record<string, unknown> = {
+      cvParsedData: parsed,
+      updatedAt: new Date(),
+    };
 
-    // Update skills if parsed CV has skills
+    // Merge CV skills with existing user skills
     if (parsed.skills.length > 0) {
       const existingUser = await db
         .select({ skills: users.skills })
@@ -64,15 +65,15 @@ export async function POST(req: Request) {
         .limit(1);
 
       const existingSkills = (existingUser[0]?.skills as string[]) ?? [];
-      const mergedSkills = [
+      updateFields.skills = [
         ...new Set([...existingSkills, ...parsed.skills]),
       ];
-
-      await db
-        .update(users)
-        .set({ skills: mergedSkills })
-        .where(eq(users.id, userId));
     }
+
+    await db
+      .update(users)
+      .set(updateFields)
+      .where(eq(users.id, userId));
 
     return NextResponse.json({
       success: true,

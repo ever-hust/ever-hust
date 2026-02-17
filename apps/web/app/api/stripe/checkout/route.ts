@@ -3,6 +3,8 @@ import { createCheckoutSession } from "@repo/stripe";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
+import { checkoutSchema, parseBody } from "../../../../lib/api-schemas";
+import { applyRateLimit } from "../../../../lib/rate-limit";
 
 export async function POST(req: Request) {
   let sessionUser;
@@ -13,10 +15,15 @@ export async function POST(req: Request) {
   }
   const userId = sessionUser.id;
 
-  const body = (await req.json()) as { planId?: string };
-  if (!body.planId) {
-    return NextResponse.json({ error: "planId is required" }, { status: 400 });
+  const rateLimited = applyRateLimit(userId, "authenticated");
+  if (rateLimited) return rateLimited;
+
+  const rawBody = await req.json();
+  const validation = parseBody(checkoutSchema, rawBody);
+  if (!validation.success) {
+    return NextResponse.json({ error: validation.error }, { status: 400 });
   }
+  const body = validation.data;
 
   // Get user for email and existing Stripe customer ID
   const userResult = await db

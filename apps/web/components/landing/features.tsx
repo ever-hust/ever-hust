@@ -6,6 +6,7 @@ import {
   Search,
   Bot,
 } from "lucide-react";
+import { Badge } from "@repo/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@repo/ui/card";
 
 const features = [
@@ -44,6 +45,7 @@ const features = [
     description:
       "Let AI handle your job applications end-to-end. Review and approve each step before submission. Coming soon.",
     icon: Bot,
+    badge: "Coming Soon",
   },
 ];
 
@@ -62,15 +64,25 @@ export function Features() {
 
         <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((feature) => (
-            <Card key={feature.title} className="border-border/50">
+            <Card
+              key={feature.title}
+              className="border-border/50 transition-all duration-200 hover:border-primary/30 hover:shadow-md"
+            >
               <CardHeader>
-                <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                  <feature.icon className="h-5 w-5 text-primary" />
+                <div className="flex items-start justify-between">
+                  <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                    <feature.icon className="h-5 w-5 text-primary" />
+                  </div>
+                  {"badge" in feature && feature.badge && (
+                    <Badge variant="secondary" className="text-[10px]">
+                      {feature.badge}
+                    </Badge>
+                  )}
                 </div>
                 <CardTitle className="text-lg">{feature.title}</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm leading-relaxed text-muted-foreground">
                   {feature.description}
                 </p>
               </CardContent>

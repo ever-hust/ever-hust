@@ -61,6 +61,28 @@ export function checkRateLimit(
   return { allowed: true, remaining: limit - entry.count };
 }
 
+/**
+ * Read-only version of checkRateLimit — peeks at current usage without incrementing.
+ */
+export function peekRateLimit(
+  key: string,
+  limit: number,
+  windowMs: number
+): { used: number; remaining: number; limit: number } {
+  const now = Date.now();
+  const entry = counters.get(key);
+
+  if (!entry || now > entry.resetAt) {
+    return { used: 0, remaining: limit, limit };
+  }
+
+  return {
+    used: entry.count,
+    remaining: Math.max(0, limit - entry.count),
+    limit,
+  };
+}
+
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const ONE_WEEK_MS = 7 * ONE_DAY_MS;
 
@@ -104,4 +126,18 @@ export function checkCoverLetterLimit(userId: string): {
     FREE_LIMITS.coverLettersPerWeek,
     ONE_WEEK_MS
   );
+}
+
+// -- Read-only peek functions for usage stats endpoint --
+
+export function peekMessageUsage(userId: string) {
+  return peekRateLimit(`msg:${userId}`, FREE_LIMITS.messagesPerDay, ONE_DAY_MS);
+}
+
+export function peekSearchUsage(userId: string) {
+  return peekRateLimit(`search:${userId}`, FREE_LIMITS.searchesPerDay, ONE_DAY_MS);
+}
+
+export function peekCoverLetterUsage(userId: string) {
+  return peekRateLimit(`cover:${userId}`, FREE_LIMITS.coverLettersPerWeek, ONE_WEEK_MS);
 }

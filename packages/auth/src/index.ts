@@ -33,6 +33,28 @@ export const auth = betterAuth({
       maxAge: 60 * 5, // 5 minutes
     },
   },
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user) => {
+          // Send welcome email to newly registered users (non-blocking)
+          try {
+            const { sendWelcomeEmail } = await import("@repo/email");
+            await sendWelcomeEmail({
+              to: user.email,
+              userName: user.name ?? user.email.split("@")[0],
+            });
+          } catch (error) {
+            // Log but don't block user creation if email fails
+            console.error(
+              `[Auth] Failed to send welcome email to ${user.email}:`,
+              error
+            );
+          }
+        },
+      },
+    },
+  },
 });
 
 export type Auth = typeof auth;

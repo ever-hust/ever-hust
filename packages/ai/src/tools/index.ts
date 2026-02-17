@@ -7,4 +7,5 @@ export { savePreferencesTool } from "./save-preferences";
 export { generateCoverLetterTool } from "./generate-cover-letter";
 export { createAlertTool } from "./create-alert";
 export { applyJobTool } from "./apply-job";
+export { submitAnswersTool } from "./submit-answers";
 export { interviewPrepTool } from "./interview-prep";

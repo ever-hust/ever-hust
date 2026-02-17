@@ -3,6 +3,8 @@ import { users, userJobs, jobs } from "@repo/db";
 import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
+import { profilePatchSchema, parseBody } from "../../../../lib/api-schemas";
+import { applyRateLimit } from "../../../../lib/rate-limit";
 
 export async function GET() {
   let sessionUser;
@@ -72,4 +74,50 @@ export async function GET() {
     favorites,
     applications,
   });
+}
+
+/**
+ * PATCH /api/user/profile
+ * Update user profile fields (name, headline, location, skills, experience).
+ */
+export async function PATCH(req: Request) {
+  let sessionUser;
+  try {
+    sessionUser = await requireSessionUser();
+  } catch (response) {
+    return response as NextResponse;
+  }
+  const userId = sessionUser.id;
+
+  const rateLimited = applyRateLimit(userId, "authenticated");
+  if (rateLimited) return rateLimited;
+
+  const rawBody = await req.json();
+  const validation = parseBody(profilePatchSchema, rawBody);
+  if (!validation.success) {
+    return NextResponse.json({ error: validation.error }, { status: 400 });
+  }
+  const body = validation.data;
+
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+
+  if (body.name !== undefined) updates.name = body.name;
+  if (body.headline !== undefined) updates.headline = body.headline;
+  if (body.location !== undefined) updates.location = body.location;
+  if (body.skills !== undefined) updates.skills = body.skills;
+  if (body.experience !== undefined) updates.experience = body.experience;
+  if (body.onboardingCompleted !== undefined)
+    updates.onboardingCompleted = body.onboardingCompleted;
+
+  if (Object.keys(updates).length <= 1) {
+    // Only updatedAt — no actual fields to update
+    return NextResponse.json(
+      { error: "No valid fields to update" },
+      { status: 400 }
+    );
+  }
+
+  await db.update(users).set(updates).where(eq(users.id, userId));
+
+  return NextResponse.json({ updated: true });
 }

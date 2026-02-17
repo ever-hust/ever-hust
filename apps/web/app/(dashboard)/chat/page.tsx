@@ -1,19 +1,42 @@
 "use client";
 
-import { useEffect, useCallback, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useCallback, useState, useMemo, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { SplitScreen } from "@/components/layout/split-screen";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { JobsCanvas } from "@/components/canvas/jobs-canvas";
 import { CoverLetterModal } from "@/components/shared/cover-letter-modal";
+import { JobDetailPanel } from "@/components/canvas/job-detail-panel";
 import { useCanvasSync } from "@/hooks/use-canvas-sync";
+import { useKeyboardShortcuts, getChatShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { toast } from "sonner";
 
 export default function ChatPage() {
+  const searchParams = useSearchParams();
   const canvas = useCanvasSync();
-  const router = useRouter();
   const [coverLetterText, setCoverLetterText] = useState("");
   const [coverLetterOpen, setCoverLetterOpen] = useState(false);
+  const [detailJobId, setDetailJobId] = useState<number | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [initialPrompt, setInitialPrompt] = useState<string | undefined>();
+  const deepLinkHandled = useRef(false);
+
+  // Keyboard shortcuts
+  const shortcuts = useMemo(
+    () =>
+      getChatShortcuts({
+        focusInput: () => {
+          const chatInput = document.getElementById("chat-input");
+          chatInput?.focus();
+        },
+        clearSelection: () => {
+          if (detailOpen) setDetailOpen(false);
+          if (coverLetterOpen) setCoverLetterOpen(false);
+        },
+      }),
+    [detailOpen, coverLetterOpen]
+  );
+  useKeyboardShortcuts(shortcuts);
 
   // Load user's favorites on mount
   useEffect(() => {
@@ -31,6 +54,40 @@ export default function ChatPage() {
     loadFavorites();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Handle ?job= deep link — fetch job info and build initial prompt
+  useEffect(() => {
+    if (deepLinkHandled.current) return;
+    const jobParam = searchParams.get("job");
+    if (!jobParam) return;
+    deepLinkHandled.current = true;
+
+    const jobId = Number(jobParam);
+    if (isNaN(jobId)) return;
+
+    async function fetchJobAndBuildPrompt() {
+      try {
+        const res = await fetch(`/api/jobs/${jobId}`);
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          job: { title: string; companyName?: string | null; locationCity?: string | null; isRemote?: boolean };
+        };
+        const { title, companyName, locationCity, isRemote } = data.job;
+        const company = companyName ?? "the company";
+        const locationParts: string[] = [];
+        if (locationCity) locationParts.push(locationCity);
+        if (isRemote) locationParts.push("remote");
+        const locationStr = locationParts.length > 0 ? ` (${locationParts.join(", ")})` : "";
+
+        setInitialPrompt(
+          `Write me a cover letter for the "${title}" position at ${company}${locationStr}. Make it professional and tailored.`
+        );
+      } catch {
+        // Failed to fetch job — ignore deep link
+      }
+    }
+    fetchJobAndBuildPrompt();
+  }, [searchParams]);
 
   // Toggle favorite via API (direct from UI click)
   const handleFavorite = useCallback(async (jobId: number) => {
@@ -54,13 +111,11 @@ export default function ChatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Navigate to job detail page
-  const handleViewDetails = useCallback(
-    (jobId: number) => {
-      router.push(`/jobs/${jobId}`);
-    },
-    [router]
-  );
+  // Open job detail panel instead of navigating away
+  const handleViewDetails = useCallback((jobId: number) => {
+    setDetailJobId(jobId);
+    setDetailOpen(true);
+  }, []);
 
   // Handle cover letter text from AI chat
   const handleCoverLetter = useCallback((text: string) => {
@@ -71,10 +126,12 @@ export default function ChatPage() {
   return (
     <>
       <SplitScreen
+        jobCount={canvas.totalCount}
         chatPanel={
           <ChatPanel
             onToolResult={canvas.handleToolResult}
             onCoverLetter={handleCoverLetter}
+            initialPrompt={initialPrompt}
           />
         }
         canvasPanel={
@@ -91,6 +148,15 @@ export default function ChatPage() {
             onViewDetails={handleViewDetails}
           />
         }
+      />
+
+      {/* Job detail slide-over panel */}
+      <JobDetailPanel
+        jobId={detailJobId}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        isFavorited={detailJobId !== null && canvas.favoritedJobIds.has(detailJobId)}
+        onFavorite={handleFavorite}
       />
 
       <CoverLetterModal

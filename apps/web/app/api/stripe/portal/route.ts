@@ -3,6 +3,7 @@ import { createPortalSession } from "@repo/stripe";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
+import { applyRateLimit } from "../../../../lib/rate-limit";
 
 export async function POST() {
   let sessionUser;
@@ -12,6 +13,9 @@ export async function POST() {
     return response as NextResponse;
   }
   const userId = sessionUser.id;
+
+  const rateLimited = applyRateLimit(userId, "authenticated");
+  if (rateLimited) return rateLimited;
 
   const userResult = await db
     .select({ stripeCustomerId: users.stripeCustomerId })

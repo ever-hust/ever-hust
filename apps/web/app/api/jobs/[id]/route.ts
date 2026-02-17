@@ -1,12 +1,18 @@
 import { db } from "@repo/db";
 import { jobs } from "@repo/db";
 import { eq } from "drizzle-orm";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
+import { applyRateLimit } from "../../../../lib/rate-limit";
 
 export async function GET(
-  _req: Request,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Public endpoint — rate limit by IP
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const rateLimited = applyRateLimit(ip, "public");
+  if (rateLimited) return rateLimited;
+
   const { id } = await params;
   const jobId = Number(id);
 

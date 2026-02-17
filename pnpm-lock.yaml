@@ -34,10 +34,10 @@ importers:
     dependencies:
       '@ai-sdk/anthropic':
         specifier: ^3.0.44
-        version: 3.0.44(zod@4.3.6)
+        version: 3.0.44(zod@3.25.76)
       '@ai-sdk/react':
         specifier: ^3.0.88
-        version: 3.0.88(react@19.2.4)(zod@4.3.6)
+        version: 3.0.88(react@19.2.4)(zod@3.25.76)
       '@radix-ui/react-avatar':
         specifier: ^1.1.0
         version: 1.1.11(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -70,7 +70,7 @@ importers:
         version: link:../../packages/utils
       ai:
         specifier: ^6.0.86
-        version: 6.0.86(zod@4.3.6)
+        version: 6.0.86(zod@3.25.76)
       better-auth:
         specifier: ^1.2.0
         version: 1.4.18(drizzle-kit@0.31.9)(drizzle-orm@0.45.1(@opentelemetry/api@1.9.0)(kysely@0.28.11)(postgres@3.4.8))(next@16.1.5(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.58.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -95,6 +95,9 @@ importers:
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      zod:
+        specifier: ^3.24.0
+        version: 3.25.76
     devDependencies:
       '@repo/eslint-config':
         specifier: workspace:*
@@ -138,6 +141,9 @@ importers:
       '@repo/jobs-api':
         specifier: workspace:*
         version: link:../jobs-api
+      '@repo/stripe':
+        specifier: workspace:*
+        version: link:../stripe
       ai:
         specifier: ^6.0.86
         version: 6.0.86(zod@3.25.76)
@@ -163,6 +169,9 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../db
+      '@repo/email':
+        specifier: workspace:*
+        version: link:../email
       better-auth:
         specifier: ^1.2.0
         version: 1.4.18(drizzle-kit@0.31.9)(drizzle-orm@0.45.1(@opentelemetry/api@1.9.0)(kysely@0.28.11)(postgres@3.4.8))(next@16.1.5(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.58.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -370,6 +379,18 @@ importers:
       '@radix-ui/react-dialog':
         specifier: ^1.1.15
         version: 1.1.15(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@radix-ui/react-dismissable-layer':
+        specifier: ^1.1.11
+        version: 1.1.11(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@radix-ui/react-focus-scope':
+        specifier: ^1.1.8
+        version: 1.1.8(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@radix-ui/react-portal':
+        specifier: ^1.1.10
+        version: 1.1.10(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@radix-ui/react-presence':
+        specifier: ^1.1.5
+        version: 1.1.5(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@radix-ui/react-separator':
         specifier: ^1.1.0
         version: 1.1.8(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -1844,6 +1865,19 @@ packages:
       '@types/react-dom':
         optional: true
 
+  '@radix-ui/react-focus-scope@1.1.8':
+    resolution: {integrity: sha512-BFjgXkfyRXxFJ0t/Xs4QSsb2wmkDfJ983j4vzC95on81gKPtJdJ+5ESHOuwKGm/umcWd2En33AiEMgyUGSKWQw==}
+    peerDependencies:
+      '@types/react': '*'
+      '@types/react-dom': '*'
+      react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+      react-dom: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+      '@types/react-dom':
+        optional: true
+
   '@radix-ui/react-id@1.1.1':
     resolution: {integrity: sha512-kGkGegYIdQsOb4XjsfM97rXsiHaBwco+hFI66oO4s9LU+PLAC5oJ7khdOVFxkhsmlbpUqDAvXw11CluXP+jkHg==}
     peerDependencies:
@@ -1851,6 +1885,19 @@ packages:
       react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
     peerDependenciesMeta:
       '@types/react':
+        optional: true
+
+  '@radix-ui/react-portal@1.1.10':
+    resolution: {integrity: sha512-4kY9IVa6+9nJPsYmngK5Uk2kUmZnv7ChhHAFeQ5oaj8jrR1bIi3xww8nH71pz1/Ve4d/cXO3YxT8eikt1B0a8w==}
+    peerDependencies:
+      '@types/react': '*'
+      '@types/react-dom': '*'
+      react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+      react-dom: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+      '@types/react-dom':
         optional: true
 
   '@radix-ui/react-portal@1.1.9':
@@ -4943,25 +4990,12 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.15(zod@3.25.76)
       zod: 3.25.76
 
-  '@ai-sdk/anthropic@3.0.44(zod@4.3.6)':
-    dependencies:
-      '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.15(zod@4.3.6)
-      zod: 4.3.6
-
   '@ai-sdk/gateway@3.0.46(zod@3.25.76)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
       '@ai-sdk/provider-utils': 4.0.15(zod@3.25.76)
       '@vercel/oidc': 3.1.0
       zod: 3.25.76
-
-  '@ai-sdk/gateway@3.0.46(zod@4.3.6)':
-    dependencies:
-      '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.15(zod@4.3.6)
-      '@vercel/oidc': 3.1.0
-      zod: 4.3.6
 
   '@ai-sdk/provider-utils@4.0.15(zod@3.25.76)':
     dependencies:
@@ -4970,21 +5004,14 @@ snapshots:
       eventsource-parser: 3.0.6
       zod: 3.25.76
 
-  '@ai-sdk/provider-utils@4.0.15(zod@4.3.6)':
-    dependencies:
-      '@ai-sdk/provider': 3.0.8
-      '@standard-schema/spec': 1.1.0
-      eventsource-parser: 3.0.6
-      zod: 4.3.6
-
   '@ai-sdk/provider@3.0.8':
     dependencies:
       json-schema: 0.4.0
 
-  '@ai-sdk/react@3.0.88(react@19.2.4)(zod@4.3.6)':
+  '@ai-sdk/react@3.0.88(react@19.2.4)(zod@3.25.76)':
     dependencies:
-      '@ai-sdk/provider-utils': 4.0.15(zod@4.3.6)
-      ai: 6.0.86(zod@4.3.6)
+      '@ai-sdk/provider-utils': 4.0.15(zod@3.25.76)
+      ai: 6.0.86(zod@3.25.76)
       react: 19.2.4
       swr: 2.4.0(react@19.2.4)
       throttleit: 2.1.0
@@ -6224,12 +6251,33 @@ snapshots:
       '@types/react': 19.2.2
       '@types/react-dom': 19.2.2(@types/react@19.2.2)
 
+  '@radix-ui/react-focus-scope@1.1.8(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+    dependencies:
+      '@radix-ui/react-compose-refs': 1.1.2(@types/react@19.2.2)(react@19.2.4)
+      '@radix-ui/react-primitive': 2.1.4(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@radix-ui/react-use-callback-ref': 1.1.1(@types/react@19.2.2)(react@19.2.4)
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
+    optionalDependencies:
+      '@types/react': 19.2.2
+      '@types/react-dom': 19.2.2(@types/react@19.2.2)
+
   '@radix-ui/react-id@1.1.1(@types/react@19.2.2)(react@19.2.4)':
     dependencies:
       '@radix-ui/react-use-layout-effect': 1.1.1(@types/react@19.2.2)(react@19.2.4)
       react: 19.2.4
     optionalDependencies:
       '@types/react': 19.2.2
+
+  '@radix-ui/react-portal@1.1.10(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+    dependencies:
+      '@radix-ui/react-primitive': 2.1.4(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@radix-ui/react-use-layout-effect': 1.1.1(@types/react@19.2.2)(react@19.2.4)
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
+    optionalDependencies:
+      '@types/react': 19.2.2
+      '@types/react-dom': 19.2.2(@types/react@19.2.2)
 
   '@radix-ui/react-portal@1.1.9(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
     dependencies:
@@ -6889,14 +6937,6 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.15(zod@3.25.76)
       '@opentelemetry/api': 1.9.0
       zod: 3.25.76
-
-  ai@6.0.86(zod@4.3.6):
-    dependencies:
-      '@ai-sdk/gateway': 3.0.46(zod@4.3.6)
-      '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.15(zod@4.3.6)
-      '@opentelemetry/api': 1.9.0
-      zod: 4.3.6
 
   ajv@6.12.6:
     dependencies:

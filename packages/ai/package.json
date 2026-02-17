@@ -8,16 +8,21 @@
     ".": "./src/index.ts",
     "./agents/*": "./src/agents/*.ts",
     "./tools/*": "./src/tools/*.ts",
-    "./model-router": "./src/model-router.ts"
+    "./model-router": "./src/model-router.ts",
+    "./prompts": "./src/prompts.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.44",
+    "@langfuse/client": "^4.6.1",
+    "@openrouter/ai-sdk-provider": "^2.2.3",
     "@repo/db": "workspace:*",
     "@repo/jobs-api": "workspace:*",
     "@repo/stripe": "workspace:*",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.36.2",
     "ai": "^6.0.86",
     "drizzle-orm": "^0.45.1",
     "zod": "^3.24.0"

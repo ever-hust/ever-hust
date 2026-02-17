@@ -3,6 +3,9 @@ import { PricingSection } from "@/components/landing/pricing-section";
 import { Footer } from "@/components/landing/footer";
 import type { Metadata } from "next";
 
+// ISR: revalidate pricing page every hour
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: "Pricing",
   description:

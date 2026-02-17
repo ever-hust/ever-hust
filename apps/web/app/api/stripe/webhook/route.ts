@@ -6,6 +6,7 @@ import { getStripe, parseWebhookEvent } from "@repo/stripe";
 import { sendSubscriptionConfirmedEmail } from "@repo/email";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { sendSubscriptionConfirmedEmail } from "@repo/email";
 
 // ── Idempotency Guard ─────────────────────────────────────────────────────
 // Prevents duplicate processing of the same Stripe event.

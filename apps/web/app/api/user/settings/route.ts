@@ -2,9 +2,17 @@ import { db } from "@repo/db";
 import { users } from "@repo/db";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { settingsPatchSchema, parseBody } from "../../../../lib/api-schemas";
 import { applyRateLimit } from "../../../../lib/rate-limit";
+
+const settingsSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  headline: z.string().max(500).optional(),
+  location: z.string().max(200).optional(),
+  preferences: z.record(z.unknown()).optional(),
+});
 
 // PATCH /api/user/settings - Update user settings
 export async function PATCH(req: Request) {

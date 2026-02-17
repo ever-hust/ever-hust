@@ -1,5 +1,7 @@
 import { db, users } from "@repo/db";
 import { FREE_LIMITS } from "@repo/stripe";
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
 import { eq } from "drizzle-orm";
 
 export interface SubscriptionGate {
@@ -14,7 +16,7 @@ export interface SubscriptionGate {
  * Free users get FREE_LIMITS.
  */
 export async function checkSubscription(
-  userId: string
+  userId: string,
 ): Promise<SubscriptionGate> {
   const result = await db
     .select({ subscriptionStatus: users.subscriptionStatus })
@@ -34,22 +36,35 @@ export async function checkSubscription(
   };
 }
 
-/**
- * Simple in-memory rate counter for free tier limits.
- * In production, this would use Redis/Upstash for distributed counting.
- */
-const counters = new Map<string, { count: number; resetAt: number }>();
+// ---------------------------------------------------------------------------
+// Upstash Redis rate limiting — production-safe distributed counter.
+// Falls back to in-memory Map when UPSTASH_REDIS_REST_URL is unset (local dev).
+// ---------------------------------------------------------------------------
 
-export function checkRateLimit(
+let redis: Redis | null = null;
+
+function getRedis(): Redis | null {
+  if (redis) return redis;
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+  redis = new Redis({ url, token });
+  return redis;
+}
+
+// In-memory fallback for local development
+const memoryCounters = new Map<string, { count: number; resetAt: number }>();
+
+function checkMemoryRateLimit(
   key: string,
   limit: number,
-  windowMs: number
+  windowMs: number,
 ): { allowed: boolean; remaining: number } {
   const now = Date.now();
-  const entry = counters.get(key);
+  const entry = memoryCounters.get(key);
 
   if (!entry || now > entry.resetAt) {
-    counters.set(key, { count: 1, resetAt: now + windowMs });
+    memoryCounters.set(key, { count: 1, resetAt: now + windowMs });
     return { allowed: true, remaining: limit - 1 };
   }
 
@@ -89,43 +104,28 @@ const ONE_WEEK_MS = 7 * ONE_DAY_MS;
 /**
  * Check if a free user has exceeded their daily message limit.
  */
-export function checkMessageLimit(userId: string): {
-  allowed: boolean;
-  remaining: number;
-} {
-  return checkRateLimit(
-    `msg:${userId}`,
-    FREE_LIMITS.messagesPerDay,
-    ONE_DAY_MS
-  );
+export function checkMessageLimit(
+  userId: string,
+): Promise<{ allowed: boolean; remaining: number }> {
+  return checkRateLimit(`msg:${userId}`, FREE_LIMITS.messagesPerDay, ONE_DAY_MS);
 }
 
 /**
  * Check if a free user has exceeded their daily search limit.
  */
-export function checkSearchLimit(userId: string): {
-  allowed: boolean;
-  remaining: number;
-} {
-  return checkRateLimit(
-    `search:${userId}`,
-    FREE_LIMITS.searchesPerDay,
-    ONE_DAY_MS
-  );
+export function checkSearchLimit(
+  userId: string,
+): Promise<{ allowed: boolean; remaining: number }> {
+  return checkRateLimit(`search:${userId}`, FREE_LIMITS.searchesPerDay, ONE_DAY_MS);
 }
 
 /**
  * Check if a free user has exceeded their weekly cover letter limit.
  */
-export function checkCoverLetterLimit(userId: string): {
-  allowed: boolean;
-  remaining: number;
-} {
-  return checkRateLimit(
-    `cover:${userId}`,
-    FREE_LIMITS.coverLettersPerWeek,
-    ONE_WEEK_MS
-  );
+export function checkCoverLetterLimit(
+  userId: string,
+): Promise<{ allowed: boolean; remaining: number }> {
+  return checkRateLimit(`cover:${userId}`, FREE_LIMITS.coverLettersPerWeek, ONE_WEEK_MS);
 }
 
 // -- Read-only peek functions for usage stats endpoint --

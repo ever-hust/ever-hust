@@ -105,6 +105,31 @@ export default function SettingsPage() {
   const [clearChatDialogOpen, setClearChatDialogOpen] = useState(false);
   const [deleteAlertId, setDeleteAlertId] = useState<number | null>(null);
 
+  // BYOK state
+  const [apiKey, setApiKey] = useState("");
+  const [apiKeyVisible, setApiKeyVisible] = useState(false);
+  const [savingApiKey, setSavingApiKey] = useState(false);
+
+  // Alerts state
+  const [alerts, setAlerts] = useState<UserAlert[]>([]);
+  const [alertsLoading, setAlertsLoading] = useState(true);
+  const [togglingAlert, setTogglingAlert] = useState<number | null>(null);
+  const [deletingAlert, setDeletingAlert] = useState<number | null>(null);
+
+  const loadAlerts = useCallback(async () => {
+    try {
+      const res = await fetch("/api/user/alerts");
+      if (res.ok) {
+        const data = await res.json();
+        setAlerts(data.alerts ?? []);
+      }
+    } catch {
+      // Alerts are non-critical on initial load
+    } finally {
+      setAlertsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     async function loadUser() {
       setLoadError(null);
@@ -147,7 +172,8 @@ export default function SettingsPage() {
       }
     }
     loadUser();
-  }, []);
+    loadAlerts();
+  }, [loadAlerts]);
 
   // Load alerts for subscribed users
   useEffect(() => {

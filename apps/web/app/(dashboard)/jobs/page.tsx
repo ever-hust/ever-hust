@@ -29,13 +29,13 @@ export default function JobsPage() {
           setFavoritedJobIds(new Set(data.favoriteJobIds));
         }
       } catch {
-        // Silently fail
+        // Favorites are non-critical — fail silently on initial load
       }
     }
     loadFavorites();
   }, []);
 
-  // Load jobs on mount
+  // Load jobs on mount and when filters change
   useEffect(() => {
     async function loadJobs() {
       setIsLoading(true);
@@ -89,6 +89,8 @@ export default function JobsPage() {
         setJobs((prev) => [...prev, ...data.jobs]);
         setHasMore(data.hasMore);
         setPage(nextPage);
+      } else {
+        toast.error("Failed to load more jobs.");
       }
     } catch {
       toast.error("Failed to load more jobs");

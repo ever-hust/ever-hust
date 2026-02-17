@@ -19,7 +19,8 @@ const cspHeader = `
   .trim();
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@repo/ui", "@repo/auth", "@repo/db", "@repo/utils"],
+  // Instrumentation (apps/web/instrumentation.ts) is auto-detected by Next.js 16+
+  transpilePackages: ["@repo/ui", "@repo/auth", "@repo/db", "@repo/utils", "@repo/cv-parser"],
   images: {
     remotePatterns: [
       {
@@ -29,6 +30,10 @@ const nextConfig: NextConfig = {
       {
         protocol: "https",
         hostname: "*.supabase.co",
+      },
+      {
+        protocol: "https",
+        hostname: "logo.clearbit.com",
       },
     ],
   },

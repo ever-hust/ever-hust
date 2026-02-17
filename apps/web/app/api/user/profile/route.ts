@@ -47,6 +47,7 @@ export async function GET() {
       jobId: userJobs.jobId,
       jobTitle: jobs.title,
       companyName: jobs.companyName,
+      jobUrl: jobs.jobUrl,
       appliedAt: userJobs.appliedAt,
       status: userJobs.status,
     })

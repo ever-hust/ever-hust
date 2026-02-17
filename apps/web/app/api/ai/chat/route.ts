@@ -6,6 +6,7 @@ import { db, users } from "@repo/db";
 import { convertToModelMessages, type UIMessage } from "ai";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import {
   checkSubscription,
   checkMessageLimit,
@@ -13,6 +14,16 @@ import {
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { chatRequestSchema } from "../../../../lib/api-schemas";
 import { applyRateLimit } from "../../../../lib/rate-limit";
+
+// Allow long-running AI streaming responses (60 seconds)
+export const maxDuration = 60;
+
+const chatSchema = z.object({
+  messages: z.array(z.object({
+    role: z.string(),
+    content: z.unknown(),
+  }).passthrough()).min(1, "At least one message is required"),
+});
 
 export async function POST(req: Request) {
   let user;
@@ -45,7 +56,7 @@ export async function POST(req: Request) {
   // Check message rate limit for free users
   const responseHeaders = new Headers();
   if (!gate.isActive) {
-    const { allowed, remaining } = checkMessageLimit(userId);
+    const { allowed, remaining } = await checkMessageLimit(userId);
     if (!allowed) {
       return NextResponse.json(
         {
@@ -78,7 +89,8 @@ export async function POST(req: Request) {
     preferences,
   });
 
-  const result = createOrchestratorStream({
+  // createOrchestratorStream is now async (fetches prompt from Langfuse)
+  const result = await createOrchestratorStream({
     model,
     messages,
     userId,

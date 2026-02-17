@@ -95,6 +95,9 @@ export const metadata: Metadata = {
       "Chat with AI to find, apply, and land your dream job. Search 50+ job boards at once.",
     images: ["/api/og"],
   },
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

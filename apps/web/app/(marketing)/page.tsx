@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Navbar } from "@/components/landing/navbar";
 import { Hero } from "@/components/landing/hero";
 import { Integrations } from "@/components/landing/integrations";
@@ -8,6 +9,24 @@ import { Testimonials } from "@/components/landing/testimonials";
 import { CTA } from "@/components/landing/cta";
 import { Footer } from "@/components/landing/footer";
 import { StructuredData } from "@/components/landing/structured-data";
+
+export const metadata: Metadata = {
+  title: "Ever Jobs - AI-Powered Job Search Assistant",
+  description:
+    "Chat with AI to search 50+ job boards, generate tailored cover letters, and land your dream job — all through natural conversation.",
+  openGraph: {
+    title: "Ever Jobs - AI-Powered Job Search Assistant",
+    description:
+      "Chat with AI to search 50+ job boards, generate tailored cover letters, and land your dream job.",
+    url: "/",
+  },
+  alternates: {
+    canonical: "/",
+  },
+};
+
+// ISR: revalidate landing page every hour
+export const revalidate = 3600;
 
 export default function HomePage() {
   return (

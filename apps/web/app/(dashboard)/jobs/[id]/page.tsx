@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { db, jobs } from "@repo/db";
-import { eq } from "drizzle-orm";
+import { db, jobs, userJobs } from "@repo/db";
+import { eq, and } from "drizzle-orm";
 import { Badge } from "@repo/ui/badge";
 import { Button } from "@repo/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@repo/ui/card";
@@ -103,8 +103,8 @@ function renderDescription(text: string) {
     // Detect heading-like lines (starting with #)
     const headingMatch = cleaned.match(/^(#{1,3})\s+(.+)/);
     if (headingMatch) {
-      const level = headingMatch[1].length;
-      const content = headingMatch[2];
+      const level = headingMatch[1]!.length;
+      const content = headingMatch[2]!;
       if (level === 1)
         return (
           <h3 key={i} className="mb-3 mt-6 text-lg font-semibold first:mt-0">
@@ -180,7 +180,7 @@ export async function generateMetadata({
 
   if (result.length === 0) return { title: "Job Not Found" };
 
-  const job = result[0];
+  const job = result[0]!;
   const company = job.companyName ?? "Unknown Company";
   return {
     title: `${job.title} at ${company}`,
@@ -206,7 +206,25 @@ export default async function JobDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  const job = result[0];
+  const job = result[0]!;
+
+  // Check if current user has favorited this job
+  let isFavorited = false;
+  const sessionUser = await getSessionUser();
+  if (sessionUser) {
+    const fav = await db
+      .select({ id: userJobs.id })
+      .from(userJobs)
+      .where(
+        and(
+          eq(userJobs.userId, sessionUser.id),
+          eq(userJobs.jobId, jobId),
+          eq(userJobs.status, "favorited")
+        )
+      )
+      .limit(1);
+    isFavorited = fav.length > 0;
+  }
 
   const salary = formatSalary(
     job.salaryMin,

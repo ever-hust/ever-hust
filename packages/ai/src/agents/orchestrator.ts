@@ -12,6 +12,7 @@ import {
   applyJobTool,
   submitAnswersTool,
   interviewPrepTool,
+  submitAnswersTool,
 } from "../tools";
 import { checkSearchLimit, checkCoverLetterLimit } from "../rate-limit";
 import { ORCHESTRATOR_SYSTEM_PROMPT } from "../prompts";
@@ -24,23 +25,40 @@ interface OrchestratorOptions {
   isSubscribed?: boolean;
 }
 
-export function createOrchestratorStream({
+export async function createOrchestratorStream({
   model,
   messages,
   userId,
   isSubscribed = false,
 }: OrchestratorOptions) {
+  // Fetch system prompt from Langfuse (falls back to hardcoded default)
+  const { text: systemPrompt, langfusePrompt } =
+    await getOrchestratorPrompt();
+
   return streamText({
     model,
     system: ORCHESTRATOR_SYSTEM_PROMPT,
     messages,
+    // Enable telemetry for Langfuse tracing (OTEL-based)
+    experimental_telemetry: {
+      isEnabled: true,
+      functionId: "orchestrator-chat",
+      metadata: {
+        userId,
+        isSubscribed: String(isSubscribed),
+        // Link this generation to the exact Langfuse prompt version
+        ...(langfusePrompt
+          ? { langfusePrompt: JSON.stringify(langfusePrompt) }
+          : {}),
+      },
+    },
     tools: {
       searchJobs: {
         ...searchJobsTool,
         execute: async (params, execOptions) => {
           // Enforce free-tier search limit
           if (!isSubscribed) {
-            const { allowed, remaining } = checkSearchLimit(userId);
+            const { allowed, remaining } = await checkSearchLimit(userId);
             if (!allowed) {
               return {
                 error:
@@ -89,7 +107,7 @@ export function createOrchestratorStream({
         execute: async (params, execOptions) => {
           // Enforce free-tier cover letter limit
           if (!isSubscribed) {
-            const { allowed, remaining } = checkCoverLetterLimit(userId);
+            const { allowed, remaining } = await checkCoverLetterLimit(userId);
             if (!allowed) {
               return {
                 error:
@@ -141,6 +159,15 @@ export function createOrchestratorStream({
           return interviewPrepTool.execute!(
             { ...params, userId },
             execOptions
+          );
+        },
+      },
+      submitAnswers: {
+        ...submitAnswersTool,
+        execute: async (params) => {
+          return submitAnswersTool.execute!(
+            { ...params, userId },
+            { toolCallId: "", messages: [], abortSignal: undefined as never }
           );
         },
       },

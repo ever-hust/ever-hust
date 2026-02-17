@@ -64,17 +64,17 @@ export function UsageQuota() {
         limit={usage.coverLetters.limit}
         period={usage.coverLetters.period}
       />
-      <Link href="/settings" className="mt-1 block">
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 w-full gap-1 text-[10px]"
-          tabIndex={-1}
-        >
+      <Button
+        variant="outline"
+        size="sm"
+        className="mt-1 h-7 w-full gap-1 text-[10px]"
+        asChild
+      >
+        <Link href="/settings">
           <Sparkles className="h-3 w-3" aria-hidden="true" />
           Upgrade to Pro
-        </Button>
-      </Link>
+        </Link>
+      </Button>
     </div>
   );
 }

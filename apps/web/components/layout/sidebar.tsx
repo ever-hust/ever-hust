@@ -159,24 +159,24 @@ export function Sidebar() {
                   pathname === item.href ||
                   pathname.startsWith(item.href + "/");
                 return (
-                  <Link
+                  <Button
                     key={item.href}
-                    href={item.href}
-                    aria-current={isActive ? "page" : undefined}
+                    variant={isActive ? "secondary" : "ghost"}
+                    className={cn(
+                      "w-full justify-start gap-3",
+                      !isActive && "text-muted-foreground"
+                    )}
+                    size="sm"
+                    asChild
                   >
-                    <Button
-                      variant={isActive ? "secondary" : "ghost"}
-                      className={cn(
-                        "w-full justify-start gap-3",
-                        !isActive && "text-muted-foreground"
-                      )}
-                      size="sm"
-                      tabIndex={-1}
+                    <Link
+                      href={item.href}
+                      aria-current={isActive ? "page" : undefined}
                     >
                       <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
                       {item.label}
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
                 );
               })}
             </nav>
@@ -222,26 +222,26 @@ export function Sidebar() {
             const isActive =
               pathname === item.href || pathname.startsWith(item.href + "/");
             return (
-              <Link
+              <Button
                 key={item.href}
-                href={item.href}
-                aria-current={isActive ? "page" : undefined}
-                title={item.label}
+                variant={isActive ? "secondary" : "ghost"}
+                className={cn(
+                  "w-full justify-start gap-3",
+                  !isActive && "text-muted-foreground"
+                )}
+                size="sm"
+                asChild
               >
-                <Button
-                  variant={isActive ? "secondary" : "ghost"}
-                  className={cn(
-                    "w-full justify-start gap-3",
-                    !isActive && "text-muted-foreground"
-                  )}
-                  size="sm"
-                  tabIndex={-1}
+                <Link
+                  href={item.href}
+                  aria-current={isActive ? "page" : undefined}
+                  title={item.label}
                 >
                   <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
                   <span className="hidden lg:inline">{item.label}</span>
                   <span className="sr-only lg:hidden">{item.label}</span>
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             );
           })}
         </nav>

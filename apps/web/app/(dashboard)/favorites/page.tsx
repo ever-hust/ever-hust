@@ -220,27 +220,27 @@ export default function FavoritesPage() {
                         {/* Action buttons */}
                         <div className="flex items-center gap-1 shrink-0">
                           {applyLink && (
-                            <a
-                              href={applyLink}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              aria-label={`Apply for ${job.title} (opens in new tab)`}
-                            >
-                              <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" tabIndex={-1}>
+                            <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" asChild>
+                              <a
+                                href={applyLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label={`Apply for ${job.title} (opens in new tab)`}
+                              >
                                 Apply
                                 <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                              </Button>
-                            </a>
+                              </a>
+                            </Button>
                           )}
-                          <Link
-                            href={`/chat?job=${job.id}`}
-                            aria-label={`Generate cover letter for ${job.title}`}
-                          >
-                            <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" tabIndex={-1}>
+                          <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" asChild>
+                            <Link
+                              href={`/chat?job=${job.id}`}
+                              aria-label={`Generate cover letter for ${job.title}`}
+                            >
                               <FileText className="h-3 w-3" aria-hidden="true" />
                               Cover Letter
-                            </Button>
-                          </Link>
+                            </Link>
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"

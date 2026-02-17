@@ -14,7 +14,7 @@ interface ChatMessagesProps {
 const COPY_FEEDBACK_MS = 2_000;
 
 /** Small copy-to-clipboard button shown on hover over assistant messages */
-function CopyButton({ text }: { text: string }) {
+const CopyButton = memo(function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -53,7 +53,7 @@ function CopyButton({ text }: { text: string }) {
       </span>
     </button>
   );
-}
+});
 
 /** Pre-computed animation delays to avoid recalculation on re-renders */
 const TYPING_DOT_DELAYS = ["0s", "0.16s", "0.32s"] as const;

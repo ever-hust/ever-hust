@@ -3,7 +3,7 @@ import { eq, and, asc } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
 import { requireSessionUser } from "../../../../../../lib/get-session-user";
 import { applyRateLimit } from "../../../../../../lib/rate-limit";
-import { apiSuccess, apiBadRequest, apiNotFound, safeJsonParse } from "../../../../../../lib/api-response";
+import { apiSuccess, apiBadRequest, apiNotFound, apiError, safeJsonParse } from "../../../../../../lib/api-response";
 import { z } from "zod";
 
 const saveMessagesSchema = z.object({
@@ -42,34 +42,39 @@ export async function GET(
 
   const { id: sessionId } = await params;
 
-  // Verify session belongs to user
-  const session = await db
-    .select({ id: chatSessions.id })
-    .from(chatSessions)
-    .where(
-      and(eq(chatSessions.id, sessionId), eq(chatSessions.userId, user.id))
-    )
-    .limit(1);
+  try {
+    // Verify session belongs to user
+    const session = await db
+      .select({ id: chatSessions.id })
+      .from(chatSessions)
+      .where(
+        and(eq(chatSessions.id, sessionId), eq(chatSessions.userId, user.id))
+      )
+      .limit(1);
 
-  if (session.length === 0) {
-    return apiNotFound("Session not found");
+    if (session.length === 0) {
+      return apiNotFound("Session not found");
+    }
+
+    const messages = await db
+      .select({
+        id: chatMessages.id,
+        role: chatMessages.role,
+        content: chatMessages.content,
+        toolCalls: chatMessages.toolCalls,
+        toolResults: chatMessages.toolResults,
+        metadata: chatMessages.metadata,
+        createdAt: chatMessages.createdAt,
+      })
+      .from(chatMessages)
+      .where(eq(chatMessages.sessionId, sessionId))
+      .orderBy(asc(chatMessages.createdAt));
+
+    return apiSuccess({ messages });
+  } catch (error) {
+    console.error("[api/chat/messages/GET]", error instanceof Error ? error.message : error);
+    return apiError("Failed to load messages");
   }
-
-  const messages = await db
-    .select({
-      id: chatMessages.id,
-      role: chatMessages.role,
-      content: chatMessages.content,
-      toolCalls: chatMessages.toolCalls,
-      toolResults: chatMessages.toolResults,
-      metadata: chatMessages.metadata,
-      createdAt: chatMessages.createdAt,
-    })
-    .from(chatMessages)
-    .where(eq(chatMessages.sessionId, sessionId))
-    .orderBy(asc(chatMessages.createdAt));
-
-  return apiSuccess({ messages });
 }
 
 /**
@@ -92,44 +97,49 @@ export async function POST(
 
   const { id: sessionId } = await params;
 
-  // Verify session belongs to user
-  const session = await db
-    .select({ id: chatSessions.id })
-    .from(chatSessions)
-    .where(
-      and(eq(chatSessions.id, sessionId), eq(chatSessions.userId, user.id))
-    )
-    .limit(1);
+  try {
+    // Verify session belongs to user
+    const session = await db
+      .select({ id: chatSessions.id })
+      .from(chatSessions)
+      .where(
+        and(eq(chatSessions.id, sessionId), eq(chatSessions.userId, user.id))
+      )
+      .limit(1);
 
-  if (session.length === 0) {
-    return apiNotFound("Session not found");
+    if (session.length === 0) {
+      return apiNotFound("Session not found");
+    }
+
+    const jsonResult = await safeJsonParse(req);
+    if (!jsonResult.ok) return jsonResult.response;
+    const parsed = saveMessagesSchema.safeParse(jsonResult.data);
+    if (!parsed.success) {
+      return apiBadRequest("Invalid request body", parsed.error.flatten());
+    }
+
+    // Insert messages (using onConflictDoNothing to skip duplicates)
+    const rows = parsed.data.messages.map((m) => ({
+      id: m.id,
+      sessionId,
+      role: m.role as "user" | "assistant" | "system" | "tool",
+      content: m.content ?? null,
+      toolCalls: m.toolCalls ?? null,
+      toolResults: m.toolResults ?? null,
+      metadata: m.metadata ?? null,
+    }));
+
+    await db.insert(chatMessages).values(rows).onConflictDoNothing();
+
+    // Touch session updatedAt
+    await db
+      .update(chatSessions)
+      .set({ updatedAt: new Date() })
+      .where(eq(chatSessions.id, sessionId));
+
+    return apiSuccess({ saved: rows.length });
+  } catch (error) {
+    console.error("[api/chat/messages/POST]", error instanceof Error ? error.message : error);
+    return apiError("Failed to save messages");
   }
-
-  const jsonResult = await safeJsonParse(req);
-  if (!jsonResult.ok) return jsonResult.response;
-  const parsed = saveMessagesSchema.safeParse(jsonResult.data);
-  if (!parsed.success) {
-    return apiBadRequest("Invalid request body", parsed.error.flatten());
-  }
-
-  // Insert messages (using onConflictDoNothing to skip duplicates)
-  const rows = parsed.data.messages.map((m) => ({
-    id: m.id,
-    sessionId,
-    role: m.role as "user" | "assistant" | "system" | "tool",
-    content: m.content ?? null,
-    toolCalls: m.toolCalls ?? null,
-    toolResults: m.toolResults ?? null,
-    metadata: m.metadata ?? null,
-  }));
-
-  await db.insert(chatMessages).values(rows).onConflictDoNothing();
-
-  // Touch session updatedAt
-  await db
-    .update(chatSessions)
-    .set({ updatedAt: new Date() })
-    .where(eq(chatSessions.id, sessionId));
-
-  return apiSuccess({ saved: rows.length });
 }

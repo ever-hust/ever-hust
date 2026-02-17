@@ -53,8 +53,8 @@ export function Hero() {
     <section className="relative overflow-hidden px-4 py-20 sm:px-6 sm:py-28 lg:px-8 lg:py-32">
       {/* Background gradients */}
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-        <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/4 h-[600px] w-[800px] rounded-full bg-primary/10 blur-3xl" />
-        <div className="absolute right-0 top-1/2 -translate-y-1/2 h-[400px] w-[400px] rounded-full bg-primary/5 blur-3xl" />
+        <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/4 h-[300px] w-[90vw] max-w-[800px] rounded-full bg-primary/10 blur-3xl sm:h-[600px]" />
+        <div className="absolute right-0 top-1/2 -translate-y-1/2 h-[200px] w-[60vw] max-w-[400px] rounded-full bg-primary/5 blur-3xl sm:h-[400px]" />
       </div>
 
       <div className="mx-auto max-w-7xl">

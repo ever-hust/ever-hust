@@ -127,7 +127,7 @@ export function ChatHistory({
       {isOpen && (
         <div
           id="chat-history-panel"
-          className="absolute left-0 right-0 top-full z-30 border-b bg-card shadow-md animate-in fade-in slide-in-from-top-2 duration-200"
+          className="absolute left-0 right-0 top-full z-30 border-b bg-card shadow-md"
         >
           <div className="flex items-center justify-between border-b px-4 py-2">
             <h3 className="text-xs font-semibold text-muted-foreground">

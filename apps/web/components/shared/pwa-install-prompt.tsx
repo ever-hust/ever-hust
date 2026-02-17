@@ -67,7 +67,7 @@ export function PWAInstallPrompt() {
   return (
     <div
       role="banner"
-      className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-md animate-in fade-in slide-in-from-bottom-4 duration-300 md:left-auto md:right-4"
+      className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-md transition-all duration-300 md:left-auto md:right-4"
     >
       <div className="flex items-center gap-3 rounded-lg border bg-card p-4 shadow-lg">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">

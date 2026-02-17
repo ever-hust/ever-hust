@@ -106,12 +106,14 @@ export const searchJobsTool = tool({
     }
 
     if (params.skills && params.skills.length > 0) {
-      // Check if the job's skills JSONB array contains any of the requested skills
-      for (const skill of params.skills) {
-        conditions.push(
+      // Match jobs that have ANY of the requested skills (OR semantics).
+      // Users searching for ["React", "Vue"] want jobs that require either,
+      // not only jobs requiring both.
+      const skillConditions = params.skills.map(
+        (skill) =>
           sql`${jobs.skills}::jsonb @> ${JSON.stringify([skill])}::jsonb`
-        );
-      }
+      );
+      conditions.push(or(...skillConditions));
     }
 
     const limit = Math.min(params.limit ?? 25, 50);

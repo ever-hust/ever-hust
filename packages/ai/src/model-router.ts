@@ -84,11 +84,17 @@ const PAID_MODEL_ID =
  */
 export function getModelForUser(user: UserForModel): LanguageModel {
   // 1. BYOK: user has their own Anthropic API key → direct Anthropic
+  //    Respect their aiModel preference if set; fall back to opus otherwise.
   if (user.preferences?.apiKeys?.anthropic) {
     const byokProvider = createAnthropic({
       apiKey: user.preferences.apiKeys.anthropic,
     });
-    return byokProvider("claude-opus-4-6");
+    const preferredModel = user.preferences.aiModel;
+    const modelId =
+      preferredModel && ALLOWED_MODELS.has(preferredModel)
+        ? preferredModel
+        : "claude-opus-4-6";
+    return byokProvider(modelId);
   }
 
   // 2. User preference: validate against allowlist before use

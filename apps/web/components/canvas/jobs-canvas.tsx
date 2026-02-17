@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useEffect } from "react";
 import { Briefcase, Loader2 } from "lucide-react";
 import { JobCard, type JobCardData } from "./job-card";
 import { JobCardSkeletonList } from "./job-card-skeleton";
@@ -33,6 +33,17 @@ export function JobsCanvas({
   onViewDetails,
 }: JobsCanvasProps) {
   const observerRef = useRef<IntersectionObserver | null>(null);
+
+  // Disconnect the IntersectionObserver when the component unmounts to prevent
+  // leaked callbacks that could fire after the component is gone.
+  useEffect(() => {
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+        observerRef.current = null;
+      }
+    };
+  }, []);
 
   // Infinite scroll sentinel
   const lastJobRef = useCallback(

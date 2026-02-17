@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -83,6 +83,9 @@ function formatLocation(city: string | null, state: string | null, country: stri
   return [city, state, country].filter(Boolean).join(", ") || null;
 }
 
+/** Duration to show the "Copied!" feedback (ms). */
+const COPY_FEEDBACK_MS = 2_000;
+
 type DetailTab = "overview" | "skills" | "company";
 
 export function JobDetailPanel({
@@ -97,6 +100,14 @@ export function JobDetailPanel({
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<DetailTab>("overview");
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clean up copy feedback timer on unmount
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
 
   const handleShare = useCallback(async () => {
     if (!job) return;
@@ -113,7 +124,8 @@ export function JobDetailPanel({
       // Fallback: copy to clipboard
       await navigator.clipboard.writeText(url);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
     } catch {
       // User cancelled share or clipboard failed
     }
@@ -125,26 +137,30 @@ export function JobDetailPanel({
       return;
     }
 
-    let cancelled = false;
+    const controller = new AbortController();
     setLoading(true);
     setError(null);
     setActiveTab("overview");
 
-    fetch(`/api/jobs/${jobId}`)
+    fetch(`/api/jobs/${jobId}`, { signal: controller.signal })
       .then(async (res) => {
         if (!res.ok) throw new Error("Failed to load job details");
         const data = (await res.json()) as { job: JobDetail };
-        if (!cancelled) setJob(data.job);
+        if (!controller.signal.aborted) setJob(data.job);
       })
       .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load");
+        // Don't report abort errors — they're expected on cleanup
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        if (!controller.signal.aborted) {
+          setError(err instanceof Error ? err.message : "Failed to load");
+        }
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       });
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [open, jobId]);
 

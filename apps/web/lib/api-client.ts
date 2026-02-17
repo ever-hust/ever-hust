@@ -54,6 +54,10 @@ export async function apiFetch<T>(
     const message =
       err instanceof Error ? err.message : "An unexpected error occurred";
 
+    if (process.env.NODE_ENV === "development") {
+      console.warn(`[api-client] ${url} failed:`, message);
+    }
+
     if (showToast) {
       toast.error(
         errorMessage ?? (message.includes("fetch") ? "Network error. Please check your connection." : message),
@@ -83,15 +87,15 @@ export async function apiMutate<T>(
     showToast?: boolean;
   },
 ): Promise<T | null> {
-  const { body, method = "POST", ...rest } = options;
+  const { body, method = "POST", headers, ...rest } = options;
 
   return apiFetch<T>(url, {
+    ...rest,
     method,
     headers: {
       "Content-Type": "application/json",
-      ...rest.headers,
+      ...headers,
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
-    ...rest,
   });
 }

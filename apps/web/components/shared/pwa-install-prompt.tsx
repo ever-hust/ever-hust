@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Download, X } from "lucide-react";
 import { Button } from "@repo/ui/button";
 
@@ -26,6 +26,7 @@ interface BeforeInstallPromptEvent extends Event {
 export function PWAInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showBanner, setShowBanner] = useState(false);
+  const delayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     // Don't show if already in PWA mode
@@ -39,12 +40,15 @@ export function PWAInstallPrompt() {
     const handler = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      // Small delay so page loads first
-      setTimeout(() => setShowBanner(true), PWA_PROMPT_DELAY_MS);
+      // Small delay so page loads first — track timer for cleanup
+      delayTimerRef.current = setTimeout(() => setShowBanner(true), PWA_PROMPT_DELAY_MS);
     };
 
     window.addEventListener("beforeinstallprompt", handler);
-    return () => window.removeEventListener("beforeinstallprompt", handler);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handler);
+      if (delayTimerRef.current) clearTimeout(delayTimerRef.current);
+    };
   }, []);
 
   const handleInstall = useCallback(async () => {

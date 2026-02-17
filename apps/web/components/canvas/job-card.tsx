@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Heart, ExternalLink, MapPin, Building2, Clock, FileText } from "lucide-react";
 import { Badge } from "@repo/ui/badge";
 import { Button } from "@repo/ui/button";
@@ -85,6 +85,9 @@ function timeAgo(date: string | Date | null) {
   return `${Math.floor(days / 30)}mo ago`;
 }
 
+/** Duration of the favorite-button bounce animation (ms). */
+const FAVORITE_ANIMATION_MS = 300;
+
 export function JobCard({
   job,
   isFavorited = false,
@@ -92,6 +95,14 @@ export function JobCard({
   onViewDetails,
 }: JobCardProps) {
   const [animating, setAnimating] = useState(false);
+  const animTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clean up animation timer on unmount
+  useEffect(() => {
+    return () => {
+      if (animTimerRef.current) clearTimeout(animTimerRef.current);
+    };
+  }, []);
 
   const salary = formatSalary(
     job.salaryMin,
@@ -114,8 +125,9 @@ export function JobCard({
       if (!onFavorite) return;
       setAnimating(true);
       onFavorite(job.id);
-      // Reset animation after bounce
-      setTimeout(() => setAnimating(false), 300);
+      // Reset animation after bounce — track timer for cleanup
+      if (animTimerRef.current) clearTimeout(animTimerRef.current);
+      animTimerRef.current = setTimeout(() => setAnimating(false), FAVORITE_ANIMATION_MS);
     },
     [onFavorite, job.id]
   );

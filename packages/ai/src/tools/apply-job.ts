@@ -80,54 +80,60 @@ export const applyJobTool = tool({
       };
     }
 
-    // Create agent instance to track this application
-    const agentResult = await db
-      .insert(agentInstances)
-      .values({
-        userId,
-        agentType: "application",
-        jobId,
-        status: "running",
-        state: { step: "initiated", coverLetter: coverLetter ?? null },
-      })
-      .returning({ id: agentInstances.id });
+    // Create agent instance, application record, and update userJobs
+    // inside a transaction to prevent orphaned records on partial failure.
+    const { agentId, applicationId } = await db.transaction(async (tx) => {
+      // Create agent instance to track this application
+      const agentResult = await tx
+        .insert(agentInstances)
+        .values({
+          userId,
+          agentType: "application",
+          jobId,
+          status: "running",
+          state: { step: "initiated", coverLetter: coverLetter ?? null },
+        })
+        .returning({ id: agentInstances.id });
 
-    const agentId = agentResult[0]?.id;
+      const newAgentId = agentResult[0]?.id;
 
-    // Create application record
-    const appResult = await db
-      .insert(applications)
-      .values({
-        userId,
-        jobId,
-        agentInstanceId: agentId,
-        status: "in_progress",
-        coverLetter: coverLetter ?? null,
-      })
-      .returning({ id: applications.id });
+      // Create application record
+      const appResult = await tx
+        .insert(applications)
+        .values({
+          userId,
+          jobId,
+          agentInstanceId: newAgentId,
+          status: "in_progress",
+          coverLetter: coverLetter ?? null,
+        })
+        .returning({ id: applications.id });
 
-    const applicationId = appResult[0]?.id;
+      const newApplicationId = appResult[0]?.id;
 
-    // Track in userJobs as "applied" (upsert: change existing favorited → applied)
-    const existingUserJob = await db
-      .select({ id: userJobs.id })
-      .from(userJobs)
-      .where(and(eq(userJobs.userId, userId), eq(userJobs.jobId, jobId)))
-      .limit(1);
+      // Track in userJobs as "applied" (upsert: change existing favorited → applied)
+      const existingUserJob = await tx
+        .select({ id: userJobs.id })
+        .from(userJobs)
+        .where(and(eq(userJobs.userId, userId), eq(userJobs.jobId, jobId)))
+        .limit(1);
 
-    if (existingUserJob.length > 0) {
-      await db
-        .update(userJobs)
-        .set({ status: "applied", appliedAt: new Date(), updatedAt: new Date() })
-        .where(eq(userJobs.id, existingUserJob[0]!.id));
-    } else {
-      await db.insert(userJobs).values({
-        userId,
-        jobId,
-        status: "applied",
-        appliedAt: new Date(),
-      });
-    }
+      if (existingUserJob.length > 0) {
+        await tx
+          .update(userJobs)
+          .set({ status: "applied", appliedAt: new Date(), updatedAt: new Date() })
+          .where(eq(userJobs.id, existingUserJob[0]!.id));
+      } else {
+        await tx.insert(userJobs).values({
+          userId,
+          jobId,
+          status: "applied",
+          appliedAt: new Date(),
+        });
+      }
+
+      return { agentId: newAgentId, applicationId: newApplicationId };
+    });
 
     return {
       applied: true,

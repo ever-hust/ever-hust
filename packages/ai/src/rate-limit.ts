@@ -52,14 +52,13 @@ function checkMemoryRateLimit(
 /** Cache Ratelimit instances so we don't recreate on every call. */
 const limiters = new Map<string, Ratelimit>();
 
-function getUpstashLimiter(prefix: string, limit: number, windowSec: number): Ratelimit {
+function getUpstashLimiter(prefix: string, limit: number, windowSec: number, redisClient: Redis): Ratelimit {
   const cacheKey = `${prefix}:${limit}:${windowSec}`;
   const cached = limiters.get(cacheKey);
   if (cached) return cached;
 
-  const r = getRedis()!;
   const limiter = new Ratelimit({
-    redis: r,
+    redis: redisClient,
     limiter: Ratelimit.slidingWindow(limit, `${windowSec} s`),
     prefix: `everjobs:rl:${prefix}`,
     analytics: true,
@@ -84,7 +83,7 @@ async function checkRateLimit(
   }
 
   const windowSec = Math.ceil(windowMs / 1000);
-  const limiter = getUpstashLimiter(prefix, limit, windowSec);
+  const limiter = getUpstashLimiter(prefix, limit, windowSec, r);
 
   const { success, remaining } = await limiter.limit(userId);
   return { allowed: success, remaining };

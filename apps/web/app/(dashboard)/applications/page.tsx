@@ -100,6 +100,9 @@ const ApplicationCard = memo(function ApplicationCard({ app }: { app: Applicatio
               src={app.companyLogo}
               alt={app.companyName ? `${app.companyName} logo` : "Company logo"}
               className="h-8 w-8 rounded object-contain"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = "none";
+              }}
             />
           ) : (
             <Building2 className="h-5 w-5 text-muted-foreground" aria-hidden="true" />

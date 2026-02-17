@@ -12,15 +12,20 @@ import { NextResponse } from "next/server";
 // In production with multiple instances, use Redis SET NX instead.
 const processedEvents = new Map<string, number>();
 const IDEMPOTENCY_TTL = 5 * 60 * 1000; // 5 minutes
+const CLEANUP_INTERVAL = 60 * 1000; // Run cleanup at most once per minute
+let lastIdempotencyCleanup = 0;
+
+function cleanupProcessedEvents(now: number): void {
+  if (now - lastIdempotencyCleanup < CLEANUP_INTERVAL && processedEvents.size <= 1000) return;
+  lastIdempotencyCleanup = now;
+  for (const [id, ts] of processedEvents) {
+    if (now - ts > IDEMPOTENCY_TTL) processedEvents.delete(id);
+  }
+}
 
 function markProcessed(eventId: string): boolean {
-  // Clean old entries (>5 min)
   const now = Date.now();
-  if (processedEvents.size > 1000) {
-    for (const [id, ts] of processedEvents) {
-      if (now - ts > IDEMPOTENCY_TTL) processedEvents.delete(id);
-    }
-  }
+  cleanupProcessedEvents(now);
 
   if (processedEvents.has(eventId)) return false; // Already processed
   processedEvents.set(eventId, now);

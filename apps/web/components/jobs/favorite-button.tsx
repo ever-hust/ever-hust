@@ -19,14 +19,17 @@ export function FavoriteButton({ jobId, className }: FavoriteButtonProps) {
   useEffect(() => {
     const controller = new AbortController();
     fetch("/api/user/favorites", { signal: controller.signal })
-      .then((res) => res.json())
-      .then((data: { favoriteJobIds: number[] }) => {
-        if (!controller.signal.aborted && data.favoriteJobIds?.includes(jobId)) {
+      .then((res) => {
+        if (!res.ok) return; // Non-critical — silently ignore auth/server errors
+        return res.json();
+      })
+      .then((data?: { favoriteJobIds: number[] }) => {
+        if (!controller.signal.aborted && data?.favoriteJobIds?.includes(jobId)) {
           setIsFavorited(true);
         }
       })
       .catch(() => {
-        // Silently fail — non-critical
+        // Silently fail — non-critical (AbortError, network, etc.)
       });
     return () => { controller.abort(); };
   }, [jobId]);

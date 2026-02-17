@@ -13,6 +13,7 @@ import {
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { chatRequestSchema } from "../../../../lib/api-schemas";
 import { applyRateLimit } from "../../../../lib/rate-limit";
+import { apiBadRequest, apiError } from "../../../../lib/api-response";
 
 export async function POST(req: Request) {
   let user;
@@ -30,10 +31,7 @@ export async function POST(req: Request) {
   const body = await req.json();
   const parsed = chatRequestSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid request body", details: parsed.error.flatten() },
-      { status: 400 }
-    );
+    return apiBadRequest("Invalid request body", parsed.error.flatten());
   }
 
   const uiMessages = parsed.data.messages as UIMessage[];
@@ -47,13 +45,10 @@ export async function POST(req: Request) {
   if (!gate.isActive) {
     const { allowed, remaining } = await checkMessageLimit(userId);
     if (!allowed) {
-      return NextResponse.json(
-        {
-          error: "Daily message limit reached. Upgrade to Pro for unlimited messages.",
-          limitType: "messages",
-          remaining: 0,
-        },
-        { status: 429 }
+      return apiError(
+        "Daily message limit reached. Upgrade to Pro for unlimited messages.",
+        429,
+        { limitType: "messages", remaining: 0 },
       );
     }
 

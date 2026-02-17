@@ -129,7 +129,8 @@ export function JobDetailPanel({
     fetch(`/api/jobs/${jobId}`, { signal: controller.signal })
       .then(async (res) => {
         if (!res.ok) throw new Error("Failed to load job details");
-        const data = (await res.json()) as { job: JobDetail };
+        const data = (await res.json()) as { job?: JobDetail };
+        if (!data.job) throw new Error("Job not found");
         if (!controller.signal.aborted) setJob(data.job);
       })
       .catch((err) => {

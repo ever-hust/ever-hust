@@ -91,14 +91,16 @@ export default function ChatPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jobId }),
       });
-      if (res.ok) {
-        const data = (await res.json()) as {
-          jobId: number;
-          favorited: boolean;
-        };
-        canvas.handleToolResult("favoriteJob", data);
-        toast.success(data.favorited ? "Job added to favorites" : "Job removed from favorites");
+      if (!res.ok) {
+        toast.error("Failed to update favorite");
+        return;
       }
+      const data = (await res.json()) as {
+        jobId: number;
+        favorited: boolean;
+      };
+      canvas.handleToolResult("favoriteJob", data);
+      toast.success(data.favorited ? "Job added to favorites" : "Job removed from favorites");
     } catch {
       toast.error("Failed to update favorite");
     }

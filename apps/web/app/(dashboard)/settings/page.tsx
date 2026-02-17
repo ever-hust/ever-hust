@@ -105,6 +105,7 @@ export default function SettingsPage() {
   const [deleting, setDeleting] = useState(false);
   const [clearChatDialogOpen, setClearChatDialogOpen] = useState(false);
   const [deleteAlertId, setDeleteAlertId] = useState<number | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
 
   const loadAlerts = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -123,6 +124,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     const controller = new AbortController();
+    setLoading(true);
     async function loadUser() {
       setLoadError(null);
       try {
@@ -168,7 +170,7 @@ export default function SettingsPage() {
     loadUser();
     loadAlerts(controller.signal);
     return () => controller.abort();
-  }, [loadAlerts]);
+  }, [loadAlerts, retryKey]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -466,12 +468,12 @@ export default function SettingsPage() {
         />
         <Card className="mt-6 p-6">
           <div className="flex flex-col items-center gap-3 py-6 text-center">
-            <AlertTriangle className="h-8 w-8 text-destructive" />
+            <AlertTriangle className="h-8 w-8 text-destructive" aria-hidden="true" />
             <p className="text-sm text-muted-foreground">{loadError}</p>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => window.location.reload()}
+              onClick={() => setRetryKey((k) => k + 1)}
             >
               Try Again
             </Button>

@@ -324,6 +324,7 @@ export function JobDetailPanel({
               ).map((tab) => (
                 <button
                   key={tab.id}
+                  id={`job-detail-tab-${tab.id}`}
                   type="button"
                   role="tab"
                   aria-selected={activeTab === tab.id}
@@ -342,7 +343,7 @@ export function JobDetailPanel({
             </div>
 
             {/* Scrollable content */}
-            <div id="job-detail-tabpanel" className="max-h-[50vh] overflow-y-auto px-6 py-4" role="tabpanel">
+            <div id="job-detail-tabpanel" className="max-h-[50vh] overflow-y-auto px-6 py-4" role="tabpanel" aria-labelledby={`job-detail-tab-${activeTab}`}>
               {/* Overview tab */}
               {activeTab === "overview" && (
                 <>

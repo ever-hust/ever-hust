@@ -81,6 +81,9 @@ export default function JobsPage() {
       if (filters.keywords) params.set("keywords", filters.keywords);
       if (filters.location) params.set("location", filters.location);
       if (filters.isRemote) params.set("isRemote", "true");
+      if (filters.jobType) params.set("jobType", filters.jobType);
+      if (filters.salaryMin) params.set("salaryMin", String(filters.salaryMin));
+      if (filters.salaryMax) params.set("salaryMax", String(filters.salaryMax));
 
       const res = await fetch(`/api/jobs/search?${params.toString()}`, {
         signal: controller.signal,

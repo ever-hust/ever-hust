@@ -81,6 +81,16 @@ type Token =
   | { type: "code"; value: string }
   | { type: "link"; href: string; label: string };
 
+/** Only allow http(s) links — blocks javascript:, data:, vbscript:, etc. */
+function isSafeHref(href: string): boolean {
+  try {
+    const url = new URL(href, "https://placeholder.invalid");
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
 function parseInline(line: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
   // Match bold, italic, inline code, and links
@@ -120,18 +130,23 @@ function parseInline(line: string): React.ReactNode[] {
         </code>
       );
     } else if (match[8] && match[9]) {
-      // Link [label](href)
-      nodes.push(
-        <a
-          key={match.index}
-          href={match[9]}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-primary underline underline-offset-2 hover:text-primary/80"
-        >
-          {match[8]}
-        </a>
-      );
+      // Link [label](href) — only render as clickable if safe protocol
+      if (isSafeHref(match[9])) {
+        nodes.push(
+          <a
+            key={match.index}
+            href={match[9]}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary underline underline-offset-2 hover:text-primary/80"
+          >
+            {match[8]}
+          </a>
+        );
+      } else {
+        // Unsafe protocol (javascript:, data:, etc.) — render as plain text
+        nodes.push(<span key={match.index}>{match[8]}</span>);
+      }
     }
 
     lastIndex = match.index + match[0].length;

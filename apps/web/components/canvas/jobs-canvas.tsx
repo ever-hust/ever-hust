@@ -48,16 +48,19 @@ export const JobsCanvas = memo(function JobsCanvas({
   // Infinite scroll sentinel
   const lastJobRef = useCallback(
     (node: HTMLElement | null) => {
-      if (isLoading) return;
-      if (observerRef.current) observerRef.current.disconnect();
+      // Always disconnect the previous observer first to prevent leaks
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+        observerRef.current = null;
+      }
+      if (isLoading || !node) return;
 
       observerRef.current = new IntersectionObserver((entries) => {
         if (entries[0]?.isIntersecting && hasMore) {
           onLoadMore();
         }
       });
-
-      if (node) observerRef.current.observe(node);
+      observerRef.current.observe(node);
     },
     [isLoading, hasMore, onLoadMore]
   );

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
 import {
   Heart,
   MapPin,
@@ -68,21 +67,21 @@ function FavoriteJobSkeleton() {
 }
 
 export default function FavoritesPage() {
-  const router = useRouter();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [favorites, setFavorites] = useState<FavoriteJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<number | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
 
   const reloadPage = useCallback(() => {
-    router.refresh();
-    setLoading(true);
-    setError(null);
-  }, [router]);
+    setRetryKey((k) => k + 1);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
+    setLoading(true);
+    setError(null);
     async function loadFavorites() {
       try {
         const res = await fetch("/api/user/favorites/list", { signal: controller.signal });
@@ -99,7 +98,7 @@ export default function FavoritesPage() {
     }
     loadFavorites();
     return () => { controller.abort(); };
-  }, []);
+  }, [retryKey]);
 
   const handleRemoveFavorite = useCallback(async (jobId: number) => {
     setRemovingId(jobId);

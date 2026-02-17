@@ -24,7 +24,7 @@ import { ScrollToTop } from "@/components/shared/scroll-to-top";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { PageHeader } from "@/components/shared/page-header";
-import { timeAgo } from "@/lib/format-date";
+import { timeAgo, formatSalary, formatLocation } from "@/lib/format-date";
 
 interface FavoriteJob {
   id: number;
@@ -48,24 +48,6 @@ interface FavoriteJob {
   savedAt: string;
   notes: string | null;
 }
-
-function formatSalary(min: string | null, max: string | null, currency: string | null) {
-  if (!min && !max) return null;
-  const symbol = (currency ?? "USD") === "USD" ? "$" : (currency ?? "USD");
-  const fmt = (v: string) => {
-    const num = Number(v);
-    if (num >= 1000) return `${symbol}${Math.round(num / 1000)}k`;
-    return `${symbol}${num.toLocaleString("en-US")}`;
-  };
-  if (min && max) return `${fmt(min)} - ${fmt(max)}`;
-  if (min) return `${fmt(min)}+`;
-  return `Up to ${fmt(max!)}`;
-}
-
-function formatLocation(city: string | null, state: string | null, country: string | null) {
-  return [city, state, country].filter(Boolean).join(", ") || null;
-}
-
 
 function FavoriteJobSkeleton() {
   return (
@@ -268,9 +250,9 @@ export default function FavoritesPage() {
                             disabled={isRemoving}
                           >
                             {isRemoving ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
                             ) : (
-                              <Trash2 className="h-3.5 w-3.5" />
+                              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                             )}
                           </Button>
                         </div>
@@ -280,7 +262,7 @@ export default function FavoritesPage() {
                       <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                         {location && (
                           <span className="inline-flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
+                            <MapPin className="h-3 w-3" aria-hidden="true" />
                             {location}
                           </span>
                         )}
@@ -291,19 +273,19 @@ export default function FavoritesPage() {
                         )}
                         {salary && (
                           <span className="inline-flex items-center gap-1 font-medium text-foreground">
-                            <DollarSign className="h-3 w-3" />
+                            <DollarSign className="h-3 w-3" aria-hidden="true" />
                             {salary}
                           </span>
                         )}
                         {posted && (
                           <span className="inline-flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
+                            <Clock className="h-3 w-3" aria-hidden="true" />
                             Posted {posted}
                           </span>
                         )}
                         {saved && (
                           <span className="inline-flex items-center gap-1">
-                            <Heart className="h-3 w-3" />
+                            <Heart className="h-3 w-3" aria-hidden="true" />
                             Saved {saved}
                           </span>
                         )}

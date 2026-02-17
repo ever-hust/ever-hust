@@ -6,6 +6,7 @@ import { Badge } from "@repo/ui/badge";
 import { Button } from "@repo/ui/button";
 import { cn } from "@repo/ui/lib/utils";
 import Link from "next/link";
+import { formatSalary, formatLocation, timeAgo } from "@/lib/format-date";
 
 export interface JobCardData {
   id: number;
@@ -40,51 +41,6 @@ interface JobCardProps {
   onViewDetails?: (jobId: number) => void;
 }
 
-function formatSalary(
-  min: string | null,
-  max: string | null,
-  currency: string | null,
-  interval: string | null
-) {
-  if (!min && !max) return null;
-  const curr = currency ?? "USD";
-  const fmt = (v: string) => {
-    const num = Number(v);
-    if (num >= 1000) return `${curr === "USD" ? "$" : curr}${Math.round(num / 1000)}k`;
-    return `${curr === "USD" ? "$" : curr}${num}`;
-  };
-  const parts = [];
-  if (min) parts.push(fmt(min));
-  if (max) parts.push(fmt(max));
-  const range = parts.join(" - ");
-  const int = interval === "yearly" ? "/yr" : interval ? `/${interval}` : "/yr";
-  return `${range}${int}`;
-}
-
-function formatLocation(
-  city: string | null,
-  state: string | null,
-  country: string | null,
-  isRemote: boolean | null
-) {
-  const parts = [city, state].filter(Boolean);
-  const loc = parts.length > 0 ? parts.join(", ") : country;
-  if (isRemote) return loc ? `${loc} (Remote)` : "Remote";
-  return loc ?? "Unknown";
-}
-
-function timeAgo(date: string | Date | null) {
-  if (!date) return null;
-  const d = typeof date === "string" ? new Date(date) : date;
-  const diff = Date.now() - d.getTime();
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  if (days === 0) return "Today";
-  if (days === 1) return "Yesterday";
-  if (days < 7) return `${days}d ago`;
-  if (days < 30) return `${Math.floor(days / 7)}w ago`;
-  return `${Math.floor(days / 30)}mo ago`;
-}
-
 /** Duration of the favorite-button bounce animation (ms). */
 const FAVORITE_ANIMATION_MS = 300;
 
@@ -115,7 +71,7 @@ export function JobCard({
     job.locationState,
     job.locationCountry,
     job.isRemote
-  );
+  ) ?? "Unknown";
   const posted = timeAgo(job.datePosted);
   const applyLink = job.applyUrl ?? job.jobUrl;
 
@@ -208,7 +164,7 @@ export function JobCard({
           {/* Location and salary */}
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1">
-              <MapPin className="h-3 w-3" />
+              <MapPin className="h-3 w-3" aria-hidden="true" />
               {location}
             </span>
             {salary && (
@@ -216,7 +172,7 @@ export function JobCard({
             )}
             {posted && (
               <span className="inline-flex items-center gap-1">
-                <Clock className="h-3 w-3" />
+                <Clock className="h-3 w-3" aria-hidden="true" />
                 {posted}
               </span>
             )}

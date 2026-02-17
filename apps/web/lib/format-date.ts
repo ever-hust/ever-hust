@@ -1,8 +1,9 @@
 /**
- * Shared date/time formatting utilities.
+ * Shared formatting utilities for dates, locations, and salaries.
  *
- * Consolidates the various `timeAgo`, `formatDate`, `formatRelativeTime`, and
- * `formatSessionDate` helpers that were duplicated across components.
+ * Consolidates the various `timeAgo`, `formatDate`, `formatRelativeTime`,
+ * `formatSessionDate`, `formatLocation`, and `formatSalary` helpers that
+ * were duplicated across components.
  */
 
 // ---------------------------------------------------------------------------
@@ -118,4 +119,75 @@ export function formatLocation(
   const loc = parts.join(", ");
   if (isRemote) return loc ? `${loc} (Remote)` : "Remote";
   return loc || null;
+}
+
+// ---------------------------------------------------------------------------
+// Salary formatting — "$80k - $120k/yr" / "$80,000 - $120,000"
+// ---------------------------------------------------------------------------
+
+/** Map well-known interval names to compact suffixes. */
+const INTERVAL_SUFFIXES: Record<string, string> = {
+  yearly: "/yr",
+  year: "/yr",
+  monthly: "/mo",
+  month: "/mo",
+  hourly: "/hr",
+  hour: "/hr",
+};
+
+/**
+ * Format a salary range for display.
+ *
+ * Two display modes:
+ * - `"compact"` (default) — abbreviates thousands as "k" (`$80k - $120k/yr`)
+ * - `"full"` — uses locale number formatting (`$80,000 - $120,000/year`)
+ *
+ * @example
+ * formatSalary("80000", "120000", "USD", "yearly")           // "$80k - $120k/yr"
+ * formatSalary("80000", "120000", "USD", "yearly", "full")   // "$80,000 - $120,000 /year"
+ * formatSalary("80000", null, "USD")                         // "$80k+"
+ * formatSalary(null, "120000", "EUR")                        // "Up to EUR120k"
+ */
+export function formatSalary(
+  min: string | null | undefined,
+  max: string | null | undefined,
+  currency?: string | null,
+  interval?: string | null,
+  mode: "compact" | "full" = "compact"
+): string | null {
+  if (!min && !max) return null;
+
+  const curr = currency ?? "USD";
+  const symbol = curr === "USD" ? "$" : curr;
+
+  const fmt = (v: string): string => {
+    const num = Number(v);
+    if (Number.isNaN(num)) return v;
+
+    if (mode === "compact" && num >= 1_000) {
+      return `${symbol}${Math.round(num / 1_000)}k`;
+    }
+    return `${symbol}${num.toLocaleString("en-US")}`;
+  };
+
+  // Build range portion
+  let range: string;
+  if (min && max) {
+    range = `${fmt(min)} - ${fmt(max)}`;
+  } else if (min) {
+    range = `${fmt(min)}+`;
+  } else {
+    range = `Up to ${fmt(max!)}`;
+  }
+
+  // Append interval suffix when provided
+  if (interval) {
+    const suffix =
+      mode === "compact"
+        ? (INTERVAL_SUFFIXES[interval] ?? `/${interval}`)
+        : ` /${interval}`;
+    return `${range}${suffix}`;
+  }
+
+  return range;
 }

@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { cn } from "@repo/ui/lib/utils";
 import Link from "next/link";
-import { timeAgo } from "@/lib/format-date";
+import { timeAgo, formatSalary, formatLocation } from "@/lib/format-date";
 
 interface JobDetail {
   id: number;
@@ -65,22 +65,6 @@ interface JobDetailPanelProps {
   onOpenChange: (open: boolean) => void;
   isFavorited?: boolean;
   onFavorite?: (jobId: number) => void;
-}
-
-function formatSalary(min: string | null, max: string | null, currency: string | null) {
-  if (!min && !max) return null;
-  const symbol = (currency ?? "USD") === "USD" ? "$" : (currency ?? "USD");
-  const fmt = (v: string) => {
-    const num = Number(v);
-    return `${symbol}${num.toLocaleString("en-US")}`;
-  };
-  if (min && max) return `${fmt(min)} - ${fmt(max)}`;
-  if (min) return `${fmt(min)}+`;
-  return `Up to ${fmt(max!)}`;
-}
-
-function formatLocation(city: string | null, state: string | null, country: string | null) {
-  return [city, state, country].filter(Boolean).join(", ") || null;
 }
 
 /** Duration to show the "Copied!" feedback (ms). */
@@ -164,7 +148,7 @@ export function JobDetailPanel({
     };
   }, [open, jobId]);
 
-  const salary = job ? formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency) : null;
+  const salary = job ? formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency, null, "full") : null;
   const location = job ? formatLocation(job.locationCity, job.locationState, job.locationCountry) : null;
   const posted = job ? timeAgo(job.datePosted) : null;
   const applyLink = job ? (job.applyUrl || job.jobUrl) : null;
@@ -226,13 +210,13 @@ export function JobDetailPanel({
                     )}
                     {location && (
                       <span className="inline-flex items-center gap-1">
-                        <MapPin className="h-3 w-3" />
+                        <MapPin className="h-3 w-3" aria-hidden="true" />
                         {location}
                       </span>
                     )}
                     {posted && (
                       <span className="inline-flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
+                        <Clock className="h-3 w-3" aria-hidden="true" />
                         {posted}
                       </span>
                     )}
@@ -249,7 +233,7 @@ export function JobDetailPanel({
                 {job.jobLevel && <Badge variant="secondary">{job.jobLevel}</Badge>}
                 {salary && (
                   <Badge variant="outline" className="font-semibold">
-                    <DollarSign className="mr-0.5 h-3 w-3" />
+                    <DollarSign className="mr-0.5 h-3 w-3" aria-hidden="true" />
                     {salary}
                   </Badge>
                 )}
@@ -465,7 +449,7 @@ export function JobDetailPanel({
                           className="mt-0.5 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
                         >
                           {job.companyUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")}
-                          <ExternalLink className="h-3 w-3" />
+                          <ExternalLink className="h-3 w-3" aria-hidden="true" />
                         </a>
                       </div>
                     )}

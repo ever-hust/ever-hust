@@ -34,11 +34,12 @@ export async function POST(req: Request) {
   const body = validation.data;
 
   try {
-    // Get user for email and existing Stripe customer ID
+    // Get user for email, existing Stripe customer ID, and current subscription status
     const userResult = await db
       .select({
         email: users.email,
         stripeCustomerId: users.stripeCustomerId,
+        subscriptionStatus: users.subscriptionStatus,
       })
       .from(users)
       .where(eq(users.id, userId))
@@ -49,6 +50,11 @@ export async function POST(req: Request) {
     }
 
     const dbUser = userResult[0]!;
+
+    // Prevent creating a duplicate subscription for already-subscribed users
+    if (dbUser.subscriptionStatus === "active") {
+      return apiBadRequest("You already have an active subscription. Use the billing portal to manage it.");
+    };
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
     const { url } = await createCheckoutSession({

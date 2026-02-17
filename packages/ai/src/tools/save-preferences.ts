@@ -8,7 +8,8 @@ export const savePreferencesTool = tool({
   description:
     "Save or update the user's job search preferences. Use this during onboarding or when the user explicitly updates their preferences. Merges with existing preferences.",
   inputSchema: z.object({
-    userId: z.string().describe("The current user's ID"),
+    // userId is injected server-side by the orchestrator — not LLM-provided
+    userId: z.string().optional(),
     preferences: z
       .object({
         jobType: z
@@ -77,6 +78,8 @@ export const savePreferencesTool = tool({
       .describe("Set to true to mark onboarding as completed"),
   }),
   execute: async ({ userId, preferences, markOnboardingComplete }) => {
+    if (!userId) return { saved: false, error: "Not authenticated" };
+
     // Get existing preferences
     const existing = await db
       .select({ preferences: users.preferences })

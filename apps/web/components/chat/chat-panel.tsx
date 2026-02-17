@@ -236,6 +236,8 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
 
   const handleRetry = useCallback(async () => {
     if (!lastUserMessage.current || isLoading) return;
+    // Cancel any in-flight request before retrying to prevent concurrent responses
+    stop();
     // Remove the last user message + any incomplete assistant response
     const trimmed = [...messages];
     while (trimmed.length > 0) {
@@ -245,7 +247,7 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
     }
     setMessages(trimmed);
     await sendMessage({ text: lastUserMessage.current });
-  }, [messages, isLoading, setMessages, sendMessage]);
+  }, [messages, isLoading, stop, setMessages, sendMessage]);
 
   const handleStop = useCallback(() => {
     stop();

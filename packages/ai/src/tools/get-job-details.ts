@@ -31,7 +31,7 @@ export const getJobDetailsTool = tool({
       companyLogo: job.companyLogo,
       companyIndustry: job.companyIndustry,
       companyNumEmployees: job.companyNumEmployees,
-      companyDescription: job.companyDescription,
+      companyDescription: job.companyDescription?.slice(0, 1500) ?? null,
       jobUrl: job.jobUrl,
       applyUrl: job.applyUrl,
       locationCity: job.locationCity,
@@ -39,7 +39,8 @@ export const getJobDetailsTool = tool({
       locationCountry: job.locationCountry,
       isRemote: job.isRemote,
       jobType: job.jobType,
-      description: job.description,
+      // Cap description to prevent excessive token consumption in LLM context
+      description: job.description?.slice(0, 3000) ?? null,
       skills: job.skills,
       department: job.department,
       jobLevel: job.jobLevel,

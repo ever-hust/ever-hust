@@ -8,7 +8,8 @@ export const createAlertTool = tool({
   description:
     "Create a job alert for the user. The user will receive email notifications at their specified frequency when new matching jobs are found. Only available for Pro subscribers.",
   inputSchema: z.object({
-    userId: z.string().describe("The current user's ID"),
+    // userId is injected server-side by the orchestrator — not LLM-provided
+    userId: z.string().optional(),
     frequency: z
       .enum(["daily", "twice_daily", "weekly"])
       .describe("How often to send alerts"),
@@ -52,6 +53,8 @@ export const createAlertTool = tool({
     roleLevel,
     industries,
   }) => {
+    if (!userId) return { created: false, error: "Not authenticated" };
+
     // Check subscription
     const userResult = await db
       .select({

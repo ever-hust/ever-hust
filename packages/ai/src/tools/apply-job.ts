@@ -8,7 +8,8 @@ export const applyJobTool = tool({
   description:
     "Initiate a job application for the user. This will open the job's application page and track the application. REQUIRES USER APPROVAL before executing.",
   inputSchema: z.object({
-    userId: z.string().describe("The current user's ID"),
+    // userId is injected server-side by the orchestrator — not LLM-provided
+    userId: z.string().optional(),
     jobId: z.number().describe("The job ID to apply for"),
     coverLetter: z
       .string()
@@ -17,6 +18,8 @@ export const applyJobTool = tool({
       .describe("Optional cover letter text to include"),
   }),
   execute: async ({ userId, jobId, coverLetter }) => {
+    if (!userId) return { applied: false, error: "Not authenticated" };
+
     // Get user profile
     const userResult = await db
       .select({

@@ -4,7 +4,7 @@ export const maxDuration = 30;
 import { db, users, subscriptions } from "@repo/db";
 import { getStripe, parseWebhookEvent } from "@repo/stripe";
 import { sendSubscriptionConfirmedEmail } from "@repo/email";
-import { eq } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 // ── Idempotency Guard ─────────────────────────────────────────────────────
@@ -50,9 +50,11 @@ export async function POST(req: Request) {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!webhookSecret) {
     console.error("[stripe/webhook] STRIPE_WEBHOOK_SECRET is not configured");
+    // Return 400 (not 500) so Stripe treats this as a permanent error and
+    // does not retry indefinitely for a server misconfiguration.
     return NextResponse.json(
       { error: "Webhook secret not configured" },
-      { status: 500 },
+      { status: 400 },
     );
   }
 
@@ -90,11 +92,20 @@ export async function POST(req: Request) {
       }
 
       case "invoice.paid": {
+        // Only set "active" if the subscription is not already canceled.
+        // Stripe can send invoice.paid after a subscription.deleted event
+        // (e.g. final invoice on immediate cancellation) and event ordering
+        // is not guaranteed — we must not re-activate a canceled subscription.
         const { stripeCustomerId } = parsed.data;
         await db
           .update(users)
           .set({ subscriptionStatus: "active", updatedAt: new Date() })
-          .where(eq(users.stripeCustomerId, stripeCustomerId));
+          .where(
+            and(
+              eq(users.stripeCustomerId, stripeCustomerId),
+              ne(users.subscriptionStatus, "canceled"),
+            )
+          );
         break;
       }
 
@@ -276,20 +287,16 @@ async function handleSubscriptionUpdated(data: {
       .set({ subscriptionStatus: userStatus, updatedAt: new Date() })
       .where(eq(users.stripeCustomerId, stripeCustomerId));
 
-    const updateValues: Record<string, unknown> = {
-      status,
-      currentPeriodStart,
-      currentPeriodEnd,
-      cancelAtPeriodEnd,
-      updatedAt: new Date(),
-    };
-    if (planId) {
-      updateValues.planType = planId;
-    }
-
     await tx
       .update(subscriptions)
-      .set(updateValues)
+      .set({
+        status,
+        currentPeriodStart,
+        currentPeriodEnd,
+        cancelAtPeriodEnd,
+        updatedAt: new Date(),
+        ...(planId ? { planType: planId as "monthly" | "quarterly" | "annual" } : {}),
+      })
       .where(eq(subscriptions.stripeSubscriptionId, stripeSubscriptionId));
   });
 }

@@ -8,7 +8,7 @@ export const chatRequestSchema = z.object({
         id: z.string(),
         role: z.enum(["user", "assistant"]),
         content: z.string().min(1).max(50_000),
-        parts: z.array(z.unknown()).optional(),
+        parts: z.array(z.object({ type: z.string().max(100) }).passthrough()).max(200).optional(),
       })
     )
     .max(100),

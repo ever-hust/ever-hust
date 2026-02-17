@@ -9,9 +9,12 @@ export const favoriteJobTool = tool({
     "Toggle a job as favorited for the current user. If already favorited, it removes the favorite. If not favorited, it adds it.",
   inputSchema: z.object({
     jobId: z.number().describe("The ID of the job to favorite/unfavorite"),
-    userId: z.string().describe("The current user's ID"),
+    // userId is injected server-side by the orchestrator — not LLM-provided
+    userId: z.string().optional(),
   }),
   execute: async ({ jobId, userId }) => {
+    if (!userId) return { jobId, favorited: false, message: "Not authenticated" };
+
     // Check for any existing userJobs record (regardless of status)
     // to avoid unique constraint violations when toggling favorites
     const existing = await db

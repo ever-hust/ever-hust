@@ -8,7 +8,8 @@ export const submitAnswersTool = tool({
   description:
     "Submit the user's answers to application questions. This updates the application record with the answers provided. REQUIRES USER APPROVAL before executing. Only available to Pro subscribers.",
   inputSchema: z.object({
-    userId: z.string().describe("The current user's ID"),
+    // userId is injected server-side by the orchestrator — not LLM-provided
+    userId: z.string().optional(),
     applicationId: z
       .number()
       .describe("The application ID to submit answers for"),
@@ -23,6 +24,8 @@ export const submitAnswersTool = tool({
       .describe("Array of question-answer pairs"),
   }),
   execute: async ({ userId, applicationId, answers }) => {
+    if (!userId) return { submitted: false, error: "Not authenticated" };
+
     // Check subscription — submitting answers is a Pro feature
     const userResult = await db
       .select({ subscriptionStatus: users.subscriptionStatus })

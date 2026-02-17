@@ -15,10 +15,11 @@ export const submitAnswersTool = tool({
     answers: z
       .array(
         z.object({
-          questionId: z.string().describe("The question identifier"),
-          answer: z.string().describe("The user's answer to the question"),
+          questionId: z.string().max(100).describe("The question identifier"),
+          answer: z.string().max(5000).describe("The user's answer to the question"),
         })
       )
+      .max(50)
       .describe("Array of question-answer pairs"),
   }),
   execute: async ({ userId, applicationId, answers }) => {

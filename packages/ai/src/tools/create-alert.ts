@@ -13,11 +13,13 @@ export const createAlertTool = tool({
       .enum(["daily", "twice_daily", "weekly"])
       .describe("How often to send alerts"),
     keywords: z
-      .array(z.string())
+      .array(z.string().max(200))
+      .max(20)
       .optional()
       .describe("Keywords to match in job titles/descriptions"),
     locations: z
-      .array(z.string())
+      .array(z.string().max(200))
+      .max(10)
       .optional()
       .describe("Locations to filter by"),
     remoteType: z
@@ -25,15 +27,18 @@ export const createAlertTool = tool({
       .optional()
       .describe("Remote work preference"),
     skills: z
-      .array(z.string())
+      .array(z.string().max(100))
+      .max(30)
       .optional()
       .describe("Skills to match against job requirements"),
     roleLevel: z
-      .array(z.string())
+      .array(z.string().max(50))
+      .max(10)
       .optional()
       .describe("Role levels like junior, mid, senior, lead"),
     industries: z
-      .array(z.string())
+      .array(z.string().max(200))
+      .max(20)
       .optional()
       .describe("Industry preferences"),
   }),

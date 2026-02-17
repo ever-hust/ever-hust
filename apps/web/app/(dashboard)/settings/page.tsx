@@ -187,9 +187,9 @@ export default function SettingsPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: formName,
-          headline: formHeadline,
-          location: formLocation,
+          name: formName.trim(),
+          headline: formHeadline.trim(),
+          location: formLocation.trim(),
         }),
       });
       if (res.ok) {
@@ -523,6 +523,7 @@ export default function SettingsPage() {
               id="name"
               value={formName}
               onChange={(e) => setFormName(e.target.value)}
+              maxLength={200}
               className="mt-1"
             />
           </div>
@@ -535,6 +536,7 @@ export default function SettingsPage() {
               value={formHeadline}
               onChange={(e) => setFormHeadline(e.target.value)}
               placeholder="e.g. Senior Software Engineer"
+              maxLength={500}
               className="mt-1"
             />
           </div>
@@ -547,6 +549,7 @@ export default function SettingsPage() {
               value={formLocation}
               onChange={(e) => setFormLocation(e.target.value)}
               placeholder="e.g. San Francisco, CA"
+              maxLength={200}
               className="mt-1"
             />
           </div>

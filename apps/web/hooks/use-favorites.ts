@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 /** Toggle a job ID in a Set — returns a new Set with the item added or removed. */
@@ -53,8 +53,16 @@ export function useFavorites() {
     return () => { controller.abort(); };
   }, []);
 
+  // Track in-flight toggles to prevent race conditions from rapid clicks
+  const inFlightRef = useRef<Set<number>>(new Set());
+
   // Optimistic toggle with API persist
   const toggleFavorite = useCallback(async (jobId: number) => {
+    // Prevent concurrent toggles for the same job — avoids out-of-order
+    // response reconciliation that would desync UI and server state.
+    if (inFlightRef.current.has(jobId)) return;
+    inFlightRef.current.add(jobId);
+
     // Optimistic update
     setFavoritedJobIds((prev) => toggleInSet(prev, jobId));
 
@@ -98,6 +106,8 @@ export function useFavorites() {
         "[useFavorites] Failed to toggle favorite:",
         err instanceof Error ? err.message : err
       );
+    } finally {
+      inFlightRef.current.delete(jobId);
     }
   }, []);
 

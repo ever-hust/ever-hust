@@ -33,24 +33,24 @@ export async function POST(req: Request) {
   }
   const body = validation.data;
 
-  // Get user for email and existing Stripe customer ID
-  const userResult = await db
-    .select({
-      email: users.email,
-      stripeCustomerId: users.stripeCustomerId,
-    })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-
-  if (userResult.length === 0) {
-    return apiNotFound("User not found");
-  }
-
-  const dbUser = userResult[0]!;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-
   try {
+    // Get user for email and existing Stripe customer ID
+    const userResult = await db
+      .select({
+        email: users.email,
+        stripeCustomerId: users.stripeCustomerId,
+      })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (userResult.length === 0) {
+      return apiNotFound("User not found");
+    }
+
+    const dbUser = userResult[0]!;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
     const { url } = await createCheckoutSession({
       userId,
       email: dbUser.email,

@@ -181,6 +181,9 @@ export function JobDetailPanel({
                       src={job.companyLogo}
                       alt={job.companyName ? `${job.companyName} logo` : "Company logo"}
                       className="h-8 w-8 rounded object-contain"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).style.display = "none";
+                      }}
                     />
                   ) : (
                     <Building2 className="h-6 w-6 text-muted-foreground" aria-hidden="true" />

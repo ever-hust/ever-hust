@@ -108,6 +108,10 @@ export const JobCard = memo(function JobCard({
               className="h-8 w-8 rounded object-contain"
               loading="lazy"
               decoding="async"
+              onError={(e) => {
+                // Hide broken image and show nothing (fallback icon is in the else branch)
+                (e.currentTarget as HTMLImageElement).style.display = "none";
+              }}
             />
           ) : (
             <Building2 className="h-5 w-5 text-muted-foreground" aria-hidden="true" />

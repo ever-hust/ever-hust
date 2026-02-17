@@ -49,7 +49,11 @@ export async function POST(req: Request) {
       signature,
       process.env.STRIPE_WEBHOOK_SECRET!
     );
-  } catch {
+  } catch (err) {
+    console.error(
+      "[stripe/webhook] Signature verification failed:",
+      err instanceof Error ? err.message : err,
+    );
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
@@ -64,156 +68,176 @@ export async function POST(req: Request) {
     return NextResponse.json({ received: true });
   }
 
-  switch (parsed.type) {
-    case "checkout.session.completed": {
-      const { userId, planId, stripeCustomerId, stripeSubscriptionId } =
-        parsed.data;
-
-      // Fetch the subscription to get period dates
-      const sub = await getStripe().subscriptions.retrieve(stripeSubscriptionId);
-
-      // Use a transaction to ensure user + subscription are updated atomically
-      await db.transaction(async (tx) => {
-        // Update user with Stripe customer ID and active status
-        await tx
-          .update(users)
-          .set({
-            stripeCustomerId,
-            subscriptionStatus: "active",
-            updatedAt: new Date(),
-          })
-          .where(eq(users.id, userId));
-
-        // Create subscription record
-        await tx.insert(subscriptions).values({
-          userId,
-          stripeSubscriptionId,
-          planType: planId as "monthly" | "quarterly" | "annual",
-          status: "active",
-          currentPeriodStart: new Date(sub.current_period_start * 1000),
-          currentPeriodEnd: new Date(sub.current_period_end * 1000),
-          cancelAtPeriodEnd: sub.cancel_at_period_end,
-        });
-      });
-
-      // Send subscription confirmation email (non-blocking, outside transaction)
-      try {
-        const userRow = await db
-          .select({ name: users.name, email: users.email })
-          .from(users)
-          .where(eq(users.id, userId))
-          .limit(1);
-
-        if (userRow.length > 0 && userRow[0]!.email) {
-          const plan = PLAN_INFO[planId] ?? PLAN_INFO.monthly!;
-          await sendSubscriptionConfirmedEmail({
-            to: userRow[0]!.email,
-            userName: userRow[0]!.name ?? "there",
-            planName: plan.name,
-            amount: plan.amount,
-            billingCycle: plan.cycle,
-          });
-        }
-      } catch (emailError) {
-        // Don't fail the webhook if email sending fails
-        console.error(
-          "Failed to send subscription confirmation email:",
-          emailError instanceof Error ? emailError.message : emailError
-        );
+  try {
+    switch (parsed.type) {
+      case "checkout.session.completed": {
+        await handleCheckoutCompleted(parsed.data);
+        break;
       }
 
-      break;
-    }
-
-    case "invoice.paid": {
-      const { stripeCustomerId } = parsed.data;
-
-      // Ensure user status is active on successful payment
-      await db
-        .update(users)
-        .set({ subscriptionStatus: "active", updatedAt: new Date() })
-        .where(eq(users.stripeCustomerId, stripeCustomerId));
-
-      break;
-    }
-
-    case "invoice.payment_failed": {
-      const { stripeCustomerId } = parsed.data;
-
-      await db
-        .update(users)
-        .set({ subscriptionStatus: "past_due", updatedAt: new Date() })
-        .where(eq(users.stripeCustomerId, stripeCustomerId));
-
-      break;
-    }
-
-    case "customer.subscription.updated": {
-      const {
-        stripeSubscriptionId,
-        status,
-        currentPeriodStart,
-        currentPeriodEnd,
-        cancelAtPeriodEnd,
-        planId,
-        stripeCustomerId,
-      } = parsed.data;
-
-      // Map Stripe status to our user status
-      const userStatus =
-        status === "active"
-          ? "active"
-          : status === "past_due"
-            ? "past_due"
-            : "canceled";
-
-      // Update user + subscription atomically
-      await db.transaction(async (tx) => {
-        await tx
+      case "invoice.paid": {
+        const { stripeCustomerId } = parsed.data;
+        await db
           .update(users)
-          .set({ subscriptionStatus: userStatus, updatedAt: new Date() })
+          .set({ subscriptionStatus: "active", updatedAt: new Date() })
           .where(eq(users.stripeCustomerId, stripeCustomerId));
+        break;
+      }
 
-        // Update subscription record
-        const updateValues: Record<string, unknown> = {
-          status,
-          currentPeriodStart,
-          currentPeriodEnd,
-          cancelAtPeriodEnd,
-          updatedAt: new Date(),
-        };
-        if (planId) {
-          updateValues.planType = planId;
-        }
-
-        await tx
-          .update(subscriptions)
-          .set(updateValues)
-          .where(eq(subscriptions.stripeSubscriptionId, stripeSubscriptionId));
-      });
-
-      break;
-    }
-
-    case "customer.subscription.deleted": {
-      const { stripeCustomerId, stripeSubscriptionId } = parsed.data;
-
-      // Cancel user + subscription atomically
-      await db.transaction(async (tx) => {
-        await tx
+      case "invoice.payment_failed": {
+        const { stripeCustomerId } = parsed.data;
+        await db
           .update(users)
-          .set({ subscriptionStatus: "canceled", updatedAt: new Date() })
+          .set({ subscriptionStatus: "past_due", updatedAt: new Date() })
           .where(eq(users.stripeCustomerId, stripeCustomerId));
+        break;
+      }
 
-        await tx
-          .update(subscriptions)
-          .set({ status: "canceled", updatedAt: new Date() })
-          .where(eq(subscriptions.stripeSubscriptionId, stripeSubscriptionId));
-      });
+      case "customer.subscription.updated": {
+        await handleSubscriptionUpdated(parsed.data);
+        break;
+      }
 
-      break;
+      case "customer.subscription.deleted": {
+        const { stripeCustomerId, stripeSubscriptionId } = parsed.data;
+        await db.transaction(async (tx) => {
+          await tx
+            .update(users)
+            .set({ subscriptionStatus: "canceled", updatedAt: new Date() })
+            .where(eq(users.stripeCustomerId, stripeCustomerId));
+
+          await tx
+            .update(subscriptions)
+            .set({ status: "canceled", updatedAt: new Date() })
+            .where(eq(subscriptions.stripeSubscriptionId, stripeSubscriptionId));
+        });
+        break;
+      }
     }
+  } catch (error) {
+    console.error(
+      `[stripe/webhook] Error processing ${parsed.type}:`,
+      error instanceof Error ? error.stack ?? error.message : error,
+    );
+    // Return 500 so Stripe retries the webhook
+    return NextResponse.json(
+      { error: "Webhook handler failed" },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({ received: true });
+}
+
+// ── Event Handlers ──────────────────────────────────────────────────────────
+
+async function handleCheckoutCompleted(data: {
+  userId: string;
+  planId: string;
+  stripeCustomerId: string;
+  stripeSubscriptionId: string;
+}) {
+  const { userId, planId, stripeCustomerId, stripeSubscriptionId } = data;
+
+  // Fetch the subscription to get period dates
+  const sub = await getStripe().subscriptions.retrieve(stripeSubscriptionId);
+
+  // Use a transaction to ensure user + subscription are updated atomically
+  await db.transaction(async (tx) => {
+    await tx
+      .update(users)
+      .set({
+        stripeCustomerId,
+        subscriptionStatus: "active",
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+
+    await tx.insert(subscriptions).values({
+      userId,
+      stripeSubscriptionId,
+      planType: planId as "monthly" | "quarterly" | "annual",
+      status: "active",
+      currentPeriodStart: new Date(sub.current_period_start * 1000),
+      currentPeriodEnd: new Date(sub.current_period_end * 1000),
+      cancelAtPeriodEnd: sub.cancel_at_period_end,
+    });
+  });
+
+  // Send subscription confirmation email (non-blocking, outside transaction)
+  try {
+    const userRow = await db
+      .select({ name: users.name, email: users.email })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (userRow.length > 0 && userRow[0]!.email) {
+      const plan = PLAN_INFO[planId] ?? PLAN_INFO.monthly!;
+      await sendSubscriptionConfirmedEmail({
+        to: userRow[0]!.email,
+        userName: userRow[0]!.name ?? "there",
+        planName: plan.name,
+        amount: plan.amount,
+        billingCycle: plan.cycle,
+      });
+    }
+  } catch (emailError) {
+    // Don't fail the webhook if email sending fails
+    console.error(
+      "[stripe/webhook] Failed to send subscription confirmation email:",
+      emailError instanceof Error ? emailError.message : emailError,
+    );
+  }
+}
+
+async function handleSubscriptionUpdated(data: {
+  stripeSubscriptionId: string;
+  status: string;
+  currentPeriodStart: Date;
+  currentPeriodEnd: Date;
+  cancelAtPeriodEnd: boolean;
+  planId: string | null;
+  stripeCustomerId: string;
+}) {
+  const {
+    stripeSubscriptionId,
+    status,
+    currentPeriodStart,
+    currentPeriodEnd,
+    cancelAtPeriodEnd,
+    planId,
+    stripeCustomerId,
+  } = data;
+
+  // Map Stripe status to our user status
+  const userStatus =
+    status === "active"
+      ? "active"
+      : status === "past_due"
+        ? "past_due"
+        : "canceled";
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(users)
+      .set({ subscriptionStatus: userStatus, updatedAt: new Date() })
+      .where(eq(users.stripeCustomerId, stripeCustomerId));
+
+    const updateValues: Record<string, unknown> = {
+      status,
+      currentPeriodStart,
+      currentPeriodEnd,
+      cancelAtPeriodEnd,
+      updatedAt: new Date(),
+    };
+    if (planId) {
+      updateValues.planType = planId;
+    }
+
+    await tx
+      .update(subscriptions)
+      .set(updateValues)
+      .where(eq(subscriptions.stripeSubscriptionId, stripeSubscriptionId));
+  });
 }

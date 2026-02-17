@@ -4,6 +4,12 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { applyRateLimit } from "../../../../lib/rate-limit";
+import {
+  apiSuccess,
+  apiBadRequest,
+  apiNotFound,
+  apiError,
+} from "../../../../lib/api-response";
 
 export async function POST() {
   let sessionUser;
@@ -24,15 +30,12 @@ export async function POST() {
     .limit(1);
 
   if (userResult.length === 0) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
+    return apiNotFound("User not found");
   }
 
   const dbUser = userResult[0]!;
   if (!dbUser.stripeCustomerId) {
-    return NextResponse.json(
-      { error: "No active subscription" },
-      { status: 400 }
-    );
+    return apiBadRequest("No active subscription");
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -43,10 +46,12 @@ export async function POST() {
       returnUrl: `${appUrl}/settings`,
     });
 
-    return NextResponse.json({ url });
+    return apiSuccess({ url });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Failed to create portal";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error(
+      "[stripe/portal] Failed to create portal session:",
+      error instanceof Error ? error.message : error,
+    );
+    return apiError("Failed to create billing portal session");
   }
 }

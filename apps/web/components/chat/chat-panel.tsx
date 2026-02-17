@@ -74,6 +74,8 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
   const scrollRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
   const [agentState, setAgentState] = useState<AgentState>("idle");
+  const agentStateRef = useRef<AgentState>(agentState);
+  agentStateRef.current = agentState;
   const [activeToolName, setActiveToolName] = useState<string | undefined>();
   const coverLetterPending = useRef(false);
   const hasCreatedSession = useRef(false);
@@ -126,19 +128,20 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
     }
   }, [initialPrompt, messages.length]);
 
-  // Sync agent state with chat status
+  // Sync agent state with chat status — read agentState via ref to avoid
+  // re-running the effect when agentState itself changes (feedback loop).
   useEffect(() => {
     if (status === "submitted") {
       setAgentState("thinking");
       setActiveToolName(undefined);
     } else if (status === "streaming") {
       // If streaming and not tool-running, it's the LLM generating text
-      if (agentState !== "tool-running") {
+      if (agentStateRef.current !== "tool-running") {
         setAgentState("thinking");
       }
     } else if (status === "ready") {
       // Brief "done" flash before going idle
-      if (agentState !== "idle") {
+      if (agentStateRef.current !== "idle") {
         setAgentState("done");
         const timer = setTimeout(() => {
           setAgentState("idle");
@@ -147,7 +150,7 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
         return () => clearTimeout(timer);
       }
     }
-  }, [status, agentState]);
+  }, [status]);
 
   // Create a session on first user message
   useEffect(() => {

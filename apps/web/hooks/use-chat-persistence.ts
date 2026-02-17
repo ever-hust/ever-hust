@@ -60,32 +60,35 @@ export function useChatPersistence() {
     };
   }, []);
 
-  // Load sessions on mount
-  useEffect(() => {
-    loadSessions();
-  }, []);
-
-  const loadSessions = useCallback(async () => {
+  const loadSessions = useCallback(async (signal?: AbortSignal) => {
     setIsLoadingSessions(true);
     try {
-      const res = await fetch("/api/chat/sessions");
-      if (res.ok) {
+      const res = await fetch("/api/chat/sessions", { signal });
+      if (res.ok && !signal?.aborted) {
         const data = (await res.json()) as { sessions: ChatSession[] };
         setSessions(data.sessions);
-      } else {
+      } else if (!signal?.aborted) {
         console.warn(
           `${LOG_PREFIX} Failed to load sessions: ${res.status} ${res.statusText}`
         );
       }
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
       console.warn(
         `${LOG_PREFIX} Failed to load sessions:`,
         error instanceof Error ? error.message : error
       );
     } finally {
-      setIsLoadingSessions(false);
+      if (!signal?.aborted) setIsLoadingSessions(false);
     }
   }, []);
+
+  // Load sessions on mount with proper AbortController cleanup
+  useEffect(() => {
+    const controller = new AbortController();
+    loadSessions(controller.signal);
+    return () => { controller.abort(); };
+  }, [loadSessions]);
 
   const createSession = useCallback(async (): Promise<string | null> => {
     try {

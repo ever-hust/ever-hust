@@ -65,17 +65,14 @@ function renderDescription(text: string) {
         );
       if (level === 2)
         return (
-          <h4
-            key={i}
-            className="mb-2 mt-5 text-base font-semibold first:mt-0"
-          >
+          <h4 key={i} className="mb-2 mt-5 text-base font-semibold first:mt-0">
             {content}
           </h4>
         );
       return (
-        <h5 key={i} className="mb-2 mt-4 text-sm font-semibold first:mt-0">
+        <h4 key={i} className="mb-2 mt-4 text-sm font-semibold first:mt-0">
           {content}
-        </h5>
+        </h4>
       );
     }
 

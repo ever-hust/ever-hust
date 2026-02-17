@@ -163,14 +163,20 @@ export function useChatPersistence() {
       );
       if (unsaved.length === 0) return;
 
+      // Capture the session ID at call time so the debounced callback only
+      // writes to the session that was active when these messages appeared.
+      // If the session changes during the debounce window, the stale save
+      // is discarded instead of writing to the wrong session.
+      const capturedSessionId = activeSessionId;
+
       // Debounce saves
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(async () => {
         if (!mountedRef.current) return;
-        // Use ref to get the latest session ID at execution time,
-        // avoiding stale closures when the session changes during debounce
-        const sessionId = activeSessionIdRef.current;
-        if (!sessionId) return;
+        // Discard if the session changed during the debounce window
+        const currentSessionId = activeSessionIdRef.current;
+        if (!currentSessionId || currentSessionId !== capturedSessionId) return;
+        const sessionId = currentSessionId;
 
         const payload = unsaved.map((m) => {
           // Extract text content from parts if available

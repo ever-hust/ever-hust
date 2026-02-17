@@ -18,6 +18,9 @@ export async function GET() {
     return response as NextResponse;
   }
 
+  const rateLimited = applyRateLimit(user.id, "authenticated");
+  if (rateLimited) return rateLimited;
+
   try {
     const sessions = await db
       .select({

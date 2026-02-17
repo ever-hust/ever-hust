@@ -16,6 +16,9 @@ export async function GET() {
   }
   const userId = sessionUser.id;
 
+  const rateLimited = applyRateLimit(userId, "authenticated");
+  if (rateLimited) return rateLimited;
+
   try {
     const userResult = await db
       .select()
@@ -58,6 +61,23 @@ export async function GET() {
       .where(and(eq(userJobs.userId, userId), eq(userJobs.status, "applied")))
       .limit(20);
 
+    // Redact sensitive BYOK API keys from the response — only indicate
+    // whether each key is configured (true/false) so the UI can show status
+    // without exposing the raw secret.
+    const prefs = user.preferences as Record<string, unknown> | null;
+    let safePreferences = prefs;
+    if (prefs && typeof prefs === "object" && prefs.apiKeys) {
+      const keys = prefs.apiKeys as Record<string, string | undefined>;
+      safePreferences = {
+        ...prefs,
+        apiKeys: {
+          anthropic: !!keys.anthropic,
+          openai: !!keys.openai,
+          google: !!keys.google,
+        },
+      };
+    }
+
     return apiSuccess({
       user: {
         id: user.id,
@@ -68,7 +88,7 @@ export async function GET() {
         photoUrl: user.photoUrl,
         skills: user.skills,
         experience: user.experience,
-        preferences: user.preferences,
+        preferences: safePreferences,
         cvParsedData: user.cvParsedData,
         subscriptionStatus: user.subscriptionStatus,
         onboardingCompleted: user.onboardingCompleted,

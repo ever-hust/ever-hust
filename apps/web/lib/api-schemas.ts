@@ -2,14 +2,16 @@ import { z } from "zod";
 
 // === Chat Route ===
 export const chatRequestSchema = z.object({
-  messages: z.array(
-    z.object({
-      id: z.string(),
-      role: z.enum(["user", "assistant", "system"]),
-      content: z.string(),
-      parts: z.array(z.unknown()).optional(),
-    })
-  ),
+  messages: z
+    .array(
+      z.object({
+        id: z.string(),
+        role: z.enum(["user", "assistant"]),
+        content: z.string().max(50_000),
+        parts: z.array(z.unknown()).optional(),
+      })
+    )
+    .max(100),
 });
 
 // === User Settings Route ===

@@ -50,22 +50,27 @@ export async function GET(req: NextRequest) {
   // Overall status
   const isHealthy = Object.values(checks).every((c) => c.status === "ok");
 
-  // Memory usage
-  const mem = process.memoryUsage();
+  // Only expose detailed telemetry to internal callers that provide the health
+  // token. Public consumers get a minimal status-only response.
+  const healthToken = req.headers.get("x-health-token");
+  const isInternal = healthToken === process.env.HEALTH_CHECK_TOKEN && !!healthToken;
 
-  return apiSuccess(
-    {
-      status: isHealthy ? "healthy" : "unhealthy",
-      timestamp: new Date().toISOString(),
-      version: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "dev",
-      uptime: Math.round(process.uptime()),
-      memory: {
-        heapUsedMB: Math.round(mem.heapUsed / 1024 / 1024),
-        heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024),
-        rssMB: Math.round(mem.rss / 1024 / 1024),
-      },
-      checks,
-    },
-    { status: isHealthy ? 200 : 503, cacheSeconds: 0 },
-  );
+  const body: Record<string, unknown> = {
+    status: isHealthy ? "healthy" : "unhealthy",
+    timestamp: new Date().toISOString(),
+    checks,
+  };
+
+  if (isInternal) {
+    const mem = process.memoryUsage();
+    body.version = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "dev";
+    body.uptime = Math.round(process.uptime());
+    body.memory = {
+      heapUsedMB: Math.round(mem.heapUsed / 1024 / 1024),
+      heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024),
+      rssMB: Math.round(mem.rss / 1024 / 1024),
+    };
+  }
+
+  return apiSuccess(body, { status: isHealthy ? 200 : 503, cacheSeconds: 0 });
 }

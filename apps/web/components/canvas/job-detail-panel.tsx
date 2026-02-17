@@ -27,6 +27,7 @@ import {
 import { cn } from "@repo/ui/lib/utils";
 import Link from "next/link";
 import { timeAgo, formatSalary, formatLocation } from "@/lib/format-date";
+import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 
 interface JobDetail {
   id: number;
@@ -67,9 +68,6 @@ interface JobDetailPanelProps {
   onFavorite?: (jobId: number) => void;
 }
 
-/** Duration to show the "Copied!" feedback (ms). */
-const COPY_FEEDBACK_MS = 2_000;
-
 type DetailTab = "overview" | "skills" | "company";
 
 export function JobDetailPanel({
@@ -82,16 +80,8 @@ export function JobDetailPanel({
   const [job, setJob] = useState<JobDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<DetailTab>("overview");
-  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Clean up copy feedback timer on unmount
-  useEffect(() => {
-    return () => {
-      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-    };
-  }, []);
+  const { copied, copy } = useCopyToClipboard();
 
   const handleShare = useCallback(async () => {
     if (!job) return;
@@ -106,14 +96,11 @@ export function JobDetailPanel({
         return;
       }
       // Fallback: copy to clipboard
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-      copyTimerRef.current = setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
+      await copy(url);
     } catch {
       // User cancelled share or clipboard failed
     }
-  }, [job]);
+  }, [job, copy]);
 
   useEffect(() => {
     if (!open || jobId === null) {

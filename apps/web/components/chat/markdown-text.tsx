@@ -1,10 +1,8 @@
 "use client";
 
-import { memo, useMemo, useState, useCallback, useRef, useEffect } from "react";
+import { memo, useMemo } from "react";
 import { Check, Copy } from "lucide-react";
-
-/** Duration to show the "Copied!" feedback (ms). */
-const COPY_FEEDBACK_MS = 2_000;
+import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 
 /**
  * Lightweight markdown renderer for chat messages.
@@ -21,44 +19,12 @@ export const MarkdownText = memo(MarkdownTextInner);
 
 /** Copy button for code blocks */
 function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Clean up timer on unmount to prevent state-update-after-unmount
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, []);
-
-  const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      // Fallback for older browsers — use a temporary textarea
-      try {
-        const textarea = document.createElement("textarea");
-        textarea.value = text;
-        textarea.style.position = "fixed";
-        textarea.style.opacity = "0";
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textarea);
-      } catch {
-        // Both clipboard methods failed — nothing we can do
-        return;
-      }
-    }
-    setCopied(true);
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
-  }, [text]);
+  const { copied, copy } = useCopyToClipboard();
 
   return (
     <button
       type="button"
-      onClick={handleCopy}
+      onClick={() => copy(text)}
       className="absolute right-2 top-2 rounded p-1 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-muted-foreground"
       aria-label={copied ? "Copied!" : "Copy code"}
       title={copied ? "Copied!" : "Copy code"}

@@ -103,7 +103,7 @@ export function OnboardingDialog({
     setIsSubmitting(true);
     try {
       // Save profile data
-      await fetch("/api/user/profile", {
+      const profileRes = await fetch("/api/user/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -113,16 +113,18 @@ export function OnboardingDialog({
           onboardingCompleted: true,
         }),
       });
+      if (!profileRes.ok) throw new Error("Failed to save profile");
 
       // Save experience level to preferences
       if (selectedLevel) {
-        await fetch("/api/user/settings", {
+        const settingsRes = await fetch("/api/user/settings", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             preferences: { experienceLevel: selectedLevel },
           }),
         });
+        if (!settingsRes.ok) throw new Error("Failed to save preferences");
       }
       toast.success("Profile set up! Let's find your dream job.");
     } catch {
@@ -137,7 +139,7 @@ export function OnboardingDialog({
     // Step 0: Welcome
     <div key="welcome" className="flex flex-col items-center text-center py-4">
       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 mb-4">
-        <Sparkles className="h-7 w-7 text-primary" />
+        <Sparkles className="h-7 w-7 text-primary" aria-hidden="true" />
       </div>
       <h3 className="text-xl font-semibold mb-2">
         Welcome{userName ? `, ${userName}` : ""}! 👋
@@ -151,7 +153,7 @@ export function OnboardingDialog({
     // Step 1: Role & Location
     <div key="role" className="space-y-5 py-2">
       <div className="flex items-center gap-2 mb-1">
-        <Briefcase className="h-5 w-5 text-primary" />
+        <Briefcase className="h-5 w-5 text-primary" aria-hidden="true" />
         <h3 className="text-lg font-semibold">Your Role</h3>
       </div>
       <div className="space-y-3">
@@ -168,7 +170,7 @@ export function OnboardingDialog({
         <div>
           <Label htmlFor="location">Preferred location</Label>
           <div className="flex items-center gap-2 mt-1">
-            <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+            <MapPin className="h-4 w-4 text-muted-foreground shrink-0" aria-hidden="true" />
             <Input
               id="location"
               placeholder="e.g. San Francisco, CA or Remote"
@@ -214,7 +216,7 @@ export function OnboardingDialog({
             onClick={() => toggleSkill(skill)}
           >
             {selectedSkills.has(skill) && (
-              <Check className="mr-1 h-3 w-3" />
+              <Check className="mr-1 h-3 w-3" aria-hidden="true" />
             )}
             {skill}
           </Badge>
@@ -276,7 +278,7 @@ export function OnboardingDialog({
               size="sm"
               onClick={() => setStep(step - 1)}
             >
-              <ArrowLeft className="mr-1 h-4 w-4" />
+              <ArrowLeft className="mr-1 h-4 w-4" aria-hidden="true" />
               Back
             </Button>
           ) : (
@@ -297,20 +299,20 @@ export function OnboardingDialog({
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" aria-hidden="true" />
                   Saving...
                 </>
               ) : (
                 <>
                   Get Started
-                  <Sparkles className="ml-1 h-4 w-4" />
+                  <Sparkles className="ml-1 h-4 w-4" aria-hidden="true" />
                 </>
               )}
             </Button>
           ) : (
             <Button onClick={() => setStep(step + 1)}>
               Continue
-              <ArrowRight className="ml-1 h-4 w-4" />
+              <ArrowRight className="ml-1 h-4 w-4" aria-hidden="true" />
             </Button>
           )}
         </div>

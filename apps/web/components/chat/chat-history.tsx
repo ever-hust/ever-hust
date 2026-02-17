@@ -168,7 +168,7 @@ export function ChatHistory({
           <div className="max-h-64 overflow-y-auto">
             {isLoading ? (
               <div className="flex items-center justify-center py-6">
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden="true" />
               </div>
             ) : filteredSessions.length === 0 ? (
               <p className="px-4 py-6 text-center text-xs text-muted-foreground">
@@ -229,9 +229,9 @@ export function ChatHistory({
                             </button>
                           )}
                           {isSessionLoading ? (
-                            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" aria-hidden="true" />
                           ) : (
-                            <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+                            <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
                           )}
                         </div>
                       </button>

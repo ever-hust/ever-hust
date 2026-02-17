@@ -34,9 +34,9 @@ export function ThemeToggle() {
       className="relative"
     >
       {/* Light mode: Sun */}
-      <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+      <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" aria-hidden="true" />
       {/* Dark mode: Moon */}
-      <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+      <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" aria-hidden="true" />
       {/* System indicator dot */}
       {theme === "system" && (
         <span className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary" />

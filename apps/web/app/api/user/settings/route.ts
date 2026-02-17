@@ -2,18 +2,10 @@ import { db } from "@repo/db";
 import { users } from "@repo/db";
 import { eq } from "drizzle-orm";
 import type { NextResponse } from "next/server";
-import { z } from "zod";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { settingsPatchSchema, parseBody } from "../../../../lib/api-schemas";
 import { applyRateLimit } from "../../../../lib/rate-limit";
-import { apiSuccess, apiBadRequest, apiError } from "../../../../lib/api-response";
-
-const settingsSchema = z.object({
-  name: z.string().min(1).max(200).optional(),
-  headline: z.string().max(500).optional(),
-  location: z.string().max(200).optional(),
-  preferences: z.record(z.unknown()).optional(),
-});
+import { apiSuccess, apiBadRequest, apiError, safeJsonParse } from "../../../../lib/api-response";
 
 // PATCH /api/user/settings - Update user settings
 export async function PATCH(req: Request) {
@@ -29,8 +21,9 @@ export async function PATCH(req: Request) {
   const rateLimited = applyRateLimit(userId, "authenticated");
   if (rateLimited) return rateLimited;
 
-  const rawBody = await req.json();
-  const validation = parseBody(settingsPatchSchema, rawBody);
+  const jsonResult = await safeJsonParse(req);
+  if (!jsonResult.ok) return jsonResult.response;
+  const validation = parseBody(settingsPatchSchema, jsonResult.data);
   if (!validation.success) {
     return apiBadRequest(validation.error);
   }

@@ -66,6 +66,21 @@ export function apiNotFound(message = "Resource not found") {
   return apiError(message, 404);
 }
 
+/**
+ * Safely parse JSON from a request body.
+ * Returns the parsed body or a 400 response if parsing fails.
+ */
+export async function safeJsonParse(
+  req: Request,
+): Promise<{ ok: true; data: unknown } | { ok: false; response: NextResponse }> {
+  try {
+    const data: unknown = await req.json();
+    return { ok: true, data };
+  } catch {
+    return { ok: false, response: apiBadRequest("Invalid or missing JSON body") };
+  }
+}
+
 /** 429 Too Many Requests */
 export function apiRateLimited(retryAfterSeconds: number) {
   return NextResponse.json(

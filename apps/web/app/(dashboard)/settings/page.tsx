@@ -98,6 +98,14 @@ export default function SettingsPage() {
   }>({ anthropic: false, openai: false, google: false });
   const [keySaving, setKeySaving] = useState(false);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clean up saved-feedback timer on unmount
+  useEffect(() => {
+    return () => {
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    };
+  }, []);
+
   // Danger zone state
   const [exportLoading, setExportLoading] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);

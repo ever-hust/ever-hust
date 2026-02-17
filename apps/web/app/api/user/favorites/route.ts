@@ -5,7 +5,7 @@ import type { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { favoriteToggleSchema, parseBody } from "../../../../lib/api-schemas";
 import { applyRateLimit } from "../../../../lib/rate-limit";
-import { apiSuccess, apiBadRequest, apiError } from "../../../../lib/api-response";
+import { apiSuccess, apiBadRequest, apiError, safeJsonParse } from "../../../../lib/api-response";
 
 // GET /api/user/favorites - Get user's favorited job IDs
 export async function GET(req: Request) {
@@ -50,8 +50,9 @@ export async function POST(req: Request) {
   const rateLimited = applyRateLimit(userId, "authenticated");
   if (rateLimited) return rateLimited;
 
-  const rawBody = await req.json();
-  const validation = parseBody(favoriteToggleSchema, rawBody);
+  const jsonResult = await safeJsonParse(req);
+  if (!jsonResult.ok) return jsonResult.response;
+  const validation = parseBody(favoriteToggleSchema, jsonResult.data);
   if (!validation.success) {
     return apiBadRequest(validation.error);
   }

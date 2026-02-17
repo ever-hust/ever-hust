@@ -16,8 +16,8 @@ export default function ChatError({
   }, [error]);
 
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center p-6 text-center">
-      <MessageCircleWarning className="h-12 w-12 text-destructive" />
+    <div className="flex min-h-[60vh] flex-col items-center justify-center p-6 text-center" role="alert">
+      <MessageCircleWarning className="h-12 w-12 text-destructive" aria-hidden="true" />
       <h2 className="mt-4 text-xl font-semibold">Chat Unavailable</h2>
       <p className="mt-2 max-w-md text-sm text-muted-foreground">
         The AI chat encountered an error. This could be a temporary issue with

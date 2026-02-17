@@ -25,6 +25,7 @@ import { ScrollToTop } from "@/components/shared/scroll-to-top";
 import { ErrorState } from "@/components/shared/error-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { timeAgo } from "@/lib/format-date";
+import type { UserPreferences } from "@/lib/api-schemas";
 
 interface UserProfile {
   id: string;
@@ -35,7 +36,7 @@ interface UserProfile {
   photoUrl: string | null;
   skills: string[] | null;
   experience: unknown;
-  preferences: Record<string, unknown> | null;
+  preferences: UserPreferences | null;
   cvParsedData: unknown;
   subscriptionStatus: string;
   onboardingCompleted: boolean;
@@ -132,7 +133,7 @@ export default function ProfilePage() {
 
   const { user, favorites, applications } = data;
   const skills = user.skills ?? [];
-  const prefs = user.preferences ?? {};
+  const prefs: UserPreferences = user.preferences ?? {};
   const memberSince = user.createdAt
     ? new Date(user.createdAt).toLocaleDateString(undefined, {
         month: "long",
@@ -245,24 +246,24 @@ export default function ProfilePage() {
         )}
       </Card>
 
-      {/* Preferences */}
-      {Object.keys(prefs).length > 0 && (
+      {/* Preferences — only show if user has displayable job-search preferences */}
+      {(prefs.jobTypes?.length || prefs.roleLevel?.length || prefs.salaryMin || prefs.salaryMax || prefs.remotePreference || prefs.locations?.length || prefs.companySizes?.length || prefs.timeline) && (
         <Card className="p-6">
           <h2 className="text-lg font-semibold">Job Preferences</h2>
           <div className="mt-3 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
-            {prefs.jobType ? (
+            {prefs.jobTypes && prefs.jobTypes.length > 0 ? (
               <div>
                 <p className="text-xs text-muted-foreground">Job Type</p>
                 <p className="font-medium capitalize">
-                  {(prefs.jobType as string[]).join(", ")}
+                  {prefs.jobTypes.join(", ")}
                 </p>
               </div>
             ) : null}
-            {prefs.roleLevel ? (
+            {prefs.roleLevel && prefs.roleLevel.length > 0 ? (
               <div>
                 <p className="text-xs text-muted-foreground">Role Level</p>
                 <p className="font-medium capitalize">
-                  {String(prefs.roleLevel)}
+                  {prefs.roleLevel.join(", ")}
                 </p>
               </div>
             ) : null}
@@ -270,9 +271,9 @@ export default function ProfilePage() {
               <div>
                 <p className="text-xs text-muted-foreground">Salary Range</p>
                 <p className="font-medium">
-                  {prefs.salaryMin ? `$${(prefs.salaryMin as number).toLocaleString()}` : "Any"}
+                  {prefs.salaryMin ? `$${prefs.salaryMin.toLocaleString()}` : "Any"}
                   {" - "}
-                  {prefs.salaryMax ? `$${(prefs.salaryMax as number).toLocaleString()}` : "Any"}
+                  {prefs.salaryMax ? `$${prefs.salaryMax.toLocaleString()}` : "Any"}
                 </p>
               </div>
             ) : null}
@@ -280,23 +281,23 @@ export default function ProfilePage() {
               <div>
                 <p className="text-xs text-muted-foreground">Remote Preference</p>
                 <p className="font-medium capitalize">
-                  {String(prefs.remotePreference)}
+                  {prefs.remotePreference}
                 </p>
               </div>
             ) : null}
-            {prefs.locations && (prefs.locations as string[]).length > 0 ? (
+            {prefs.locations && prefs.locations.length > 0 ? (
               <div>
                 <p className="text-xs text-muted-foreground">Locations</p>
                 <p className="font-medium">
-                  {(prefs.locations as string[]).join(", ")}
+                  {prefs.locations.join(", ")}
                 </p>
               </div>
             ) : null}
-            {prefs.companySize ? (
+            {prefs.companySizes && prefs.companySizes.length > 0 ? (
               <div>
                 <p className="text-xs text-muted-foreground">Company Size</p>
                 <p className="font-medium capitalize">
-                  {String(prefs.companySize)}
+                  {prefs.companySizes.join(", ")}
                 </p>
               </div>
             ) : null}
@@ -304,7 +305,7 @@ export default function ProfilePage() {
               <div>
                 <p className="text-xs text-muted-foreground">Timeline</p>
                 <p className="font-medium capitalize">
-                  {String(prefs.timeline)}
+                  {prefs.timeline}
                 </p>
               </div>
             ) : null}

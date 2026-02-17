@@ -5,7 +5,7 @@ import type { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { profilePatchSchema, parseBody } from "../../../../lib/api-schemas";
 import { applyRateLimit } from "../../../../lib/rate-limit";
-import { apiSuccess, apiBadRequest, apiNotFound, apiError } from "../../../../lib/api-response";
+import { apiSuccess, apiBadRequest, apiNotFound, apiError, safeJsonParse } from "../../../../lib/api-response";
 
 export async function GET() {
   let sessionUser;
@@ -99,8 +99,9 @@ export async function PATCH(req: Request) {
   const rateLimited = applyRateLimit(userId, "authenticated");
   if (rateLimited) return rateLimited;
 
-  const rawBody = await req.json();
-  const validation = parseBody(profilePatchSchema, rawBody);
+  const jsonResult = await safeJsonParse(req);
+  if (!jsonResult.ok) return jsonResult.response;
+  const validation = parseBody(profilePatchSchema, jsonResult.data);
   if (!validation.success) {
     return apiBadRequest(validation.error);
   }

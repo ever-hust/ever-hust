@@ -17,7 +17,7 @@ export default function DashboardError({
   }, [error]);
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center px-4 text-center">
+    <div className="flex flex-1 flex-col items-center justify-center px-4 text-center" role="alert">
       <div className="rounded-full bg-destructive/10 p-4">
         <AlertTriangle className="h-8 w-8 text-destructive" aria-hidden="true" />
       </div>

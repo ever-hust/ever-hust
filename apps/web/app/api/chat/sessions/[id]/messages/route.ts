@@ -3,7 +3,7 @@ import { eq, and, asc } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
 import { requireSessionUser } from "../../../../../../lib/get-session-user";
 import { applyRateLimit } from "../../../../../../lib/rate-limit";
-import { apiSuccess, apiBadRequest, apiNotFound } from "../../../../../../lib/api-response";
+import { apiSuccess, apiBadRequest, apiNotFound, safeJsonParse } from "../../../../../../lib/api-response";
 import { z } from "zod";
 
 const saveMessagesSchema = z.object({
@@ -102,8 +102,9 @@ export async function POST(
     return apiNotFound("Session not found");
   }
 
-  const body = await req.json();
-  const parsed = saveMessagesSchema.safeParse(body);
+  const jsonResult = await safeJsonParse(req);
+  if (!jsonResult.ok) return jsonResult.response;
+  const parsed = saveMessagesSchema.safeParse(jsonResult.data);
   if (!parsed.success) {
     return apiBadRequest("Invalid request body", parsed.error.flatten());
   }

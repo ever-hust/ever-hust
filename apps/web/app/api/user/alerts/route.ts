@@ -17,6 +17,7 @@ import {
   apiForbidden,
   apiNotFound,
   apiError,
+  safeJsonParse,
 } from "../../../../lib/api-response";
 
 // GET /api/user/alerts - List user's alerts
@@ -63,8 +64,9 @@ export async function POST(req: Request) {
     return apiForbidden("Upgrade to Pro to create job alerts.");
   }
 
-  const rawBody = await req.json();
-  const validation = parseBody(alertCreateSchema, rawBody);
+  const jsonResult = await safeJsonParse(req);
+  if (!jsonResult.ok) return jsonResult.response;
+  const validation = parseBody(alertCreateSchema, jsonResult.data);
   if (!validation.success) {
     return apiBadRequest(validation.error);
   }
@@ -100,8 +102,9 @@ export async function PATCH(req: Request) {
   const rateLimitedPatch = applyRateLimit(user.id, "authenticated");
   if (rateLimitedPatch) return rateLimitedPatch;
 
-  const rawBody = await req.json();
-  const validation = parseBody(alertPatchSchema, rawBody);
+  const jsonResult = await safeJsonParse(req);
+  if (!jsonResult.ok) return jsonResult.response;
+  const validation = parseBody(alertPatchSchema, jsonResult.data);
   if (!validation.success) {
     return apiBadRequest(validation.error);
   }
@@ -144,8 +147,9 @@ export async function DELETE(req: Request) {
   const rateLimitedDelete = applyRateLimit(user.id, "authenticated");
   if (rateLimitedDelete) return rateLimitedDelete;
 
-  const rawBody = await req.json();
-  const validation = parseBody(alertDeleteSchema, rawBody);
+  const jsonResult = await safeJsonParse(req);
+  if (!jsonResult.ok) return jsonResult.response;
+  const validation = parseBody(alertDeleteSchema, jsonResult.data);
   if (!validation.success) {
     return apiBadRequest(validation.error);
   }

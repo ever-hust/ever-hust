@@ -13,7 +13,7 @@ import {
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { chatRequestSchema } from "../../../../lib/api-schemas";
 import { applyRateLimit } from "../../../../lib/rate-limit";
-import { apiBadRequest, apiError } from "../../../../lib/api-response";
+import { apiBadRequest, apiError, safeJsonParse } from "../../../../lib/api-response";
 
 export async function POST(req: Request) {
   let user;
@@ -28,8 +28,9 @@ export async function POST(req: Request) {
   const rateLimited = applyRateLimit(userId, "chat");
   if (rateLimited) return rateLimited;
 
-  const body = await req.json();
-  const parsed = chatRequestSchema.safeParse(body);
+  const jsonResult = await safeJsonParse(req);
+  if (!jsonResult.ok) return jsonResult.response;
+  const parsed = chatRequestSchema.safeParse(jsonResult.data);
   if (!parsed.success) {
     return apiBadRequest("Invalid request body", parsed.error.flatten());
   }

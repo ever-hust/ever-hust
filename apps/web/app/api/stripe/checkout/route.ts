@@ -10,6 +10,7 @@ import {
   apiBadRequest,
   apiNotFound,
   apiError,
+  safeJsonParse,
 } from "../../../../lib/api-response";
 
 export async function POST(req: Request) {
@@ -24,8 +25,9 @@ export async function POST(req: Request) {
   const rateLimited = applyRateLimit(userId, "authenticated");
   if (rateLimited) return rateLimited;
 
-  const rawBody = await req.json();
-  const validation = parseBody(checkoutSchema, rawBody);
+  const jsonResult = await safeJsonParse(req);
+  if (!jsonResult.ok) return jsonResult.response;
+  const validation = parseBody(checkoutSchema, jsonResult.data);
   if (!validation.success) {
     return apiBadRequest(validation.error);
   }

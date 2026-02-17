@@ -41,12 +41,34 @@ export async function checkSubscription(
 
 const memoryCounters = new Map<string, { count: number; resetAt: number }>();
 
+/** Max entries before triggering cleanup to prevent unbounded memory growth. */
+const MAX_COUNTER_ENTRIES = 10_000;
+
+/**
+ * Remove expired entries from the in-memory rate limit map.
+ * Called automatically when the map exceeds MAX_COUNTER_ENTRIES.
+ */
+function cleanupExpiredCounters(): void {
+  const now = Date.now();
+  for (const [key, entry] of memoryCounters) {
+    if (now > entry.resetAt) {
+      memoryCounters.delete(key);
+    }
+  }
+}
+
 function checkMemoryRateLimit(
   key: string,
   limit: number,
   windowMs: number,
 ): { allowed: boolean; remaining: number } {
   const now = Date.now();
+
+  // Prevent unbounded memory growth
+  if (memoryCounters.size > MAX_COUNTER_ENTRIES) {
+    cleanupExpiredCounters();
+  }
+
   const entry = memoryCounters.get(key);
 
   if (!entry || now > entry.resetAt) {

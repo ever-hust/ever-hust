@@ -136,8 +136,10 @@ export function JobCard({
           {job.companyLogo ? (
             <img
               src={job.companyLogo}
-              alt={job.companyName ?? ""}
+              alt={job.companyName ? `${job.companyName} logo` : "Company logo"}
               className="h-8 w-8 rounded object-contain"
+              loading="lazy"
+              decoding="async"
             />
           ) : (
             <Building2 className="h-5 w-5 text-muted-foreground" aria-hidden="true" />

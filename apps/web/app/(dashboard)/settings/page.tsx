@@ -97,6 +97,7 @@ export default function SettingsPage() {
     google: boolean;
   }>({ anthropic: false, openai: false, google: false });
   const [keySaving, setKeySaving] = useState(false);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Danger zone state
   const [exportLoading, setExportLoading] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -105,25 +106,27 @@ export default function SettingsPage() {
   const [clearChatDialogOpen, setClearChatDialogOpen] = useState(false);
   const [deleteAlertId, setDeleteAlertId] = useState<number | null>(null);
 
-  const loadAlerts = useCallback(async () => {
+  const loadAlerts = useCallback(async (signal?: AbortSignal) => {
     try {
-      const res = await fetch("/api/user/alerts");
-      if (res.ok) {
+      const res = await fetch("/api/user/alerts", { signal });
+      if (res.ok && !signal?.aborted) {
         const data = await res.json();
         setAlerts(data.alerts ?? []);
       }
-    } catch {
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       // Alerts are non-critical on initial load
     } finally {
-      setAlertsLoading(false);
+      if (!signal?.aborted) setAlertsLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    const controller = new AbortController();
     async function loadUser() {
       setLoadError(null);
       try {
-        const res = await fetch("/api/user/profile");
+        const res = await fetch("/api/user/profile", { signal: controller.signal });
         if (!res.ok) {
           if (res.status === 401) {
             throw new Error("Please sign in to access settings.");
@@ -131,6 +134,7 @@ export default function SettingsPage() {
           throw new Error("Failed to load settings");
         }
         const data = await res.json();
+        if (controller.signal.aborted) return;
         const u = data.user;
         setUser(u);
         setFormName(u.name ?? "");
@@ -153,15 +157,17 @@ export default function SettingsPage() {
           });
         }
       } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
         const message = err instanceof Error ? err.message : "Failed to load settings";
         setLoadError(message);
         toast.error(message);
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
     loadUser();
-    loadAlerts();
+    loadAlerts(controller.signal);
+    return () => controller.abort();
   }, [loadAlerts]);
 
   const handleSave = useCallback(async () => {
@@ -179,7 +185,8 @@ export default function SettingsPage() {
       if (res.ok) {
         setSaved(true);
         toast.success("Settings saved successfully");
-        setTimeout(() => setSaved(false), 2000);
+        if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+        savedTimerRef.current = setTimeout(() => setSaved(false), 2_000);
       } else {
         toast.error("Failed to save settings");
       }

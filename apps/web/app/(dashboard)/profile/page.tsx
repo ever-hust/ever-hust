@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   MapPin,
   Mail,
@@ -64,28 +65,42 @@ interface ProfileData {
 }
 
 export default function ProfilePage() {
+  const router = useRouter();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [data, setData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const reloadProfile = useCallback(() => {
+    setLoading(true);
+    router.refresh();
+    // Re-trigger the effect by resetting state
+    setData(null);
+    setError(null);
+  }, [router]);
+
   useEffect(() => {
+    const controller = new AbortController();
     async function loadProfile() {
       try {
         setError(null);
-        const res = await fetch("/api/user/profile");
+        const res = await fetch("/api/user/profile", { signal: controller.signal });
         if (!res.ok) {
           if (res.status === 401) throw new Error("Please sign in to view your profile.");
           throw new Error("Failed to load profile");
         }
-        setData(await res.json());
+        if (!controller.signal.aborted) {
+          setData(await res.json());
+        }
       } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
         setError(err instanceof Error ? err.message : "Failed to load profile");
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
     loadProfile();
+    return () => controller.abort();
   }, []);
 
   if (loading) {
@@ -109,7 +124,7 @@ export default function ProfilePage() {
       <div className="flex flex-1 items-center justify-center">
         <ErrorState
           message={error ?? "Failed to load profile"}
-          onRetry={() => window.location.reload()}
+          onRetry={reloadProfile}
         />
       </div>
     );
@@ -317,7 +332,7 @@ export default function ProfilePage() {
               </div>
               <CVDropzone
                 onUploadComplete={() => {
-                  window.location.reload();
+                  reloadProfile();
                 }}
               />
             </div>

@@ -21,22 +21,26 @@ export default function JobsPage() {
 
   // Load favorites
   useEffect(() => {
+    const controller = new AbortController();
     async function loadFavorites() {
       try {
-        const res = await fetch("/api/user/favorites");
-        if (res.ok) {
+        const res = await fetch("/api/user/favorites", { signal: controller.signal });
+        if (res.ok && !controller.signal.aborted) {
           const data = (await res.json()) as { favoriteJobIds: number[] };
           setFavoritedJobIds(new Set(data.favoriteJobIds));
         }
-      } catch {
-        // Favorites are non-critical — fail silently on initial load
+      } catch (err) {
+        // Favorites are non-critical — ignore abort errors and fail silently
+        if (err instanceof DOMException && err.name === "AbortError") return;
       }
     }
     loadFavorites();
+    return () => controller.abort();
   }, []);
 
   // Load jobs on mount and when filters change
   useEffect(() => {
+    const controller = new AbortController();
     async function loadJobs() {
       setIsLoading(true);
       setError(null);
@@ -49,25 +53,29 @@ export default function JobsPage() {
         if (filters.salaryMin) params.set("salaryMin", String(filters.salaryMin));
         if (filters.salaryMax) params.set("salaryMax", String(filters.salaryMax));
 
-        const res = await fetch(`/api/jobs/search?${params.toString()}`);
+        const res = await fetch(`/api/jobs/search?${params.toString()}`, { signal: controller.signal });
         if (!res.ok) throw new Error("Failed to load jobs");
         const data = (await res.json()) as {
           jobs: JobCardData[];
           total: number;
           hasMore: boolean;
         };
-        setJobs(data.jobs);
-        setTotalCount(data.total);
-        setHasMore(data.hasMore);
-        setPage(1);
+        if (!controller.signal.aborted) {
+          setJobs(data.jobs);
+          setTotalCount(data.total);
+          setHasMore(data.hasMore);
+          setPage(1);
+        }
       } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
         setError(err instanceof Error ? err.message : "Failed to load jobs");
         toast.error("Failed to load jobs. Please try again.");
       } finally {
-        setIsLoading(false);
+        if (!controller.signal.aborted) setIsLoading(false);
       }
     }
     loadJobs();
+    return () => controller.abort();
   }, [filters]);
 
   const handleLoadMore = useCallback(async () => {

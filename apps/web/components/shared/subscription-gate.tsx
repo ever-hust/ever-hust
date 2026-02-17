@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode } from "react";
+import Link from "next/link";
 import { Lock, Sparkles } from "lucide-react";
 import { Button } from "@repo/ui/button";
 import { Card } from "@repo/ui/card";
@@ -52,14 +53,19 @@ export function SubscriptionGate({
             `${featureName} is a Pro feature. Upgrade to unlock unlimited access.`}
         </p>
       </div>
-      <Button
-        size="sm"
-        onClick={onUpgrade ?? (() => (window.location.href = "/settings"))}
-        className="gap-1.5"
-      >
-        <Sparkles className="h-3.5 w-3.5" />
-        Upgrade to Pro
-      </Button>
+      {onUpgrade ? (
+        <Button size="sm" onClick={onUpgrade} className="gap-1.5">
+          <Sparkles className="h-3.5 w-3.5" />
+          Upgrade to Pro
+        </Button>
+      ) : (
+        <Link href="/settings">
+          <Button size="sm" className="gap-1.5" tabIndex={-1}>
+            <Sparkles className="h-3.5 w-3.5" />
+            Upgrade to Pro
+          </Button>
+        </Link>
+      )}
     </Card>
   );
 }

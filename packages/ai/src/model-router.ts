@@ -98,17 +98,19 @@ export function getModelForUser(user: UserForModel): LanguageModel {
     return byokProvider(modelId);
   }
 
-  // 2. User preference: validate against allowlist, route through platform
+  // 2. Free-tier users always get the free model — no model preference override.
+  //    This prevents free users from setting aiModel to an expensive model
+  //    and having the platform pay for it through OpenRouter.
+  if (user.subscriptionStatus !== "active") {
+    return getPlatformModel(FREE_MODEL_ID);
+  }
+
+  // 3. Paid user preference: validate against allowlist, route through platform
   if (
     user.preferences?.aiModel &&
     ALLOWED_MODELS.has(user.preferences.aiModel)
   ) {
     return getPlatformModel(user.preferences.aiModel);
-  }
-
-  // 3. Tier default: free = haiku, paid = sonnet/opus
-  if (user.subscriptionStatus === "free") {
-    return getPlatformModel(FREE_MODEL_ID);
   }
 
   // 4. Platform default: use PAID_MODEL_ID (from env or hardcoded fallback)

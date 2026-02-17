@@ -2,15 +2,32 @@
 
 import { useEffect, useCallback, useState, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import { SplitScreen } from "@/components/layout/split-screen";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { JobsCanvas } from "@/components/canvas/jobs-canvas";
-import { CoverLetterModal } from "@/components/shared/cover-letter-modal";
-import { JobDetailPanel } from "@/components/canvas/job-detail-panel";
 import { useCanvasSync } from "@/hooks/use-canvas-sync";
 import { useFavorites } from "@/hooks/use-favorites";
 import { useKeyboardShortcuts, getChatShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { toast } from "sonner";
+
+// Lazy-load dialog components — they are only rendered when the user opens
+// them, so they don't need to be in the initial bundle.
+const CoverLetterModal = dynamic(
+  () =>
+    import("@/components/shared/cover-letter-modal").then(
+      (mod) => mod.CoverLetterModal,
+    ),
+  { ssr: false },
+);
+
+const JobDetailPanel = dynamic(
+  () =>
+    import("@/components/canvas/job-detail-panel").then(
+      (mod) => mod.JobDetailPanel,
+    ),
+  { ssr: false },
+);
 
 export default function ChatPage() {
   const searchParams = useSearchParams();

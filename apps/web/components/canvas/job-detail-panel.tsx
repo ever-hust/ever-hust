@@ -244,27 +244,27 @@ export function JobDetailPanel({
             {/* Action buttons */}
             <div className="flex items-center gap-2 border-b px-6 py-3">
               {applyLink && (
-                <a
-                  href={applyLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={`Apply for ${job.title} (opens in new tab)`}
-                >
-                  <Button size="sm" tabIndex={-1}>
+                <Button size="sm" asChild>
+                  <a
+                    href={applyLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Apply for ${job.title} (opens in new tab)`}
+                  >
                     Apply
                     <ExternalLink className="ml-1 h-3 w-3" aria-hidden="true" />
-                  </Button>
-                </a>
+                  </a>
+                </Button>
               )}
-              <Link
-                href={`/chat?job=${job.id}`}
-                aria-label={`Generate cover letter for ${job.title}`}
-              >
-                <Button variant="outline" size="sm" tabIndex={-1}>
+              <Button variant="outline" size="sm" asChild>
+                <Link
+                  href={`/chat?job=${job.id}`}
+                  aria-label={`Generate cover letter for ${job.title}`}
+                >
                   <FileText className="mr-1 h-3 w-3" aria-hidden="true" />
                   Cover Letter
-                </Button>
-              </Link>
+                </Link>
+              </Button>
               <div className="ml-auto flex items-center gap-1">
                 <Button
                   variant="outline"
@@ -301,12 +301,12 @@ export function JobDetailPanel({
                   </Button>
                 )}
               </div>
-              <Link href={`/jobs/${job.id}`} aria-label={`View ${job.title} full page`}>
-                <Button variant="ghost" size="sm" className="text-xs text-muted-foreground" tabIndex={-1}>
+              <Button variant="ghost" size="sm" className="text-xs text-muted-foreground" asChild>
+                <Link href={`/jobs/${job.id}`} aria-label={`View ${job.title} full page`}>
                   Full page
                   <ExternalLink className="ml-1 h-3 w-3" aria-hidden="true" />
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             </div>
 
             {/* Tab navigation */}

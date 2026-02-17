@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef, memo } from "react";
 import Link from "next/link";
 import {
   ClipboardList,
@@ -94,7 +94,7 @@ function ApplicationSkeleton() {
 // Application card
 // ---------------------------------------------------------------------------
 
-function ApplicationCard({ app }: { app: Application }) {
+const ApplicationCard = memo(function ApplicationCard({ app }: { app: Application }) {
   const statusConfig = STATUS_CONFIG[app.status];
   const location = formatLocation(app.locationCity, app.locationState, app.isRemote);
 
@@ -109,7 +109,7 @@ function ApplicationCard({ app }: { app: Application }) {
           {app.companyLogo ? (
             <img
               src={app.companyLogo}
-              alt={app.companyName ?? ""}
+              alt={app.companyName ? `${app.companyName} logo` : "Company logo"}
               className="h-8 w-8 rounded object-contain"
             />
           ) : (
@@ -174,7 +174,7 @@ function ApplicationCard({ app }: { app: Application }) {
       </div>
     </article>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // Page

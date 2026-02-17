@@ -6,12 +6,13 @@
  */
 
 // Mock the email index module (Resend client, EMAIL_FROM, getAppUrl)
+const mockSendFn = jest.fn();
 jest.mock("./index", () => ({
-  resend: {
+  getResend: () => ({
     emails: {
-      send: jest.fn(),
+      send: mockSendFn,
     },
-  },
+  }),
   EMAIL_FROM: "test@everjobs.ai",
   getAppUrl: () => "https://test.everjobs.ai",
 }));
@@ -37,11 +38,8 @@ import {
   sendWelcomeEmail,
   sendSubscriptionConfirmedEmail,
 } from "./send";
-import { resend } from "./index";
 
-const mockSend = resend.emails.send as jest.MockedFunction<
-  typeof resend.emails.send
->;
+const mockSend = mockSendFn as jest.Mock;
 
 // Speed up tests by removing real delays
 jest.useFakeTimers();

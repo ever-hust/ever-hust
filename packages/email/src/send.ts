@@ -1,4 +1,4 @@
-import { resend, EMAIL_FROM, getAppUrl } from "./index";
+import { getResend, EMAIL_FROM, getAppUrl } from "./index";
 import { render } from "@react-email/components";
 import { JobAlertEmail } from "./templates/job-alert";
 import { WelcomeEmail } from "./templates/welcome";
@@ -98,7 +98,7 @@ export async function sendJobAlertEmail({
   const subject = `${jobs.length} new job${jobs.length !== 1 ? "s" : ""} matching "${alertCriteria}"`;
 
   return withRetry(async () => {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: EMAIL_FROM,
       to,
       subject,
@@ -135,7 +135,7 @@ export async function sendWelcomeEmail({
   const html = await render(element);
 
   return withRetry(async () => {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: EMAIL_FROM,
       to,
       subject: "Welcome to Ever Jobs — your AI job search assistant",
@@ -186,7 +186,7 @@ export async function sendSubscriptionConfirmedEmail({
   const html = await render(element);
 
   return withRetry(async () => {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: EMAIL_FROM,
       to,
       subject: `Your Ever Jobs Pro subscription is active — ${planName} plan`,

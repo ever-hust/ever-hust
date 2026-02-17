@@ -10,13 +10,6 @@ export function getResend(): Resend {
   return _resend;
 }
 
-/** @deprecated Use getResend() instead for build-safe lazy init */
-export const resend = {
-  get emails() {
-    return getResend().emails;
-  },
-};
-
 export const EMAIL_FROM = process.env.EMAIL_FROM ?? "alerts@everjobs.ai";
 
 /** Get the base app URL for links in emails */

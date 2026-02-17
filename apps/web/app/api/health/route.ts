@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "crypto";
 import { db } from "@repo/db";
 import { sql } from "drizzle-orm";
 import { type NextRequest } from "next/server";
@@ -53,7 +54,12 @@ export async function GET(req: NextRequest) {
   // Only expose detailed telemetry to internal callers that provide the health
   // token. Public consumers get a minimal status-only response.
   const healthToken = req.headers.get("x-health-token");
-  const isInternal = healthToken === process.env.HEALTH_CHECK_TOKEN && !!healthToken;
+  const configuredToken = process.env.HEALTH_CHECK_TOKEN;
+  const isInternal =
+    !!healthToken &&
+    !!configuredToken &&
+    healthToken.length === configuredToken.length &&
+    timingSafeEqual(Buffer.from(healthToken), Buffer.from(configuredToken));
 
   const body: Record<string, unknown> = {
     status: isHealthy ? "healthy" : "unhealthy",

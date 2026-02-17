@@ -49,7 +49,7 @@ export async function POST(req: Request) {
   }
 
   const fileName = file.name?.toLowerCase() ?? "";
-  if (fileName && !fileName.endsWith(".pdf")) {
+  if (!fileName || !fileName.endsWith(".pdf")) {
     return apiBadRequest("File must have a .pdf extension");
   }
 

@@ -37,7 +37,7 @@ function applySecurityHeaders(response: NextResponse): NextResponse {
     // Styles: self + inline for Next.js CSS-in-JS / Tailwind
     "style-src 'self' 'unsafe-inline'",
     // Images: self + company logos from external sources + data URIs for placeholders
-    "img-src 'self' data: blob: https: http:",
+    `img-src 'self' data: blob: https:${isProd ? "" : " http:"}`,
     // Fonts: self + Google Fonts CDN
     "font-src 'self' https://fonts.gstatic.com",
     // Connect: self + Stripe + Supabase + API domains

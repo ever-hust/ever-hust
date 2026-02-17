@@ -246,8 +246,10 @@ export function useChatPersistence() {
         });
         if (res.ok || res.status === 204) {
           setSessions((prev) => prev.filter((s) => s.id !== sessionId));
-          // If we deleted the active session, clear it
-          if (activeSessionId === sessionId) {
+          // If we deleted the active session, clear it.
+          // Use the ref to avoid stale closure — the state value
+          // captured at callback creation time can be outdated.
+          if (activeSessionIdRef.current === sessionId) {
             setActiveSessionId(null);
             savedMessageIds.current = new Set();
           }
@@ -264,7 +266,7 @@ export function useChatPersistence() {
       }
       return false;
     },
-    [activeSessionId]
+    []
   );
 
   return {

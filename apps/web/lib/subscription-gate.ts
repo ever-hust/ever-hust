@@ -35,7 +35,11 @@ export async function checkSubscription(
 }
 
 // ---------------------------------------------------------------------------
-// In-memory rate limiting — simple sliding-window counter.
+// In-memory rate limiting — fixed-window counter.
+// Note: this is a fixed-window algorithm, not a true sliding window.
+// A user can burst up to 2× the limit across a window boundary.
+// For stricter enforcement, use the Redis-backed sliding-window in
+// lib/rate-limit.ts or Upstash.
 // In production with multiple instances, consider using Redis (Upstash).
 // ---------------------------------------------------------------------------
 
@@ -85,7 +89,7 @@ function checkMemoryRateLimit(
 }
 
 /**
- * Check rate limit — uses in-memory sliding window.
+ * Check rate limit — uses in-memory fixed-window counter.
  */
 async function checkRateLimit(
   key: string,

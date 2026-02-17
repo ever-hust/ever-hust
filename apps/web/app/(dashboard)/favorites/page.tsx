@@ -24,6 +24,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { timeAgo, formatSalary, formatLocation } from "@/lib/format-date";
+import { safeExternalUrl } from "@/lib/safe-url";
 
 interface FavoriteJob {
   id: number;
@@ -168,7 +169,7 @@ export default function FavoritesPage() {
               const salary = formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency);
               const posted = timeAgo(job.datePosted);
               const saved = timeAgo(job.savedAt);
-              const applyLink = job.applyUrl || job.jobUrl;
+              const applyLink = safeExternalUrl(job.applyUrl) ?? safeExternalUrl(job.jobUrl) ?? null;
               const isRemoving = removingId === job.id;
 
               return (

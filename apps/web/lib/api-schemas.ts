@@ -61,7 +61,8 @@ export const alertPatchSchema = z.object({
   isActive: z.boolean().optional(),
   frequency: z.enum(["daily", "twice_daily", "weekly"]).optional(),
   email: z.string().email().max(320).optional(),
-  criteria: z.record(z.unknown()).optional(),
+  // Reuse the same criteria shape as alertCreateSchema for consistency
+  criteria: alertCreateSchema.shape.criteria,
 });
 
 export const alertDeleteSchema = z.object({

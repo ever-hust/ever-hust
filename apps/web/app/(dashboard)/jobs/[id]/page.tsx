@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -109,6 +110,16 @@ function renderDescription(text: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Cached query — React `cache()` deduplicates this across generateMetadata
+// and the page component within the same request, avoiding a redundant DB hit.
+// ---------------------------------------------------------------------------
+
+const getJob = cache(async (jobId: number) => {
+  const result = await db.select().from(jobs).where(eq(jobs.id, jobId)).limit(1);
+  return result[0] ?? null;
+});
+
+// ---------------------------------------------------------------------------
 // Metadata
 // ---------------------------------------------------------------------------
 
@@ -121,15 +132,9 @@ export async function generateMetadata({
   const jobId = Number(id);
   if (isNaN(jobId)) return { title: "Job Not Found" };
 
-  const result = await db
-    .select({ title: jobs.title, companyName: jobs.companyName })
-    .from(jobs)
-    .where(eq(jobs.id, jobId))
-    .limit(1);
+  const job = await getJob(jobId);
+  if (!job) return { title: "Job Not Found" };
 
-  if (result.length === 0) return { title: "Job Not Found" };
-
-  const job = result[0]!;
   const company = job.companyName ?? "Unknown Company";
   return {
     title: `${job.title} at ${company}`,
@@ -149,13 +154,11 @@ export default async function JobDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  const result = await db.select().from(jobs).where(eq(jobs.id, jobId)).limit(1);
+  const job = await getJob(jobId);
 
-  if (result.length === 0) {
+  if (!job) {
     notFound();
   }
-
-  const job = result[0]!;
 
   // Check if current user has favorited this job
   let isFavorited = false;

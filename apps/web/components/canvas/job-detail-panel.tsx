@@ -136,7 +136,7 @@ export function JobDetailPanel({
     };
   }, [open, jobId]);
 
-  const salary = job ? formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency, null, "full") : null;
+  const salary = job ? formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency, job.salaryInterval, "full") : null;
   const location = job ? formatLocation(job.locationCity, job.locationState, job.locationCountry) : null;
   const posted = job ? timeAgo(job.datePosted) : null;
   const applyLink = job ? (job.applyUrl || job.jobUrl) : null;

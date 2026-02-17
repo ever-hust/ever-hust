@@ -37,50 +37,58 @@ export async function POST(req: Request) {
 
   const uiMessages = parsed.data.messages as UIMessage[];
 
-  const messages = await convertToModelMessages(uiMessages);
+  try {
+    const messages = await convertToModelMessages(uiMessages);
 
-  const gate = await checkSubscription(userId);
+    const gate = await checkSubscription(userId);
 
-  // Check message rate limit for free users
-  const responseHeaders = new Headers();
-  if (!gate.isActive) {
-    const { allowed, remaining } = await checkMessageLimit(userId);
-    if (!allowed) {
-      return apiError(
-        "Daily message limit reached. Upgrade to Pro for unlimited messages.",
-        429,
-        { limitType: "messages", remaining: 0 },
-      );
+    // Check message rate limit for free users
+    const responseHeaders = new Headers();
+    if (!gate.isActive) {
+      const { allowed, remaining } = await checkMessageLimit(userId);
+      if (!allowed) {
+        return apiError(
+          "Daily message limit reached. Upgrade to Pro for unlimited messages.",
+          429,
+          { limitType: "messages", remaining: 0 },
+        );
+      }
+
+      // Pass remaining count to the streaming response
+      responseHeaders.set("X-RateLimit-Remaining", String(remaining));
     }
 
-    // Pass remaining count to the streaming response
-    responseHeaders.set("X-RateLimit-Remaining", String(remaining));
+    // Fetch actual user preferences for model selection (BYOK keys, preferred model)
+    const userRow = await db
+      .select({ preferences: users.preferences })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    const preferences = (userRow[0]?.preferences as {
+      aiModel?: string;
+      apiKeys?: { anthropic?: string; openai?: string; google?: string };
+    }) ?? null;
+
+    const model = getModelForUser({
+      subscriptionStatus: gate.isActive ? "active" : "free",
+      preferences,
+    });
+
+    // createOrchestratorStream is now async (fetches prompt from Langfuse)
+    const result = await createOrchestratorStream({
+      model,
+      messages,
+      userId,
+      isSubscribed: gate.isActive,
+    });
+
+    return result.toUIMessageStreamResponse({ headers: responseHeaders });
+  } catch (error) {
+    console.error(
+      "[api/ai/chat] Error processing chat request:",
+      error instanceof Error ? error.stack ?? error.message : error,
+    );
+    return apiError("Failed to process chat request");
   }
-
-  // Fetch actual user preferences for model selection (BYOK keys, preferred model)
-  const userRow = await db
-    .select({ preferences: users.preferences })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-
-  const preferences = (userRow[0]?.preferences as {
-    aiModel?: string;
-    apiKeys?: { anthropic?: string; openai?: string; google?: string };
-  }) ?? null;
-
-  const model = getModelForUser({
-    subscriptionStatus: gate.isActive ? "active" : "free",
-    preferences,
-  });
-
-  // createOrchestratorStream is now async (fetches prompt from Langfuse)
-  const result = await createOrchestratorStream({
-    model,
-    messages,
-    userId,
-    isSubscribed: gate.isActive,
-  });
-
-  return result.toUIMessageStreamResponse({ headers: responseHeaders });
 }

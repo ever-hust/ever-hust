@@ -57,10 +57,15 @@ export function PWAInstallPrompt() {
     await deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
 
-    if (outcome === "accepted") {
-      setShowBanner(false);
-    }
+    // Always hide the banner after the user interacts with the native dialog.
+    // The deferred prompt can only be used once per spec; keeping the banner
+    // visible with a null prompt would leave a broken Install button.
+    setShowBanner(false);
     setDeferredPrompt(null);
+
+    if (outcome === "dismissed") {
+      localStorage.setItem("pwa-install-dismissed", "true");
+    }
   }, [deferredPrompt]);
 
   const handleDismiss = useCallback(() => {

@@ -62,7 +62,9 @@ export function CoverLetterModal({
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    // Defer revocation so Safari can complete the async download before the
+    // blob URL is invalidated (synchronous revocation produces empty files).
+    setTimeout(() => URL.revokeObjectURL(url), 100);
   };
 
   return (

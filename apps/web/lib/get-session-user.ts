@@ -3,9 +3,21 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 export async function getSessionUser() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  let session;
+  try {
+    session = await auth.api.getSession({
+      headers: await headers(),
+    });
+  } catch (error) {
+    // Auth infrastructure failure (DB down, corrupt cookie, etc.) — treat as
+    // unauthenticated rather than letting the error propagate to callers that
+    // assume the thrown value is always a NextResponse.
+    console.error(
+      "[get-session-user] Auth session check failed:",
+      error instanceof Error ? error.message : error,
+    );
+    return null;
+  }
 
   if (!session?.user?.id) {
     return null;

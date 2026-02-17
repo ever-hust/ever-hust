@@ -33,7 +33,6 @@ export function timeAgo(dateInput: string | Date | null | undefined): string | n
   if (hrs < 24) return `${hrs}h ago`;
 
   const days = Math.floor(hrs / 24);
-  if (days === 0) return "Today";
   if (days === 1) return "Yesterday";
   if (days < 7) return `${days}d ago`;
   if (days < 30) return `${Math.floor(days / 7)}w ago`;

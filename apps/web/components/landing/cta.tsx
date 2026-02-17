@@ -12,7 +12,7 @@ export function CTA() {
 
       <div className="mx-auto max-w-3xl text-center">
         <div className="mx-auto mb-6 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-          <Sparkles className="h-6 w-6 text-primary" />
+          <Sparkles className="h-6 w-6 text-primary" aria-hidden="true" />
         </div>
 
         <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
@@ -25,7 +25,7 @@ export function CTA() {
         <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
           <Link href="/login">
             <Button size="lg" className="gap-2 shadow-md">
-              Get Started for Free <ArrowRight className="h-4 w-4" />
+              Get Started for Free <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Button>
           </Link>
         </div>

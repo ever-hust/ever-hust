@@ -195,7 +195,7 @@ export default function ApplicationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
-  const fetchApplications = useCallback(async () => {
+  const fetchApplications = useCallback(async (signal?: AbortSignal) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -203,7 +203,7 @@ export default function ApplicationsPage() {
       if (statusFilter !== "all") params.set("status", statusFilter);
       params.set("limit", "100");
 
-      const res = await fetch(`/api/user/applications?${params.toString()}`);
+      const res = await fetch(`/api/user/applications?${params.toString()}`, { signal });
       if (!res.ok) {
         if (res.status === 401) {
           setError("Please sign in to view your applications.");
@@ -211,17 +211,21 @@ export default function ApplicationsPage() {
         }
         throw new Error("Failed to load applications");
       }
+      if (signal?.aborted) return;
       const data = (await res.json()) as { applications: Application[] };
       setApplications(data.applications);
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
-      setIsLoading(false);
+      if (!signal?.aborted) setIsLoading(false);
     }
   }, [statusFilter]);
 
   useEffect(() => {
-    fetchApplications();
+    const controller = new AbortController();
+    fetchApplications(controller.signal);
+    return () => { controller.abort(); };
   }, [fetchApplications]);
 
   // Stats summary

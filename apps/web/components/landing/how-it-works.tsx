@@ -52,7 +52,7 @@ export function HowItWorks() {
 
                 {/* Icon */}
                 <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                  <item.icon className="h-5 w-5 text-primary" />
+                  <item.icon className="h-5 w-5 text-primary" aria-hidden="true" />
                 </div>
 
                 <h3 className="mb-2 text-lg font-semibold">{item.title}</h3>

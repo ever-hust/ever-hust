@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   Heart,
   MapPin,
@@ -85,26 +86,37 @@ function FavoriteJobSkeleton() {
 }
 
 export default function FavoritesPage() {
+  const router = useRouter();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [favorites, setFavorites] = useState<FavoriteJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<number | null>(null);
 
+  const reloadPage = useCallback(() => {
+    router.refresh();
+    setLoading(true);
+    setError(null);
+  }, [router]);
+
   useEffect(() => {
+    const controller = new AbortController();
     async function loadFavorites() {
       try {
-        const res = await fetch("/api/user/favorites/list");
+        const res = await fetch("/api/user/favorites/list", { signal: controller.signal });
         if (!res.ok) throw new Error("Failed to load favorites");
+        if (controller.signal.aborted) return;
         const data = (await res.json()) as { favorites: FavoriteJob[] };
         setFavorites(data.favorites);
       } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
         setError(err instanceof Error ? err.message : "Failed to load");
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
     loadFavorites();
+    return () => { controller.abort(); };
   }, []);
 
   const handleRemoveFavorite = useCallback(async (jobId: number) => {
@@ -149,7 +161,7 @@ export default function FavoritesPage() {
         ) : error ? (
           <ErrorState
             message={error}
-            onRetry={() => window.location.reload()}
+            onRetry={reloadPage}
           />
         ) : favorites.length === 0 ? (
           <EmptyState

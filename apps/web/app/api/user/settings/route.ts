@@ -1,11 +1,12 @@
 import { db } from "@repo/db";
 import { users } from "@repo/db";
 import { eq } from "drizzle-orm";
-import { NextResponse } from "next/server";
+import type { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { settingsPatchSchema, parseBody } from "../../../../lib/api-schemas";
 import { applyRateLimit } from "../../../../lib/rate-limit";
+import { apiSuccess, apiBadRequest } from "../../../../lib/api-response";
 
 const settingsSchema = z.object({
   name: z.string().min(1).max(200).optional(),
@@ -31,7 +32,7 @@ export async function PATCH(req: Request) {
   const rawBody = await req.json();
   const validation = parseBody(settingsPatchSchema, rawBody);
   if (!validation.success) {
-    return NextResponse.json({ error: validation.error }, { status: 400 });
+    return apiBadRequest(validation.error);
   }
   const body = validation.data;
 
@@ -59,7 +60,7 @@ export async function PATCH(req: Request) {
   }
 
   if (Object.keys(allowedFields).length === 0) {
-    return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
+    return apiBadRequest("No valid fields to update");
   }
 
   await db
@@ -67,5 +68,5 @@ export async function PATCH(req: Request) {
     .set({ ...allowedFields, updatedAt: new Date() })
     .where(eq(users.id, userId));
 
-  return NextResponse.json({ updated: true });
+  return apiSuccess({ updated: true });
 }

@@ -1,9 +1,9 @@
 import { db } from "@repo/db";
 import { jobs } from "@repo/db";
 import { and, eq, gte, lte, ilike, desc, sql } from "drizzle-orm";
-import { NextResponse } from "next/server";
 import { jobSearchParamsSchema } from "../../../../lib/api-schemas";
 import { applyRateLimit } from "../../../../lib/rate-limit";
+import { apiSuccess, apiBadRequest, apiError } from "../../../../lib/api-response";
 
 export async function GET(req: Request) {
   // Rate limit by IP for public search endpoint (20 req/min)
@@ -17,12 +17,9 @@ export async function GET(req: Request) {
   const rawParams = Object.fromEntries(url.searchParams.entries());
   const parsed = jobSearchParamsSchema.safeParse(rawParams);
   if (!parsed.success) {
-    return NextResponse.json(
-      {
-        error: "Invalid search parameters",
-        details: parsed.error.flatten().fieldErrors,
-      },
-      { status: 400 }
+    return apiBadRequest(
+      "Invalid search parameters",
+      parsed.error.flatten().fieldErrors,
     );
   }
 
@@ -112,18 +109,19 @@ export async function GET(req: Request) {
 
     const total = Number(countResult[0]?.count ?? 0);
 
-    return NextResponse.json({
-      jobs: result,
-      total,
-      page,
-      limit,
-      hasMore: offset + result.length < total,
-    });
+    // Search results are semi-dynamic — cache for 2 minutes at the edge
+    return apiSuccess(
+      {
+        jobs: result,
+        total,
+        page,
+        limit,
+        hasMore: offset + result.length < total,
+      },
+      { cacheSeconds: 120 },
+    );
   } catch (err) {
     console.error("[api/jobs/search] Database query failed:", err);
-    return NextResponse.json(
-      { error: "Failed to search jobs. Please try again." },
-      { status: 500 },
-    );
+    return apiError("Failed to search jobs. Please try again.");
   }
 }

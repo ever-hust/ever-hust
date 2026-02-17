@@ -3,6 +3,7 @@ import { eq, desc, inArray, asc, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { applyRateLimit } from "../../../../lib/rate-limit";
+import { apiSuccess } from "../../../../lib/api-response";
 
 /**
  * GET /api/chat/sessions
@@ -62,7 +63,7 @@ export async function GET() {
     preview: previews.get(s.id) ?? null,
   }));
 
-  return NextResponse.json({ sessions: sessionsWithPreviews });
+  return apiSuccess({ sessions: sessionsWithPreviews });
 }
 
 /**
@@ -89,7 +90,7 @@ export async function POST() {
     })
     .returning();
 
-  return NextResponse.json({ session }, { status: 201 });
+  return apiSuccess({ session }, { status: 201 });
 }
 
 /**

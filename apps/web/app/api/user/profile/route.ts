@@ -1,10 +1,11 @@
 import { db } from "@repo/db";
 import { users, userJobs, jobs } from "@repo/db";
 import { eq, and } from "drizzle-orm";
-import { NextResponse } from "next/server";
+import type { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { profilePatchSchema, parseBody } from "../../../../lib/api-schemas";
 import { applyRateLimit } from "../../../../lib/rate-limit";
+import { apiSuccess, apiBadRequest, apiNotFound } from "../../../../lib/api-response";
 
 export async function GET() {
   let sessionUser;
@@ -22,7 +23,7 @@ export async function GET() {
     .limit(1);
 
   if (userResult.length === 0) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
+    return apiNotFound("User not found");
   }
 
   const user = userResult[0]!;
@@ -56,7 +57,7 @@ export async function GET() {
     .where(and(eq(userJobs.userId, userId), eq(userJobs.status, "applied")))
     .limit(20);
 
-  return NextResponse.json({
+  return apiSuccess({
     user: {
       id: user.id,
       name: user.name,
@@ -96,7 +97,7 @@ export async function PATCH(req: Request) {
   const rawBody = await req.json();
   const validation = parseBody(profilePatchSchema, rawBody);
   if (!validation.success) {
-    return NextResponse.json({ error: validation.error }, { status: 400 });
+    return apiBadRequest(validation.error);
   }
   const body = validation.data;
 
@@ -112,13 +113,10 @@ export async function PATCH(req: Request) {
 
   if (Object.keys(updates).length <= 1) {
     // Only updatedAt — no actual fields to update
-    return NextResponse.json(
-      { error: "No valid fields to update" },
-      { status: 400 }
-    );
+    return apiBadRequest("No valid fields to update");
   }
 
   await db.update(users).set(updates).where(eq(users.id, userId));
 
-  return NextResponse.json({ updated: true });
+  return apiSuccess({ updated: true });
 }

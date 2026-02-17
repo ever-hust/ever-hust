@@ -1,10 +1,11 @@
 import { db } from "@repo/db";
 import { userJobs } from "@repo/db";
 import { eq, and } from "drizzle-orm";
-import { NextResponse } from "next/server";
+import type { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { favoriteToggleSchema, parseBody } from "../../../../lib/api-schemas";
 import { applyRateLimit } from "../../../../lib/rate-limit";
+import { apiSuccess, apiBadRequest } from "../../../../lib/api-response";
 
 // GET /api/user/favorites - Get user's favorited job IDs
 export async function GET(req: Request) {
@@ -25,7 +26,7 @@ export async function GET(req: Request) {
     .from(userJobs)
     .where(and(eq(userJobs.userId, userId), eq(userJobs.status, "favorited")));
 
-  return NextResponse.json({
+  return apiSuccess({
     favoriteJobIds: favorites.map((f) => f.jobId),
   });
 }
@@ -47,7 +48,7 @@ export async function POST(req: Request) {
   const rawBody = await req.json();
   const validation = parseBody(favoriteToggleSchema, rawBody);
   if (!validation.success) {
-    return NextResponse.json({ error: validation.error }, { status: 400 });
+    return apiBadRequest(validation.error);
   }
   const { jobId } = validation.data;
 
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
       .delete(userJobs)
       .where(and(eq(userJobs.userId, userId), eq(userJobs.jobId, jobId)));
 
-    return NextResponse.json({ jobId, favorited: false });
+    return apiSuccess({ jobId, favorited: false });
   }
 
   if (existing.length > 0) {
@@ -82,5 +83,5 @@ export async function POST(req: Request) {
     });
   }
 
-  return NextResponse.json({ jobId, favorited: true });
+  return apiSuccess({ jobId, favorited: true });
 }

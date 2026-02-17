@@ -1,8 +1,9 @@
 import { db, applications, jobs } from "@repo/db";
 import { eq, and, desc } from "drizzle-orm";
-import { NextResponse } from "next/server";
+import type { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { applyRateLimit } from "../../../../lib/rate-limit";
+import { apiSuccess, apiBadRequest } from "../../../../lib/api-response";
 import { z } from "zod";
 
 const applicationsQuerySchema = z.object({
@@ -33,10 +34,7 @@ export async function GET(req: Request) {
   });
 
   if (!queryParsed.success) {
-    return NextResponse.json(
-      { error: "Invalid query parameters" },
-      { status: 400 }
-    );
+    return apiBadRequest("Invalid query parameters");
   }
 
   const { status, limit, offset } = queryParsed.data;
@@ -70,7 +68,7 @@ export async function GET(req: Request) {
     .limit(limit)
     .offset(offset);
 
-  return NextResponse.json({
+  return apiSuccess({
     applications: results,
     count: results.length,
     offset,

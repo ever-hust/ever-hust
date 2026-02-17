@@ -209,7 +209,7 @@ describe("sendWelcomeEmail", () => {
     );
   });
 
-  it("should use default chatUrl", async () => {
+  it("should use default chatUrl from getAppUrl()", async () => {
     mockSend.mockResolvedValueOnce({ data: { id: "w_2" }, error: null });
 
     const promise = sendWelcomeEmail(params);
@@ -219,7 +219,7 @@ describe("sendWelcomeEmail", () => {
     const { WelcomeEmail } = require("./templates/welcome");
     expect(WelcomeEmail).toHaveBeenCalledWith(
       expect.objectContaining({
-        chatUrl: "https://everjobs.ai/chat",
+        chatUrl: "https://test.everjobs.ai/chat",
       }),
     );
   });
@@ -268,7 +268,7 @@ describe("sendSubscriptionConfirmedEmail", () => {
     );
   });
 
-  it("should use default chatUrl and manageUrl", async () => {
+  it("should use default chatUrl and manageUrl from getAppUrl()", async () => {
     mockSend.mockResolvedValueOnce({ data: { id: "sub_2" }, error: null });
 
     const promise = sendSubscriptionConfirmedEmail(params);
@@ -278,8 +278,8 @@ describe("sendSubscriptionConfirmedEmail", () => {
     const { SubscriptionConfirmedEmail } = require("./templates/subscription-confirmed");
     expect(SubscriptionConfirmedEmail).toHaveBeenCalledWith(
       expect.objectContaining({
-        chatUrl: "https://everjobs.ai/chat",
-        manageUrl: "https://everjobs.ai/settings",
+        chatUrl: "https://test.everjobs.ai/chat",
+        manageUrl: "https://test.everjobs.ai/settings",
       }),
     );
   });

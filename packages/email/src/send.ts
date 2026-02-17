@@ -101,7 +101,7 @@ export async function sendJobAlertEmail({
     const { data, error } = await resend.emails.send({
       from: EMAIL_FROM,
       to,
-      subject: `${jobs.length} new job${jobs.length !== 1 ? "s" : ""} matching "${alertCriteria}"`,
+      subject,
       html,
     });
 
@@ -124,8 +124,9 @@ interface SendWelcomeParams {
 export async function sendWelcomeEmail({
   to,
   userName,
-  chatUrl = "https://everjobs.ai/chat",
+  chatUrl,
 }: SendWelcomeParams) {
+  if (!chatUrl) chatUrl = `${getAppUrl()}/chat`;
   const element = WelcomeEmail({
     userName,
     chatUrl,
@@ -167,9 +168,12 @@ export async function sendSubscriptionConfirmedEmail({
   planName,
   amount,
   billingCycle,
-  chatUrl = "https://everjobs.ai/chat",
-  manageUrl = "https://everjobs.ai/settings",
+  chatUrl,
+  manageUrl,
 }: SendSubscriptionConfirmedParams) {
+  const appUrl = getAppUrl();
+  if (!chatUrl) chatUrl = `${appUrl}/chat`;
+  if (!manageUrl) manageUrl = `${appUrl}/settings`;
   const element = SubscriptionConfirmedEmail({
     userName,
     planName,

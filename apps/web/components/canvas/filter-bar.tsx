@@ -1,7 +1,7 @@
 "use client";
 
 import { Search, X, SlidersHorizontal } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Input } from "@repo/ui/input";
 import { Button } from "@repo/ui/button";
 import { Badge } from "@repo/ui/badge";
@@ -43,12 +43,15 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
   }, [filters.keywords, filters.location]);
 
   // Debounced update for text inputs
-  const debouncedUpdate = (newFilters: JobFilters) => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      onFiltersChange(newFilters);
-    }, FILTER_DEBOUNCE_MS);
-  };
+  const debouncedUpdate = useCallback(
+    (newFilters: JobFilters) => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        onFiltersChange(newFilters);
+      }, FILTER_DEBOUNCE_MS);
+    },
+    [onFiltersChange]
+  );
 
   // Cleanup on unmount
   useEffect(() => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, memo } from "react";
 import { Heart, ExternalLink, MapPin, Building2, Clock, FileText } from "lucide-react";
 import { Badge } from "@repo/ui/badge";
 import { Button } from "@repo/ui/button";
@@ -44,7 +44,7 @@ interface JobCardProps {
 /** Duration of the favorite-button bounce animation (ms). */
 const FAVORITE_ANIMATION_MS = 300;
 
-export function JobCard({
+export const JobCard = memo(function JobCard({
   job,
   isFavorited = false,
   onFavorite,
@@ -254,4 +254,4 @@ export function JobCard({
       </div>
     </article>
   );
-}
+});

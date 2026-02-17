@@ -35,6 +35,19 @@ export async function POST(req: Request) {
     return apiBadRequest("Invalid request body", parsed.error.flatten());
   }
 
+  // Guard against oversized payloads: individual messages are capped at 50K chars
+  // by the schema, but 100 messages × 50K = 5MB total. Cap aggregate at 500K chars
+  // (~500KB) to avoid excessive memory and token costs.
+  const totalChars = parsed.data.messages.reduce(
+    (sum, m) => sum + m.content.length,
+    0
+  );
+  if (totalChars > 500_000) {
+    return apiBadRequest(
+      "Total message content is too large. Please start a new conversation or remove older messages."
+    );
+  }
+
   const uiMessages = parsed.data.messages as UIMessage[];
 
   try {

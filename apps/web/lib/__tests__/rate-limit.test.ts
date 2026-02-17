@@ -90,4 +90,11 @@ describe("API_RATE_LIMITS config", () => {
       API_RATE_LIMITS.authenticated.limit
     );
   });
+
+  it("has export tier with the strictest limits", () => {
+    expect(API_RATE_LIMITS.export).toBeDefined();
+    expect(API_RATE_LIMITS.export.limit).toBeLessThan(
+      API_RATE_LIMITS.chat.limit
+    );
+  });
 });

@@ -60,6 +60,11 @@ export async function POST(req: Request) {
       cancelUrl: `${appUrl}/settings?canceled=true`,
     });
 
+    if (!url) {
+      console.error("[stripe/checkout] Stripe returned null checkout URL");
+      return apiError("Failed to create checkout URL. Please try again.");
+    }
+
     return apiSuccess({ url });
   } catch (error) {
     console.error(

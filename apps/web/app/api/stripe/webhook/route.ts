@@ -220,6 +220,27 @@ async function handleCheckoutCompleted(data: {
   }
 }
 
+/** Subscription statuses our DB schema supports (matches subscriptions.status enum). */
+const VALID_SUBSCRIPTION_STATUSES = new Set([
+  "active",
+  "past_due",
+  "canceled",
+  "incomplete",
+  "trialing",
+]);
+
+/** Map any Stripe subscription status to one our DB schema supports. */
+function normalizeSubscriptionStatus(
+  stripeStatus: string
+): "active" | "past_due" | "canceled" | "incomplete" | "trialing" {
+  if (VALID_SUBSCRIPTION_STATUSES.has(stripeStatus)) {
+    return stripeStatus as "active" | "past_due" | "canceled" | "incomplete" | "trialing";
+  }
+  // Map unknown statuses to safe defaults:
+  // "incomplete_expired", "unpaid", "paused" → "canceled"
+  return "canceled";
+}
+
 async function handleSubscriptionUpdated(data: {
   stripeSubscriptionId: string;
   status: string;
@@ -231,13 +252,15 @@ async function handleSubscriptionUpdated(data: {
 }) {
   const {
     stripeSubscriptionId,
-    status,
+    status: rawStatus,
     currentPeriodStart,
     currentPeriodEnd,
     cancelAtPeriodEnd,
     planId,
     stripeCustomerId,
   } = data;
+
+  const status = normalizeSubscriptionStatus(rawStatus);
 
   // Map Stripe status to our user status
   const userStatus =

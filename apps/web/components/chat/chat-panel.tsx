@@ -217,13 +217,13 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
 
   const lastUserMessage = useRef<string | null>(null);
 
-  const handleSend = async () => {
+  const handleSend = useCallback(async () => {
     const text = input.trim();
     if (!text || isLoading) return;
     lastUserMessage.current = text;
     setInput("");
     await sendMessage({ text });
-  };
+  }, [input, isLoading, sendMessage]);
 
   const handleRetry = useCallback(async () => {
     if (!lastUserMessage.current || isLoading) return;
@@ -238,20 +238,20 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
     await sendMessage({ text: lastUserMessage.current });
   }, [messages, isLoading, setMessages, sendMessage]);
 
-  const handleStop = () => {
+  const handleStop = useCallback(() => {
     stop();
     setAgentState("idle");
     setActiveToolName(undefined);
-  };
+  }, [stop]);
 
-  const handleNewChat = async () => {
+  const handleNewChat = useCallback(async () => {
     setMessages([]);
     setAgentState("idle");
     setActiveToolName(undefined);
     coverLetterPending.current = false;
     hasCreatedSession.current = false;
     await startNewSession();
-  };
+  }, [setMessages, startNewSession]);
 
   const handleSelectSession = useCallback(
     async (sessionId: string) => {

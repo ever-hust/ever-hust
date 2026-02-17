@@ -27,34 +27,9 @@ const nextConfig: NextConfig = {
     ],
   },
 
-  // Security headers applied via middleware (middleware.ts) which supports
-  // environment-aware CSP, HSTS, and auth redirects. Only non-CSP headers
-  // that should apply to static assets (not matched by middleware) are here.
-  async headers() {
-    return [
-      {
-        source: "/(.*)",
-        headers: [
-          {
-            key: "X-Frame-Options",
-            value: "DENY",
-          },
-          {
-            key: "X-Content-Type-Options",
-            value: "nosniff",
-          },
-          {
-            key: "Referrer-Policy",
-            value: "strict-origin-when-cross-origin",
-          },
-          {
-            key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=()",
-          },
-        ],
-      },
-    ];
-  },
+  // Security headers are applied by middleware.ts which provides
+  // environment-aware CSP, HSTS, and auth redirects for all matched routes.
+  // No headers() config here to avoid duplication / mismatched values.
 };
 
 export default nextConfig;

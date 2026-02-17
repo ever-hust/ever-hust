@@ -55,8 +55,12 @@ export function Sidebar() {
   // Focus management: when menu opens, focus close button; when it closes, focus hamburger
   useEffect(() => {
     if (mobileOpen) {
-      // Small delay so the DOM is painted
-      requestAnimationFrame(() => mobileCloseButtonRef.current?.focus());
+      // Small delay so the DOM is painted — cancel on cleanup to avoid
+      // focusing a potentially unmounted element.
+      const rafId = requestAnimationFrame(() =>
+        mobileCloseButtonRef.current?.focus()
+      );
+      return () => cancelAnimationFrame(rafId);
     } else {
       mobileMenuButtonRef.current?.focus();
     }

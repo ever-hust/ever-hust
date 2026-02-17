@@ -1,7 +1,8 @@
 import { db } from "@repo/db";
 import { sql } from "drizzle-orm";
-import { NextResponse, type NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { applyRateLimit } from "../../../lib/rate-limit";
+import { apiSuccess } from "../../../lib/api-response";
 
 /**
  * Health check endpoint for monitoring and uptime checks.
@@ -55,7 +56,7 @@ export async function GET(req: NextRequest) {
   // Memory usage
   const mem = process.memoryUsage();
 
-  return NextResponse.json(
+  return apiSuccess(
     {
       status: isHealthy ? "healthy" : "unhealthy",
       timestamp: new Date().toISOString(),
@@ -68,9 +69,6 @@ export async function GET(req: NextRequest) {
       },
       checks,
     },
-    {
-      status: isHealthy ? 200 : 503,
-      headers: { "Cache-Control": "no-cache, no-store, must-revalidate" },
-    }
+    { status: isHealthy ? 200 : 503, cacheSeconds: 0 },
   );
 }

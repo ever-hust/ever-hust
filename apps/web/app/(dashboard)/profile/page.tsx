@@ -339,7 +339,7 @@ export default function ProfilePage() {
           ) : (
             <CVDropzone
               onUploadComplete={() => {
-                window.location.reload();
+                reloadProfile();
               }}
             />
           )}

@@ -1,9 +1,12 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@repo/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@repo/ui/card";
 import { Separator } from "@repo/ui/separator";
+import { Skeleton } from "@repo/ui/skeleton";
 import { BriefcaseBusiness, Linkedin, Shield, Sparkles, Search, FileText } from "lucide-react";
 import { signIn } from "@repo/auth/client";
 import { toast } from "sonner";
@@ -14,18 +17,57 @@ const VALUE_PROPS = [
   { icon: FileText, text: "Generate tailored cover letters instantly" },
 ];
 
-export default function LoginPage() {
+/**
+ * Validate that a callback URL is a safe, same-origin relative path.
+ * Rejects absolute URLs, protocol-relative URLs, and paths with backslashes
+ * to prevent open redirect attacks.
+ */
+function getSafeCallbackUrl(raw: string | null): string {
+  if (!raw) return "/chat";
+  // Must start with "/" and not "//" (protocol-relative)
+  if (!raw.startsWith("/") || raw.startsWith("//")) return "/chat";
+  // Reject backslash tricks (e.g. "/\evil.com")
+  if (raw.includes("\\")) return "/chat";
+  // Reject any URL that contains a colon before the first slash (e.g. "/javascript:...")
+  const withoutLeadingSlash = raw.slice(1);
+  if (withoutLeadingSlash.includes(":") && withoutLeadingSlash.indexOf(":") < withoutLeadingSlash.indexOf("/")) {
+    return "/chat";
+  }
+  return raw;
+}
+
+function LoginButton() {
+  const searchParams = useSearchParams();
+  const callbackUrl = getSafeCallbackUrl(searchParams.get("callbackUrl"));
+
   const handleLinkedInLogin = async () => {
     try {
       await signIn.social({
         provider: "linkedin",
-        callbackURL: "/chat",
+        callbackURL: callbackUrl,
       });
     } catch {
       toast.error("Failed to start sign-in. Please try again.");
     }
   };
 
+  return (
+    <Button
+      className="w-full gap-2"
+      size="lg"
+      onClick={handleLinkedInLogin}
+    >
+      <Linkedin className="h-5 w-5" aria-hidden="true" />
+      Continue with LinkedIn
+    </Button>
+  );
+}
+
+function LoginButtonFallback() {
+  return <Skeleton className="h-11 w-full rounded-md" />;
+}
+
+export default function LoginPage() {
   return (
     <div id="main-content" className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-sm">
@@ -46,14 +88,9 @@ export default function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button
-              className="w-full gap-2"
-              size="lg"
-              onClick={handleLinkedInLogin}
-            >
-              <Linkedin className="h-5 w-5" aria-hidden="true" />
-              Continue with LinkedIn
-            </Button>
+            <Suspense fallback={<LoginButtonFallback />}>
+              <LoginButton />
+            </Suspense>
 
             <div className="flex items-center gap-1.5 justify-center text-[10px] text-muted-foreground">
               <Shield className="h-3 w-3" aria-hidden="true" />

@@ -120,6 +120,14 @@ export default function JobsPage() {
     [router]
   );
 
+  // Reset page tracking synchronously on filter change to prevent stale
+  // pageRef values if loadMore fires between setFilters and the useEffect.
+  const handleFiltersChange = useCallback((newFilters: JobFilters) => {
+    pageRef.current = 1;
+    loadMoreAbortRef.current?.abort();
+    setFilters(newFilters);
+  }, []);
+
   return (
     <JobsCanvas
       jobs={jobs}
@@ -128,7 +136,7 @@ export default function JobsPage() {
       isLoading={isLoading}
       hasMore={hasMore}
       favoritedJobIds={favoritedJobIds}
-      onFiltersChange={setFilters}
+      onFiltersChange={handleFiltersChange}
       onLoadMore={handleLoadMore}
       onFavorite={toggleFavorite}
       onViewDetails={handleViewDetails}

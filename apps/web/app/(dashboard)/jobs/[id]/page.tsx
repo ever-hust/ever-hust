@@ -24,54 +24,17 @@ import {
 import { FavoriteButton } from "@/components/jobs/favorite-button";
 import { Breadcrumbs } from "@/components/shared/breadcrumbs";
 import { getSessionUser } from "@/lib/get-session-user";
+import { formatSalary, formatLocation, timeAgo } from "@/lib/format-date";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatSalary(
-  min: string | null,
-  max: string | null,
-  currency: string | null,
-  interval: string | null
-) {
-  if (!min && !max) return null;
-  const curr = currency ?? "USD";
-  const symbol = curr === "USD" ? "$" : curr;
-
-  const fmt = (v: string) => {
-    const num = Number(v);
-    if (isNaN(num)) return v;
-    return `${symbol}${num.toLocaleString("en-US")}`;
-  };
-
-  const parts: string[] = [];
-  if (min) parts.push(fmt(min));
-  if (max) parts.push(fmt(max));
-  const range = parts.join(" - ");
-  const int =
-    interval === "yearly"
-      ? "/year"
-      : interval === "monthly"
-        ? "/month"
-        : interval === "hourly"
-          ? "/hour"
-          : interval
-            ? `/${interval}`
-            : "/year";
-  return `${range} ${int}`;
-}
-
-function formatLocation(
-  city: string | null,
-  state: string | null,
-  country: string | null
-) {
-  const parts = [city, state, country].filter(Boolean);
-  return parts.length > 0 ? parts.join(", ") : null;
-}
-
-function formatDate(date: Date | string | null) {
+/**
+ * Long-form date for the job detail page, e.g. "January 15, 2025".
+ * Different from the shared `formatDate` (which uses short month).
+ */
+function formatLongDate(date: Date | string | null) {
   if (!date) return null;
   const d = typeof date === "string" ? new Date(date) : date;
   return d.toLocaleDateString("en-US", {
@@ -79,18 +42,6 @@ function formatDate(date: Date | string | null) {
     month: "long",
     day: "numeric",
   });
-}
-
-function timeAgo(date: Date | string | null) {
-  if (!date) return null;
-  const d = typeof date === "string" ? new Date(date) : date;
-  const diff = Date.now() - d.getTime();
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  if (days === 0) return "Today";
-  if (days === 1) return "Yesterday";
-  if (days < 7) return `${days} days ago`;
-  if (days < 30) return `${Math.floor(days / 7)} weeks ago`;
-  return `${Math.floor(days / 30)} months ago`;
 }
 
 function renderDescription(text: string) {
@@ -231,14 +182,15 @@ export default async function JobDetailPage({ params }: PageProps) {
     job.salaryMin,
     job.salaryMax,
     job.salaryCurrency,
-    job.salaryInterval
+    job.salaryInterval,
+    "full"
   );
   const location = formatLocation(
     job.locationCity,
     job.locationState,
     job.locationCountry
   );
-  const postedDate = formatDate(job.datePosted);
+  const postedDate = formatLongDate(job.datePosted);
   const postedAgo = timeAgo(job.datePosted);
   const applyLink = job.applyUrl || job.jobUrl || job.jobUrlDirect;
 
@@ -326,7 +278,7 @@ export default async function JobDetailPage({ params }: PageProps) {
                   className="h-10 w-10 rounded object-contain"
                 />
               ) : (
-                <Building2 className="h-7 w-7 text-muted-foreground" />
+                <Building2 className="h-7 w-7 text-muted-foreground" aria-hidden="true" />
               )}
             </div>
 
@@ -338,7 +290,7 @@ export default async function JobDetailPage({ params }: PageProps) {
               <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
                 {job.companyName && (
                   <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
-                    <Building2 className="h-4 w-4 text-muted-foreground" />
+                    <Building2 className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                     {job.companyUrl ? (
                       <a
                         href={job.companyUrl}
@@ -356,14 +308,14 @@ export default async function JobDetailPage({ params }: PageProps) {
 
                 {location && (
                   <span className="inline-flex items-center gap-1.5">
-                    <MapPin className="h-4 w-4" />
+                    <MapPin className="h-4 w-4" aria-hidden="true" />
                     {location}
                   </span>
                 )}
 
                 {postedAgo && (
                   <span className="inline-flex items-center gap-1.5">
-                    <Clock className="h-4 w-4" />
+                    <Clock className="h-4 w-4" aria-hidden="true" />
                     {postedAgo}
                   </span>
                 )}
@@ -384,7 +336,7 @@ export default async function JobDetailPage({ params }: PageProps) {
                 )}
                 {salary && (
                   <Badge variant="outline" className="font-semibold">
-                    <DollarSign className="h-3 w-3" />
+                    <DollarSign className="h-3 w-3" aria-hidden="true" />
                     {salary}
                   </Badge>
                 )}
@@ -402,13 +354,13 @@ export default async function JobDetailPage({ params }: PageProps) {
               <Button size="lg">
                 Apply on{" "}
                 <span className="capitalize">{job.site}</span>
-                <ExternalLink className="ml-1 h-4 w-4" />
+                <ExternalLink className="ml-1 h-4 w-4" aria-hidden="true" />
               </Button>
             </a>
           )}
           <Link href={`/chat?job=${job.id}`}>
             <Button variant="outline" size="lg">
-              <FileText className="mr-1 h-4 w-4" />
+              <FileText className="mr-1 h-4 w-4" aria-hidden="true" />
               Generate Cover Letter
             </Button>
           </Link>
@@ -467,7 +419,7 @@ export default async function JobDetailPage({ params }: PageProps) {
                 <dl className="space-y-4">
                   {job.jobType && job.jobType.length > 0 && (
                     <div className="flex items-start gap-3">
-                      <Briefcase className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <Briefcase className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                       <div>
                         <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           Job Type
@@ -479,7 +431,7 @@ export default async function JobDetailPage({ params }: PageProps) {
 
                   {job.jobLevel && (
                     <div className="flex items-start gap-3">
-                      <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                       <div>
                         <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           Experience Level
@@ -491,7 +443,7 @@ export default async function JobDetailPage({ params }: PageProps) {
 
                   {job.department && (
                     <div className="flex items-start gap-3">
-                      <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                       <div>
                         <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           Department
@@ -503,7 +455,7 @@ export default async function JobDetailPage({ params }: PageProps) {
 
                   {job.team && (
                     <div className="flex items-start gap-3">
-                      <Users className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <Users className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                       <div>
                         <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           Team
@@ -515,7 +467,7 @@ export default async function JobDetailPage({ params }: PageProps) {
 
                   {job.employmentType && (
                     <div className="flex items-start gap-3">
-                      <Briefcase className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <Briefcase className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                       <div>
                         <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           Employment Type
@@ -527,7 +479,7 @@ export default async function JobDetailPage({ params }: PageProps) {
 
                   {job.jobFunction && (
                     <div className="flex items-start gap-3">
-                      <Briefcase className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <Briefcase className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                       <div>
                         <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           Function
@@ -539,7 +491,7 @@ export default async function JobDetailPage({ params }: PageProps) {
 
                   {salary && (
                     <div className="flex items-start gap-3">
-                      <DollarSign className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <DollarSign className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                       <div>
                         <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           Salary Range
@@ -551,7 +503,7 @@ export default async function JobDetailPage({ params }: PageProps) {
 
                   {location && (
                     <div className="flex items-start gap-3">
-                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                       <div>
                         <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           Location
@@ -566,7 +518,7 @@ export default async function JobDetailPage({ params }: PageProps) {
 
                   {postedDate && (
                     <div className="flex items-start gap-3">
-                      <Calendar className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <Calendar className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                       <div>
                         <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           Date Posted
@@ -586,7 +538,7 @@ export default async function JobDetailPage({ params }: PageProps) {
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-2">
-                  <Globe className="h-4 w-4 text-muted-foreground" />
+                  <Globe className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                   <Badge variant="outline" className="capitalize">
                     {job.site}
                   </Badge>
@@ -599,7 +551,7 @@ export default async function JobDetailPage({ params }: PageProps) {
                     className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
                   >
                     View original listing
-                    <ExternalLink className="h-3 w-3" />
+                    <ExternalLink className="h-3 w-3" aria-hidden="true" />
                   </a>
                 )}
               </CardContent>
@@ -623,7 +575,7 @@ export default async function JobDetailPage({ params }: PageProps) {
                               className="h-8 w-8 rounded object-contain"
                             />
                           ) : (
-                            <Building2 className="h-5 w-5 text-muted-foreground" />
+                            <Building2 className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
                           )}
                         </div>
                         <div>
@@ -652,7 +604,7 @@ export default async function JobDetailPage({ params }: PageProps) {
 
                     {job.companyNumEmployees && (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Users className="h-4 w-4" />
+                        <Users className="h-4 w-4" aria-hidden="true" />
                         <span>{job.companyNumEmployees} employees</span>
                       </div>
                     )}
@@ -677,7 +629,7 @@ export default async function JobDetailPage({ params }: PageProps) {
               >
                 <Button className="w-full" size="lg">
                   Apply Now
-                  <ExternalLink className="ml-1 h-4 w-4" />
+                  <ExternalLink className="ml-1 h-4 w-4" aria-hidden="true" />
                 </Button>
               </a>
             )}

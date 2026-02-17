@@ -250,9 +250,13 @@ export default async function JobDetailPage({ params }: PageProps) {
 
   return (
     <>
+      {/* Escape closing script tags in JSON-LD to prevent XSS via crafted
+          job data (e.g. a description containing "</script>"). */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
+        }}
       />
       <div className="flex flex-1 flex-col overflow-y-auto">
       <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 lg:px-8">

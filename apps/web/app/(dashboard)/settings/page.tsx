@@ -98,11 +98,13 @@ export default function SettingsPage() {
   }>({ anthropic: false, openai: false, google: false });
   const [keySaving, setKeySaving] = useState(false);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Clean up saved-feedback timer on unmount
+  // Clean up timers on unmount to prevent memory leaks
   useEffect(() => {
     return () => {
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
     };
   }, []);
 
@@ -441,7 +443,7 @@ export default function SettingsPage() {
       const res = await fetch("/api/user/account", { method: "DELETE" });
       if (res.ok || res.status === 204) {
         toast.success("Account deleted. Redirecting...");
-        setTimeout(() => {
+        redirectTimerRef.current = setTimeout(() => {
           window.location.href = "/";
         }, 1500);
       } else {

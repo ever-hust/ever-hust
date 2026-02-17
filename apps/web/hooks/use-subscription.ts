@@ -98,8 +98,11 @@ export function useSubscription(): SubscriptionInfo {
         }
       }
       throw new Error("Failed to start checkout");
-    } catch {
-      // Let the caller handle the error through UI
+    } catch (err) {
+      console.warn(
+        "[useSubscription] Checkout failed:",
+        err instanceof Error ? err.message : err
+      );
       throw new Error("Failed to start checkout. Please try again.");
     }
   }, []);
@@ -115,7 +118,11 @@ export function useSubscription(): SubscriptionInfo {
         }
       }
       throw new Error("Failed to open portal");
-    } catch {
+    } catch (err) {
+      console.warn(
+        "[useSubscription] Portal failed:",
+        err instanceof Error ? err.message : err
+      );
       throw new Error(
         "Failed to open subscription portal. Please try again."
       );

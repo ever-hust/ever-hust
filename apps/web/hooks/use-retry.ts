@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 
 interface UseRetryOptions {
   /** Maximum number of automatic retries (default: 3) */
@@ -50,25 +50,47 @@ export function useRetry<T>(
   const [retryCount, setRetryCount] = useState(0);
   const fnRef = useRef(fn);
   fnRef.current = fn;
+  const mountedRef = useRef(true);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clean up on unmount to prevent state updates after unmount
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    };
+  }, []);
 
   const executeWithRetry = useCallback(
     async (attempt = 0): Promise<T | null> => {
+      if (!mountedRef.current) return null;
       setIsLoading(true);
       setError(null);
 
       try {
         const result = await fnRef.current();
+        if (!mountedRef.current) return null;
         setIsLoading(false);
         setRetryCount(0);
         return result;
       } catch (err) {
+        if (!mountedRef.current) return null;
         const error = err instanceof Error ? err : new Error(String(err));
 
         if (attempt < maxRetries) {
           const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 200;
-          await new Promise((r) => setTimeout(r, delay));
-          setRetryCount(attempt + 1);
-          return executeWithRetry(attempt + 1);
+          return new Promise<T | null>((resolve) => {
+            retryTimerRef.current = setTimeout(() => {
+              retryTimerRef.current = null;
+              if (!mountedRef.current) {
+                resolve(null);
+                return;
+              }
+              setRetryCount(attempt + 1);
+              resolve(executeWithRetry(attempt + 1));
+            }, delay);
+          });
         }
 
         setError(error);
@@ -83,11 +105,13 @@ export function useRetry<T>(
   const execute = useCallback(() => executeWithRetry(0), [executeWithRetry]);
 
   const retry = useCallback(() => {
+    if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
     setRetryCount(0);
     return executeWithRetry(0);
   }, [executeWithRetry]);
 
   const reset = useCallback(() => {
+    if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
     setIsLoading(false);
     setError(null);
     setRetryCount(0);

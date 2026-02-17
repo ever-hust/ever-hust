@@ -3,7 +3,7 @@ import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../../lib/get-session-user";
 import { applyRateLimit } from "../../../../../lib/rate-limit";
-import { apiNotFound } from "../../../../../lib/api-response";
+import { apiNotFound, apiError } from "../../../../../lib/api-response";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -24,22 +24,27 @@ export async function DELETE(_req: Request, context: RouteContext) {
 
   const { id } = await context.params;
 
-  // Verify the session belongs to this user
-  const session = await db
-    .select({ id: chatSessions.id })
-    .from(chatSessions)
-    .where(and(eq(chatSessions.id, id), eq(chatSessions.userId, user.id)))
-    .limit(1);
+  try {
+    // Verify the session belongs to this user
+    const session = await db
+      .select({ id: chatSessions.id })
+      .from(chatSessions)
+      .where(and(eq(chatSessions.id, id), eq(chatSessions.userId, user.id)))
+      .limit(1);
 
-  if (session.length === 0) {
-    return apiNotFound("Session not found");
+    if (session.length === 0) {
+      return apiNotFound("Session not found");
+    }
+
+    // Delete messages first, then the session
+    await db.delete(chatMessages).where(eq(chatMessages.sessionId, id));
+    await db
+      .delete(chatSessions)
+      .where(and(eq(chatSessions.id, id), eq(chatSessions.userId, user.id)));
+
+    return new NextResponse(null, { status: 204 });
+  } catch (error) {
+    console.error("[api/chat/sessions/DELETE]", error instanceof Error ? error.message : error);
+    return apiError("Failed to delete session");
   }
-
-  // Delete messages first, then the session
-  await db.delete(chatMessages).where(eq(chatMessages.sessionId, id));
-  await db
-    .delete(chatSessions)
-    .where(and(eq(chatSessions.id, id), eq(chatSessions.userId, user.id)));
-
-  return new NextResponse(null, { status: 204 });
 }

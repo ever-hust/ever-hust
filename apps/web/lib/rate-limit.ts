@@ -10,6 +10,16 @@ import { NextResponse } from "next/server";
  * In production, swap this for Redis/Upstash for distributed rate limiting.
  */
 
+/** Rate limits per PRD section 13. */
+export const API_RATE_LIMITS = {
+  /** Authenticated user routes: 100 req/min */
+  authenticated: { limit: 100, windowMs: 60_000 },
+  /** Public/unauthenticated routes: 20 req/min */
+  public: { limit: 20, windowMs: 60_000 },
+  /** AI chat route: stricter limit of 30 req/min */
+  chat: { limit: 30, windowMs: 60_000 },
+} as const;
+
 interface RateLimitEntry {
   timestamps: number[];
 }
@@ -20,12 +30,17 @@ const store = new Map<string, RateLimitEntry>();
 const CLEANUP_INTERVAL = 5 * 60 * 1000;
 let lastCleanup = Date.now();
 
-function cleanup(windowMs: number) {
+/** Maximum window across all tiers — used for cleanup so no valid entries are pruned. */
+const MAX_WINDOW_MS = Math.max(
+  ...Object.values(API_RATE_LIMITS).map((c) => c.windowMs)
+);
+
+function cleanup() {
   const now = Date.now();
   if (now - lastCleanup < CLEANUP_INTERVAL) return;
   lastCleanup = now;
 
-  const cutoff = now - windowMs;
+  const cutoff = now - MAX_WINDOW_MS;
   for (const [key, entry] of store) {
     entry.timestamps = entry.timestamps.filter((t) => t > cutoff);
     if (entry.timestamps.length === 0) {
@@ -52,7 +67,7 @@ export function checkApiRateLimit(
   const now = Date.now();
   const cutoff = now - windowMs;
 
-  cleanup(windowMs);
+  cleanup();
 
   let entry = store.get(key);
   if (!entry) {
@@ -79,16 +94,6 @@ export function checkApiRateLimit(
     resetAt: now + windowMs,
   };
 }
-
-/** Rate limits per PRD section 13. */
-export const API_RATE_LIMITS = {
-  /** Authenticated user routes: 100 req/min */
-  authenticated: { limit: 100, windowMs: 60_000 },
-  /** Public/unauthenticated routes: 20 req/min */
-  public: { limit: 20, windowMs: 60_000 },
-  /** AI chat route: stricter limit of 30 req/min */
-  chat: { limit: 30, windowMs: 60_000 },
-} as const;
 
 /**
  * Helper to apply rate limiting in API routes.

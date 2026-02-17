@@ -23,7 +23,7 @@ interface ErrorStateProps {
  * ```tsx
  * <ErrorState
  *   message="Failed to load favorites"
- *   onRetry={() => window.location.reload()}
+ *   onRetry={() => setRetryKey((k) => k + 1)}
  * />
  * ```
  */

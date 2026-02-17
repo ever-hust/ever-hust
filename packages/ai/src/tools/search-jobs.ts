@@ -152,11 +152,13 @@ export const searchJobsTool = tool({
       .limit(limit)
       .offset(params.offset ?? 0);
 
-    // Truncate descriptions for the response
+    // Truncate long descriptions to keep tool responses concise
     const jobResults = results.map((job) => ({
       ...job,
       description: job.description
-        ? job.description.substring(0, 300) + "..."
+        ? job.description.length > 300
+          ? job.description.substring(0, 300) + "..."
+          : job.description
         : null,
     }));
 

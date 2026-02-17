@@ -1,17 +1,13 @@
 import { db } from "@repo/db";
 import { userJobs } from "@repo/db";
-import { jobs } from "@repo/db";
 import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { requireSessionUser } from "../../../../lib/get-session-user";
-
-const favoriteSchema = z.object({
-  jobId: z.number({ required_error: "jobId is required" }).int().positive(),
-});
+import { favoriteToggleSchema, parseBody } from "../../../../lib/api-schemas";
+import { applyRateLimit } from "../../../../lib/rate-limit";
 
 // GET /api/user/favorites - Get user's favorited job IDs
-export async function GET() {
+export async function GET(req: Request) {
   let user;
   try {
     user = await requireSessionUser();
@@ -19,6 +15,10 @@ export async function GET() {
     return response as NextResponse;
   }
   const userId = user.id;
+
+  // Rate limit: 100 req/min per authenticated user
+  const rateLimited = applyRateLimit(userId, "authenticated");
+  if (rateLimited) return rateLimited;
 
   const favorites = await db
     .select({ jobId: userJobs.jobId })
@@ -39,17 +39,17 @@ export async function POST(req: Request) {
     return response as NextResponse;
   }
   const userId = user.id;
-  const body = await req.json();
-  const parsed = favoriteSchema.safeParse(body);
 
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid input", details: parsed.error.flatten() },
-      { status: 400 }
-    );
+  // Rate limit: 100 req/min per authenticated user
+  const rateLimited = applyRateLimit(userId, "authenticated");
+  if (rateLimited) return rateLimited;
+
+  const rawBody = await req.json();
+  const validation = parseBody(favoriteToggleSchema, rawBody);
+  if (!validation.success) {
+    return NextResponse.json({ error: validation.error }, { status: 400 });
   }
-
-  const { jobId } = parsed.data;
+  const { jobId } = validation.data;
 
   // Check if already favorited
   const existing = await db

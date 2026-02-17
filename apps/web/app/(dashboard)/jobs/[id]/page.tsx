@@ -21,8 +21,9 @@ import {
   Globe,
   Calendar,
 } from "lucide-react";
-import { getSessionUser } from "../../../../lib/get-session-user";
-import { FavoriteButton } from "../../../../components/shared/favorite-button";
+import { FavoriteButton } from "@/components/jobs/favorite-button";
+import { Breadcrumbs } from "@/components/shared/breadcrumbs";
+import { getSessionUser } from "@/lib/get-session-user";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -241,84 +242,75 @@ export default async function JobDetailPage({ params }: PageProps) {
   const postedAgo = timeAgo(job.datePosted);
   const applyLink = job.applyUrl || job.jobUrl || job.jobUrlDirect;
 
-  // Build JobPosting JSON-LD structured data
-  const jobPostingJsonLd = {
-    "@context": "https://schema.org",
+  // Build JSON-LD structured data for SEO (Google for Jobs)
+  const jsonLd = {
+    "@context": "https://schema.org/",
     "@type": "JobPosting",
     title: job.title,
-    description: job.description ?? undefined,
+    description: job.description ?? "",
     datePosted: job.datePosted
-      ? typeof job.datePosted === "string"
-        ? job.datePosted
-        : job.datePosted.toISOString()
-      : undefined,
-    employmentType: job.employmentType ?? (job.jobType?.[0]?.toUpperCase()) ?? undefined,
-    jobLocationType: job.isRemote ? "TELECOMMUTE" : undefined,
-    ...(job.companyName && {
-      hiringOrganization: {
-        "@type": "Organization",
-        name: job.companyName,
-        sameAs: job.companyUrl ?? undefined,
-        logo: job.companyLogo ?? undefined,
+      ? new Date(job.datePosted).toISOString()
+      : new Date(job.createdAt).toISOString(),
+    ...(job.expiresAt
+      ? { validThrough: new Date(job.expiresAt).toISOString() }
+      : {}),
+    hiringOrganization: {
+      "@type": "Organization",
+      name: job.companyName ?? "Unknown",
+      ...(job.companyUrl ? { sameAs: job.companyUrl } : {}),
+      ...(job.companyLogo ? { logo: job.companyLogo } : {}),
+    },
+    jobLocation: {
+      "@type": "Place",
+      address: {
+        "@type": "PostalAddress",
+        ...(job.locationCity ? { addressLocality: job.locationCity } : {}),
+        ...(job.locationState ? { addressRegion: job.locationState } : {}),
+        ...(job.locationCountry ? { addressCountry: job.locationCountry } : {}),
       },
-    }),
-    ...(location && {
-      jobLocation: {
-        "@type": "Place",
-        address: {
-          "@type": "PostalAddress",
-          addressLocality: job.locationCity ?? undefined,
-          addressRegion: job.locationState ?? undefined,
-          addressCountry: job.locationCountry ?? undefined,
-        },
-      },
-    }),
-    ...((job.salaryMin || job.salaryMax) && {
-      baseSalary: {
-        "@type": "MonetaryAmount",
-        currency: job.salaryCurrency ?? "USD",
-        value: {
-          "@type": "QuantitativeValue",
-          ...(job.salaryMin && { minValue: Number(job.salaryMin) }),
-          ...(job.salaryMax && { maxValue: Number(job.salaryMax) }),
-          unitText:
-            job.salaryInterval === "yearly"
-              ? "YEAR"
-              : job.salaryInterval === "monthly"
-                ? "MONTH"
-                : job.salaryInterval === "hourly"
-                  ? "HOUR"
-                  : "YEAR",
-        },
-      },
-    }),
-    ...(job.skills &&
-      job.skills.length > 0 && {
-        skills: job.skills.join(", "),
-      }),
+    },
+    ...(job.isRemote
+      ? { jobLocationType: "TELECOMMUTE" }
+      : {}),
+    ...(job.employmentType
+      ? { employmentType: job.employmentType.toUpperCase().replace(/ /g, "_") }
+      : {}),
+    ...(job.salaryMin || job.salaryMax
+      ? {
+          baseSalary: {
+            "@type": "MonetaryAmount",
+            currency: job.salaryCurrency ?? "USD",
+            value: {
+              "@type": "QuantitativeValue",
+              ...(job.salaryMin ? { minValue: Number(job.salaryMin) } : {}),
+              ...(job.salaryMax ? { maxValue: Number(job.salaryMax) } : {}),
+              unitText:
+                job.salaryInterval === "yearly"
+                  ? "YEAR"
+                  : job.salaryInterval === "monthly"
+                    ? "MONTH"
+                    : job.salaryInterval === "hourly"
+                      ? "HOUR"
+                      : "YEAR",
+            },
+          },
+        }
+      : {}),
+    ...(applyLink ? { directApply: true } : {}),
   };
 
   return (
-    <div className="flex flex-1 flex-col overflow-y-auto">
-      {/* JobPosting Structured Data */}
+    <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(jobPostingJsonLd),
-        }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-
+      <div className="flex flex-1 flex-col overflow-y-auto">
       <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
         {/* ----------------------------------------------------------------- */}
-        {/* Back Navigation                                                   */}
+        {/* Breadcrumb Navigation                                             */}
         {/* ----------------------------------------------------------------- */}
-        <Link
-          href="/jobs"
-          className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Jobs
-        </Link>
+        <Breadcrumbs overrideLabel={job.title} className="mb-6" />
 
         {/* ----------------------------------------------------------------- */}
         {/* Header Section                                                    */}
@@ -420,7 +412,7 @@ export default async function JobDetailPage({ params }: PageProps) {
               Generate Cover Letter
             </Button>
           </Link>
-          <FavoriteButton jobId={job.id} initialFavorited={isFavorited} />
+          <FavoriteButton jobId={job.id} />
         </div>
 
         <Separator className="mb-6" />
@@ -693,5 +685,6 @@ export default async function JobDetailPage({ params }: PageProps) {
         </div>
       </div>
     </div>
+    </>
   );
 }

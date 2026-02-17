@@ -9,81 +9,102 @@ import {
   Preview,
   Section,
   Text,
+  Button,
 } from "@react-email/components";
 import * as React from "react";
 
 interface SubscriptionConfirmedEmailProps {
   userName: string;
   planName: string;
-  dashboardUrl: string;
+  amount: string;
+  billingCycle: string;
+  chatUrl: string;
+  manageUrl: string;
 }
 
 export function SubscriptionConfirmedEmail({
   userName = "there",
-  planName = "Pro Quarterly",
-  dashboardUrl = "https://everjobs.ai/chat",
+  planName = "Quarterly",
+  amount = "$12/month",
+  billingCycle = "$36 billed every 3 months",
+  chatUrl = "https://everjobs.ai/chat",
+  manageUrl = "https://everjobs.ai/settings",
 }: SubscriptionConfirmedEmailProps) {
-  // Derive settings URL from dashboard URL base
-  const settingsUrl = dashboardUrl.replace(/\/chat$/, "/settings");
-
   return (
     <Html>
       <Head />
-      <Preview>Your {planName} subscription is active — unlock the full power of Ever Jobs</Preview>
+      <Preview>Your Ever Jobs Pro subscription is active</Preview>
       <Body style={main}>
         <Container style={container}>
-          <Heading style={heading}>Subscription Confirmed</Heading>
+          <Heading style={heading}>You&apos;re Now Pro! 🎉</Heading>
 
           <Text style={paragraph}>Hi {userName},</Text>
 
           <Text style={paragraph}>
-            Your <strong>{planName}</strong> subscription is now active.
-            Thank you for upgrading!
+            Your Ever Jobs Pro subscription is now active. Here&apos;s a summary
+            of your plan:
           </Text>
 
-          <Hr style={hr} />
+          <Section style={planCard}>
+            <Text style={planName_}>
+              <strong>{planName} Plan</strong>
+            </Text>
+            <Text style={planDetail}>{amount}</Text>
+            <Text style={planDetail}>{billingCycle}</Text>
+          </Section>
 
-          <Section style={section}>
-            <Text style={subheading}>What&apos;s now unlocked:</Text>
-            <Text style={listItem}>
-              <strong>Unlimited AI messages</strong> — No daily limits on chat.
+          <Text style={paragraph}>
+            With Pro, you now have access to everything:
+          </Text>
+
+          <Section style={featureList}>
+            <Text style={featureItem}>
+              ✅ <strong>Unlimited AI messages</strong> — No daily limits
             </Text>
-            <Text style={listItem}>
-              <strong>Unlimited job searches</strong> — Search as much as you
-              need.
+            <Text style={featureItem}>
+              ✅ <strong>Unlimited job searches</strong> — Search across 25+
+              sources
             </Text>
-            <Text style={listItem}>
-              <strong>Unlimited cover letters</strong> — Generate tailored
-              letters for every application.
+            <Text style={featureItem}>
+              ✅ <strong>Unlimited cover letters</strong> — Generate as many as
+              you need
             </Text>
-            <Text style={listItem}>
-              <strong>Job alerts</strong> — Get notified when matching jobs are
-              posted.
+            <Text style={featureItem}>
+              ✅ <strong>Job alerts</strong> — Get notified when matching jobs
+              appear
             </Text>
-            <Text style={listItem}>
-              <strong>AI agents</strong> — Application assistance and interview
-              prep.
+            <Text style={featureItem}>
+              ✅ <strong>Interview prep</strong> — AI-powered interview coaching
             </Text>
+            <Text style={featureItem}>
+              ✅ <strong>Application agent</strong> — Let AI help you apply
+            </Text>
+            <Text style={featureItem}>
+              ✅ <strong>Claude Opus 4.6</strong> — Our most capable AI model
+            </Text>
+          </Section>
+
+          <Section style={ctaSection}>
+            <Button href={chatUrl} style={button}>
+              Start Using Pro Features
+            </Button>
           </Section>
 
           <Hr style={hr} />
 
-          <Section style={{ textAlign: "center" as const, padding: "0 40px" }}>
-            <Link href={dashboardUrl} style={button}>
-              Go to Dashboard
-            </Link>
-          </Section>
-
-          <Text style={footer}>
-            Manage your subscription anytime from{" "}
-            <Link href={settingsUrl} style={link}>
-              Settings
+          <Text style={paragraph}>
+            You can manage your subscription, change plans, or update payment
+            details at any time from your{" "}
+            <Link href={manageUrl} style={link}>
+              settings page
             </Link>
             .
           </Text>
 
+          <Hr style={hr} />
+
           <Text style={footer}>
-            Ever Jobs — Your AI-Powered Job Search Assistant
+            Ever Jobs · Your AI-Powered Job Search Assistant
           </Text>
         </Container>
       </Body>
@@ -106,7 +127,7 @@ const container = {
 };
 
 const heading = {
-  fontSize: "24px",
+  fontSize: "28px",
   letterSpacing: "-0.5px",
   lineHeight: "1.3",
   fontWeight: "700" as const,
@@ -123,39 +144,58 @@ const paragraph = {
   padding: "0 40px",
 };
 
-const hr = {
-  borderColor: "#dfe1e4",
-  margin: "20px 40px",
+const planCard = {
+  backgroundColor: "#f9fafb",
+  border: "1px solid #e5e7eb",
+  borderRadius: "8px",
+  margin: "0 40px 20px",
+  padding: "16px 20px",
+  textAlign: "center" as const,
 };
 
-const section = {
+const planName_ = {
+  fontSize: "16px",
+  color: "#111827",
+  margin: "0 0 4px",
+};
+
+const planDetail = {
+  fontSize: "14px",
+  color: "#6b7280",
+  margin: "0",
+};
+
+const featureList = {
   padding: "0 40px",
 };
 
-const subheading = {
-  fontSize: "15px",
-  fontWeight: "600" as const,
-  color: "#484848",
-  margin: "0 0 12px",
-};
-
-const listItem = {
+const featureItem = {
   fontSize: "14px",
   lineHeight: "1.5",
   color: "#3c4149",
-  margin: "0 0 10px",
+  margin: "0 0 8px",
+};
+
+const ctaSection = {
+  textAlign: "center" as const,
+  margin: "24px 0",
 };
 
 const button = {
-  backgroundColor: "#2563eb",
+  backgroundColor: "#000000",
   borderRadius: "6px",
-  color: "#fff",
-  display: "inline-block",
+  color: "#ffffff",
   fontSize: "15px",
   fontWeight: "600" as const,
-  lineHeight: "1",
-  padding: "12px 24px",
   textDecoration: "none",
+  textAlign: "center" as const,
+  display: "inline-block",
+  padding: "12px 24px",
+};
+
+const hr = {
+  borderColor: "#dfe1e4",
+  margin: "20px 40px",
 };
 
 const link = {

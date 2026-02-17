@@ -1,4 +1,4 @@
-export { getModelForUser, getProviderInfo } from "./model-router";
+export { getModelForUser } from "./model-router";
 export { createOrchestratorStream } from "./agents/orchestrator";
 export { checkSearchLimit, checkCoverLetterLimit } from "./rate-limit";
 export { getOrchestratorPrompt, getPrompt } from "./prompts";
@@ -13,6 +13,6 @@ export {
   generateCoverLetterTool,
   createAlertTool,
   applyJobTool,
-  interviewPrepTool,
   submitAnswersTool,
+  interviewPrepTool,
 } from "./tools";

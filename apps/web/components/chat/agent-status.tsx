@@ -1,118 +1,90 @@
 "use client";
 
+import { cn } from "@repo/ui/lib/utils";
 import {
   Search,
   FileText,
   Heart,
-  Bell,
   Briefcase,
-  GraduationCap,
   User,
-  SlidersHorizontal,
+  Settings,
+  Bell,
   BookOpen,
   ClipboardCheck,
   Loader2,
   CheckCircle2,
 } from "lucide-react";
-import { cn } from "@repo/ui/lib/utils";
 
-/** Friendly labels and icons for each AI tool */
+/** Maps AI tool names to user-friendly labels and icons. */
 const TOOL_META: Record<
   string,
-  { label: string; icon: React.ElementType; activeLabel: string }
+  { label: string; icon: React.ElementType }
 > = {
-  searchJobs: {
-    label: "Search Jobs",
-    icon: Search,
-    activeLabel: "Searching jobs...",
-  },
-  updateFilters: {
-    label: "Update Filters",
-    icon: SlidersHorizontal,
-    activeLabel: "Updating filters...",
-  },
-  favoriteJob: {
-    label: "Favorite Job",
-    icon: Heart,
-    activeLabel: "Saving to favorites...",
-  },
-  getJobDetails: {
-    label: "Job Details",
-    icon: Briefcase,
-    activeLabel: "Fetching job details...",
-  },
-  getUserProfile: {
-    label: "Get Profile",
-    icon: User,
-    activeLabel: "Loading profile...",
-  },
-  savePreferences: {
-    label: "Save Preferences",
-    icon: SlidersHorizontal,
-    activeLabel: "Saving preferences...",
-  },
-  generateCoverLetter: {
-    label: "Cover Letter",
-    icon: FileText,
-    activeLabel: "Generating cover letter...",
-  },
-  createAlert: {
-    label: "Create Alert",
-    icon: Bell,
-    activeLabel: "Setting up job alert...",
-  },
-  applyJob: {
-    label: "Apply to Job",
-    icon: Briefcase,
-    activeLabel: "Preparing application...",
-  },
-  interviewPrep: {
-    label: "Interview Prep",
-    icon: GraduationCap,
-    activeLabel: "Preparing interview guide...",
-  },
-  submitAnswers: {
-    label: "Submit Answers",
-    icon: ClipboardCheck,
-    activeLabel: "Submitting answers...",
-  },
+  searchJobs: { label: "Searching jobs", icon: Search },
+  updateFilters: { label: "Updating filters", icon: Settings },
+  favoriteJob: { label: "Updating favorites", icon: Heart },
+  getJobDetails: { label: "Loading job details", icon: FileText },
+  getUserProfile: { label: "Loading your profile", icon: User },
+  savePreferences: { label: "Saving preferences", icon: Settings },
+  generateCoverLetter: { label: "Writing cover letter", icon: FileText },
+  createAlert: { label: "Creating job alert", icon: Bell },
+  applyJob: { label: "Starting application", icon: Briefcase },
+  submitAnswers: { label: "Submitting answers", icon: ClipboardCheck },
+  interviewPrep: { label: "Preparing interview tips", icon: BookOpen },
 };
 
-const DEFAULT_META = {
-  label: "Processing",
-  icon: BookOpen,
-  activeLabel: "Working...",
-};
+export type AgentState = "idle" | "thinking" | "tool-running" | "done";
 
 interface AgentStatusProps {
-  toolName: string;
-  state: "running" | "complete";
+  /** Current agent state. */
+  state: AgentState;
+  /** Name of the tool currently executing (only when state === "tool-running"). */
+  activeToolName?: string;
+  /** Additional CSS classes. */
   className?: string;
 }
 
-export function AgentStatus({ toolName, state, className }: AgentStatusProps) {
-  const meta = TOOL_META[toolName] ?? DEFAULT_META;
-  const Icon = meta.icon;
-  const isRunning = state === "running";
+/**
+ * Compact status indicator that shows what the AI agent is currently doing.
+ * Renders inline within the chat, typically above the input area.
+ */
+export function AgentStatus({
+  state,
+  activeToolName,
+  className,
+}: AgentStatusProps) {
+  if (state === "idle") return null;
+
+  const meta = activeToolName ? TOOL_META[activeToolName] : undefined;
+  const Icon = meta?.icon ?? Loader2;
+  const label =
+    state === "tool-running"
+      ? meta?.label ?? `Running ${activeToolName}`
+      : state === "thinking"
+        ? "Thinking…"
+        : "Done";
 
   return (
     <div
+      role="status"
+      aria-live="polite"
       className={cn(
-        "my-1 flex items-center gap-2 rounded-lg border px-3 py-2 text-xs",
-        isRunning
-          ? "border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950"
-          : "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950",
+        "flex items-center gap-2 px-4 py-1.5 text-xs text-muted-foreground",
         className
       )}
     >
-      <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-      <span className="font-medium">
-        {isRunning ? meta.activeLabel : meta.label}
-      </span>
-      {isRunning ? (
-        <Loader2 className="ml-auto h-3.5 w-3.5 animate-spin text-yellow-600 dark:text-yellow-400" />
+      {state === "done" ? (
+        <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
       ) : (
-        <CheckCircle2 className="ml-auto h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+        <Icon className="h-3.5 w-3.5 animate-spin" />
+      )}
+      <span>{label}</span>
+      {state === "tool-running" && (
+        <span className="ml-auto flex gap-0.5">
+          <span className="h-1 w-1 animate-pulse rounded-full bg-muted-foreground/50" />
+          <span className="h-1 w-1 animate-pulse rounded-full bg-muted-foreground/50 [animation-delay:150ms]" />
+          <span className="h-1 w-1 animate-pulse rounded-full bg-muted-foreground/50 [animation-delay:300ms]" />
+        </span>
       )}
     </div>
   );

@@ -1,75 +1,93 @@
-import { getModelForUser, getProviderInfo } from "./model-router";
+import { getModelForUser } from "./model-router";
 
-// Clear module cache between tests to reset singletons
-beforeEach(() => {
-  jest.resetModules();
-  // Clear env vars
-  delete process.env.OPENROUTER_API_KEY;
-  delete process.env.DEFAULT_AI_MODEL;
-  delete process.env.LANGFUSE_PUBLIC_KEY;
-  delete process.env.LANGFUSE_SECRET_KEY;
-});
+// Mock the @ai-sdk/anthropic module
+jest.mock("@ai-sdk/anthropic", () => ({
+  anthropic: (modelId: string) => ({
+    modelId,
+    provider: "anthropic",
+  }),
+}));
 
 describe("getModelForUser", () => {
-  it("should return a model for free user", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+    delete process.env.DEFAULT_AI_MODEL;
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
+  });
+
+  it("should return haiku for free users with no preferences", () => {
     const model = getModelForUser({
       subscriptionStatus: "free",
       preferences: null,
     });
-
-    expect(model).toBeDefined();
-    expect(typeof model).toBe("object");
+    expect((model as { modelId: string }).modelId).toBe(
+      "claude-haiku-4-5-20251001"
+    );
   });
 
-  it("should return a model for paid user", () => {
+  it("should return opus for paid users with no preferences", () => {
     const model = getModelForUser({
       subscriptionStatus: "active",
       preferences: null,
     });
-
-    expect(model).toBeDefined();
-    expect(typeof model).toBe("object");
+    expect((model as { modelId: string }).modelId).toBe("claude-opus-4-6");
   });
 
-  it("should return a model when user has preference", () => {
+  it("should use user-selected model when set in preferences", () => {
     const model = getModelForUser({
       subscriptionStatus: "active",
+      preferences: { aiModel: "claude-sonnet-4-5-20250929" },
+    });
+    expect((model as { modelId: string }).modelId).toBe(
+      "claude-sonnet-4-5-20250929"
+    );
+  });
+
+  it("should use BYOK key and return opus when anthropic key is provided", () => {
+    const model = getModelForUser({
+      subscriptionStatus: "free",
+      preferences: {
+        apiKeys: { anthropic: "sk-ant-123" },
+      },
+    });
+    expect((model as { modelId: string }).modelId).toBe("claude-opus-4-6");
+  });
+
+  it("should prioritize BYOK over user model preference", () => {
+    const model = getModelForUser({
+      subscriptionStatus: "free",
       preferences: {
         aiModel: "claude-haiku-4-5-20251001",
+        apiKeys: { anthropic: "sk-ant-123" },
       },
     });
-
-    expect(model).toBeDefined();
+    // BYOK takes priority (step 1 in the function)
+    expect((model as { modelId: string }).modelId).toBe("claude-opus-4-6");
   });
 
-  it("should return a BYOK model when user has anthropic key", () => {
+  it("should use DEFAULT_AI_MODEL env var for paid users", () => {
+    process.env.DEFAULT_AI_MODEL = "claude-sonnet-4-5-20250929";
     const model = getModelForUser({
-      subscriptionStatus: "free",
-      preferences: {
-        apiKeys: {
-          anthropic: "sk-test-key",
-        },
-      },
-    });
-
-    expect(model).toBeDefined();
-  });
-
-  it("should handle null preferences", () => {
-    const model = getModelForUser({
-      subscriptionStatus: "free",
+      subscriptionStatus: "active",
       preferences: null,
     });
-
-    expect(model).toBeDefined();
+    expect((model as { modelId: string }).modelId).toBe(
+      "claude-sonnet-4-5-20250929"
+    );
   });
 
-  it("should handle undefined preferences", () => {
+  it("should handle undefined preferences gracefully", () => {
     const model = getModelForUser({
       subscriptionStatus: "free",
     });
-
-    expect(model).toBeDefined();
+    expect((model as { modelId: string }).modelId).toBe(
+      "claude-haiku-4-5-20251001"
+    );
   });
 
   it("should handle empty preferences object", () => {
@@ -77,66 +95,6 @@ describe("getModelForUser", () => {
       subscriptionStatus: "active",
       preferences: {},
     });
-
-    expect(model).toBeDefined();
-  });
-
-  it("should prioritize BYOK over user preference", () => {
-    // BYOK should take precedence over model selection
-    const model = getModelForUser({
-      subscriptionStatus: "active",
-      preferences: {
-        aiModel: "claude-haiku-4-5-20251001",
-        apiKeys: {
-          anthropic: "sk-test-key",
-        },
-      },
-    });
-
-    expect(model).toBeDefined();
-  });
-});
-
-describe("getProviderInfo", () => {
-  it("should report anthropic when no OpenRouter key", () => {
-    delete process.env.OPENROUTER_API_KEY;
-    const info = getProviderInfo();
-
-    expect(info.provider).toBe("anthropic");
-  });
-
-  it("should report openrouter when key is set", () => {
-    process.env.OPENROUTER_API_KEY = "sk-or-test";
-    const info = getProviderInfo();
-
-    expect(info.provider).toBe("openrouter");
-    delete process.env.OPENROUTER_API_KEY;
-  });
-
-  it("should report langfuse disabled when keys not set", () => {
-    delete process.env.LANGFUSE_PUBLIC_KEY;
-    delete process.env.LANGFUSE_SECRET_KEY;
-    const info = getProviderInfo();
-
-    expect(info.langfuseEnabled).toBe(false);
-  });
-
-  it("should report langfuse enabled when both keys set", () => {
-    process.env.LANGFUSE_PUBLIC_KEY = "pk-lf-test";
-    process.env.LANGFUSE_SECRET_KEY = "sk-lf-test";
-    const info = getProviderInfo();
-
-    expect(info.langfuseEnabled).toBe(true);
-    delete process.env.LANGFUSE_PUBLIC_KEY;
-    delete process.env.LANGFUSE_SECRET_KEY;
-  });
-
-  it("should report langfuse disabled when only public key set", () => {
-    process.env.LANGFUSE_PUBLIC_KEY = "pk-lf-test";
-    delete process.env.LANGFUSE_SECRET_KEY;
-    const info = getProviderInfo();
-
-    expect(info.langfuseEnabled).toBe(false);
-    delete process.env.LANGFUSE_PUBLIC_KEY;
+    expect((model as { modelId: string }).modelId).toBe("claude-opus-4-6");
   });
 });

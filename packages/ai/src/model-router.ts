@@ -2,18 +2,12 @@ import { anthropic, createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import type { LanguageModel } from "ai";
 
-// ---------------------------------------------------------------------------
-// Model routing: Vercel AI SDK → Langfuse (tracing) → OpenRouter / Anthropic
-//
-// Priority chain:
-//   1. BYOK (user's own Anthropic key) → direct Anthropic
-//   2. User preference model → platform provider
-//   3. Tier-based default → platform provider
-//   4. Platform default from env → platform provider
-//
-// "Platform provider" is OpenRouter when OPENROUTER_API_KEY is set,
-// otherwise falls back to direct Anthropic via ANTHROPIC_API_KEY.
-// ---------------------------------------------------------------------------
+// Allowlist of models users can select — prevents arbitrary model strings
+const ALLOWED_MODELS = new Set([
+  "claude-haiku-4-5-20251001",
+  "claude-sonnet-4-5-20250929",
+  "claude-opus-4-6",
+]);
 
 interface UserForModel {
   subscriptionStatus: string;
@@ -97,9 +91,12 @@ export function getModelForUser(user: UserForModel): LanguageModel {
     return byokProvider("claude-opus-4-6");
   }
 
-  // 2. User preference: user selected a specific model in settings
-  if (user.preferences?.aiModel) {
-    return getPlatformModel(user.preferences.aiModel);
+  // 2. User preference: validate against allowlist before use
+  if (
+    user.preferences?.aiModel &&
+    ALLOWED_MODELS.has(user.preferences.aiModel)
+  ) {
+    return anthropic(user.preferences.aiModel);
   }
 
   // 3. Tier default: free = haiku, paid = sonnet/opus
@@ -107,22 +104,9 @@ export function getModelForUser(user: UserForModel): LanguageModel {
     return getPlatformModel(FREE_MODEL_ID);
   }
 
-  // 4. Platform default from env var
-  return getPlatformModel(PAID_MODEL_ID);
-}
-
-/**
- * Check whether Langfuse + OpenRouter integration is active.
- * Useful for displaying status in admin/settings.
- */
-export function getProviderInfo(): {
-  provider: "openrouter" | "anthropic";
-  langfuseEnabled: boolean;
-} {
-  return {
-    provider: process.env.OPENROUTER_API_KEY ? "openrouter" : "anthropic",
-    langfuseEnabled: !!(
-      process.env.LANGFUSE_PUBLIC_KEY && process.env.LANGFUSE_SECRET_KEY
-    ),
-  };
+  // 4. Platform default from env var (also validated)
+  const defaultModel = process.env.DEFAULT_AI_MODEL ?? "claude-opus-4-6";
+  return anthropic(
+    ALLOWED_MODELS.has(defaultModel) ? defaultModel : "claude-opus-4-6"
+  );
 }

@@ -1,0 +1,47 @@
+{
+  "name": "Ever Jobs - AI Job Search Assistant",
+  "short_name": "Ever Jobs",
+  "description": "Chat with AI to find, apply, and land your dream job. Search 50+ job boards, generate cover letters, and get interview prep.",
+  "start_url": "/chat",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0f172a",
+  "orientation": "any",
+  "scope": "/",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Chat",
+      "short_name": "Chat",
+      "url": "/chat",
+      "description": "Start a new job search conversation"
+    },
+    {
+      "name": "Browse Jobs",
+      "short_name": "Jobs",
+      "url": "/jobs",
+      "description": "Browse all available jobs"
+    },
+    {
+      "name": "Profile",
+      "short_name": "Profile",
+      "url": "/profile",
+      "description": "View your profile and preferences"
+    }
+  ]
+}

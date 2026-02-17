@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Settings",
   description:
-    "Manage your account settings, subscription, AI model preferences, API keys, and job alerts.",
+    "Manage your account settings, subscription, AI model preferences, and job alerts.",
 };
 
 export default function SettingsLayout({

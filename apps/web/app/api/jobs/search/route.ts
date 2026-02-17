@@ -2,27 +2,34 @@ import { db } from "@repo/db";
 import { jobs } from "@repo/db";
 import { and, eq, gte, lte, ilike, desc, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { jobSearchParamsSchema } from "../../../../lib/api-schemas";
+import { applyRateLimit } from "../../../../lib/rate-limit";
 
 export async function GET(req: Request) {
+  // Rate limit by IP for public search endpoint (20 req/min)
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const rateLimited = applyRateLimit(ip, "public");
+  if (rateLimited) return rateLimited;
+
+  const url = new URL(req.url);
+
+  // Validate and parse query params with Zod
+  const rawParams = Object.fromEntries(url.searchParams.entries());
+  const parsed = jobSearchParamsSchema.safeParse(rawParams);
+  if (!parsed.success) {
+    return NextResponse.json(
+      {
+        error: "Invalid search parameters",
+        details: parsed.error.flatten().fieldErrors,
+      },
+      { status: 400 }
+    );
+  }
+
+  const { page, limit, keywords, location, isRemote, jobType, salaryMin, salaryMax } =
+    parsed.data;
+
   try {
-    const url = new URL(req.url);
-
-    // Parse and validate numeric params (NaN-safe)
-    const rawPage = Number(url.searchParams.get("page") ?? "1");
-    const rawLimit = Number(url.searchParams.get("limit") ?? "25");
-    const page = Number.isFinite(rawPage) ? Math.max(1, rawPage) : 1;
-    const limit = Number.isFinite(rawLimit) ? Math.min(100, Math.max(1, rawLimit)) : 25;
-
-    const keywords = url.searchParams.get("keywords") || undefined;
-    const location = url.searchParams.get("location") || undefined;
-    const isRemote = url.searchParams.get("isRemote") === "true" ? true : undefined;
-    const jobType = url.searchParams.get("jobType") || undefined;
-
-    const rawSalaryMin = url.searchParams.get("salaryMin");
-    const rawSalaryMax = url.searchParams.get("salaryMax");
-    const salaryMin = rawSalaryMin ? Number(rawSalaryMin) : undefined;
-    const salaryMax = rawSalaryMax ? Number(rawSalaryMax) : undefined;
-
     // Drop NaN salary values instead of passing them to SQL
     const safeSalaryMin = salaryMin !== undefined && Number.isFinite(salaryMin) ? salaryMin : undefined;
     const safeSalaryMax = salaryMax !== undefined && Number.isFinite(salaryMax) ? salaryMax : undefined;

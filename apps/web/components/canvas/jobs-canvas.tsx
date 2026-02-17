@@ -3,7 +3,9 @@
 import { useRef, useCallback } from "react";
 import { Briefcase, Loader2 } from "lucide-react";
 import { JobCard, type JobCardData } from "./job-card";
+import { JobCardSkeletonList } from "./job-card-skeleton";
 import { FilterBar, type JobFilters } from "./filter-bar";
+import { EmptyState } from "@/components/shared/empty-state";
 
 interface JobsCanvasProps {
   jobs: JobCardData[];
@@ -34,7 +36,7 @@ export function JobsCanvas({
 
   // Infinite scroll sentinel
   const lastJobRef = useCallback(
-    (node: HTMLDivElement | null) => {
+    (node: HTMLElement | null) => {
       if (isLoading) return;
       if (observerRef.current) observerRef.current.disconnect();
 
@@ -50,11 +52,11 @@ export function JobsCanvas({
   );
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col" role="region" aria-label="Job listings">
       <FilterBar filters={filters} onFiltersChange={onFiltersChange} />
 
       {/* Results count */}
-      <div className="flex items-center justify-between px-3 py-2">
+      <div className="flex items-center justify-between px-3 py-2" aria-live="polite" aria-atomic="true">
         <p className="text-xs text-muted-foreground">
           {totalCount > 0 ? (
             <>
@@ -69,22 +71,19 @@ export function JobsCanvas({
       </div>
 
       {/* Job cards */}
-      <div className="flex-1 overflow-y-auto px-3 pb-3">
-        {jobs.length === 0 && !isLoading ? (
-          <div className="flex h-full items-center justify-center">
-            <div className="text-center">
-              <Briefcase className="mx-auto h-12 w-12 text-muted-foreground/30" />
-              <h3 className="mt-3 text-sm font-medium">No jobs yet</h3>
-              <p className="mt-1 max-w-xs text-xs text-muted-foreground">
-                Use the chat to search for jobs. Try saying &quot;Find me remote
-                React developer positions&quot; or use the filters above.
-              </p>
-            </div>
-          </div>
+      <div className="flex-1 overflow-y-auto px-3 pb-3" role="feed" aria-busy={isLoading}>
+        {jobs.length === 0 && isLoading ? (
+          <JobCardSkeletonList count={5} />
+        ) : jobs.length === 0 && !isLoading ? (
+          <EmptyState
+            icon={Briefcase}
+            title="No jobs yet"
+            description='Use the chat to search for jobs. Try saying "Find me remote React developer positions" or use the filters above.'
+          />
         ) : (
-          <div className="space-y-2">
+          <ul className="space-y-2" aria-label="Job results">
             {jobs.map((job, index) => (
-              <div
+              <li
                 key={job.id}
                 ref={index === jobs.length - 1 ? lastJobRef : undefined}
               >
@@ -94,15 +93,18 @@ export function JobsCanvas({
                   onFavorite={onFavorite}
                   onViewDetails={onViewDetails}
                 />
-              </div>
+              </li>
             ))}
 
             {isLoading && (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              </div>
+              <li className="list-none">
+                <div className="flex items-center justify-center py-4" role="status" aria-label="Loading more jobs">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" aria-hidden="true" />
+                  <span className="sr-only">Loading more jobs...</span>
+                </div>
+              </li>
             )}
-          </div>
+          </ul>
         )}
       </div>
     </div>

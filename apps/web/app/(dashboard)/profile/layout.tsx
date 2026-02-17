@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Profile",
-  description:
-    "View and manage your Ever Jobs profile, skills, resume, and saved jobs.",
+  description: "View and manage your Ever Jobs profile, CV, and job history.",
 };
 
 export default function ProfileLayout({

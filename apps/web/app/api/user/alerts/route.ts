@@ -2,55 +2,15 @@ import { db } from "@repo/db";
 import { userAlerts } from "@repo/db";
 import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { requireSessionUser } from "../../../../lib/get-session-user";
-
-const createAlertSchema = z.object({
-  frequency: z.enum(["daily", "twice_daily", "weekly"]),
-  email: z.string().email().optional(),
-  criteria: z
-    .object({
-      keywords: z.array(z.string()).optional(),
-      locations: z.array(z.string()).optional(),
-      remoteType: z.string().optional(),
-      salary: z
-        .object({
-          min: z.number().optional(),
-          max: z.number().optional(),
-        })
-        .optional(),
-      skills: z.array(z.string()).optional(),
-      roleLevel: z.array(z.string()).optional(),
-      industries: z.array(z.string()).optional(),
-    })
-    .optional(),
-});
-
-const patchAlertSchema = z.object({
-  alertId: z.number(),
-  isActive: z.boolean().optional(),
-  frequency: z.enum(["daily", "twice_daily", "weekly"]).optional(),
-  criteria: z
-    .object({
-      keywords: z.array(z.string()).optional(),
-      locations: z.array(z.string()).optional(),
-      remoteType: z.string().optional(),
-      salary: z
-        .object({
-          min: z.number().optional(),
-          max: z.number().optional(),
-        })
-        .optional(),
-      skills: z.array(z.string()).optional(),
-      roleLevel: z.array(z.string()).optional(),
-      industries: z.array(z.string()).optional(),
-    })
-    .optional(),
-});
-
-const deleteAlertSchema = z.object({
-  alertId: z.number(),
-});
+import { checkSubscription } from "../../../../lib/subscription-gate";
+import { applyRateLimit } from "../../../../lib/rate-limit";
+import {
+  alertCreateSchema,
+  alertPatchSchema,
+  alertDeleteSchema,
+  parseBody,
+} from "../../../../lib/api-schemas";
 
 // GET /api/user/alerts - List user's alerts
 export async function GET() {
@@ -61,10 +21,14 @@ export async function GET() {
     return response as NextResponse;
   }
 
+  const rateLimited = applyRateLimit(user.id, "authenticated");
+  if (rateLimited) return rateLimited;
+
   const alerts = await db
     .select()
     .from(userAlerts)
-    .where(eq(userAlerts.userId, user.id));
+    .where(eq(userAlerts.userId, user.id))
+    .orderBy(userAlerts.createdAt);
 
   return NextResponse.json({ alerts });
 }
@@ -78,33 +42,39 @@ export async function POST(req: Request) {
     return response as NextResponse;
   }
 
-  const body = await req.json();
-  const parsed = createAlertSchema.safeParse(body);
+  const rateLimitedPost = applyRateLimit(user.id, "authenticated");
+  if (rateLimitedPost) return rateLimitedPost;
 
-  if (!parsed.success) {
+  // Only subscribed users can create alerts
+  const gate = await checkSubscription(user.id);
+  if (!gate.isActive) {
     return NextResponse.json(
-      { error: "Invalid input", details: parsed.error.flatten() },
-      { status: 400 }
+      { error: "Upgrade to Pro to create job alerts." },
+      { status: 403 }
     );
   }
 
-  const { frequency, email, criteria } = parsed.data;
+  const rawBody = await req.json();
+  const validation = parseBody(alertCreateSchema, rawBody);
+  if (!validation.success) {
+    return NextResponse.json({ error: validation.error }, { status: 400 });
+  }
+  const body = validation.data;
 
-  const result = await db
+  const [alert] = await db
     .insert(userAlerts)
     .values({
       userId: user.id,
-      frequency,
-      email: email ?? user.email,
-      criteria: criteria ?? {},
-      isActive: true,
+      frequency: body.frequency,
+      email: body.email,
+      criteria: body.criteria ?? null,
     })
     .returning();
 
-  return NextResponse.json({ alert: result[0] }, { status: 201 });
+  return NextResponse.json({ alert }, { status: 201 });
 }
 
-// PATCH /api/user/alerts - Toggle active or update an alert
+// PATCH /api/user/alerts - Update an alert (expects { id, ...fields })
 export async function PATCH(req: Request) {
   let user;
   try {
@@ -113,40 +83,37 @@ export async function PATCH(req: Request) {
     return response as NextResponse;
   }
 
-  const body = await req.json();
-  const parsed = patchAlertSchema.safeParse(body);
+  const rateLimitedPatch = applyRateLimit(user.id, "authenticated");
+  if (rateLimitedPatch) return rateLimitedPatch;
 
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid input", details: parsed.error.flatten() },
-      { status: 400 }
-    );
+  const rawBody = await req.json();
+  const validation = parseBody(alertPatchSchema, rawBody);
+  if (!validation.success) {
+    return NextResponse.json({ error: validation.error }, { status: 400 });
   }
+  const body = validation.data;
 
-  const { alertId, isActive, frequency, criteria } = parsed.data;
+  // Build update fields
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  if (body.isActive !== undefined) updates.isActive = body.isActive;
+  if (body.frequency !== undefined) updates.frequency = body.frequency;
+  if (body.email !== undefined) updates.email = body.email;
+  if (body.criteria !== undefined) updates.criteria = body.criteria;
 
-  // Ensure the alert belongs to the user
-  const existing = await db
-    .select()
-    .from(userAlerts)
-    .where(and(eq(userAlerts.id, alertId), eq(userAlerts.userId, user.id)))
-    .limit(1);
+  const result = await db
+    .update(userAlerts)
+    .set(updates)
+    .where(and(eq(userAlerts.id, body.id), eq(userAlerts.userId, user.id)))
+    .returning();
 
-  if (existing.length === 0) {
+  if (result.length === 0) {
     return NextResponse.json({ error: "Alert not found" }, { status: 404 });
   }
 
-  const updates: Record<string, unknown> = { updatedAt: new Date() };
-  if (isActive !== undefined) updates.isActive = isActive;
-  if (frequency !== undefined) updates.frequency = frequency;
-  if (criteria !== undefined) updates.criteria = criteria;
-
-  await db.update(userAlerts).set(updates).where(eq(userAlerts.id, alertId));
-
-  return NextResponse.json({ updated: true });
+  return NextResponse.json({ alert: result[0] });
 }
 
-// DELETE /api/user/alerts - Delete an alert
+// DELETE /api/user/alerts - Delete an alert (expects { id })
 export async function DELETE(req: Request) {
   let user;
   try {
@@ -155,30 +122,24 @@ export async function DELETE(req: Request) {
     return response as NextResponse;
   }
 
-  const body = await req.json();
-  const parsed = deleteAlertSchema.safeParse(body);
+  const rateLimitedDelete = applyRateLimit(user.id, "authenticated");
+  if (rateLimitedDelete) return rateLimitedDelete;
 
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid input", details: parsed.error.flatten() },
-      { status: 400 }
-    );
+  const rawBody = await req.json();
+  const validation = parseBody(alertDeleteSchema, rawBody);
+  if (!validation.success) {
+    return NextResponse.json({ error: validation.error }, { status: 400 });
   }
+  const { id } = validation.data;
 
-  const { alertId } = parsed.data;
+  const result = await db
+    .delete(userAlerts)
+    .where(and(eq(userAlerts.id, id), eq(userAlerts.userId, user.id)))
+    .returning();
 
-  // Ensure the alert belongs to the user
-  const existing = await db
-    .select()
-    .from(userAlerts)
-    .where(and(eq(userAlerts.id, alertId), eq(userAlerts.userId, user.id)))
-    .limit(1);
-
-  if (existing.length === 0) {
+  if (result.length === 0) {
     return NextResponse.json({ error: "Alert not found" }, { status: 404 });
   }
 
-  await db.delete(userAlerts).where(eq(userAlerts.id, alertId));
-
-  return NextResponse.json({ deleted: true });
+  return new NextResponse(null, { status: 204 });
 }

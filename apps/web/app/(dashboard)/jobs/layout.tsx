@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Browse Jobs",
   description:
-    "Browse and filter thousands of job listings from 50+ job boards. Find your perfect role with powerful search filters.",
+    "Browse and search job listings from 50+ sources. Filter by role, location, salary, and more.",
 };
 
 export default function JobsLayout({

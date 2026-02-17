@@ -1,4 +1,5 @@
-import { Linkedin, MessageCircle, Briefcase } from "lucide-react";
+import { Linkedin, MessageCircle, Briefcase, ArrowRight } from "lucide-react";
+import { Card } from "@repo/ui/card";
 
 const steps = [
   {
@@ -40,16 +41,35 @@ export function HowItWorks() {
           </p>
         </div>
 
-        <div className="mt-16 grid gap-12 sm:grid-cols-3">
-          {steps.map((item) => (
-            <div key={item.step} className="relative text-center">
-              <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-lg font-bold text-primary-foreground">
-                {item.step}
-              </div>
-              <h3 className="mb-3 text-lg font-semibold">{item.title}</h3>
-              <p className="text-sm leading-relaxed text-muted-foreground">
-                {item.description}
-              </p>
+        <div className="mt-16 grid gap-8 sm:grid-cols-3 sm:gap-4">
+          {steps.map((item, index) => (
+            <div key={item.step} className="relative flex items-stretch">
+              <Card className="flex w-full flex-col items-center p-6 text-center transition-shadow hover:shadow-md">
+                {/* Step number circle */}
+                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-lg font-bold text-primary-foreground shadow-sm">
+                  {item.step}
+                </div>
+
+                {/* Icon */}
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                  <item.icon className="h-5 w-5 text-primary" />
+                </div>
+
+                <h3 className="mb-2 text-lg font-semibold">{item.title}</h3>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  {item.description}
+                </p>
+              </Card>
+
+              {/* Arrow connector between steps (desktop only) */}
+              {index < steps.length - 1 && (
+                <div
+                  className="pointer-events-none absolute -right-4 top-1/2 z-10 hidden -translate-y-1/2 sm:block"
+                  aria-hidden="true"
+                >
+                  <ArrowRight className="h-5 w-5 text-muted-foreground/40" />
+                </div>
+              )}
             </div>
           ))}
         </div>

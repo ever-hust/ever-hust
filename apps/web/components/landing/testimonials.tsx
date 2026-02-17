@@ -1,3 +1,4 @@
+import { Star } from "lucide-react";
 import { Card, CardContent } from "@repo/ui/card";
 import { Avatar, AvatarFallback } from "@repo/ui/avatar";
 
@@ -8,6 +9,7 @@ const testimonials = [
     name: "Sarah M.",
     role: "Software Engineer",
     initials: "SM",
+    rating: 5,
   },
   {
     quote:
@@ -15,6 +17,7 @@ const testimonials = [
     name: "James T.",
     role: "Product Manager",
     initials: "JT",
+    rating: 5,
   },
   {
     quote:
@@ -22,8 +25,22 @@ const testimonials = [
     name: "Alex K.",
     role: "Data Scientist",
     initials: "AK",
+    rating: 5,
   },
 ];
+
+function Stars({ count }: { count: number }) {
+  return (
+    <div className="flex gap-0.5" aria-label={`${count} out of 5 stars`}>
+      {Array.from({ length: count }, (_, i) => (
+        <Star
+          key={i}
+          className="h-3.5 w-3.5 fill-primary text-primary"
+        />
+      ))}
+    </div>
+  );
+}
 
 export function Testimonials() {
   return (
@@ -40,14 +57,18 @@ export function Testimonials() {
 
         <div className="mt-16 grid gap-6 sm:grid-cols-3">
           {testimonials.map((item) => (
-            <Card key={item.name} className="border-border/50">
+            <Card
+              key={item.name}
+              className="border-border/50 transition-shadow hover:shadow-md"
+            >
               <CardContent className="pt-6">
-                <p className="mb-6 text-sm leading-relaxed text-muted-foreground">
+                <Stars count={item.rating} />
+                <p className="mb-6 mt-4 text-sm leading-relaxed text-muted-foreground">
                   &ldquo;{item.quote}&rdquo;
                 </p>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 border-t pt-4">
                   <Avatar>
-                    <AvatarFallback className="text-xs">
+                    <AvatarFallback className="bg-primary/10 text-xs font-medium text-primary">
                       {item.initials}
                     </AvatarFallback>
                   </Avatar>

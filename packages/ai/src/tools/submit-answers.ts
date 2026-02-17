@@ -6,38 +6,29 @@ import { eq, and } from "drizzle-orm";
 
 export const submitAnswersTool = tool({
   description:
-    "Submit pre-filled answers for a job application. The application agent uses this to record the user's responses to screening questions before they visit the apply URL. REQUIRES USER APPROVAL before executing.",
+    "Submit the user's answers to application questions. This updates the application record with the answers provided. REQUIRES USER APPROVAL before executing. Only available to Pro subscribers.",
   inputSchema: z.object({
     userId: z.string().describe("The current user's ID"),
     applicationId: z
       .number()
-      .describe("The application ID returned from applyJob"),
+      .describe("The application ID to submit answers for"),
     answers: z
       .array(
         z.object({
-          question: z.string().describe("The screening question text"),
-          answer: z.string().describe("The user's answer to this question"),
+          questionId: z.string().describe("The question identifier"),
+          answer: z.string().describe("The user's answer to the question"),
         })
       )
-      .min(1)
-      .describe("Array of question/answer pairs for the application"),
-    resumeUrl: z
-      .string()
-      .url()
-      .optional()
-      .describe("URL to the user's resume if available"),
-    notes: z
-      .string()
-      .optional()
-      .describe("Additional notes or context for the application"),
+      .describe("Array of question-answer pairs"),
   }),
-  execute: async ({ userId, applicationId, answers, resumeUrl, notes }) => {
+  execute: async ({ userId, applicationId, answers }) => {
     // Verify the application belongs to the user
     const appResult = await db
       .select({
         id: applications.id,
-        agentInstanceId: applications.agentInstanceId,
         status: applications.status,
+        agentInstanceId: applications.agentInstanceId,
+        questionsAsked: applications.questionsAsked,
       })
       .from(applications)
       .where(
@@ -46,19 +37,54 @@ export const submitAnswersTool = tool({
       .limit(1);
 
     if (appResult.length === 0) {
-      return { submitted: false, error: "Application not found" };
-    }
-
-    const application = appResult[0]!;
-
-    if (application.status === "submitted") {
       return {
         submitted: false,
-        error: "Application answers have already been submitted",
+        error: "Application not found or does not belong to this user.",
       };
     }
 
-    // Update application with answers (column is `answersProvided` jsonb)
+    const app = appResult[0]!;
+
+    if (app.status === "submitted") {
+      return {
+        submitted: false,
+        error: "This application has already been submitted.",
+      };
+    }
+
+    if (app.status === "failed") {
+      return {
+        submitted: false,
+        error:
+          "This application previously failed. Please start a new application.",
+      };
+    }
+
+    // Validate that all required questions have answers
+    const questions = app.questionsAsked as
+      | {
+          question: string;
+          fieldType: string;
+          required: boolean;
+          options: string[] | null;
+        }[]
+      | null;
+
+    if (questions && questions.length > 0) {
+      const answeredIds = new Set(answers.map((a) => a.questionId));
+      const unanswered = questions.filter(
+        (q, i) => q.required && !answeredIds.has(String(i))
+      );
+      if (unanswered.length > 0) {
+        return {
+          submitted: false,
+          error: `Missing answers for required questions: ${unanswered.map((q) => q.question).join(", ")}`,
+          missingQuestions: unanswered,
+        };
+      }
+    }
+
+    // Update the application with answers and mark as submitted
     await db
       .update(applications)
       .set({
@@ -68,8 +94,8 @@ export const submitAnswersTool = tool({
       })
       .where(eq(applications.id, applicationId));
 
-    // Update agent instance state
-    if (application.agentInstanceId) {
+    // Update agent instance status if linked
+    if (app.agentInstanceId) {
       await db
         .update(agentInstances)
         .set({
@@ -77,20 +103,19 @@ export const submitAnswersTool = tool({
           state: {
             step: "answers_submitted",
             answersCount: answers.length,
-            hasResume: !!resumeUrl,
+            submittedAt: new Date().toISOString(),
           },
           updatedAt: new Date(),
         })
-        .where(eq(agentInstances.id, application.agentInstanceId));
+        .where(eq(agentInstances.id, app.agentInstanceId));
     }
 
     return {
       submitted: true,
       applicationId,
       answersCount: answers.length,
-      hasResume: !!resumeUrl,
       instruction:
-        "The application answers have been saved. Let the user know their responses are ready and they can now visit the application URL to complete the process. Their answers can be copied and pasted into the application form.",
+        "The answers have been submitted successfully. Let the user know their application answers have been saved and the application status is now 'submitted'. If there's an external application URL, remind them to complete the process there.",
     };
   },
 });

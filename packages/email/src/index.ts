@@ -19,7 +19,7 @@ export const resend = {
 
 export const EMAIL_FROM = process.env.EMAIL_FROM ?? "alerts@everjobs.ai";
 
-/** Base app URL from env, used for all email links */
+/** Get the base app URL for links in emails */
 export function getAppUrl(): string {
   return process.env.NEXT_PUBLIC_APP_URL ?? "https://everjobs.ai";
 }

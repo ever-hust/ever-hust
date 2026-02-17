@@ -38,17 +38,19 @@ export const auth = betterAuth({
     user: {
       create: {
         after: async (user) => {
-          // Send welcome email on new user registration (non-blocking)
-          if (user.email) {
-            try {
-              await sendWelcomeEmail({
-                to: user.email,
-                userName: user.name ?? "there",
-              });
-            } catch {
-              // Don't fail registration if email fails
-              console.error("Failed to send welcome email to", user.email);
-            }
+          // Send welcome email to newly registered users (non-blocking)
+          try {
+            const { sendWelcomeEmail } = await import("@repo/email");
+            await sendWelcomeEmail({
+              to: user.email,
+              userName: user.name ?? user.email.split("@")[0],
+            });
+          } catch (error) {
+            // Log but don't block user creation if email fails
+            console.error(
+              `[Auth] Failed to send welcome email to ${user.email}:`,
+              error
+            );
           }
         },
       },

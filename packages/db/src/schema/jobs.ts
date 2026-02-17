@@ -70,5 +70,9 @@ export const jobs = pgTable(
     index("jobs_is_remote_idx").on(table.isRemote),
     index("jobs_date_posted_idx").on(table.datePosted),
     index("jobs_site_idx").on(table.site),
+    index("jobs_title_idx").on(table.title),
+    index("jobs_company_name_idx").on(table.companyName),
+    index("jobs_job_level_idx").on(table.jobLevel),
+    index("jobs_salary_min_idx").on(table.salaryMin),
   ]
 );

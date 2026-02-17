@@ -1,46 +1,49 @@
 import { test, expect } from "@playwright/test";
 
-test.describe("Chat/Dashboard Page", () => {
-  test("redirects unauthenticated users to login", async ({ page }) => {
+test.describe("Chat Page", () => {
+  // Chat requires auth — unauthenticated users get redirected
+  test("redirects to login when not authenticated", async ({ page }) => {
     await page.goto("/chat");
     await page.waitForURL(/\/login/);
     await expect(page).toHaveURL(/\/login/);
   });
 
-  test.describe("Authenticated User", () => {
-    test.skip("loads chat page with sidebar navigation", async ({ page }) => {
-      // This test requires authentication setup
-      await page.goto("/chat");
-      await expect(page.getByRole("navigation")).toBeVisible();
-      await expect(
-        page.getByRole("link", { name: /chat/i })
-      ).toBeVisible();
-    });
+  test("login page shows callback URL for chat", async ({ page }) => {
+    await page.goto("/chat");
+    await page.waitForURL(/\/login/);
+    const url = new URL(page.url());
+    expect(url.searchParams.get("callbackUrl")).toBe("/chat");
+  });
+});
 
-    test.skip("displays chat input area", async ({ page }) => {
-      // This test requires authentication setup
-      await page.goto("/chat");
-      await expect(
-        page.getByPlaceholder(/type your message/i)
-      ).toBeVisible();
-    });
+test.describe("Chat UI Elements (unauthenticated)", () => {
+  // These tests verify the login page is correctly shown when
+  // attempting to access chat without authentication
 
-    test.skip("shows suggestion prompts in empty state", async ({ page }) => {
-      // This test requires authentication setup
-      await page.goto("/chat");
-      const suggestions = page.getByRole("button", {
-        name: /find me jobs/i,
-      });
-      await expect(suggestions.first()).toBeVisible();
-    });
+  test("login page has LinkedIn sign-in for chat access", async ({ page }) => {
+    await page.goto("/chat");
+    await page.waitForURL(/\/login/);
+    await expect(page.getByText(/linkedin/i)).toBeVisible();
+    await expect(page.getByText(/sign in/i)).toBeVisible();
+  });
+});
 
-    test.skip("mobile view has panel toggle", async ({ page }) => {
-      // This test requires authentication setup
-      await page.setViewportSize({ width: 375, height: 667 });
-      await page.goto("/chat");
-      await expect(
-        page.getByRole("button", { name: /toggle menu/i })
-      ).toBeVisible();
-    });
+test.describe("Chat Page Structure", () => {
+  // These tests would run with authentication.
+  // In a CI environment, you'd set up auth state via storageState.
+  // For now, these validate the redirect behavior is correct.
+
+  test("chat route is protected", async ({ page }) => {
+    const response = await page.goto("/chat");
+    // Should redirect (302) to login
+    const finalUrl = page.url();
+    expect(finalUrl).toContain("/login");
+  });
+
+  test("chat with query params preserves callback", async ({ page }) => {
+    await page.goto("/chat?session=test-123");
+    await page.waitForURL(/\/login/);
+    const url = new URL(page.url());
+    expect(url.searchParams.get("callbackUrl")).toBeTruthy();
   });
 });

@@ -1,9 +1,11 @@
 "use client";
 
-import { Heart, ExternalLink, MapPin, Building2, Clock } from "lucide-react";
+import { useState, useCallback } from "react";
+import { Heart, ExternalLink, MapPin, Building2, Clock, FileText } from "lucide-react";
 import { Badge } from "@repo/ui/badge";
 import { Button } from "@repo/ui/button";
 import { cn } from "@repo/ui/lib/utils";
+import Link from "next/link";
 
 export interface JobCardData {
   id: number;
@@ -89,6 +91,8 @@ export function JobCard({
   onFavorite,
   onViewDetails,
 }: JobCardProps) {
+  const [animating, setAnimating] = useState(false);
+
   const salary = formatSalary(
     job.salaryMin,
     job.salaryMax,
@@ -102,12 +106,33 @@ export function JobCard({
     job.isRemote
   );
   const posted = timeAgo(job.datePosted);
+  const applyLink = job.applyUrl ?? job.jobUrl;
+
+  const handleFavorite = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (!onFavorite) return;
+      setAnimating(true);
+      onFavorite(job.id);
+      // Reset animation after bounce
+      setTimeout(() => setAnimating(false), 300);
+    },
+    [onFavorite, job.id]
+  );
 
   return (
-    <article aria-label={`${job.title} at ${job.companyName ?? "Unknown Company"}`} className="group rounded-lg border bg-card p-4 transition-colors hover:bg-accent/50">
+    <article
+      aria-label={`${job.title} at ${job.companyName ?? "Unknown Company"}`}
+      className="group rounded-lg border bg-card p-4 transition-all hover:bg-accent/50 hover:shadow-sm"
+    >
       <div className="flex items-start gap-3">
-        {/* Company logo */}
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-background">
+        {/* Company logo — clicking it opens details */}
+        <button
+          type="button"
+          onClick={() => onViewDetails?.(job.id)}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-background transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label={`View ${job.title} details`}
+        >
           {job.companyLogo ? (
             <img
               src={job.companyLogo}
@@ -115,38 +140,52 @@ export function JobCard({
               className="h-8 w-8 rounded object-contain"
             />
           ) : (
-            <Building2 className="h-5 w-5 text-muted-foreground" />
+            <Building2 className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
           )}
-        </div>
+        </button>
 
         {/* Job info */}
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <h3
-                className="cursor-pointer truncate text-sm font-semibold leading-tight hover:underline"
-                onClick={() => onViewDetails?.(job.id)}
-              >
-                {job.title}
+              <h3 className="truncate text-sm font-semibold leading-tight">
+                <button
+                  type="button"
+                  className="text-left hover:underline focus-visible:outline-none focus-visible:underline"
+                  onClick={() => onViewDetails?.(job.id)}
+                >
+                  {job.title}
+                </button>
               </h3>
               <p className="mt-0.5 truncate text-xs text-muted-foreground">
                 {job.companyName ?? "Unknown Company"}
+                {job.companyIndustry && (
+                  <span className="text-muted-foreground/60">
+                    {" "}
+                    &middot; {job.companyIndustry}
+                  </span>
+                )}
               </p>
             </div>
 
+            {/* Favorite button with animation */}
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 shrink-0"
+              className={cn(
+                "h-7 w-7 shrink-0 transition-transform",
+                animating && "scale-125"
+              )}
               aria-label={isFavorited ? `Remove ${job.title} from favorites` : `Add ${job.title} to favorites`}
-              onClick={() => onFavorite?.(job.id)}
+              aria-pressed={isFavorited}
+              onClick={handleFavorite}
             >
               <Heart
                 className={cn(
-                  "h-4 w-4",
+                  "h-4 w-4 transition-colors duration-200",
                   isFavorited
                     ? "fill-red-500 text-red-500"
-                    : "text-muted-foreground"
+                    : "text-muted-foreground hover:text-red-400"
                 )}
               />
             </Button>
@@ -166,6 +205,11 @@ export function JobCard({
                 <Clock className="h-3 w-3" />
                 {posted}
               </span>
+            )}
+            {job.jobLevel && (
+              <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
+                {job.jobLevel}
+              </Badge>
             )}
           </div>
 
@@ -210,17 +254,31 @@ export function JobCard({
               </Badge>
             </div>
 
-            {(job.applyUrl || job.jobUrl) && (
-              <a
-                href={job.applyUrl ?? job.jobUrl ?? "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            {/* Action buttons */}
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/chat?job=${job.id}`}
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:underline"
+                onClick={(e) => e.stopPropagation()}
+                aria-label={`Generate cover letter for ${job.title}`}
               >
-                Apply
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            )}
+                <FileText className="h-3 w-3" aria-hidden="true" />
+                <span className="hidden sm:inline">Cover Letter</span>
+              </Link>
+              {applyLink && (
+                <a
+                  href={applyLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:underline"
+                  onClick={(e) => e.stopPropagation()}
+                  aria-label={`Apply for ${job.title} (opens in new tab)`}
+                >
+                  Apply
+                  <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                </a>
+              )}
+            </div>
           </div>
         </div>
       </div>

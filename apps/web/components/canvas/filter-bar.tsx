@@ -1,7 +1,7 @@
 "use client";
 
 import { Search, X, SlidersHorizontal } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Input } from "@repo/ui/input";
 import { Button } from "@repo/ui/button";
 import { Badge } from "@repo/ui/badge";
@@ -21,14 +21,46 @@ interface FilterBarProps {
   onFiltersChange: (filters: JobFilters) => void;
 }
 
+/**
+ * Debounced filter bar for job search.
+ * Text inputs (keywords, location) are debounced (300ms) to prevent excessive API calls.
+ * Toggle/select inputs fire immediately.
+ */
 export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
+  // Local state for text inputs (debounced)
+  const [localKeywords, setLocalKeywords] = useState(filters.keywords ?? "");
+  const [localLocation, setLocalLocation] = useState(filters.location ?? "");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync local state when filters change externally (e.g. clear)
+  useEffect(() => {
+    setLocalKeywords(filters.keywords ?? "");
+    setLocalLocation(filters.location ?? "");
+  }, [filters.keywords, filters.location]);
+
+  // Debounced update for text inputs
+  const debouncedUpdate = (newFilters: JobFilters) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      onFiltersChange(newFilters);
+    }, 300);
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   const activeFilterCount = Object.values(filters).filter(
     (v) => v !== undefined && v !== "" && v !== false && !(Array.isArray(v) && v.length === 0)
   ).length;
 
   const clearFilters = () => {
+    setLocalKeywords("");
+    setLocalLocation("");
     onFiltersChange({});
   };
 
@@ -41,10 +73,12 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
           <Input
             aria-label="Search jobs by keyword"
             placeholder="Search jobs..."
-            value={filters.keywords ?? ""}
-            onChange={(e) =>
-              onFiltersChange({ ...filters, keywords: e.target.value || undefined })
-            }
+            value={localKeywords}
+            onChange={(e) => {
+              const value = e.target.value;
+              setLocalKeywords(value);
+              debouncedUpdate({ ...filters, keywords: value || undefined });
+            }}
             className="h-8 pl-8 text-sm"
           />
         </div>
@@ -52,10 +86,12 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
           <Input
             aria-label="Filter by location"
             placeholder="Location..."
-            value={filters.location ?? ""}
-            onChange={(e) =>
-              onFiltersChange({ ...filters, location: e.target.value || undefined })
-            }
+            value={localLocation}
+            onChange={(e) => {
+              const value = e.target.value;
+              setLocalLocation(value);
+              debouncedUpdate({ ...filters, location: value || undefined });
+            }}
             className="h-8 text-sm"
           />
         </div>
@@ -63,6 +99,8 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
           variant={filters.isRemote ? "default" : "outline"}
           size="sm"
           className="h-8 text-xs"
+          aria-pressed={!!filters.isRemote}
+          aria-label="Filter remote jobs only"
           onClick={() =>
             onFiltersChange({
               ...filters,
@@ -77,8 +115,11 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
           size="sm"
           className="h-8 gap-1 text-xs"
           onClick={() => setShowAdvanced(!showAdvanced)}
+          aria-expanded={showAdvanced}
+          aria-controls="advanced-filters"
+          aria-label={showAdvanced ? "Hide advanced filters" : "Show advanced filters"}
         >
-          <SlidersHorizontal className="h-3 w-3" />
+          <SlidersHorizontal className="h-3 w-3" aria-hidden="true" />
           {activeFilterCount > 0 && (
             <Badge variant="secondary" className="ml-0.5 h-4 w-4 p-0 text-[10px]">
               {activeFilterCount}
@@ -100,7 +141,7 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
 
       {/* Advanced filters */}
       {showAdvanced && (
-        <div className="flex flex-wrap items-center gap-2 pt-1">
+        <div id="advanced-filters" className="flex flex-wrap items-center gap-2 pt-1">
           <select
             aria-label="Job type"
             value={filters.jobType ?? ""}
@@ -110,7 +151,7 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
                 jobType: e.target.value || undefined,
               })
             }
-            className="h-8 rounded-md border bg-background px-2 text-xs"
+            className="h-8 rounded-md border bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <option value="">All Types</option>
             <option value="fulltime">Full-time</option>
@@ -120,6 +161,7 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
           </select>
           <Input
             type="number"
+            aria-label="Minimum salary"
             placeholder="Min salary"
             value={filters.salaryMin ?? ""}
             onChange={(e) =>
@@ -132,6 +174,7 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
           />
           <Input
             type="number"
+            aria-label="Maximum salary"
             placeholder="Max salary"
             value={filters.salaryMax ?? ""}
             onChange={(e) =>

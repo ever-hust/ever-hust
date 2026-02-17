@@ -7,4 +7,7 @@ export {
 
 export { syncJobsTask, syncJobsSchedule } from "./sync-jobs";
 
-export { cleanupTask, cleanupSchedule } from "./cleanup";
+export {
+  cleanupExpiredJobsTask,
+  cleanupExpiredJobsSchedule,
+} from "./cleanup-expired-jobs";

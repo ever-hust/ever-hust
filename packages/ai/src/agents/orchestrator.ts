@@ -10,8 +10,8 @@ import {
   generateCoverLetterTool,
   createAlertTool,
   applyJobTool,
-  interviewPrepTool,
   submitAnswersTool,
+  interviewPrepTool,
 } from "../tools";
 import { checkSearchLimit, checkCoverLetterLimit } from "../rate-limit";
 import { getOrchestratorPrompt } from "../prompts";
@@ -75,35 +75,35 @@ export async function createOrchestratorStream({
       updateFilters: updateFiltersTool,
       favoriteJob: {
         ...favoriteJobTool,
-        execute: async (params) => {
+        execute: async (params, execOptions) => {
           return favoriteJobTool.execute!(
             { ...params, userId },
-            { toolCallId: "", messages: [], abortSignal: undefined as never }
+            execOptions
           );
         },
       },
       getJobDetails: getJobDetailsTool,
       getUserProfile: {
         ...getUserProfileTool,
-        execute: async () => {
+        execute: async (_params, execOptions) => {
           return getUserProfileTool.execute!(
             { userId },
-            { toolCallId: "", messages: [], abortSignal: undefined as never }
+            execOptions
           );
         },
       },
       savePreferences: {
         ...savePreferencesTool,
-        execute: async (params) => {
+        execute: async (params, execOptions) => {
           return savePreferencesTool.execute!(
             { ...params, userId },
-            { toolCallId: "", messages: [], abortSignal: undefined as never }
+            execOptions
           );
         },
       },
       generateCoverLetter: {
         ...generateCoverLetterTool,
-        execute: async (params) => {
+        execute: async (params, execOptions) => {
           // Enforce free-tier cover letter limit
           if (!isSubscribed) {
             const { allowed, remaining } = await checkCoverLetterLimit(userId);
@@ -121,43 +121,43 @@ export async function createOrchestratorStream({
           }
           return generateCoverLetterTool.execute!(
             { ...params, userId },
-            { toolCallId: "", messages: [], abortSignal: undefined as never }
+            execOptions
           );
         },
       },
       createAlert: {
         ...createAlertTool,
-        execute: async (params) => {
+        execute: async (params, execOptions) => {
           return createAlertTool.execute!(
             { ...params, userId },
-            { toolCallId: "", messages: [], abortSignal: undefined as never }
+            execOptions
           );
         },
       },
       applyJob: {
         ...applyJobTool,
-        execute: async (params) => {
+        execute: async (params, execOptions) => {
           return applyJobTool.execute!(
             { ...params, userId },
-            { toolCallId: "", messages: [], abortSignal: undefined as never }
-          );
-        },
-      },
-      interviewPrep: {
-        ...interviewPrepTool,
-        execute: async (params) => {
-          return interviewPrepTool.execute!(
-            { ...params, userId },
-            { toolCallId: "", messages: [], abortSignal: undefined as never }
+            execOptions
           );
         },
       },
       submitAnswers: {
         ...submitAnswersTool,
-        execute: async (params) => {
+        execute: async (params, execOptions) => {
           return submitAnswersTool.execute!(
             { ...params, userId },
-            { toolCallId: "", messages: [], abortSignal: undefined as never }
+            execOptions
+          );
+        },
+      },
+      interviewPrep: {
+        ...interviewPrepTool,
+        execute: async (params, execOptions) => {
+          return interviewPrepTool.execute!(
+            { ...params, userId },
+            execOptions
           );
         },
       },

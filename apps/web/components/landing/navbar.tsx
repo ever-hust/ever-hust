@@ -1,9 +1,22 @@
+"use client";
+
+import { useState, useCallback } from "react";
 import Link from "next/link";
 import { Button } from "@repo/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { BriefcaseBusiness } from "lucide-react";
+import { BriefcaseBusiness, Menu, X } from "lucide-react";
+
+const NAV_LINKS = [
+  { href: "#features", label: "Features" },
+  { href: "#how-it-works", label: "How It Works" },
+  { href: "/pricing", label: "Pricing" },
+];
 
 export function Navbar() {
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const closeMobile = useCallback(() => setMobileOpen(false), []);
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-sm">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
@@ -12,39 +25,83 @@ export function Navbar() {
           <span className="text-xl font-bold">Ever Jobs</span>
         </Link>
 
-        <nav aria-label="Main navigation" className="hidden items-center gap-6 md:flex">
-          <Link
-            href="#features"
-            className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Features
-          </Link>
-          <Link
-            href="#how-it-works"
-            className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-          >
-            How It Works
-          </Link>
-          <Link
-            href="/pricing"
-            className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Pricing
-          </Link>
+        {/* Desktop nav */}
+        <nav
+          aria-label="Main navigation"
+          className="hidden items-center gap-6 md:flex"
+        >
+          {NAV_LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {link.label}
+            </Link>
+          ))}
         </nav>
 
         <div className="flex items-center gap-3">
           <ThemeToggle />
-          <Link href="/login">
+          <Link href="/login" className="hidden sm:inline-flex">
             <Button variant="ghost" size="sm">
               Log in
             </Button>
           </Link>
-          <Link href="/login">
+          <Link href="/login" className="hidden sm:inline-flex">
             <Button size="sm">Get Started</Button>
           </Link>
+
+          {/* Mobile menu button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            onClick={() => setMobileOpen((prev) => !prev)}
+            aria-expanded={mobileOpen}
+            aria-controls="mobile-nav"
+            aria-label={mobileOpen ? "Close menu" : "Open menu"}
+          >
+            {mobileOpen ? (
+              <X className="h-5 w-5" />
+            ) : (
+              <Menu className="h-5 w-5" />
+            )}
+          </Button>
         </div>
       </div>
+
+      {/* Mobile nav dropdown */}
+      {mobileOpen && (
+        <nav
+          id="mobile-nav"
+          aria-label="Mobile navigation"
+          className="border-t bg-background px-4 pb-4 pt-2 md:hidden"
+        >
+          <div className="flex flex-col gap-1">
+            {NAV_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={closeMobile}
+                className="rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </div>
+          <div className="mt-3 flex flex-col gap-2 border-t pt-3 sm:hidden">
+            <Link href="/login" onClick={closeMobile}>
+              <Button variant="outline" className="w-full">
+                Log in
+              </Button>
+            </Link>
+            <Link href="/login" onClick={closeMobile}>
+              <Button className="w-full">Get Started</Button>
+            </Link>
+          </div>
+        </nav>
+      )}
     </header>
   );
 }

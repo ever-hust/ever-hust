@@ -1,7 +1,5 @@
 import { db, users } from "@repo/db";
 import { FREE_LIMITS } from "@repo/stripe";
-import { Ratelimit } from "@upstash/ratelimit";
-import { Redis } from "@upstash/redis";
 import { eq } from "drizzle-orm";
 
 export interface SubscriptionGate {
@@ -37,22 +35,10 @@ export async function checkSubscription(
 }
 
 // ---------------------------------------------------------------------------
-// Upstash Redis rate limiting — production-safe distributed counter.
-// Falls back to in-memory Map when UPSTASH_REDIS_REST_URL is unset (local dev).
+// In-memory rate limiting — simple sliding-window counter.
+// In production with multiple instances, consider using Redis (Upstash).
 // ---------------------------------------------------------------------------
 
-let redis: Redis | null = null;
-
-function getRedis(): Redis | null {
-  if (redis) return redis;
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return null;
-  redis = new Redis({ url, token });
-  return redis;
-}
-
-// In-memory fallback for local development
 const memoryCounters = new Map<string, { count: number; resetAt: number }>();
 
 function checkMemoryRateLimit(
@@ -76,44 +62,37 @@ function checkMemoryRateLimit(
   return { allowed: true, remaining: limit - entry.count };
 }
 
-// Cache Ratelimit instances
-const limiters = new Map<string, Ratelimit>();
-
-function getUpstashLimiter(prefix: string, limit: number, windowSec: number): Ratelimit {
-  const cacheKey = `${prefix}:${limit}:${windowSec}`;
-  const cached = limiters.get(cacheKey);
-  if (cached) return cached;
-
-  const r = getRedis()!;
-  const limiter = new Ratelimit({
-    redis: r,
-    limiter: Ratelimit.slidingWindow(limit, `${windowSec} s`),
-    prefix: `everjobs:rl:${prefix}`,
-    analytics: true,
-  });
-  limiters.set(cacheKey, limiter);
-  return limiter;
-}
-
-export async function checkRateLimit(
+/**
+ * Check rate limit — uses in-memory sliding window.
+ */
+async function checkRateLimit(
   key: string,
   limit: number,
   windowMs: number,
 ): Promise<{ allowed: boolean; remaining: number }> {
-  const r = getRedis();
-  if (!r) {
-    return checkMemoryRateLimit(key, limit, windowMs);
+  return checkMemoryRateLimit(key, limit, windowMs);
+}
+
+/**
+ * Read-only version of checkRateLimit — peeks at current usage without incrementing.
+ */
+export function peekRateLimit(
+  key: string,
+  limit: number,
+  windowMs: number
+): { used: number; remaining: number; limit: number } {
+  const now = Date.now();
+  const entry = memoryCounters.get(key);
+
+  if (!entry || now > entry.resetAt) {
+    return { used: 0, remaining: limit, limit };
   }
 
-  const windowSec = Math.ceil(windowMs / 1000);
-  // Extract prefix and userId from key (format: "prefix:userId")
-  const colonIdx = key.indexOf(":");
-  const prefix = colonIdx > 0 ? key.slice(0, colonIdx) : "default";
-  const userId = colonIdx > 0 ? key.slice(colonIdx + 1) : key;
-
-  const limiter = getUpstashLimiter(prefix, limit, windowSec);
-  const { success, remaining } = await limiter.limit(userId);
-  return { allowed: success, remaining };
+  return {
+    used: entry.count,
+    remaining: Math.max(0, limit - entry.count),
+    limit,
+  };
 }
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
@@ -144,4 +123,18 @@ export function checkCoverLetterLimit(
   userId: string,
 ): Promise<{ allowed: boolean; remaining: number }> {
   return checkRateLimit(`cover:${userId}`, FREE_LIMITS.coverLettersPerWeek, ONE_WEEK_MS);
+}
+
+// -- Read-only peek functions for usage stats endpoint --
+
+export function peekMessageUsage(userId: string) {
+  return peekRateLimit(`msg:${userId}`, FREE_LIMITS.messagesPerDay, ONE_DAY_MS);
+}
+
+export function peekSearchUsage(userId: string) {
+  return peekRateLimit(`search:${userId}`, FREE_LIMITS.searchesPerDay, ONE_DAY_MS);
+}
+
+export function peekCoverLetterUsage(userId: string) {
+  return peekRateLimit(`cover:${userId}`, FREE_LIMITS.coverLettersPerWeek, ONE_WEEK_MS);
 }

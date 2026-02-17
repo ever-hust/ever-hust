@@ -9,65 +9,73 @@ import {
   Preview,
   Section,
   Text,
+  Button,
 } from "@react-email/components";
 import * as React from "react";
 
 interface WelcomeEmailProps {
   userName: string;
-  loginUrl: string;
+  chatUrl: string;
 }
 
 export function WelcomeEmail({
   userName = "there",
-  loginUrl = "https://everjobs.ai/login",
+  chatUrl = "https://everjobs.ai/chat",
 }: WelcomeEmailProps) {
   return (
     <Html>
       <Head />
-      <Preview>Welcome to Ever Jobs — your AI-powered job search starts now</Preview>
+      <Preview>Welcome to Ever Jobs — your AI job search assistant</Preview>
       <Body style={main}>
         <Container style={container}>
-          <Heading style={heading}>Welcome to Ever Jobs</Heading>
+          <Heading style={heading}>Welcome to Ever Jobs!</Heading>
 
           <Text style={paragraph}>Hi {userName},</Text>
 
           <Text style={paragraph}>
-            Thanks for signing up! Ever Jobs is your AI-powered job search
-            assistant that helps you find the perfect role faster.
+            Thanks for joining Ever Jobs! We&apos;re excited to help you find
+            your next opportunity using the power of AI.
+          </Text>
+
+          <Text style={paragraph}>Here&apos;s what you can do right away:</Text>
+
+          <Section style={featureList}>
+            <Text style={featureItem}>
+              💬 <strong>Chat with AI</strong> — Tell our assistant what
+              you&apos;re looking for and get personalized job recommendations
+            </Text>
+            <Text style={featureItem}>
+              🔍 <strong>Search 25+ sources</strong> — We aggregate jobs from
+              LinkedIn, Indeed, Glassdoor, and 22 more platforms
+            </Text>
+            <Text style={featureItem}>
+              📝 <strong>Generate cover letters</strong> — Get a personalized
+              cover letter for any job in seconds
+            </Text>
+            <Text style={featureItem}>
+              📄 <strong>Upload your CV</strong> — We&apos;ll parse your skills
+              and experience to find better matches
+            </Text>
+          </Section>
+
+          <Section style={ctaSection}>
+            <Button href={chatUrl} style={button}>
+              Start Your Job Search
+            </Button>
+          </Section>
+
+          <Hr style={hr} />
+
+          <Text style={paragraph}>
+            <strong>Pro tip:</strong> Start by telling the AI about your ideal
+            role, preferred location, and salary range. The more context you
+            provide, the better your results!
           </Text>
 
           <Hr style={hr} />
 
-          <Section style={section}>
-            <Text style={subheading}>Here&apos;s what you can do:</Text>
-            <Text style={listItem}>
-              <strong>Chat with AI</strong> — Describe your ideal job and get
-              personalized recommendations instantly.
-            </Text>
-            <Text style={listItem}>
-              <strong>Browse 25+ sources</strong> — We aggregate jobs from
-              LinkedIn, Indeed, Glassdoor, and more.
-            </Text>
-            <Text style={listItem}>
-              <strong>Generate cover letters</strong> — Tailored to each job
-              with a single click.
-            </Text>
-            <Text style={listItem}>
-              <strong>Upload your CV</strong> — Let us match your skills to the
-              best opportunities.
-            </Text>
-          </Section>
-
-          <Hr style={hr} />
-
-          <Section style={{ textAlign: "center" as const, padding: "0 40px" }}>
-            <Link href={loginUrl} style={button}>
-              Start Your Job Search
-            </Link>
-          </Section>
-
           <Text style={footer}>
-            Ever Jobs — Your AI-Powered Job Search Assistant
+            Ever Jobs · Your AI-Powered Job Search Assistant
           </Text>
         </Container>
       </Body>
@@ -90,7 +98,7 @@ const container = {
 };
 
 const heading = {
-  fontSize: "24px",
+  fontSize: "28px",
   letterSpacing: "-0.5px",
   lineHeight: "1.3",
   fontWeight: "700" as const,
@@ -107,39 +115,37 @@ const paragraph = {
   padding: "0 40px",
 };
 
-const hr = {
-  borderColor: "#dfe1e4",
-  margin: "20px 40px",
-};
-
-const section = {
+const featureList = {
   padding: "0 40px",
 };
 
-const subheading = {
-  fontSize: "15px",
-  fontWeight: "600" as const,
-  color: "#484848",
-  margin: "0 0 12px",
-};
-
-const listItem = {
+const featureItem = {
   fontSize: "14px",
   lineHeight: "1.5",
   color: "#3c4149",
   margin: "0 0 10px",
 };
 
+const ctaSection = {
+  textAlign: "center" as const,
+  margin: "24px 0",
+};
+
 const button = {
-  backgroundColor: "#2563eb",
+  backgroundColor: "#000000",
   borderRadius: "6px",
-  color: "#fff",
-  display: "inline-block",
+  color: "#ffffff",
   fontSize: "15px",
   fontWeight: "600" as const,
-  lineHeight: "1",
-  padding: "12px 24px",
   textDecoration: "none",
+  textAlign: "center" as const,
+  display: "inline-block",
+  padding: "12px 24px",
+};
+
+const hr = {
+  borderColor: "#dfe1e4",
+  margin: "20px 40px",
 };
 
 const footer = {
@@ -147,5 +153,5 @@ const footer = {
   color: "#9ca3af",
   textAlign: "center" as const,
   padding: "0 40px",
-  marginTop: "32px",
+  marginTop: "20px",
 };

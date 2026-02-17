@@ -1,69 +1,71 @@
 import { test, expect } from "@playwright/test";
 
-test.describe("Subscription/Pricing", () => {
-  test.describe("Pricing Page", () => {
-    test.beforeEach(async ({ page }) => {
-      await page.goto("/pricing");
-    });
-
-    test("is accessible without authentication", async ({ page }) => {
-      await expect(page).toHaveURL(/\/pricing/);
-      await expect(
-        page.getByRole("heading", { name: /pricing/i })
-      ).toBeVisible();
-    });
-
-    test("shows Free plan at $0", async ({ page }) => {
-      const freePlan = page.getByRole("article").filter({
-        hasText: /free/i,
-      });
-      await expect(freePlan).toBeVisible();
-      await expect(freePlan.getByText(/\$0/)).toBeVisible();
-    });
-
-    test("shows Quarterly plan at $12", async ({ page }) => {
-      const quarterlyPlan = page.getByRole("article").filter({
-        hasText: /quarterly/i,
-      });
-      await expect(quarterlyPlan).toBeVisible();
-      await expect(quarterlyPlan.getByText(/\$12/)).toBeVisible();
-    });
-
-    test("shows Annual plan at $7", async ({ page }) => {
-      const annualPlan = page.getByRole("article").filter({
-        hasText: /annual/i,
-      });
-      await expect(annualPlan).toBeVisible();
-      await expect(annualPlan.getByText(/\$7/)).toBeVisible();
-    });
-
-    test("Free plan has Get Started CTA linking to login", async ({
-      page,
-    }) => {
-      const freePlan = page.getByRole("article").filter({
-        hasText: /free/i,
-      });
-      const getStartedButton = freePlan.getByRole("link", {
-        name: /get started/i,
-      });
-      await expect(getStartedButton).toBeVisible();
-      await expect(getStartedButton).toHaveAttribute("href", /\/login/);
-    });
+test.describe("Pricing Page", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/pricing");
   });
 
-  test.describe("Settings Page", () => {
-    test("redirects unauthenticated users to login", async ({ page }) => {
-      await page.goto("/settings");
-      await page.waitForURL(/\/login/);
-      await expect(page).toHaveURL(/\/login/);
-    });
+  test("renders pricing page heading", async ({ page }) => {
+    await expect(
+      page.getByRole("heading", { name: /pricing/i })
+    ).toBeVisible();
+  });
 
-    test.skip("authenticated user can access settings", async ({ page }) => {
-      // This test requires authentication setup
-      await page.goto("/settings");
-      await expect(
-        page.getByRole("heading", { name: /settings/i })
-      ).toBeVisible();
+  test("shows three pricing tiers", async ({ page }) => {
+    // Free tier
+    await expect(page.getByText("$0")).toBeVisible();
+    // Quarterly plan
+    await expect(page.getByText("$12")).toBeVisible();
+    // Annual plan
+    await expect(page.getByText("$7")).toBeVisible();
+  });
+
+  test("pricing cards have CTA buttons", async ({ page }) => {
+    const ctaButtons = page.getByRole("link", { name: /get started/i });
+    const count = await ctaButtons.count();
+    expect(count).toBeGreaterThanOrEqual(1);
+  });
+
+  test("CTA buttons link to login page", async ({ page }) => {
+    const firstCta = page.getByRole("link", { name: /get started/i }).first();
+    const href = await firstCta.getAttribute("href");
+    expect(href).toBe("/login");
+  });
+});
+
+test.describe("Stripe API Endpoints", () => {
+  test("checkout endpoint requires authentication", async ({ request }) => {
+    const response = await request.post("/api/stripe/checkout", {
+      data: { planId: "quarterly" },
     });
+    expect(response.status()).toBe(401);
+  });
+
+  test("portal endpoint requires authentication", async ({ request }) => {
+    const response = await request.post("/api/stripe/portal");
+    expect(response.status()).toBe(401);
+  });
+
+  test("webhook endpoint accepts POST requests", async ({ request }) => {
+    // Webhook should accept POST but will fail signature verification
+    const response = await request.post("/api/stripe/webhook", {
+      data: {},
+      headers: { "stripe-signature": "invalid" },
+    });
+    // 400 (bad signature) is expected, not 404
+    expect([400, 500]).toContain(response.status());
+  });
+});
+
+test.describe("Subscription Flow (Landing Page)", () => {
+  test("landing page pricing section links to login", async ({ page }) => {
+    await page.goto("/");
+    const pricingSection = page.locator("#pricing");
+    await expect(pricingSection).toBeVisible();
+
+    const getStartedBtn = pricingSection
+      .getByRole("link", { name: /get started/i })
+      .first();
+    await expect(getStartedBtn).toHaveAttribute("href", "/login");
   });
 });

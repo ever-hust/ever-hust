@@ -5,6 +5,7 @@ import type { LanguageModel } from "ai";
 // Allowlist of models users can select — prevents arbitrary model strings
 const ALLOWED_MODELS = new Set([
   "claude-haiku-4-5-20251001",
+  "claude-sonnet-4-20250514",
   "claude-sonnet-4-5-20250929",
   "claude-opus-4-6",
 ]);
@@ -97,12 +98,12 @@ export function getModelForUser(user: UserForModel): LanguageModel {
     return byokProvider(modelId);
   }
 
-  // 2. User preference: validate against allowlist before use
+  // 2. User preference: validate against allowlist, route through platform
   if (
     user.preferences?.aiModel &&
     ALLOWED_MODELS.has(user.preferences.aiModel)
   ) {
-    return anthropic(user.preferences.aiModel);
+    return getPlatformModel(user.preferences.aiModel);
   }
 
   // 3. Tier default: free = haiku, paid = sonnet/opus
@@ -110,9 +111,8 @@ export function getModelForUser(user: UserForModel): LanguageModel {
     return getPlatformModel(FREE_MODEL_ID);
   }
 
-  // 4. Platform default from env var (also validated)
-  const defaultModel = process.env.DEFAULT_AI_MODEL ?? "claude-opus-4-6";
-  return anthropic(
-    ALLOWED_MODELS.has(defaultModel) ? defaultModel : "claude-opus-4-6"
+  // 4. Platform default: use PAID_MODEL_ID (from env or hardcoded fallback)
+  return getPlatformModel(
+    ALLOWED_MODELS.has(PAID_MODEL_ID) ? PAID_MODEL_ID : "claude-opus-4-6"
   );
 }

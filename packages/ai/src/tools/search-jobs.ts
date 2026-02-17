@@ -64,15 +64,20 @@ export const searchJobsTool = tool({
   execute: async (params) => {
     const conditions = [];
 
+    // Escape ILIKE wildcard characters (%, _) in user input to prevent
+    // unintended pattern matching. Backslash-escape is the Postgres default.
+    const escapeIlike = (str: string) =>
+      str.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+
     if (params.keywords) {
-      const kw = `%${params.keywords}%`;
+      const kw = `%${escapeIlike(params.keywords)}%`;
       conditions.push(
         or(ilike(jobs.title, kw), ilike(jobs.description, kw))
       );
     }
 
     if (params.location) {
-      const loc = `%${params.location}%`;
+      const loc = `%${escapeIlike(params.location)}%`;
       conditions.push(
         or(
           ilike(jobs.locationCity, loc),

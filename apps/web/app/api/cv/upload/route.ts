@@ -30,12 +30,18 @@ export async function POST(req: Request) {
   const rateLimited = applyRateLimit(userId, "authenticated");
   if (rateLimited) return rateLimited;
 
-  const formData = await req.formData();
-  const file = formData.get("cv") as File | null;
+  let formData: FormData;
+  try {
+    formData = await req.formData();
+  } catch {
+    return apiBadRequest("Invalid multipart form data");
+  }
 
-  if (!file) {
+  const fileEntry = formData.get("cv");
+  if (!fileEntry || !(fileEntry instanceof File)) {
     return apiBadRequest("No file provided");
   }
+  const file = fileEntry;
 
   // Validate file type (MIME + extension)
   if (!ALLOWED_MIME_TYPES.has(file.type)) {

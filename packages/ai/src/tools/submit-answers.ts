@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { db } from "@repo/db";
-import { applications, agentInstances } from "@repo/db";
+import { applications, agentInstances, users } from "@repo/db";
 import { eq, and } from "drizzle-orm";
 
 export const submitAnswersTool = tool({
@@ -23,6 +23,25 @@ export const submitAnswersTool = tool({
       .describe("Array of question-answer pairs"),
   }),
   execute: async ({ userId, applicationId, answers }) => {
+    // Check subscription — submitting answers is a Pro feature
+    const userResult = await db
+      .select({ subscriptionStatus: users.subscriptionStatus })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (userResult.length === 0) {
+      return { submitted: false, error: "User not found" };
+    }
+
+    if (userResult[0]!.subscriptionStatus !== "active") {
+      return {
+        submitted: false,
+        error: "Submitting application answers requires a Pro subscription.",
+        requiresUpgrade: true,
+      };
+    }
+
     // Verify the application belongs to the user
     const appResult = await db
       .select({

@@ -33,15 +33,22 @@ export async function GET(req: Request) {
 
     const conditions = [];
 
+    // Escape ILIKE wildcard characters (%, _) in user input to prevent
+    // unintended pattern matching. Backslash-escape is the Postgres default.
+    const escapeIlike = (str: string) =>
+      str.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+
     if (keywords) {
+      const kw = `%${escapeIlike(keywords)}%`;
       conditions.push(
-        sql`(${ilike(jobs.title, `%${keywords}%`)} OR ${ilike(jobs.companyName, `%${keywords}%`)})`
+        sql`(${ilike(jobs.title, kw)} OR ${ilike(jobs.companyName, kw)})`
       );
     }
 
     if (location) {
+      const loc = `%${escapeIlike(location)}%`;
       conditions.push(
-        sql`(${ilike(jobs.locationCity, `%${location}%`)} OR ${ilike(jobs.locationState, `%${location}%`)} OR ${ilike(jobs.locationCountry, `%${location}%`)})`
+        sql`(${ilike(jobs.locationCity, loc)} OR ${ilike(jobs.locationState, loc)} OR ${ilike(jobs.locationCountry, loc)})`
       );
     }
 

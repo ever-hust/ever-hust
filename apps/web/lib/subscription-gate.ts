@@ -1,7 +1,5 @@
 import { db, users } from "@repo/db";
 import { FREE_LIMITS } from "@repo/stripe";
-import { Ratelimit } from "@upstash/ratelimit";
-import { Redis } from "@upstash/redis";
 import { eq } from "drizzle-orm";
 
 export interface SubscriptionGate {
@@ -37,22 +35,10 @@ export async function checkSubscription(
 }
 
 // ---------------------------------------------------------------------------
-// Upstash Redis rate limiting — production-safe distributed counter.
-// Falls back to in-memory Map when UPSTASH_REDIS_REST_URL is unset (local dev).
+// In-memory rate limiting — simple sliding-window counter.
+// In production with multiple instances, consider using Redis (Upstash).
 // ---------------------------------------------------------------------------
 
-let redis: Redis | null = null;
-
-function getRedis(): Redis | null {
-  if (redis) return redis;
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return null;
-  redis = new Redis({ url, token });
-  return redis;
-}
-
-// In-memory fallback for local development
 const memoryCounters = new Map<string, { count: number; resetAt: number }>();
 
 function checkMemoryRateLimit(
@@ -77,6 +63,17 @@ function checkMemoryRateLimit(
 }
 
 /**
+ * Check rate limit — uses in-memory sliding window.
+ */
+async function checkRateLimit(
+  key: string,
+  limit: number,
+  windowMs: number,
+): Promise<{ allowed: boolean; remaining: number }> {
+  return checkMemoryRateLimit(key, limit, windowMs);
+}
+
+/**
  * Read-only version of checkRateLimit — peeks at current usage without incrementing.
  */
 export function peekRateLimit(
@@ -85,7 +82,7 @@ export function peekRateLimit(
   windowMs: number
 ): { used: number; remaining: number; limit: number } {
   const now = Date.now();
-  const entry = counters.get(key);
+  const entry = memoryCounters.get(key);
 
   if (!entry || now > entry.resetAt) {
     return { used: 0, remaining: limit, limit };

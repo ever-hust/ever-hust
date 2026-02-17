@@ -9,4 +9,3 @@ export { createAlertTool } from "./create-alert";
 export { applyJobTool } from "./apply-job";
 export { submitAnswersTool } from "./submit-answers";
 export { interviewPrepTool } from "./interview-prep";
-export { submitAnswersTool } from "./submit-answers";

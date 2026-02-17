@@ -19,6 +19,11 @@ export const resend = {
 
 export const EMAIL_FROM = process.env.EMAIL_FROM ?? "alerts@everjobs.ai";
 
+/** Get the base app URL for links in emails */
+export function getAppUrl(): string {
+  return process.env.NEXT_PUBLIC_APP_URL ?? "https://everjobs.ai";
+}
+
 export { sendJobAlertEmail, sendWelcomeEmail, sendSubscriptionConfirmedEmail } from "./send";
 export { JobAlertEmail } from "./templates/job-alert";
 export { WelcomeEmail } from "./templates/welcome";

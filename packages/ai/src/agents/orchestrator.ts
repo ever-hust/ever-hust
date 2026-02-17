@@ -12,10 +12,9 @@ import {
   applyJobTool,
   submitAnswersTool,
   interviewPrepTool,
-  submitAnswersTool,
 } from "../tools";
 import { checkSearchLimit, checkCoverLetterLimit } from "../rate-limit";
-import { ORCHESTRATOR_SYSTEM_PROMPT } from "../prompts";
+import { getOrchestratorPrompt } from "../prompts";
 
 interface OrchestratorOptions {
   model: LanguageModel;
@@ -37,7 +36,7 @@ export async function createOrchestratorStream({
 
   return streamText({
     model,
-    system: ORCHESTRATOR_SYSTEM_PROMPT,
+    system: systemPrompt,
     messages,
     // Enable telemetry for Langfuse tracing (OTEL-based)
     experimental_telemetry: {
@@ -159,15 +158,6 @@ export async function createOrchestratorStream({
           return interviewPrepTool.execute!(
             { ...params, userId },
             execOptions
-          );
-        },
-      },
-      submitAnswers: {
-        ...submitAnswersTool,
-        execute: async (params) => {
-          return submitAnswersTool.execute!(
-            { ...params, userId },
-            { toolCallId: "", messages: [], abortSignal: undefined as never }
           );
         },
       },

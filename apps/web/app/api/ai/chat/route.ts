@@ -6,7 +6,6 @@ import { db, users } from "@repo/db";
 import { convertToModelMessages, type UIMessage } from "ai";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import {
   checkSubscription,
   checkMessageLimit,
@@ -14,16 +13,6 @@ import {
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { chatRequestSchema } from "../../../../lib/api-schemas";
 import { applyRateLimit } from "../../../../lib/rate-limit";
-
-// Allow long-running AI streaming responses (60 seconds)
-export const maxDuration = 60;
-
-const chatSchema = z.object({
-  messages: z.array(z.object({
-    role: z.string(),
-    content: z.unknown(),
-  }).passthrough()).min(1, "At least one message is required"),
-});
 
 export async function POST(req: Request) {
   let user;

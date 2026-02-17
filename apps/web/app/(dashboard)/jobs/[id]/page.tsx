@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { FavoriteButton } from "@/components/jobs/favorite-button";
 import { Breadcrumbs } from "@/components/shared/breadcrumbs";
+import { getSessionUser } from "@/lib/get-session-user";
 
 // ---------------------------------------------------------------------------
 // Helpers

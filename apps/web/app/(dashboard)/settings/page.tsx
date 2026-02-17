@@ -105,17 +105,6 @@ export default function SettingsPage() {
   const [clearChatDialogOpen, setClearChatDialogOpen] = useState(false);
   const [deleteAlertId, setDeleteAlertId] = useState<number | null>(null);
 
-  // BYOK state
-  const [apiKey, setApiKey] = useState("");
-  const [apiKeyVisible, setApiKeyVisible] = useState(false);
-  const [savingApiKey, setSavingApiKey] = useState(false);
-
-  // Alerts state
-  const [alerts, setAlerts] = useState<UserAlert[]>([]);
-  const [alertsLoading, setAlertsLoading] = useState(true);
-  const [togglingAlert, setTogglingAlert] = useState<number | null>(null);
-  const [deletingAlert, setDeletingAlert] = useState<number | null>(null);
-
   const loadAlerts = useCallback(async () => {
     try {
       const res = await fetch("/api/user/alerts");
@@ -174,25 +163,6 @@ export default function SettingsPage() {
     loadUser();
     loadAlerts();
   }, [loadAlerts]);
-
-  // Load alerts for subscribed users
-  useEffect(() => {
-    if (user?.subscriptionStatus !== "active") return;
-    async function loadAlerts() {
-      setAlertsLoading(true);
-      try {
-        const res = await fetch("/api/user/alerts");
-        if (!res.ok) throw new Error("Failed to load alerts");
-        const data = (await res.json()) as { alerts: Alert[] };
-        setAlerts(data.alerts);
-      } catch {
-        toast.error("Failed to load job alerts");
-      } finally {
-        setAlertsLoading(false);
-      }
-    }
-    loadAlerts();
-  }, [user?.subscriptionStatus]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);

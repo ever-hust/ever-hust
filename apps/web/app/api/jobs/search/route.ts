@@ -29,22 +29,7 @@ export async function GET(req: Request) {
   const { page, limit, keywords, location, isRemote, jobType, salaryMin, salaryMax } =
     parsed.data;
 
-    // Parse and validate numeric params (NaN-safe)
-    const rawPage = Number(url.searchParams.get("page") ?? "1");
-    const rawLimit = Number(url.searchParams.get("limit") ?? "25");
-    const page = Number.isFinite(rawPage) ? Math.max(1, rawPage) : 1;
-    const limit = Number.isFinite(rawLimit) ? Math.min(100, Math.max(1, rawLimit)) : 25;
-
-    const keywords = url.searchParams.get("keywords") || undefined;
-    const location = url.searchParams.get("location") || undefined;
-    const isRemote = url.searchParams.get("isRemote") === "true" ? true : undefined;
-    const jobType = url.searchParams.get("jobType") || undefined;
-
-    const rawSalaryMin = url.searchParams.get("salaryMin");
-    const rawSalaryMax = url.searchParams.get("salaryMax");
-    const salaryMin = rawSalaryMin ? Number(rawSalaryMin) : undefined;
-    const salaryMax = rawSalaryMax ? Number(rawSalaryMax) : undefined;
-
+  try {
     // Drop NaN salary values instead of passing them to SQL
     const safeSalaryMin = salaryMin !== undefined && Number.isFinite(salaryMin) ? salaryMin : undefined;
     const safeSalaryMax = salaryMax !== undefined && Number.isFinite(salaryMax) ? salaryMax : undefined;

@@ -27,7 +27,7 @@ export const generateCoverLetterTool = tool({
       ),
   }),
   execute: async ({ userId, jobId, tone = "professional", focusAreas }) => {
-    // Get user profile
+    // Get user profile (including subscription status for gate check)
     const userResult = await db
       .select({
         name: users.name,
@@ -36,6 +36,7 @@ export const generateCoverLetterTool = tool({
         location: users.location,
         skills: users.skills,
         preferences: users.preferences,
+        subscriptionStatus: users.subscriptionStatus,
       })
       .from(users)
       .where(eq(users.id, userId))
@@ -43,6 +44,15 @@ export const generateCoverLetterTool = tool({
 
     if (userResult.length === 0) {
       return { error: "User not found", generated: false };
+    }
+
+    // Check subscription — cover letters are a Pro feature
+    if (userResult[0]!.subscriptionStatus !== "active") {
+      return {
+        generated: false,
+        error: "Generating cover letters requires a Pro subscription.",
+        requiresUpgrade: true,
+      };
     }
 
     // Get job details

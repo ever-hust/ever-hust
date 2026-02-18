@@ -3,15 +3,20 @@ import { users } from "@repo/db/schema";
 import { count, desc, ilike, or } from "drizzle-orm";
 import type { NextResponse } from "next/server";
 import { requireRole } from "../../../../lib/auth-roles";
+import { applyRateLimit } from "../../../../lib/rate-limit";
 import { adminUsersQuerySchema } from "../../../../lib/api-schemas";
 import { apiSuccess, apiBadRequest, apiError } from "../../../../lib/api-response";
 
 export async function GET(req: Request) {
+  let admin;
   try {
-    await requireRole("admin");
+    admin = await requireRole("admin");
   } catch (response) {
     return response as NextResponse;
   }
+
+  const rateLimited = applyRateLimit(admin.id, "admin");
+  if (rateLimited) return rateLimited;
 
   try {
     const url = new URL(req.url);

@@ -95,44 +95,6 @@ describe("subscription-gate rate limiting", () => {
     });
   });
 
-  // ── checkSearchLimit (5/day) ──────────────────────────────────────────
-
-  describe("checkSearchLimit", () => {
-    it("allows first search", async () => {
-      const result = await mod.checkSearchLimit("search-new");
-      expect(result.allowed).toBe(true);
-      expect(result.remaining).toBe(4);
-    });
-
-    it("blocks after 5 searches", async () => {
-      for (let i = 0; i < 5; i++) {
-        const r = await mod.checkSearchLimit("search-exhaust");
-        expect(r.allowed).toBe(true);
-      }
-
-      const blocked = await mod.checkSearchLimit("search-exhaust");
-      expect(blocked.allowed).toBe(false);
-      expect(blocked.remaining).toBe(0);
-    });
-  });
-
-  // ── checkCoverLetterLimit (1/week) ────────────────────────────────────
-
-  describe("checkCoverLetterLimit", () => {
-    it("allows first cover letter", async () => {
-      const result = await mod.checkCoverLetterLimit("cover-new");
-      expect(result.allowed).toBe(true);
-      expect(result.remaining).toBe(0);
-    });
-
-    it("blocks second cover letter in the same window", async () => {
-      await mod.checkCoverLetterLimit("cover-block");
-      const blocked = await mod.checkCoverLetterLimit("cover-block");
-      expect(blocked.allowed).toBe(false);
-      expect(blocked.remaining).toBe(0);
-    });
-  });
-
   // ── Peek usage functions ──────────────────────────────────────────────
 
   describe("peek usage functions", () => {
@@ -159,21 +121,16 @@ describe("subscription-gate rate limiting", () => {
       expect(p2.used).toBe(1); // unchanged
     });
 
-    it("peekSearchUsage reflects actual search usage", async () => {
-      await mod.checkSearchLimit("peek-search");
-      await mod.checkSearchLimit("peek-search");
-
+    it("peekSearchUsage returns zero for unused user (search limits handled by AI package)", () => {
       const stats = mod.peekSearchUsage("peek-search");
-      expect(stats.used).toBe(2);
-      expect(stats.remaining).toBe(3);
+      expect(stats.used).toBe(0);
+      expect(stats.remaining).toBe(5);
     });
 
-    it("peekCoverLetterUsage reflects actual cover letter usage", async () => {
-      await mod.checkCoverLetterLimit("peek-cover");
-
+    it("peekCoverLetterUsage returns zero for unused user (cover letter limits handled by AI package)", () => {
       const stats = mod.peekCoverLetterUsage("peek-cover");
-      expect(stats.used).toBe(1);
-      expect(stats.remaining).toBe(0);
+      expect(stats.used).toBe(0);
+      expect(stats.remaining).toBe(1);
     });
   });
 
@@ -188,24 +145,6 @@ describe("subscription-gate rate limiting", () => {
   // ── Edge cases ────────────────────────────────────────────────────────
 
   describe("edge cases", () => {
-    it("different limit types use separate counters", async () => {
-      const userId = "multi-type";
-
-      // Use all searches (5)
-      for (let i = 0; i < 5; i++) {
-        await mod.checkSearchLimit(userId);
-      }
-
-      // Messages should still be available
-      const msgResult = await mod.checkMessageLimit(userId);
-      expect(msgResult.allowed).toBe(true);
-      expect(msgResult.remaining).toBe(9);
-
-      // Searches should be blocked
-      const searchResult = await mod.checkSearchLimit(userId);
-      expect(searchResult.allowed).toBe(false);
-    });
-
     it("peek and check use consistent state", async () => {
       const userId = "consistent-state";
       await mod.checkMessageLimit(userId);

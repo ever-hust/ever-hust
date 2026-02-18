@@ -1,28 +1,52 @@
 import { task, schedules } from "@trigger.dev/sdk/v3";
 import { db, jobs } from "@repo/db";
-import { lt, sql } from "drizzle-orm";
+import { lt, and, isNotNull, sql } from "drizzle-orm";
 
 /**
- * Cleanup task: removes stale jobs and expired data.
+ * Remove expired and stale job listings from the database.
+ *
+ * Jobs are considered removable when:
+ * 1. Their `expires_at` timestamp has passed, OR
+ * 2. They were posted more than 90 days ago and haven't been updated
+ *
+ * Exported so other tasks can reuse this without duplicating logic.
+ */
+export async function cleanupExpiredJobs(): Promise<{
+  totalDeletedJobs: number;
+}> {
+  const now = new Date();
+  const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+  let totalDeletedJobs = 0;
+
+  // 1. Delete jobs with a past expiration date
+  const expiredResult = await db
+    .delete(jobs)
+    .where(and(isNotNull(jobs.expiresAt), lt(jobs.expiresAt, now)))
+    .returning({ id: jobs.id });
+
+  totalDeletedJobs += expiredResult.length;
+
+  // 2. Delete stale jobs posted > 90 days ago that haven't been updated recently
+  const staleResult = await db
+    .delete(jobs)
+    .where(and(lt(jobs.datePosted, ninetyDaysAgo), lt(jobs.updatedAt, ninetyDaysAgo)))
+    .returning({ id: jobs.id });
+
+  totalDeletedJobs += staleResult.length;
+
+  return { totalDeletedJobs };
+}
+
+/**
+ * Full cleanup task: removes stale jobs and expired agent instances.
  * Runs daily at 3 AM UTC.
  */
 async function runCleanup() {
   const now = new Date();
-  let deletedJobs = 0;
 
-  // Delete jobs older than 90 days that haven't been updated
-  const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-
-  const result = await db
-    .delete(jobs)
-    .where(lt(jobs.updatedAt, ninetyDaysAgo))
-    .returning({ id: jobs.id });
-
-  deletedJobs = result.length;
-
-  // Clean up orphaned chat messages older than 30 days
-  // (chat_messages that reference deleted conversations)
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  // Clean up expired jobs
+  const { totalDeletedJobs } = await cleanupExpiredJobs();
 
   // Delete expired agent instances (completed/failed older than 7 days)
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -38,7 +62,7 @@ async function runCleanup() {
   }
 
   return {
-    deletedJobs,
+    deletedJobs: totalDeletedJobs,
     deletedAgents,
     cleanupDate: now.toISOString(),
   };

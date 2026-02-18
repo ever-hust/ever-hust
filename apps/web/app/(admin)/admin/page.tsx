@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import {
   Users,
@@ -8,6 +8,8 @@ import {
   CreditCard,
   TrendingUp,
   ArrowRight,
+  AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import {
   Card,
@@ -40,17 +42,25 @@ interface AdminStats {
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  const fetchStats = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    const data = await apiFetch<AdminStats>("/api/admin/stats", {
+      showToast: false,
+    });
+    if (data) {
+      setStats(data);
+    } else {
+      setError(true);
+    }
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
-    async function fetchStats() {
-      const data = await apiFetch<AdminStats>("/api/admin/stats");
-      if (data) {
-        setStats(data);
-      }
-      setLoading(false);
-    }
     fetchStats();
-  }, []);
+  }, [fetchStats]);
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -61,6 +71,25 @@ export default function AdminDashboardPage() {
           Overview of platform metrics and recent activity.
         </p>
       </div>
+
+      {/* Error Banner */}
+      {error && !loading && (
+        <div className="flex items-center gap-3 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="flex-1">
+            Failed to load dashboard stats. Please try again.
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchStats}
+            className="shrink-0 gap-1.5"
+          >
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+            Retry
+          </Button>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

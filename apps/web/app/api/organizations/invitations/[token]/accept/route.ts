@@ -17,6 +17,74 @@ import {
 
 type RouteContext = { params: Promise<{ token: string }> };
 
+// GET /api/organizations/invitations/[token]/accept - Get invitation details (requires auth)
+export async function GET(
+  _req: Request,
+  context: RouteContext
+) {
+  const { token } = await context.params;
+  if (!token || token.length > 200) {
+    return apiBadRequest("Invalid invitation token");
+  }
+
+  let user;
+  try {
+    user = await requireSessionUser();
+  } catch (response) {
+    return response as NextResponse;
+  }
+
+  const rateLimited = applyRateLimit(user.id, "authenticated");
+  if (rateLimited) return rateLimited;
+
+  try {
+    const [invitation] = await db
+      .select({
+        id: organizationInvitations.id,
+        email: organizationInvitations.email,
+        role: organizationInvitations.role,
+        status: organizationInvitations.status,
+        expiresAt: organizationInvitations.expiresAt,
+        organizationId: organizationInvitations.organizationId,
+        createdAt: organizationInvitations.createdAt,
+      })
+      .from(organizationInvitations)
+      .where(eq(organizationInvitations.token, token))
+      .limit(1);
+
+    if (!invitation) {
+      return apiNotFound("Invitation not found");
+    }
+
+    // Look up the organization name
+    const [org] = await db
+      .select({ name: organizations.name })
+      .from(organizations)
+      .where(eq(organizations.id, invitation.organizationId))
+      .limit(1);
+
+    const isExpired = new Date() > invitation.expiresAt;
+
+    return apiSuccess({
+      invitation: {
+        email: invitation.email,
+        role: invitation.role,
+        status: isExpired && invitation.status === "pending" ? "expired" : invitation.status,
+        expiresAt: invitation.expiresAt.toISOString(),
+        organizationName: org?.name ?? "Unknown Organization",
+        organizationId: invitation.organizationId,
+        createdAt: invitation.createdAt.toISOString(),
+      },
+    });
+  } catch (err) {
+    console.error(
+      "[api/organizations/invitations/[token]/accept] GET failed:",
+      err instanceof Error ? err.message : err
+    );
+    return apiError("Failed to fetch invitation details");
+  }
+}
+
 // POST /api/organizations/invitations/[token]/accept - Accept an invitation
 export async function POST(
   _req: Request,

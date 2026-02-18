@@ -134,24 +134,6 @@ export function checkMessageLimit(
   return checkRateLimit(`msg:${userId}`, FREE_LIMITS.messagesPerDay, ONE_DAY_MS);
 }
 
-/**
- * Check if a free user has exceeded their daily search limit.
- */
-export function checkSearchLimit(
-  userId: string,
-): Promise<{ allowed: boolean; remaining: number }> {
-  return checkRateLimit(`search:${userId}`, FREE_LIMITS.searchesPerDay, ONE_DAY_MS);
-}
-
-/**
- * Check if a free user has exceeded their weekly cover letter limit.
- */
-export function checkCoverLetterLimit(
-  userId: string,
-): Promise<{ allowed: boolean; remaining: number }> {
-  return checkRateLimit(`cover:${userId}`, FREE_LIMITS.coverLettersPerWeek, ONE_WEEK_MS);
-}
-
 // -- Read-only peek functions for usage stats endpoint --
 
 export function peekMessageUsage(userId: string) {

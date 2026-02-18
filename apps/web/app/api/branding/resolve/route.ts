@@ -2,6 +2,7 @@ import { db } from "@repo/db";
 import { brandingConfigs } from "@repo/db/schema";
 import { eq, isNull, and } from "drizzle-orm";
 import { apiSuccess, apiError } from "../../../../lib/api-response";
+import { applyRateLimit } from "../../../../lib/rate-limit";
 
 /** Default branding when no config is found in the database. */
 const DEFAULT_BRANDING = {
@@ -23,6 +24,11 @@ const DEFAULT_BRANDING = {
  * falls back to the platform default branding config.
  */
 export async function GET(req: Request) {
+  // Rate limit by IP for public endpoint (100 req/min)
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const rateLimited = applyRateLimit(ip, "publicHighThroughput");
+  if (rateLimited) return rateLimited;
+
   try {
     const forwardedHost = req.headers.get("x-forwarded-host");
     const host = forwardedHost ?? req.headers.get("host");

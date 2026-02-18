@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   BarChart3,
   Users,
@@ -10,6 +10,8 @@ import {
   MessageSquare,
   Globe,
   Activity,
+  AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import {
   Card,
@@ -19,6 +21,7 @@ import {
   CardDescription,
 } from "@repo/ui/card";
 import { Skeleton } from "@repo/ui/skeleton";
+import { Button } from "@repo/ui/button";
 import { apiFetch } from "@/lib/api-client";
 import { formatShortDate } from "@/lib/format-date";
 import { StatCard } from "@/components/admin/stat-card";
@@ -99,6 +102,7 @@ const CHART_COLORS = [
 
 export default function AdminAnalyticsPage() {
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [overview, setOverview] = useState<OverviewData | null>(null);
   const [userGrowth, setUserGrowth] = useState<UserGrowthPoint[]>([]);
   const [jobStats, setJobStats] = useState<JobStats | null>(null);
@@ -106,26 +110,45 @@ export default function AdminAnalyticsPage() {
   const [subscriptionData, setSubscriptionData] =
     useState<SubscriptionData | null>(null);
 
-  useEffect(() => {
-    async function fetchAll() {
-      const [overviewRes, growthRes, jobsRes, aiRes, subsRes] =
-        await Promise.all([
-          apiFetch<OverviewData>("/api/admin/analytics/overview"),
-          apiFetch<UserGrowthPoint[]>("/api/admin/analytics/user-growth?days=30"),
-          apiFetch<JobStats>("/api/admin/analytics/job-stats"),
-          apiFetch<AiUsageData>("/api/admin/analytics/ai-usage?days=30"),
-          apiFetch<SubscriptionData>("/api/admin/analytics/subscriptions"),
-        ]);
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    const [overviewRes, growthRes, jobsRes, aiRes, subsRes] =
+      await Promise.all([
+        apiFetch<OverviewData>("/api/admin/analytics/overview", {
+          showToast: false,
+        }),
+        apiFetch<UserGrowthPoint[]>(
+          "/api/admin/analytics/user-growth?days=30",
+          { showToast: false }
+        ),
+        apiFetch<JobStats>("/api/admin/analytics/job-stats", {
+          showToast: false,
+        }),
+        apiFetch<AiUsageData>("/api/admin/analytics/ai-usage?days=30", {
+          showToast: false,
+        }),
+        apiFetch<SubscriptionData>("/api/admin/analytics/subscriptions", {
+          showToast: false,
+        }),
+      ]);
 
-      if (overviewRes) setOverview(overviewRes);
-      if (growthRes) setUserGrowth(growthRes);
-      if (jobsRes) setJobStats(jobsRes);
-      if (aiRes) setAiUsage(aiRes);
-      if (subsRes) setSubscriptionData(subsRes);
-      setLoading(false);
-    }
-    fetchAll();
+    // Track whether all requests failed
+    const allFailed =
+      !overviewRes && !growthRes && !jobsRes && !aiRes && !subsRes;
+
+    if (overviewRes) setOverview(overviewRes);
+    if (growthRes) setUserGrowth(growthRes);
+    if (jobsRes) setJobStats(jobsRes);
+    if (aiRes) setAiUsage(aiRes);
+    if (subsRes) setSubscriptionData(subsRes);
+    if (allFailed) setError(true);
+    setLoading(false);
   }, []);
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -139,6 +162,25 @@ export default function AdminAnalyticsPage() {
           Platform usage metrics and business intelligence.
         </p>
       </div>
+
+      {/* Error Banner */}
+      {error && !loading && (
+        <div className="flex items-center gap-3 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="flex-1">
+            Failed to load analytics data. Please try again.
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchAll}
+            className="shrink-0 gap-1.5"
+          >
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+            Retry
+          </Button>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

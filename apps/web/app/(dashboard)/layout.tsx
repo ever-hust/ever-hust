@@ -4,6 +4,7 @@ import { OnboardingCheck } from "@/components/onboarding/onboarding-check";
 import { PWAInstallPrompt } from "@/components/shared/pwa-install-prompt";
 import { KeyboardShortcutsHelp } from "@/components/shared/keyboard-shortcuts-help";
 import { KeyboardNavigation } from "@/components/shared/keyboard-navigation";
+import { ReferralRedeemTrigger } from "@/components/shared/referral-redeem-trigger";
 
 export const metadata: Metadata = {
   title: {
@@ -35,6 +36,7 @@ export default function DashboardLayout({
       <PWAInstallPrompt />
       <KeyboardShortcutsHelp />
       <KeyboardNavigation />
+      <ReferralRedeemTrigger />
     </div>
   );
 }

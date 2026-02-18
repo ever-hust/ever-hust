@@ -10,14 +10,21 @@ import {
 import { count, gte } from "drizzle-orm";
 import type { NextResponse } from "next/server";
 import { requireRole } from "../../../../../lib/auth-roles";
+import { applyRateLimit } from "../../../../../lib/rate-limit";
 import { apiSuccess, apiError } from "../../../../../lib/api-response";
 
+export const maxDuration = 30;
+
 export async function GET() {
+  let admin;
   try {
-    await requireRole("admin");
+    admin = await requireRole("admin");
   } catch (response) {
     return response as NextResponse;
   }
+
+  const rateLimited = applyRateLimit(admin.id, "adminWrite");
+  if (rateLimited) return rateLimited;
 
   try {
     const now = new Date();

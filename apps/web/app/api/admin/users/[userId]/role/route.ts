@@ -3,6 +3,7 @@ import { users } from "@repo/db/schema";
 import { eq } from "drizzle-orm";
 import type { NextResponse } from "next/server";
 import { requireRole } from "../../../../../../lib/auth-roles";
+import { applyRateLimit } from "../../../../../../lib/rate-limit";
 import { updateUserRoleSchema, parseBody } from "../../../../../../lib/api-schemas";
 import {
   apiSuccess,
@@ -22,6 +23,9 @@ export async function PATCH(
   } catch (response) {
     return response as NextResponse;
   }
+
+  const rateLimited = applyRateLimit(admin.id, "adminWrite");
+  if (rateLimited) return rateLimited;
 
   const { userId } = await params;
 

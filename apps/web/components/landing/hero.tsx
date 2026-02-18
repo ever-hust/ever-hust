@@ -110,7 +110,7 @@ export function Hero() {
           </div>
 
           {/* Right column: Mock chat preview */}
-          <div className="mx-auto w-full max-w-md lg:mx-0 lg:max-w-none">
+          <div className="mx-auto w-full max-w-md lg:mx-0 lg:max-w-none" role="presentation" aria-hidden="true">
             <div className="relative rounded-xl border bg-background/80 shadow-2xl backdrop-blur-sm">
               {/* Chat header */}
               <div className="flex items-center gap-3 border-b px-5 py-3.5">

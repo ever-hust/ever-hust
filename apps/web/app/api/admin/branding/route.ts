@@ -3,6 +3,7 @@ import { brandingConfigs } from "@repo/db/schema";
 import { eq, isNull } from "drizzle-orm";
 import type { NextResponse } from "next/server";
 import { requireRole } from "../../../../lib/auth-roles";
+import { applyRateLimit } from "../../../../lib/rate-limit";
 import { brandingConfigSchema, parseBody } from "../../../../lib/api-schemas";
 import {
   apiSuccess,
@@ -16,11 +17,15 @@ import {
  * Returns the platform default branding config (where organizationId IS NULL).
  */
 export async function GET() {
+  let admin;
   try {
-    await requireRole("admin");
+    admin = await requireRole("admin");
   } catch (response) {
     return response as NextResponse;
   }
+
+  const rateLimited = applyRateLimit(admin.id, "adminWrite");
+  if (rateLimited) return rateLimited;
 
   try {
     const [config] = await db
@@ -44,11 +49,15 @@ export async function GET() {
  * Creates or updates the platform default branding config.
  */
 export async function POST(req: Request) {
+  let admin;
   try {
-    await requireRole("admin");
+    admin = await requireRole("admin");
   } catch (response) {
     return response as NextResponse;
   }
+
+  const rateLimited = applyRateLimit(admin.id, "adminWrite");
+  if (rateLimited) return rateLimited;
 
   const jsonResult = await safeJsonParse(req);
   if (!jsonResult.ok) return jsonResult.response;

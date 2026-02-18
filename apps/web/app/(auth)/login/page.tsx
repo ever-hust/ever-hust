@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@repo/ui/button";
@@ -43,6 +43,20 @@ function getSafeCallbackUrl(raw: string | null): string {
 function LoginButton() {
   const searchParams = useSearchParams();
   const callbackUrl = getSafeCallbackUrl(searchParams.get("callbackUrl"));
+
+  // Capture referral code from URL and persist it in localStorage so it
+  // survives the OAuth redirect flow. The code will be redeemed after
+  // the user lands on the dashboard (see use-referral-redeem hook).
+  const refCode = searchParams.get("ref");
+  useEffect(() => {
+    if (refCode && /^[A-Z0-9]+$/.test(refCode)) {
+      try {
+        window.localStorage.setItem("ej_referral_code", refCode);
+      } catch {
+        // localStorage may be unavailable
+      }
+    }
+  }, [refCode]);
 
   const handleLinkedInLogin = async () => {
     try {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { Key, Copy, Trash2, Loader2, Shield, Plus, AlertTriangle } from "lucide-react";
+import { Key, Copy, Trash2, Loader2, Shield, Plus, AlertTriangle, Book } from "lucide-react";
 import { Button } from "@repo/ui/button";
 import { Card } from "@repo/ui/card";
 import { Badge } from "@repo/ui/badge";
@@ -15,6 +15,7 @@ import {
   DialogFooter,
 } from "@repo/ui/dialog";
 import { toast } from "sonner";
+import Link from "next/link";
 
 interface ApiKeyRecord {
   id: number;
@@ -265,6 +266,14 @@ export function DeveloperApiCard() {
               Authorization: Bearer ej_live_...
             </code>
           </p>
+          <div className="mt-3">
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/settings/api-docs">
+                <Book className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                View API Docs
+              </Link>
+            </Button>
+          </div>
         </div>
       </div>
 

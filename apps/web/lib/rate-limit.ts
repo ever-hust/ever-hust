@@ -16,8 +16,14 @@ export const API_RATE_LIMITS = {
   authenticated: { limit: 100, windowMs: 60_000 },
   /** Public/unauthenticated routes: 20 req/min */
   public: { limit: 20, windowMs: 60_000 },
+  /** Public endpoints with higher throughput (e.g. branding resolve): 100 req/min */
+  publicHighThroughput: { limit: 100, windowMs: 60_000 },
   /** AI chat route: stricter limit of 30 req/min */
   chat: { limit: 30, windowMs: 60_000 },
+  /** Admin read routes: 60 req/min */
+  admin: { limit: 60, windowMs: 60_000 },
+  /** Admin write/analytics routes: 30 req/min */
+  adminWrite: { limit: 30, windowMs: 60_000 },
   /** Heavy/expensive endpoints (data export, etc.): 5 req/min */
   export: { limit: 5, windowMs: 60_000 },
 } as const;

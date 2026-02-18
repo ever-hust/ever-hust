@@ -17,5 +17,7 @@ export {
   applyJobTool,
   submitAnswersTool,
   interviewPrepTool,
+  companyResearchTool,
+  resumeBuilderTool,
   salaryInsightsTool,
 } from "./tools";

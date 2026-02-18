@@ -1,9 +1,9 @@
 # Ever Jobs - Product Requirements Document (PRD)
 
-**Version**: 1.3
+**Version**: 1.4
 **Date**: 2026-02-18
-**Status**: MVP Implemented + Production Hardening + Architecture Audit
-**Previous Versions**: 1.2 (2026-02-18), 1.1 (2026-02-15), 1.0 (2026-02-14, Approved)
+**Status**: MVP Implemented + Production Hardening + Growth Features + Enterprise Features
+**Previous Versions**: 1.3 (2026-02-18), 1.2 (2026-02-18), 1.1 (2026-02-15), 1.0 (2026-02-14, Approved)
 **Domain**: everjobs.ai
 **License**: Proprietary (All Rights Reserved)
 **Repository**: github.com/ever-co/ever-jobs-website
@@ -1440,23 +1440,23 @@ EMAIL_FROM=alerts@everjobs.ai
 
 **Exit Criteria**: Lighthouse 95+ performance, BYOK keys encrypted at rest, live job updates on canvas, analytics dashboard active.
 
-### Phase 8: Growth & Engagement (Weeks 16-18) — IN PROGRESS
+### Phase 8: Growth & Engagement (Weeks 16-18) — COMPLETE
 - ~~Push notifications (web push API)~~ **DONE** — Web Push API with VAPID keys, service worker registration, push subscription management, notification settings card in settings page
 - ~~Salary insights and market data visualization~~ **DONE** — `salaryInsights` AI tool with salary range visualization, by-level breakdown, remote vs on-site comparison, top-paying companies
 - ~~Company research agent (company culture, Glassdoor reviews, funding)~~ **DONE** — `companyResearch` AI tool queries jobs DB by company name, aggregates positions/locations/departments/levels
 - ~~Resume builder agent (generate ATS-optimized resumes)~~ **DONE** — `resumeBuilder` AI tool with ATS keyword extraction, skill overlap analysis, format tips, section suggestions
 - ~~Job comparison tool (side-by-side comparison of 2-3 jobs)~~ **DONE** — `JobCompareDialog` with compare mode in canvas, difference highlighting, max 3 jobs
 - ~~Social sharing (share job cards via link)~~ **DONE** — Share button on job cards using Web Share API with clipboard fallback
-- Referral program (invite friends, earn credits)
+- ~~Referral program (invite friends, earn credits)~~ **DONE** — Referral invite/redeem flow with credit system, referral tracking, settings UI card
 
-### Phase 9: Enterprise & Scale (Weeks 19-24) — PLANNED
+### Phase 9: Enterprise & Scale (Weeks 19-24) — IN PROGRESS
 - Team/organization accounts
-- Admin dashboard for recruiters
-- API access for enterprise customers
+- ~~Admin dashboard for recruiters~~ **DONE** — Role-based access control (user/recruiter/admin), admin layout with sidebar, user management, stats dashboard, role change API
+- ~~API access for enterprise customers~~ **DONE** — Enterprise API with SHA-256 hashed API keys, v1 endpoints (jobs search, job detail, companies, salary insights), developer API card in settings
 - Custom AI model fine-tuning per organization
 - White-label support
 - Advanced analytics and reporting
-- Multi-language support (i18n)
+- ~~Multi-language support (i18n)~~ **DONE** — next-intl integration with cookie-based locale switching, English + Spanish translations, language switcher component
 
 ---
 
@@ -1674,7 +1674,8 @@ Response: {
 | Phase 5: AI Agents | ✅ Complete | Application agent (HITL), interview prep, BYOK, agent status |
 | Phase 6: Testing & Polish | ✅ Complete | E2E + unit tests, error boundaries, loading states, SEO, sitemap |
 | Phase 7: Production Hardening | ✅ Complete | Analytics, Speed Insights, bundle optimization, BYOK encryption, Realtime, a11y |
-| Phase 8: Growth & Engagement | 🔄 In Progress (6/7) | Job comparison, social sharing, company research, salary insights, resume builder, push notifications |
+| Phase 8: Growth & Engagement | ✅ Complete | Job comparison, social sharing, company research, salary insights, resume builder, push notifications, referral program |
+| Phase 9: Enterprise & Scale | 🔄 In Progress (3/7) | Admin dashboard, enterprise API, multi-language i18n |
 
 ### Phase 7: Production Hardening (v1.2) + Architecture Audit (v1.3)
 

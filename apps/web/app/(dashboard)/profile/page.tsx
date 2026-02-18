@@ -20,7 +20,13 @@ import { Button } from "@repo/ui/button";
 import { Card } from "@repo/ui/card";
 import { Skeleton } from "@repo/ui/skeleton";
 import { Avatar, AvatarFallback } from "@repo/ui/avatar";
-import { CVDropzone } from "@/components/canvas/cv-dropzone";
+import dynamic from "next/dynamic";
+
+const CVDropzone = dynamic(
+  () =>
+    import("@/components/canvas/cv-dropzone").then((mod) => mod.CVDropzone),
+  { ssr: false }
+);
 import { ScrollToTop } from "@/components/shared/scroll-to-top";
 import { ErrorState } from "@/components/shared/error-state";
 import { PageHeader } from "@/components/shared/page-header";

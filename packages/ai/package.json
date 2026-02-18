@@ -9,7 +9,8 @@
     "./agents/*": "./src/agents/*.ts",
     "./tools/*": "./src/tools/*.ts",
     "./model-router": "./src/model-router.ts",
-    "./prompts": "./src/prompts.ts"
+    "./prompts": "./src/prompts.ts",
+    "./crypto": "./src/crypto.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit"

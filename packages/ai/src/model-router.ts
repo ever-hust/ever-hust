@@ -1,6 +1,7 @@
 import { anthropic, createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import type { LanguageModel } from "ai";
+import { decryptApiKey } from "./crypto";
 
 // Allowlist of models users can select — prevents arbitrary model strings
 const ALLOWED_MODELS = new Set([
@@ -85,10 +86,13 @@ const PAID_MODEL_ID =
  */
 export function getModelForUser(user: UserForModel): LanguageModel {
   // 1. BYOK: user has their own Anthropic API key → direct Anthropic
+  //    Decrypt the key (supports both encrypted and plaintext for backwards compat).
   //    Respect their aiModel preference if set; fall back to opus otherwise.
   if (user.preferences?.apiKeys?.anthropic) {
+    const rawKey = user.preferences.apiKeys.anthropic;
+    const apiKey = decryptApiKey(rawKey) ?? rawKey;
     const byokProvider = createAnthropic({
-      apiKey: user.preferences.apiKeys.anthropic,
+      apiKey,
     });
     const preferredModel = user.preferences.aiModel;
     const modelId =

@@ -152,6 +152,19 @@ export function useCanvasSync() {
     setState((prev) => ({ ...prev, coverLetterContext: null }));
   }, []);
 
+  // Add a job from Supabase Realtime (live update from background sync).
+  // Only prepends if the job doesn't already exist in the list.
+  const addRealtimeJob = useCallback((job: JobCardData) => {
+    setState((prev) => {
+      if (prev.jobs.some((j) => j.id === job.id)) return prev;
+      return {
+        ...prev,
+        jobs: [job, ...prev.jobs],
+        totalCount: prev.totalCount + 1,
+      };
+    });
+  }, []);
+
   return {
     ...state,
     handleToolResult,
@@ -160,5 +173,6 @@ export function useCanvasSync() {
     loadMore,
     setFavorites,
     clearCoverLetter,
+    addRealtimeJob,
   };
 }

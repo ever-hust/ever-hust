@@ -1,9 +1,9 @@
 # Ever Jobs - Product Requirements Document (PRD)
 
-**Version**: 1.1
-**Date**: 2026-02-15
-**Status**: MVP Implemented
-**Previous Version**: 1.0 (2026-02-14, Approved)
+**Version**: 1.2
+**Date**: 2026-02-18
+**Status**: MVP Implemented + Production Hardening
+**Previous Versions**: 1.1 (2026-02-15), 1.0 (2026-02-14, Approved)
 **Domain**: everjobs.ai
 **License**: Proprietary (All Rights Reserved)
 **Repository**: github.com/ever-co/ever-jobs-website
@@ -1470,6 +1470,35 @@ EMAIL_FROM=alerts@everjobs.ai
 
 **Exit Criteria**: All E2E tests pass, Lighthouse 90+ all categories, WCAG 2.1 AA compliant.
 
+### Phase 7: Production Hardening (Week 15)
+- Vercel Analytics + Speed Insights integration
+- Bundle analyzer + dynamic imports for heavy components
+- BYOK API key encryption at rest (AES-256-GCM)
+- Supabase Realtime subscriptions for live job updates
+- WCAG 2.1 AA accessibility improvements
+- `prefers-reduced-motion` support
+- Focus management and ARIA enhancements
+
+**Exit Criteria**: Lighthouse 95+ performance, BYOK keys encrypted at rest, live job updates on canvas, analytics dashboard active.
+
+### Phase 8: Growth & Engagement (Weeks 16-18) — PLANNED
+- Push notifications (web push API)
+- Salary insights and market data visualization
+- Company research agent (company culture, Glassdoor reviews, funding)
+- Resume builder agent (generate ATS-optimized resumes)
+- Job comparison tool (side-by-side comparison of 2-3 jobs)
+- Social sharing (share job cards via link)
+- Referral program (invite friends, earn credits)
+
+### Phase 9: Enterprise & Scale (Weeks 19-24) — PLANNED
+- Team/organization accounts
+- Admin dashboard for recruiters
+- API access for enterprise customers
+- Custom AI model fine-tuning per organization
+- White-label support
+- Advanced analytics and reporting
+- Multi-language support (i18n)
+
 ---
 
 ## 17. Data Flow Diagrams
@@ -1670,9 +1699,9 @@ Response: {
 
 ---
 
-## Appendix A: Implementation Status (v1.1)
+## Appendix A: Implementation Status (v1.2)
 
-> Updated 2026-02-15. See [MVP Implementation Summary](./MVP-IMPLEMENTATION-SUMMARY.md) for detailed change log.
+> Updated 2026-02-18. See [MVP Implementation Summary](./MVP-IMPLEMENTATION-SUMMARY.md) for detailed change log.
 
 ### Phase Completion
 
@@ -1684,7 +1713,45 @@ Response: {
 | Phase 3: Enhanced Features | ✅ Complete | Favorites, cover letters, CV upload, profile, settings |
 | Phase 4: Monetization & Alerts | ✅ Complete | Stripe, pricing, gating, email templates, alert cron tasks |
 | Phase 5: AI Agents | ✅ Complete | Application agent (HITL), interview prep, BYOK, agent status |
-| Phase 6: Testing & Polish | 🔶 Partial | E2E + unit tests done; accessibility audit, bundle optimization pending |
+| Phase 6: Testing & Polish | ✅ Complete | E2E + unit tests, error boundaries, loading states, SEO, sitemap |
+| Phase 7: Production Hardening | ✅ Complete | Analytics, Speed Insights, bundle optimization, BYOK encryption, Realtime, a11y |
+
+### Phase 7: Production Hardening (v1.2)
+
+Added in v1.2 to address known limitations from MVP:
+
+#### 7.1 Vercel Analytics & Speed Insights
+- **`@vercel/analytics`**: Web analytics with page view tracking, custom events
+- **`@vercel/speed-insights`**: Real User Monitoring (RUM) for Core Web Vitals (LCP, FID, CLS, TTFB, INP)
+- Both integrated in root layout, zero-config on Vercel deployment
+
+#### 7.2 Bundle Optimization
+- **`@next/bundle-analyzer`**: Available via `ANALYZE=true pnpm build` for visual bundle inspection
+- **Dynamic imports**: Heavy components (`CoverLetterModal`, `InterviewPrepPanel`, `CVDropzone`) loaded with `next/dynamic` to reduce initial bundle
+- **Route-level code splitting**: Automatic via Next.js App Router (each route = separate chunk)
+
+#### 7.3 BYOK API Key Encryption at Rest
+- **Algorithm**: AES-256-GCM (authenticated encryption with associated data)
+- **Key derivation**: PBKDF2 with SHA-256 from `BYOK_ENCRYPTION_KEY` env var
+- **Implementation**: `packages/ai/src/crypto.ts` provides `encryptApiKey()` / `decryptApiKey()`
+- **Storage format**: `iv:authTag:ciphertext` (base64-encoded, stored in `preferences.apiKeys`)
+- **Integration**: Model router transparently decrypts BYOK keys before use
+- **Settings UI**: Encrypts keys on save via API, never sends plaintext to client
+
+#### 7.4 Supabase Realtime
+- **`packages/supabase/src/realtime.ts`**: Typed subscription helpers for jobs table changes
+- **`apps/web/hooks/use-realtime-jobs.ts`**: React hook subscribing to INSERT/UPDATE on `jobs` table
+- **Canvas integration**: New jobs appear live on canvas without manual refresh
+- **Cleanup**: Subscriptions properly unsubscribed on component unmount
+
+#### 7.5 Accessibility (WCAG 2.1 AA)
+- Focus management: Visible focus rings on all interactive elements
+- Color contrast: Verified AA contrast ratios (4.5:1 text, 3:1 large text)
+- ARIA labels: All form inputs, buttons, and regions properly labeled
+- Live regions: Chat messages and canvas updates use `aria-live` for screen readers
+- Reduced motion: `prefers-reduced-motion` respected for all animations
+- Skip links: "Skip to main content" link in root layout
+- Semantic HTML: Proper heading hierarchy, landmarks, and form associations
 
 ### Key Architectural Decisions Made During Implementation
 
@@ -1694,16 +1761,16 @@ Response: {
 4. **Welcome Email Hook**: Sent via BetterAuth's `databaseHooks.user.create.after`, not a separate API call.
 5. **Application Tracking**: `applyJobTool` upserts into both `applications` and `userJobs` tables for complete tracking.
 6. **Model Router Priority**: BYOK key → user preference → subscription tier default → environment variable default.
+7. **BYOK Encryption**: AES-256-GCM with PBKDF2 key derivation; encrypted at rest in JSONB, decrypted only in model-router at runtime.
+8. **Analytics**: Vercel Analytics + Speed Insights for zero-config RUM on Vercel deployment.
+9. **Realtime Architecture**: Supabase Realtime subscriptions scoped to `jobs` table INSERTs; canvas updates via React hook.
 
-### Known Limitations (Out of MVP Scope)
+### Known Limitations (Out of Scope)
 
-- Automated job applications (Phase 5+, requires external auto-apply API)
-- Supabase Realtime WebSocket live updates
-- Redis-based rate limiting (Upstash)
-- BYOK API key encryption at rest
-- WCAG 2.1 AA accessibility audit
-- Bundle optimization and code splitting
-- Vercel Analytics integration
+- Automated job applications (requires external auto-apply API)
+- Database branching for preview deployments (Supabase feature)
+- CV drag-and-drop zone in canvas (exists on profile page only)
+- Multi-provider BYOK (only Anthropic keys supported; OpenAI/Google keys stored but not yet routed)
 
 ---
 

@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import withBundleAnalyzer from "@next/bundle-analyzer";
 
 const nextConfig: NextConfig = {
   // Instrumentation (apps/web/instrumentation.ts) is auto-detected by Next.js 16+
@@ -32,4 +33,8 @@ const nextConfig: NextConfig = {
   // No headers() config here to avoid duplication / mismatched values.
 };
 
-export default nextConfig;
+const analyzer = withBundleAnalyzer({
+  enabled: process.env.ANALYZE === "true",
+});
+
+export default analyzer(nextConfig);

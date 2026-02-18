@@ -7,6 +7,8 @@ import {
   Users,
   Briefcase,
   BarChart3,
+  Bot,
+  Palette,
   ArrowLeft,
   Shield,
 } from "lucide-react";
@@ -19,6 +21,8 @@ const adminNavItems = [
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/jobs", label: "Jobs", icon: Briefcase },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/admin/branding", label: "Branding", icon: Palette },
+  { href: "/admin/ai-config", label: "AI Config", icon: Bot },
 ];
 
 export function AdminSidebar() {

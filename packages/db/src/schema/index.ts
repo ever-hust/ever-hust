@@ -10,3 +10,10 @@ export { applications } from "./applications";
 export { pushSubscriptions } from "./push-subscriptions";
 export { referrals, referralCredits } from "./referrals";
 export { apiKeys } from "./api-keys";
+export {
+  organizations,
+  organizationMembers,
+  organizationInvitations,
+} from "./organizations";
+export { brandingConfigs } from "./branding";
+export { organizationAiConfigs } from "./org-ai-config";

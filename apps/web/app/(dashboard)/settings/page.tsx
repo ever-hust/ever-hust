@@ -42,6 +42,17 @@ const DeveloperApiCard = dynamic(
   },
 );
 
+const OrganizationCard = dynamic(
+  () =>
+    import("@/components/settings/organization-card").then(
+      (mod) => mod.OrganizationCard,
+    ),
+  {
+    loading: () => <Skeleton className="h-40 w-full rounded-lg" />,
+    ssr: false,
+  },
+);
+
 export default function SettingsPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [user, setUser] = useState<UserSettings | null>(null);
@@ -179,6 +190,7 @@ export default function SettingsPage() {
       <ProfileSettingsCard user={user} />
       <SubscriptionCard subscriptionStatus={subscriptionStatus} />
       <ReferralProgramCard />
+      <OrganizationCard />
       <AIModelCard
         subscriptionStatus={subscriptionStatus}
         initialModel={initialModel}

@@ -248,6 +248,69 @@ export const salaryApiQuerySchema = z.object({
   level: z.string().optional(),
 });
 
+// === Analytics Routes ===
+export const analyticsDateRangeSchema = z.object({
+  days: z.coerce.number().int().min(1).max(365).default(30),
+});
+
+// === Organization Routes ===
+export const createOrganizationSchema = z.object({
+  name: z.string().min(1).max(100),
+  logo: z.string().url().max(2048).optional(),
+  website: z.string().url().max(2048).optional(),
+});
+
+export const updateOrganizationSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  logo: z.string().url().max(2048).optional().nullable(),
+  website: z.string().url().max(2048).optional().nullable(),
+});
+
+export const inviteMemberSchema = z.object({
+  email: z.string().email().max(320),
+  role: z.enum(["admin", "member"]).default("member"),
+});
+
+export const updateMemberRoleSchema = z.object({
+  role: z.enum(["owner", "admin", "member"]),
+});
+
+// === Branding Configuration ===
+const hexColorRegex = /^#[0-9a-fA-F]{6}$/;
+
+export const brandingConfigSchema = z.object({
+  name: z.string().min(1).max(100),
+  logoUrl: z.string().url().max(2048).optional().nullable(),
+  faviconUrl: z.string().url().max(2048).optional().nullable(),
+  primaryColor: z
+    .string()
+    .regex(hexColorRegex, "Must be a hex color (e.g. #3b82f6)")
+    .optional()
+    .nullable(),
+  accentColor: z
+    .string()
+    .regex(hexColorRegex, "Must be a hex color (e.g. #3b82f6)")
+    .optional()
+    .nullable(),
+  tagline: z.string().max(200).optional().nullable(),
+  customFooterHtml: z.string().max(2000).optional().nullable(),
+  hideEverJobsBranding: z.boolean().optional(),
+  customDomain: z.string().max(200).optional().nullable(),
+});
+
+export type BrandingConfig = z.infer<typeof brandingConfigSchema>;
+
+// === Organization AI Config Route ===
+export const orgAiConfigSchema = z.object({
+  preferredModel: z.string().max(100).optional(),
+  customSystemPrompt: z.string().max(5000).optional(),
+  maxTokens: z.number().int().min(100).max(200_000).optional(),
+  temperature: z.number().min(0).max(1).optional(),
+  enabledTools: z.array(z.string().max(100)).max(50).optional(),
+});
+
+export type OrgAiConfig = z.infer<typeof orgAiConfigSchema>;
+
 // === Helper to safely parse and return 400 on failure ===
 export function parseBody<T>(
   schema: z.ZodSchema<T>,

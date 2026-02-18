@@ -10,7 +10,8 @@
     "./tools/*": "./src/tools/*.ts",
     "./model-router": "./src/model-router.ts",
     "./prompts": "./src/prompts.ts",
-    "./crypto": "./src/crypto.ts"
+    "./crypto": "./src/crypto.ts",
+    "./org-config": "./src/org-config.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit"

@@ -3,6 +3,8 @@ export { createOrchestratorStream } from "./agents/orchestrator";
 export { checkSearchLimit, checkCoverLetterLimit } from "./rate-limit";
 export { getOrchestratorPrompt, getPrompt } from "./prompts";
 export type { PromptMeta } from "./prompts";
+export { getOrgAiConfig, mergeOrgConfig } from "./org-config";
+export type { OrgAiConfigRow, MergedAiConfig } from "./org-config";
 export {
   searchJobsTool,
   updateFiltersTool,

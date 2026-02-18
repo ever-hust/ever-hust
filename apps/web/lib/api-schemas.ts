@@ -185,6 +185,19 @@ export const cvParsedDataSchema = z.object({
 
 export type CVParsedData = z.infer<typeof cvParsedDataSchema>;
 
+// === Push Subscription Route ===
+export const pushSubscribeSchema = z.object({
+  endpoint: z.string().url().max(2048),
+  keys: z.object({
+    p256dh: z.string().min(1).max(500),
+    auth: z.string().min(1).max(500),
+  }),
+});
+
+export const pushUnsubscribeSchema = z.object({
+  endpoint: z.string().url().max(2048),
+});
+
 // === Helper to safely parse and return 400 on failure ===
 export function parseBody<T>(
   schema: z.ZodSchema<T>,

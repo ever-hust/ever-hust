@@ -12,6 +12,15 @@ import { useRealtimeJobs, type RealtimeJob } from "@/hooks/use-realtime-jobs";
 import { useKeyboardShortcuts, getChatShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { toast } from "sonner";
 
+// Lazy-load components that are only rendered conditionally
+const SalaryInsightsCard = dynamic(
+  () =>
+    import("@/components/canvas/salary-insights-card").then(
+      (mod) => mod.SalaryInsightsCard,
+    ),
+  { ssr: false },
+);
+
 // Lazy-load dialog components — they are only rendered when the user opens
 // them, so they don't need to be in the initial bundle.
 const CoverLetterModal = dynamic(
@@ -189,18 +198,41 @@ export default function ChatPage() {
           />
         }
         canvasPanel={
-          <JobsCanvas
-            jobs={canvas.jobs}
-            filters={canvas.filters}
-            totalCount={canvas.totalCount}
-            isLoading={canvas.isLoading}
-            hasMore={canvas.hasMore}
-            favoritedJobIds={canvas.favoritedJobIds}
-            onFiltersChange={canvas.setFilters}
-            onLoadMore={canvas.loadMore}
-            onFavorite={handleFavorite}
-            onViewDetails={handleViewDetails}
-          />
+          <div className="flex h-full flex-col">
+            {/* Salary insights overlay — rendered above jobs when available */}
+            {canvas.salaryInsights && (
+              <div className="border-b p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-muted-foreground font-medium">
+                    Salary Analysis
+                  </span>
+                  <button
+                    type="button"
+                    onClick={canvas.clearSalaryInsights}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label="Dismiss salary insights"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+                <SalaryInsightsCard data={canvas.salaryInsights} />
+              </div>
+            )}
+            <div className="flex-1 overflow-hidden">
+              <JobsCanvas
+                jobs={canvas.jobs}
+                filters={canvas.filters}
+                totalCount={canvas.totalCount}
+                isLoading={canvas.isLoading}
+                hasMore={canvas.hasMore}
+                favoritedJobIds={canvas.favoritedJobIds}
+                onFiltersChange={canvas.setFilters}
+                onLoadMore={canvas.loadMore}
+                onFavorite={handleFavorite}
+                onViewDetails={handleViewDetails}
+              />
+            </div>
+          </div>
         }
       />
 

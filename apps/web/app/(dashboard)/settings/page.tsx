@@ -13,6 +13,7 @@ import { SubscriptionCard } from "@/components/settings/subscription-card";
 import { AIModelCard } from "@/components/settings/ai-model-card";
 import { ApiKeysCard } from "@/components/settings/api-keys-card";
 import { AlertsCard } from "@/components/settings/alerts-card";
+import { NotificationSettingsCard } from "@/components/settings/notification-settings-card";
 import { PrivacyDataCard } from "@/components/settings/privacy-data-card";
 import { DangerZoneCard } from "@/components/settings/danger-zone-card";
 import type { UserSettings, Alert } from "@/components/settings/types";
@@ -164,6 +165,7 @@ export default function SettingsPage() {
         initialAlerts={alerts}
         isLoading={alertsLoading}
       />
+      <NotificationSettingsCard />
       <PrivacyDataCard />
       <DangerZoneCard />
 

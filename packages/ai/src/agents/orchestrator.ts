@@ -18,6 +18,8 @@ import {
   submitAnswersTool,
   interviewPrepTool,
   companyResearchTool,
+  resumeBuilderTool,
+  salaryInsightsTool,
 } from "../tools";
 import { checkSearchLimit, checkCoverLetterLimit } from "../rate-limit";
 import { getOrchestratorPrompt } from "../prompts";
@@ -168,6 +170,8 @@ export async function createOrchestratorStream({
         },
       },
       companyResearch: companyResearchTool,
+      resumeBuilder: resumeBuilderTool,
+      salaryInsights: salaryInsightsTool,
     },
     stopWhen: stepCountIs(5),
   });

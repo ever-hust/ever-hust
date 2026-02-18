@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { JobCardData } from "@/components/canvas/job-card";
 import type { JobFilters } from "@/components/canvas/filter-bar";
+import type { SalaryInsightsData } from "@/components/canvas/salary-insights-card";
 
 export interface CoverLetterContext {
   jobId: number;
@@ -18,6 +19,7 @@ interface CanvasState {
   hasMore: boolean;
   favoritedJobIds: Set<number>;
   coverLetterContext: CoverLetterContext | null;
+  salaryInsights: SalaryInsightsData | null;
 }
 
 export function useCanvasSync() {
@@ -38,6 +40,7 @@ export function useCanvasSync() {
     hasMore: false,
     favoritedJobIds: new Set(),
     coverLetterContext: null,
+    salaryInsights: null,
   });
 
   // Handle tool results from the AI chat stream
@@ -113,6 +116,18 @@ export function useCanvasSync() {
           break;
         }
 
+        case "salaryInsights": {
+          const salaryResult = data as unknown as SalaryInsightsData;
+          // Only show the card if there's actual salary data (sampleSize > 0)
+          if (salaryResult.sampleSize > 0 || salaryResult.error) {
+            setState((prev) => ({
+              ...prev,
+              salaryInsights: salaryResult,
+            }));
+          }
+          break;
+        }
+
         default:
           // Unknown tool — ignore but log for debugging
           if (process.env.NODE_ENV === "development") {
@@ -152,6 +167,10 @@ export function useCanvasSync() {
     setState((prev) => ({ ...prev, coverLetterContext: null }));
   }, []);
 
+  const clearSalaryInsights = useCallback(() => {
+    setState((prev) => ({ ...prev, salaryInsights: null }));
+  }, []);
+
   // Add a job from Supabase Realtime (live update from background sync).
   // Only prepends if the job doesn't already exist in the list.
   const addRealtimeJob = useCallback((job: JobCardData) => {
@@ -173,6 +192,7 @@ export function useCanvasSync() {
     loadMore,
     setFavorites,
     clearCoverLetter,
+    clearSalaryInsights,
     addRealtimeJob,
   };
 }

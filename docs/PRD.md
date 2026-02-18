@@ -1440,13 +1440,13 @@ EMAIL_FROM=alerts@everjobs.ai
 
 **Exit Criteria**: Lighthouse 95+ performance, BYOK keys encrypted at rest, live job updates on canvas, analytics dashboard active.
 
-### Phase 8: Growth & Engagement (Weeks 16-18) — PLANNED
+### Phase 8: Growth & Engagement (Weeks 16-18) — IN PROGRESS
 - Push notifications (web push API)
 - Salary insights and market data visualization
-- Company research agent (company culture, Glassdoor reviews, funding)
+- ~~Company research agent (company culture, Glassdoor reviews, funding)~~ **DONE** — `companyResearch` AI tool queries jobs DB by company name, aggregates positions/locations/departments/levels
 - Resume builder agent (generate ATS-optimized resumes)
-- Job comparison tool (side-by-side comparison of 2-3 jobs)
-- Social sharing (share job cards via link)
+- ~~Job comparison tool (side-by-side comparison of 2-3 jobs)~~ **DONE** — `JobCompareDialog` with compare mode in canvas, difference highlighting, max 3 jobs
+- ~~Social sharing (share job cards via link)~~ **DONE** — Share button on job cards using Web Share API with clipboard fallback
 - Referral program (invite friends, earn credits)
 
 ### Phase 9: Enterprise & Scale (Weeks 19-24) — PLANNED
@@ -1674,6 +1674,7 @@ Response: {
 | Phase 5: AI Agents | ✅ Complete | Application agent (HITL), interview prep, BYOK, agent status |
 | Phase 6: Testing & Polish | ✅ Complete | E2E + unit tests, error boundaries, loading states, SEO, sitemap |
 | Phase 7: Production Hardening | ✅ Complete | Analytics, Speed Insights, bundle optimization, BYOK encryption, Realtime, a11y |
+| Phase 8: Growth & Engagement | 🔄 In Progress (3/7) | Job comparison, social sharing, company research AI tool |
 
 ### Phase 7: Production Hardening (v1.2) + Architecture Audit (v1.3)
 
@@ -1752,7 +1753,7 @@ Added in v1.2 to address known limitations from MVP. Updated in v1.3 to reflect 
 7. **BYOK Encryption**: AES-256-GCM with PBKDF2 key derivation; encrypted at rest in JSONB, decrypted only in model-router at runtime.
 8. **Analytics**: Vercel Analytics + Speed Insights for zero-config RUM on Vercel deployment.
 9. **Realtime Architecture**: Supabase Realtime subscriptions scoped to `jobs` table INSERTs; canvas updates via React hook.
-10. **Unified Agent Architecture**: Single orchestrator agent with 11 tools, NOT multi-agent dispatch. All behavioral specialization lives in the system prompt.
+10. **Unified Agent Architecture**: Single orchestrator agent with 12 tools (searchJobs, favoriteJob, generateCoverLetter, interviewPrep, applyJob, generateJobAlerts, parseCV, salaryInsights, scheduleFollowUp, getApplicationStatus, jobRecommendations, companyResearch), NOT multi-agent dispatch. All behavioral specialization lives in the system prompt.
 11. **OpenRouter + Langfuse**: Multi-model routing via OpenRouter; prompt management and observability via Langfuse.
 12. **Chat Persistence**: 3 API routes for session management; combined `chat.ts` schema for sessions + messages.
 

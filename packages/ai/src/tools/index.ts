@@ -10,3 +10,5 @@ export { applyJobTool } from "./apply-job";
 export { submitAnswersTool } from "./submit-answers";
 export { interviewPrepTool } from "./interview-prep";
 export { companyResearchTool } from "./company-research";
+export { resumeBuilderTool } from "./resume-builder";
+export { salaryInsightsTool } from "./salary-insights";

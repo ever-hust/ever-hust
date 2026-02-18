@@ -1,0 +1,32 @@
+{
+  "statusLine": {
+    "type": "command",
+    "command": "bash '/e/Coding/Ever Gauzy AI/ever-jobs-website/.claude/statusline-command.sh'"
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx prettier --write $CLAUDE_FILE_PATH 2>/dev/null || true",
+            "statusMessage": "Formatting with Prettier"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "case \"$CLAUDE_FILE_PATH\" in *.env|*.env.local|*.env.production|*.env.development) echo 'BLOCKED: Do not edit .env files directly' && exit 1;; esac",
+            "statusMessage": "Checking for .env file edits"
+          }
+        ]
+      }
+    ]
+  }
+}

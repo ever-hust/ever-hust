@@ -1,0 +1,143 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+Ever Jobs Platform is an AI-powered job search platform where the primary UX is a conversational AI assistant. Users interact through a split-screen interface: AI chat on the left, dynamic jobs canvas on the right. Authentication is via LinkedIn OAuth.
+
+**Domain**: everjobs.ai | **License**: Proprietary (Ever Co. LTD)
+
+## Commands
+
+```bash
+pnpm install              # Install all dependencies
+pnpm dev                  # Start dev server (port 3000, Turbopack)
+pnpm build                # Build all packages and apps (via Turborepo)
+pnpm lint                 # Lint all packages (eslint --max-warnings 0)
+pnpm check-types          # Type-check all packages
+pnpm format               # Format with Prettier
+
+# Testing
+pnpm test                 # Run all Jest unit tests across packages
+pnpm test -- --selectProjects ai          # Run tests for a single package
+pnpm test -- --testPathPattern rate-limit  # Run a specific test file
+pnpm test:e2e             # Run Playwright E2E tests (starts dev server automatically)
+
+# Database (Drizzle ORM + Supabase PostgreSQL)
+pnpm db:push              # Push schema changes to database
+pnpm db:migrate           # Run database migrations
+pnpm db:generate          # Generate migration files from schema changes
+pnpm db:seed              # Seed database with test data
+pnpm db:studio            # Open Drizzle Studio GUI
+
+# Bundle analysis
+ANALYZE=true pnpm build   # Generate bundle analysis report
+```
+
+## Tech Stack
+
+- **Next.js 16.1** (App Router, React 19, Server Components, Turbopack)
+- **Tailwind CSS 4.1** + **ShadCN UI** (components in `packages/ui/`)
+- **Turborepo** monorepo with **pnpm 9** workspaces
+- **BetterAuth v1** (LinkedIn OAuth, session cookies)
+- **PostgreSQL** via Supabase, **Drizzle ORM** for schemas/queries
+- **Vercel AI SDK v6** with Claude models (Anthropic direct or OpenRouter)
+- **Langfuse** for AI observability (OTEL-based tracing, prompt management)
+- **Stripe** for subscriptions, **Resend** + React Email for transactional email
+- **Trigger.dev v3** for scheduled background tasks
+- **Upstash Redis** for rate limiting
+- **Playwright** (E2E) + **Jest** with ts-jest (unit tests)
+
+## Architecture
+
+### Monorepo Structure
+
+Turborepo with `apps/*` and `packages/*` workspaces. All packages use `@repo/` namespace and are referenced via `workspace:*` protocol.
+
+- **`apps/web/`** — Next.js application (the only app)
+- **`packages/ai/`** — AI orchestrator agent, tools, model router, prompts, rate limits
+- **`packages/db/`** — Drizzle ORM schemas and database client (lazy singleton via Proxy)
+- **`packages/auth/`** — BetterAuth configuration with LinkedIn OAuth + welcome email hook
+- **`packages/ui/`** — ShadCN components exported as `@repo/ui/<component-name>`
+- **`packages/stripe/`** — Stripe checkout, portal, webhook parsing, plan definitions
+- **`packages/jobs-api/`** — Ever Jobs external API client with circuit breaker + retry
+- **`packages/email/`** — React Email templates + Resend sender
+- **`packages/triggers/`** — Trigger.dev scheduled tasks (job sync, alerts, cleanup)
+- **`packages/supabase/`** — Supabase client for Realtime + Storage
+- **`packages/cv-parser/`** — CV/resume parsing logic
+- **`packages/eslint-config/`** — Shared ESLint configs (base, next, react-internal)
+- **`packages/typescript-config/`** — Shared tsconfig presets
+
+### AI Chat Flow
+
+1. **Client**: `apps/web/app/(dashboard)/chat/page.tsx` renders `SplitScreen` with `ChatPanel` (left) + `JobsCanvas` (right)
+2. **API Route**: `apps/web/app/api/ai/chat/route.ts` — authenticates user, applies rate limits, resolves AI model via `getModelForUser()`, streams response
+3. **Model Router** (`packages/ai/src/model-router.ts`): Routes to correct model based on subscription tier and user preferences. BYOK users get direct Anthropic; platform users go through OpenRouter (if configured) or direct Anthropic. Free tier gets Haiku, paid tier gets Sonnet/Opus.
+4. **Orchestrator** (`packages/ai/src/agents/orchestrator.ts`): Uses `streamText()` with 11 tools (searchJobs, favoriteJob, generateCoverLetter, interviewPrep, etc.). Max 5 agentic steps per turn.
+5. **Canvas Sync**: Tool results flow back to the client via `useCanvasSync` hook, which updates the jobs canvas in real-time. Supabase Realtime pushes new jobs from background sync tasks.
+
+### System Prompt Management
+
+Prompts are managed through Langfuse with local fallbacks. The orchestrator system prompt can be edited in Langfuse Cloud (prompt name: `orchestrator-system`, label: `production`) or locally in `packages/ai/src/prompts.ts`.
+
+### Routing & Auth
+
+- **Route Groups**: `(marketing)` for public pages, `(auth)` for login/signup, `(dashboard)` for authenticated pages
+- **Middleware** (`apps/web/middleware.ts`): Checks BetterAuth session cookie for protected routes (`/chat`, `/jobs`, `/profile`, `/settings`, `/applications`, `/favorites`), applies security headers (CSP, HSTS, etc.) to all responses
+- **Auth catch-all**: `apps/web/app/api/auth/[...all]/route.ts` proxies to BetterAuth
+
+### Subscription & Rate Limiting
+
+- Free tier: Haiku model, 5 searches/day, 1 cover letter/week, daily message limit
+- Pro tier (Stripe): Configurable model, unlimited searches/cover letters/messages, job alerts, interview prep, application agent
+- Rate limiting uses Upstash Redis (`@upstash/ratelimit`) at both API route level and AI tool level
+
+### Database Schema
+
+Tables defined in `packages/db/src/schema/`: `users`, `sessions`, `accounts`, `verifications` (BetterAuth), `jobs`, `userJobs` (favorites), `userAlerts`, `chatSessions`, `chatMessages`, `agentInstances`, `subscriptions`, `applications`.
+
+The DB client (`packages/db/src/client.ts`) is a lazy singleton using a Proxy pattern — it only connects when first accessed.
+
+### API Route Patterns
+
+API routes in `apps/web/app/api/` follow a consistent pattern:
+
+- Authenticate with `requireSessionUser()` (throws NextResponse on failure)
+- Apply rate limiting with `applyRateLimit()`
+- Validate request body with Zod schemas from `apps/web/lib/api-schemas.ts`
+- Return errors via `apiBadRequest()` / `apiError()` helpers from `apps/web/lib/api-response.ts`
+- Streaming AI routes set `export const maxDuration = 60` for Vercel
+
+### Component Organization
+
+- **`apps/web/components/canvas/`** — Jobs canvas, job cards, filter bar, CV dropzone
+- **`apps/web/components/chat/`** — Chat panel, messages, input, tool approval, agent status
+- **`apps/web/components/landing/`** — Marketing page sections (hero, features, pricing, etc.)
+- **`apps/web/components/layout/`** — Sidebar, split-screen layout
+- **`apps/web/components/settings/`** — Settings page cards (AI model, API keys, subscription, etc.)
+- **`apps/web/components/shared/`** — Reusable components (dialogs, error states, keyboard shortcuts)
+- **`apps/web/components/onboarding/`** — New user onboarding flow
+
+### Custom Hooks
+
+Located in `apps/web/hooks/`. Key hooks:
+
+- `useCanvasSync` — Manages jobs canvas state, syncs AI tool results to canvas
+- `useRealtimeJobs` — Supabase Realtime subscription for live job updates
+- `useFavorites` — Favorite job management
+- `useChatPersistence` — Chat session persistence
+- `useKeyboardShortcuts` — Global keyboard shortcut management
+
+### Testing
+
+- **Jest**: Unit tests live alongside source files as `*.test.ts`. Projects configured for: `ai`, `stripe`, `cv-parser`, `jobs-api`, `utils`, `email`, `web-lib`. Uses `ts-jest` with `isolatedModules: true` to avoid OOM from complex AI SDK/Zod generics.
+- **Playwright**: E2E tests in `tests/e2e/`. Specs for: auth, landing, chat, jobs, profile, subscription. Runs against `http://localhost:3000`.
+
+### UI Package Pattern
+
+ShadCN components in `packages/ui/src/` are imported as `@repo/ui/<component-name>` (e.g., `import { Button } from "@repo/ui/button"`). The package uses direct file exports, not a barrel.
+
+### Telemetry
+
+Langfuse tracing is set up via `apps/web/instrumentation.ts` (Next.js instrumentation hook). OTEL spans from the Vercel AI SDK are automatically sent to Langfuse when `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` are configured.

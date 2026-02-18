@@ -1,9 +1,9 @@
 # Ever Jobs - Product Requirements Document (PRD)
 
-**Version**: 1.4
+**Version**: 1.5
 **Date**: 2026-02-18
-**Status**: MVP Implemented + Production Hardening + Growth Features + Enterprise Features
-**Previous Versions**: 1.3 (2026-02-18), 1.2 (2026-02-18), 1.1 (2026-02-15), 1.0 (2026-02-14, Approved)
+**Status**: MVP Implemented + Production Hardening + Growth Features + Enterprise Features (Phase 9 Complete)
+**Previous Versions**: 1.4 (2026-02-18), 1.3 (2026-02-18), 1.2 (2026-02-18), 1.1 (2026-02-15), 1.0 (2026-02-14, Approved)
 **Domain**: everjobs.ai
 **License**: Proprietary (All Rights Reserved)
 **Repository**: github.com/ever-co/ever-jobs-website
@@ -1449,13 +1449,13 @@ EMAIL_FROM=alerts@everjobs.ai
 - ~~Social sharing (share job cards via link)~~ **DONE** — Share button on job cards using Web Share API with clipboard fallback
 - ~~Referral program (invite friends, earn credits)~~ **DONE** — Referral invite/redeem flow with credit system, referral tracking, settings UI card
 
-### Phase 9: Enterprise & Scale (Weeks 19-24) — IN PROGRESS
-- Team/organization accounts
+### Phase 9: Enterprise & Scale (Weeks 19-24) — COMPLETE
+- ~~Team/organization accounts~~ **DONE** — Organizations DB schema (orgs, members, invitations), CRUD API routes, org auth helpers (requireOrgMember/requireOrgRole), organization list/detail pages, organization settings card, invitation acceptance flow
 - ~~Admin dashboard for recruiters~~ **DONE** — Role-based access control (user/recruiter/admin), admin layout with sidebar, user management, stats dashboard, role change API
 - ~~API access for enterprise customers~~ **DONE** — Enterprise API with SHA-256 hashed API keys, v1 endpoints (jobs search, job detail, companies, salary insights), developer API card in settings
-- Custom AI model fine-tuning per organization
-- White-label support
-- Advanced analytics and reporting
+- ~~Custom AI model fine-tuning per organization~~ **DONE** — Org AI config DB schema, GET/PUT API route, org-config merge helper in packages/ai (org overrides user prefs), OrgAiConfigCard settings component with model selector/temperature/max tokens/system prompt, admin AI config page
+- ~~White-label support~~ **DONE** — Branding DB schema (brandingConfigs), admin branding settings card with color pickers, public branding resolve API with custom domain support and CDN caching, BrandingProvider context + useBranding hook
+- ~~Advanced analytics and reporting~~ **DONE** — 5 analytics API endpoints (overview KPIs, user growth, job market stats, AI usage, subscriptions), full Recharts-powered dashboard with line/bar/pie charts, stat cards, session breakdowns
 - ~~Multi-language support (i18n)~~ **DONE** — next-intl integration with cookie-based locale switching, English + Spanish translations, language switcher component
 
 ---
@@ -1675,7 +1675,7 @@ Response: {
 | Phase 6: Testing & Polish | ✅ Complete | E2E + unit tests, error boundaries, loading states, SEO, sitemap |
 | Phase 7: Production Hardening | ✅ Complete | Analytics, Speed Insights, bundle optimization, BYOK encryption, Realtime, a11y |
 | Phase 8: Growth & Engagement | ✅ Complete | Job comparison, social sharing, company research, salary insights, resume builder, push notifications, referral program |
-| Phase 9: Enterprise & Scale | 🔄 In Progress (3/7) | Admin dashboard, enterprise API, multi-language i18n |
+| Phase 9: Enterprise & Scale | ✅ Complete (7/7) | Team accounts, admin dashboard, enterprise API, org AI config, white-label, analytics, i18n |
 
 ### Phase 7: Production Hardening (v1.2) + Architecture Audit (v1.3)
 

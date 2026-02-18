@@ -7,6 +7,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const rootDir = __dirname.replace(/\\/g, "/");
 
+// NOTE: We intentionally run Jest in CJS mode (no useESM, no extensionsToTreatAsEsm).
+// Even though packages declare "type": "module", ts-jest transpiles .ts → CJS before
+// Jest evaluates files, so the ESM flag in package.json is irrelevant at test time.
+// Running in ESM mode (--experimental-vm-modules + useESM) causes
+// "ReferenceError: exports is not defined" due to ts-jest 29 / Jest 30 interop issues.
+
 // Map workspace packages to their source dirs for ts-jest resolution
 const workspaceModuleMapper: Record<string, string> = {
   "^@repo/stripe(.*)$": `${rootDir}/packages/stripe/src$1`,
@@ -29,10 +35,9 @@ const sharedConfig = {
     // Type-checking is already handled by `tsc --noEmit` in the build step.
     "^.+\\.tsx?$": [
       "ts-jest",
-      { useESM: true, diagnostics: false, tsconfig: { isolatedModules: true } },
+      { diagnostics: false, tsconfig: { isolatedModules: true } },
     ],
   },
-  extensionsToTreatAsEsm: [".ts" as const],
   moduleNameMapper: workspaceModuleMapper,
 };
 

@@ -116,18 +116,20 @@ export async function POST(
       );
     }
 
-    // Create membership
-    await db.insert(organizationMembers).values({
-      organizationId: invitation.organizationId,
-      userId: user.id,
-      role: invitation.role,
-    });
+    // Create membership and mark invitation as accepted atomically to
+    // prevent the invitation being accepted twice.
+    await db.transaction(async (tx) => {
+      await tx.insert(organizationMembers).values({
+        organizationId: invitation.organizationId,
+        userId: user.id,
+        role: invitation.role,
+      });
 
-    // Mark invitation as accepted
-    await db
-      .update(organizationInvitations)
-      .set({ status: "accepted" })
-      .where(eq(organizationInvitations.id, invitation.id));
+      await tx
+        .update(organizationInvitations)
+        .set({ status: "accepted" })
+        .where(eq(organizationInvitations.id, invitation.id));
+    });
 
     return apiSuccess({
       message: `You have joined ${org.name}`,

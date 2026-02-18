@@ -20,6 +20,8 @@ import {
 } from "@repo/ui/card";
 import { Skeleton } from "@repo/ui/skeleton";
 import { apiFetch } from "@/lib/api-client";
+import { formatShortDate } from "@/lib/format-date";
+import { StatCard } from "@/components/admin/stat-card";
 import {
   LineChart,
   Line,
@@ -92,47 +94,6 @@ const CHART_COLORS = [
   "hsl(var(--primary))",
   "hsl(var(--muted-foreground))",
 ];
-
-// ── Helpers ──────────────────────────────────────────────────────────────
-
-function formatDate(dateStr: string): string {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-// ── Stat Card ────────────────────────────────────────────────────────────
-
-function StatCard({
-  title,
-  value,
-  icon: Icon,
-  loading,
-}: {
-  title: string;
-  value: number | string;
-  icon: React.ElementType;
-  loading: boolean;
-}) {
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
-          {title}
-        </CardTitle>
-        <Icon className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <Skeleton className="h-8 w-24" />
-        ) : (
-          <div className="text-3xl font-bold">
-            {typeof value === "number" ? value.toLocaleString() : value}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
 
 // ── Main Page ────────────────────────────────────────────────────────────
 
@@ -231,7 +192,7 @@ export default function AdminAnalyticsPage() {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis
                     dataKey="date"
-                    tickFormatter={formatDate}
+                    tickFormatter={formatShortDate}
                     tick={{ fontSize: 12 }}
                     className="text-muted-foreground"
                   />
@@ -241,7 +202,7 @@ export default function AdminAnalyticsPage() {
                     className="text-muted-foreground"
                   />
                   <Tooltip
-                    labelFormatter={formatDate}
+                    labelFormatter={formatShortDate}
                     contentStyle={{
                       backgroundColor: "hsl(var(--popover))",
                       border: "1px solid hsl(var(--border))",
@@ -523,7 +484,7 @@ export default function AdminAnalyticsPage() {
                       />
                       <XAxis
                         dataKey="date"
-                        tickFormatter={formatDate}
+                        tickFormatter={formatShortDate}
                         tick={{ fontSize: 12 }}
                         className="text-muted-foreground"
                       />
@@ -533,7 +494,7 @@ export default function AdminAnalyticsPage() {
                         className="text-muted-foreground"
                       />
                       <Tooltip
-                        labelFormatter={formatDate}
+                        labelFormatter={formatShortDate}
                         contentStyle={{
                           backgroundColor: "hsl(var(--popover))",
                           border: "1px solid hsl(var(--border))",

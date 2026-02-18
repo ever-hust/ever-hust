@@ -114,23 +114,28 @@ export function StructuredData() {
     ],
   };
 
+  // Escape closing script tags in JSON-LD to prevent XSS via crafted data
+  // containing "</script>".
+  const safeStringify = (data: object) =>
+    JSON.stringify(data).replace(/</g, "\\u003c");
+
   return (
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(organization) }}
+        dangerouslySetInnerHTML={{ __html: safeStringify(organization) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(webSite) }}
+        dangerouslySetInnerHTML={{ __html: safeStringify(webSite) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareApp) }}
+        dangerouslySetInnerHTML={{ __html: safeStringify(softwareApp) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqPage) }}
+        dangerouslySetInnerHTML={{ __html: safeStringify(faqPage) }}
       />
     </>
   );

@@ -215,7 +215,13 @@ export const updateUserRoleSchema = z.object({
 export const adminUsersQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),
-  search: z.string().optional(),
+  search: z.string().max(200).optional(),
+});
+
+export const adminJobsQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+  q: z.string().max(200).optional(),
 });
 
 // === Developer API Key Routes ===

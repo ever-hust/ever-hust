@@ -17,13 +17,11 @@ import {
 // GET /api/v1/jobs - Search jobs (API key or session auth)
 export async function GET(req: NextRequest) {
   // Authenticate via API key or session
-  let userId: string;
   let rateLimitKey: string;
   let rateLimitMax: number;
 
   const apiKeyUser = await validateApiKey(req);
   if (apiKeyUser) {
-    userId = apiKeyUser.userId;
     rateLimitKey = `api-key:${apiKeyUser.keyId}`;
     rateLimitMax = apiKeyUser.rateLimit;
 
@@ -38,8 +36,7 @@ export async function GET(req: NextRequest) {
         "Provide a valid API key via Authorization header or sign in"
       );
     }
-    userId = sessionUser.id;
-    rateLimitKey = `v1-session:${userId}`;
+    rateLimitKey = `v1-session:${sessionUser.id}`;
     rateLimitMax = 100; // default for session users
   }
 

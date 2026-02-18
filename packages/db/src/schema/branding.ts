@@ -12,7 +12,7 @@ export const brandingConfigs = pgTable(
   "branding_configs",
   {
     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-    organizationId: text("organization_id"),
+    organizationId: integer("organization_id"),
     name: text("name").notNull(),
     logoUrl: text("logo_url"),
     faviconUrl: text("favicon_url"),

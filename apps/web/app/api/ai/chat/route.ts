@@ -1,8 +1,8 @@
 // Allow long-running AI streaming responses (Vercel serverless default is 10s)
 export const maxDuration = 60;
 
-import { createOrchestratorStream, getModelForUser } from "@repo/ai";
-import { db, users } from "@repo/db";
+import { createOrchestratorStream, getModelForUser, getOrgAiConfig, mergeOrgConfig } from "@repo/ai";
+import { db, users, organizationMembers } from "@repo/db";
 import { convertToModelMessages, type UIMessage } from "ai";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -83,9 +83,28 @@ export async function POST(req: Request) {
       apiKeys?: { anthropic?: string; openai?: string; google?: string };
     }) ?? null;
 
+    // Check if the user belongs to an organization and merge org AI config
+    const [membership] = await db
+      .select({ organizationId: organizationMembers.organizationId })
+      .from(organizationMembers)
+      .where(eq(organizationMembers.userId, userId))
+      .limit(1);
+
+    let mergedPreferences = preferences;
+    if (membership) {
+      const orgConfig = await getOrgAiConfig(membership.organizationId);
+      if (orgConfig) {
+        const merged = mergeOrgConfig(preferences, orgConfig);
+        mergedPreferences = {
+          aiModel: merged.preferredModel,
+          apiKeys: merged.apiKeys,
+        };
+      }
+    }
+
     const model = getModelForUser({
       subscriptionStatus: gate.isActive ? "active" : "free",
-      preferences,
+      preferences: mergedPreferences,
     });
 
     // createOrchestratorStream is now async (fetches prompt from Langfuse)

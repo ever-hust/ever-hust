@@ -61,6 +61,24 @@ export function formatDate(dateInput: string | Date): string {
 }
 
 // ---------------------------------------------------------------------------
+// Short locale date — "Jan 15" (no year, useful for charts)
+// ---------------------------------------------------------------------------
+
+/**
+ * Abbreviated date string without year, suitable for chart axis labels.
+ *
+ * @example
+ * formatShortDate("2025-01-15") // "Jan 15"
+ */
+export function formatShortDate(dateInput: string | Date): string {
+  const d = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Session date — "Today at 3:45 PM" / "Monday at 3:45 PM" / "Jan 15"
 // ---------------------------------------------------------------------------
 

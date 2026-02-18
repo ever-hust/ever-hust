@@ -11,16 +11,7 @@ import {
   apiError,
   safeJsonParse,
 } from "../../../../lib/api-response";
-
-/** Generate a random 6-character uppercase alphanumeric code. */
-function generateReferralCode(): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let code = "";
-  for (let i = 0; i < 6; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return code;
-}
+import { generateReferralCode } from "../../../../lib/referral-utils";
 
 // POST /api/referrals/invite - Send a referral invite (returns link to share)
 export async function POST(req: Request) {

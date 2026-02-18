@@ -14,8 +14,8 @@ export const organizationAiConfigs = pgTable(
   {
     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
 
-    /** Organization this config belongs to (plain text — no FK reference since orgs table is managed separately) */
-    organizationId: text("organization_id").notNull(),
+    /** Organization this config belongs to */
+    organizationId: integer("organization_id").notNull(),
 
     /** Preferred AI model ID (e.g. "claude-sonnet-4-6", "claude-opus-4-6") */
     preferredModel: text("preferred_model"),

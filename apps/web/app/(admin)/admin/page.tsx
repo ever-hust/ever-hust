@@ -20,6 +20,8 @@ import { Button } from "@repo/ui/button";
 import { Badge } from "@repo/ui/badge";
 import { Skeleton } from "@repo/ui/skeleton";
 import { apiFetch } from "@/lib/api-client";
+import { timeAgo } from "@/lib/format-date";
+import { StatCard } from "@/components/admin/stat-card";
 
 interface AdminStats {
   totalUsers: number;
@@ -33,50 +35,6 @@ interface AdminStats {
     role: string;
     createdAt: string;
   }[];
-}
-
-function StatCard({
-  title,
-  value,
-  icon: Icon,
-  loading,
-}: {
-  title: string;
-  value: number | string;
-  icon: React.ElementType;
-  loading: boolean;
-}) {
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
-          {title}
-        </CardTitle>
-        <Icon className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <Skeleton className="h-8 w-24" />
-        ) : (
-          <div className="text-3xl font-bold">{value}</div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function timeAgo(dateString: string): string {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 1) return "just now";
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  return `${diffDays}d ago`;
 }
 
 export default function AdminDashboardPage() {

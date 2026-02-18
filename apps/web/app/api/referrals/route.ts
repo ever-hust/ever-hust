@@ -5,16 +5,7 @@ import type { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../lib/get-session-user";
 import { applyRateLimit } from "../../../lib/rate-limit";
 import { apiSuccess, apiError } from "../../../lib/api-response";
-
-/** Generate a random 6-character uppercase alphanumeric code. */
-function generateReferralCode(): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let code = "";
-  for (let i = 0; i < 6; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return code;
-}
+import { generateReferralCode } from "../../../lib/referral-utils";
 
 // GET /api/referrals - Get user's referrals + credit balance
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

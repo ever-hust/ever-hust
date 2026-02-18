@@ -62,43 +62,47 @@ export async function POST(req: Request) {
 
     const now = new Date();
 
-    // Update the referral record
-    await db
-      .update(referrals)
-      .set({
-        referredUserId: userId,
-        status: "credited",
-        creditAmount: REFERRAL_CREDIT_AMOUNT,
-        completedAt: now,
-        updatedAt: now,
-      })
-      .where(eq(referrals.id, referral.id));
-
-    // Award credits to the referrer — upsert their credit balance
-    const existingCredits = await db
-      .select()
-      .from(referralCredits)
-      .where(eq(referralCredits.userId, referral.referrerId))
-      .limit(1);
-
-    if (existingCredits.length === 0) {
-      await db.insert(referralCredits).values({
-        userId: referral.referrerId,
-        balance: REFERRAL_CREDIT_AMOUNT,
-        totalEarned: REFERRAL_CREDIT_AMOUNT,
-        totalSpent: 0,
-        updatedAt: now,
-      });
-    } else {
-      await db
-        .update(referralCredits)
+    // Wrap status update + credit upsert in a transaction to prevent
+    // double-credit race conditions.
+    await db.transaction(async (tx) => {
+      // Update the referral record
+      await tx
+        .update(referrals)
         .set({
-          balance: sql`${referralCredits.balance} + ${REFERRAL_CREDIT_AMOUNT}`,
-          totalEarned: sql`${referralCredits.totalEarned} + ${REFERRAL_CREDIT_AMOUNT}`,
+          referredUserId: userId,
+          status: "credited",
+          creditAmount: REFERRAL_CREDIT_AMOUNT,
+          completedAt: now,
           updatedAt: now,
         })
-        .where(eq(referralCredits.userId, referral.referrerId));
-    }
+        .where(eq(referrals.id, referral.id));
+
+      // Award credits to the referrer — upsert their credit balance
+      const existingCredits = await tx
+        .select()
+        .from(referralCredits)
+        .where(eq(referralCredits.userId, referral.referrerId))
+        .limit(1);
+
+      if (existingCredits.length === 0) {
+        await tx.insert(referralCredits).values({
+          userId: referral.referrerId,
+          balance: REFERRAL_CREDIT_AMOUNT,
+          totalEarned: REFERRAL_CREDIT_AMOUNT,
+          totalSpent: 0,
+          updatedAt: now,
+        });
+      } else {
+        await tx
+          .update(referralCredits)
+          .set({
+            balance: sql`${referralCredits.balance} + ${REFERRAL_CREDIT_AMOUNT}`,
+            totalEarned: sql`${referralCredits.totalEarned} + ${REFERRAL_CREDIT_AMOUNT}`,
+            updatedAt: now,
+          })
+          .where(eq(referralCredits.userId, referral.referrerId));
+      }
+    });
 
     return apiSuccess({
       message: "Referral code redeemed successfully",

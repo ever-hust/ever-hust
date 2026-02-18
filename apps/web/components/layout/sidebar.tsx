@@ -26,6 +26,7 @@ import {
   DialogFooter,
 } from "@repo/ui/dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LanguageSwitcher } from "@/components/shared/language-switcher";
 import { UsageQuota } from "@/components/shared/usage-quota";
 import { signOut } from "@repo/auth/client";
 import { cn } from "@repo/ui/lib/utils";
@@ -187,7 +188,10 @@ export function Sidebar() {
             <Separator className="my-2 mx-3" />
 
             <div className="flex flex-col gap-2 px-3 w-full">
-              <ThemeToggle />
+              <div className="flex items-center gap-2">
+                <ThemeToggle />
+                <LanguageSwitcher />
+              </div>
               <Button
                 variant="ghost"
                 size="sm"
@@ -255,7 +259,10 @@ export function Sidebar() {
 
         {/* Bottom actions */}
         <div className="flex flex-col items-center gap-2 px-2 w-full">
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <LanguageSwitcher />
+          </div>
           <Button
             variant="ghost"
             size="sm"

@@ -18,6 +18,7 @@ import { Badge } from "@repo/ui/badge";
 import { Input } from "@repo/ui/input";
 import { Skeleton } from "@repo/ui/skeleton";
 import { apiFetch, apiMutate } from "@/lib/api-client";
+import { formatDate } from "@/lib/format-date";
 import type { UserRole } from "@repo/db/schema";
 
 interface UserRow {
@@ -53,14 +54,6 @@ function subscriptionBadgeVariant(status: string) {
     default:
       return "outline" as const;
   }
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
 }
 
 export default function AdminUsersPage() {

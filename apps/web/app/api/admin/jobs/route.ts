@@ -1,9 +1,9 @@
 import { db } from "@repo/db";
-import { users } from "@repo/db/schema";
+import { jobs } from "@repo/db/schema";
 import { count, desc, ilike, or } from "drizzle-orm";
 import type { NextResponse } from "next/server";
 import { requireRole } from "../../../../lib/auth-roles";
-import { adminUsersQuerySchema } from "../../../../lib/api-schemas";
+import { adminJobsQuerySchema } from "../../../../lib/api-schemas";
 import { apiSuccess, apiBadRequest, apiError } from "../../../../lib/api-response";
 
 export async function GET(req: Request) {
@@ -18,10 +18,10 @@ export async function GET(req: Request) {
     const rawParams = {
       page: url.searchParams.get("page") ?? undefined,
       limit: url.searchParams.get("limit") ?? undefined,
-      search: url.searchParams.get("search") ?? undefined,
+      q: url.searchParams.get("q") ?? undefined,
     };
 
-    const validation = adminUsersQuerySchema.safeParse(rawParams);
+    const validation = adminJobsQuerySchema.safeParse(rawParams);
     if (!validation.success) {
       const messages = validation.error.issues
         .map((i) => `${i.path.join(".")}: ${i.message}`)
@@ -29,7 +29,7 @@ export async function GET(req: Request) {
       return apiBadRequest(messages);
     }
 
-    const { page, limit, search } = validation.data;
+    const { page, limit, q } = validation.data;
     const offset = (page - 1) * limit;
 
     // Escape ILIKE wildcard characters to prevent injection
@@ -37,32 +37,36 @@ export async function GET(req: Request) {
       str.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
 
     // Build search condition
-    const searchCondition = search
+    const searchCondition = q
       ? or(
-          ilike(users.name, `%${escapeIlike(search)}%`),
-          ilike(users.email, `%${escapeIlike(search)}%`),
+          ilike(jobs.title, `%${escapeIlike(q)}%`),
+          ilike(jobs.companyName, `%${escapeIlike(q)}%`),
         )
       : undefined;
 
     // Run count and data queries in parallel
-    const [totalResult, userList] = await Promise.all([
+    const [totalResult, jobList] = await Promise.all([
       db
         .select({ value: count() })
-        .from(users)
+        .from(jobs)
         .where(searchCondition),
       db
         .select({
-          id: users.id,
-          name: users.name,
-          email: users.email,
-          image: users.image,
-          role: users.role,
-          subscriptionStatus: users.subscriptionStatus,
-          createdAt: users.createdAt,
+          id: jobs.id,
+          title: jobs.title,
+          companyName: jobs.companyName,
+          locationCity: jobs.locationCity,
+          locationState: jobs.locationState,
+          locationCountry: jobs.locationCountry,
+          isRemote: jobs.isRemote,
+          jobLevel: jobs.jobLevel,
+          site: jobs.site,
+          datePosted: jobs.datePosted,
+          createdAt: jobs.createdAt,
         })
-        .from(users)
+        .from(jobs)
         .where(searchCondition)
-        .orderBy(desc(users.createdAt))
+        .orderBy(desc(jobs.createdAt))
         .limit(limit)
         .offset(offset),
     ]);
@@ -71,7 +75,7 @@ export async function GET(req: Request) {
     const totalPages = Math.ceil(total / limit);
 
     return apiSuccess({
-      users: userList,
+      jobs: jobList,
       pagination: {
         page,
         limit,
@@ -81,9 +85,9 @@ export async function GET(req: Request) {
     });
   } catch (err) {
     console.error(
-      "[api/admin/users] GET failed:",
+      "[api/admin/jobs] GET failed:",
       err instanceof Error ? err.message : err,
     );
-    return apiError("Failed to fetch users");
+    return apiError("Failed to fetch jobs");
   }
 }

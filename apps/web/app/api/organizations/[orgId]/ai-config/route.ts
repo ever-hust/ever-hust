@@ -42,7 +42,7 @@ export async function GET(_req: Request, context: RouteContext) {
         updatedAt: organizationAiConfigs.updatedAt,
       })
       .from(organizationAiConfigs)
-      .where(eq(organizationAiConfigs.organizationId, String(orgId)))
+      .where(eq(organizationAiConfigs.organizationId, orgId))
       .limit(1);
 
     return apiSuccess({ config: config ?? null });
@@ -78,14 +78,13 @@ export async function PUT(req: Request, context: RouteContext) {
   }
 
   const body = validation.data;
-  const orgIdString = String(orgId);
 
   try {
     // Check if config already exists
     const [existing] = await db
       .select({ id: organizationAiConfigs.id })
       .from(organizationAiConfigs)
-      .where(eq(organizationAiConfigs.organizationId, orgIdString))
+      .where(eq(organizationAiConfigs.organizationId, orgId))
       .limit(1);
 
     const updates: Record<string, unknown> = {
@@ -120,7 +119,7 @@ export async function PUT(req: Request, context: RouteContext) {
       const [created] = await db
         .insert(organizationAiConfigs)
         .values({
-          organizationId: orgIdString,
+          organizationId: orgId,
           preferredModel: (body.preferredModel as string) || null,
           customSystemPrompt: (body.customSystemPrompt as string) || null,
           maxTokens: body.maxTokens ?? null,

@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
  */
 export interface OrgAiConfigRow {
   id: number;
-  organizationId: string;
+  organizationId: number;
   preferredModel: string | null;
   customSystemPrompt: string | null;
   maxTokens: number | null;
@@ -22,7 +22,7 @@ export interface OrgAiConfigRow {
  * Returns null if no config exists or the config is inactive.
  */
 export async function getOrgAiConfig(
-  organizationId: string,
+  organizationId: number,
 ): Promise<OrgAiConfigRow | null> {
   const [config] = await db
     .select()

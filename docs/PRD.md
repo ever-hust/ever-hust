@@ -1,9 +1,9 @@
 # Ever Jobs - Product Requirements Document (PRD)
 
-**Version**: 1.5
+**Version**: 1.6
 **Date**: 2026-02-18
-**Status**: MVP Implemented + Production Hardening + Growth Features + Enterprise Features (Phase 9 Complete)
-**Previous Versions**: 1.4 (2026-02-18), 1.3 (2026-02-18), 1.2 (2026-02-18), 1.1 (2026-02-15), 1.0 (2026-02-14, Approved)
+**Status**: MVP Implemented + Production Hardening + Growth Features + Enterprise Features + Audit Fixes (Phase 9 Complete + Post-Audit)
+**Previous Versions**: 1.5 (2026-02-18), 1.4 (2026-02-18), 1.3 (2026-02-18), 1.2 (2026-02-18), 1.1 (2026-02-15), 1.0 (2026-02-14, Approved)
 **Domain**: everjobs.ai
 **License**: Proprietary (All Rights Reserved)
 **Repository**: github.com/ever-co/ever-jobs-website
@@ -1658,7 +1658,7 @@ Response: {
 
 ---
 
-## Appendix A: Implementation Status (v1.3)
+## Appendix A: Implementation Status (v1.6)
 
 > Updated 2026-02-18. See [MVP Implementation Summary](./MVP-IMPLEMENTATION-SUMMARY.md) for detailed change log.
 
@@ -1676,6 +1676,38 @@ Response: {
 | Phase 7: Production Hardening | ✅ Complete | Analytics, Speed Insights, bundle optimization, BYOK encryption, Realtime, a11y |
 | Phase 8: Growth & Engagement | ✅ Complete | Job comparison, social sharing, company research, salary insights, resume builder, push notifications, referral program |
 | Phase 9: Enterprise & Scale | ✅ Complete (7/7) | Team accounts, admin dashboard, enterprise API, org AI config, white-label, analytics, i18n |
+| Post-Audit Fixes (v1.6) | ✅ Complete | Security hardening, broken link fixes, dead code cleanup, feature wiring |
+
+### Post-Audit Fixes (v1.6)
+
+Comprehensive codebase audit identified and resolved 19 issues across security, completeness, and code quality:
+
+#### Security Fixes
+- **ILIKE wildcard escaping** in admin user search to prevent pattern injection
+- **Crypto-based referral codes** — replaced `Math.random()` with `crypto.randomBytes()`
+- **JSON-LD XSS prevention** — escape `</script>` in structured data component
+- **DB transactions** for referral redemption and org invitation acceptance (race condition prevention)
+- **Input validation** — max length on admin search schema
+
+#### Broken Links & Missing Pages
+- Created `/terms`, `/privacy`, `/about`, `/contact` marketing pages with real content
+- Removed dead `/blog` link from footer
+- Added `/organizations` to middleware protected routes
+- Replaced admin jobs "Coming Soon" stub with real job management page + search/pagination API
+
+#### Dead Code & Feature Wiring
+- **Org AI config integration** — `mergeOrgConfig()` now called in chat route, org settings override user prefs
+- **LanguageSwitcher** integrated into dashboard sidebar
+- **Schema type fix** — `organizationId` changed from `text` to `integer` in branding + AI config schemas
+- **OpenRouter mapping** added for `claude-sonnet-4-5-20250929`
+- Removed dead `orchestrator-system.ts` prompt (outdated copy, never used)
+- Extracted shared `StatCard` component; deduplicated `timeAgo`/`formatDate` across admin pages
+
+#### Known Low-Severity Items (deferred)
+- Inconsistent `withTimezone` on older schema tables
+- In-memory rate limiting (production should use Redis)
+- Missing DB indexes on `jobs.department`, `applications(userId, jobId)`
+- Stripe webhook idempotency uses in-memory Map (production should use Redis SET NX)
 
 ### Phase 7: Production Hardening (v1.2) + Architecture Audit (v1.3)
 

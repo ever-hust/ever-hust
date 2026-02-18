@@ -43,6 +43,7 @@ export const applications = pgTable(
   },
   (table) => [
     index("applications_user_id_idx").on(table.userId),
+    index("applications_user_job_idx").on(table.userId, table.jobId),
     index("applications_user_status_idx").on(table.userId, table.status),
     index("applications_job_id_idx").on(table.jobId),
   ]

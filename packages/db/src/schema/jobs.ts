@@ -8,6 +8,7 @@ import {
   numeric,
   index,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export const jobs = pgTable(
   "jobs",
@@ -68,11 +69,23 @@ export const jobs = pgTable(
   (table) => [
     index("jobs_location_country_idx").on(table.locationCountry),
     index("jobs_is_remote_idx").on(table.isRemote),
-    index("jobs_date_posted_idx").on(table.datePosted),
+    index("jobs_date_posted_idx").on(table.datePosted.desc()),
     index("jobs_site_idx").on(table.site),
     index("jobs_title_idx").on(table.title),
     index("jobs_company_name_idx").on(table.companyName),
     index("jobs_job_level_idx").on(table.jobLevel),
     index("jobs_salary_min_idx").on(table.salaryMin),
+
+    // GIN index on skills jsonb for array containment queries (@>, ?)
+    index("jobs_skills_gin_idx").using(
+      "gin",
+      table.skills
+    ),
+
+    // GIN index for full-text search on title
+    index("jobs_title_search_idx").using(
+      "gin",
+      sql`to_tsvector('english', ${table.title})`
+    ),
   ]
 );

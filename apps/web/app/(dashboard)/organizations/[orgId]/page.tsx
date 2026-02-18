@@ -14,6 +14,17 @@ import {
   Clock,
   ArrowLeft,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@repo/ui/alert-dialog";
 import { Badge } from "@repo/ui/badge";
 import { Button } from "@repo/ui/button";
 import { Card } from "@repo/ui/card";
@@ -363,26 +374,51 @@ export default function OrgDetailPage() {
                         {member.role}
                       </Badge>
                       {isAdmin && member.role !== "owner" && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                          aria-label={`Remove ${member.userName}`}
-                          onClick={() => handleRemoveMember(member.userId)}
-                          disabled={isRemoving}
-                        >
-                          {isRemoving ? (
-                            <Loader2
-                              className="h-3.5 w-3.5 animate-spin"
-                              aria-hidden="true"
-                            />
-                          ) : (
-                            <Trash2
-                              className="h-3.5 w-3.5"
-                              aria-hidden="true"
-                            />
-                          )}
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                              aria-label={`Remove ${member.userName}`}
+                              disabled={isRemoving}
+                            >
+                              {isRemoving ? (
+                                <Loader2
+                                  className="h-3.5 w-3.5 animate-spin"
+                                  aria-hidden="true"
+                                />
+                              ) : (
+                                <Trash2
+                                  className="h-3.5 w-3.5"
+                                  aria-hidden="true"
+                                />
+                              )}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>
+                                Remove {member.userName}?
+                              </AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will remove them from the organization.
+                                They can be re-invited later.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                onClick={() =>
+                                  handleRemoveMember(member.userId)
+                                }
+                              >
+                                Remove
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       )}
                     </div>
                   </li>

@@ -1,7 +1,15 @@
 /**
- * Tests for format-date utilities — timeAgo, formatDate, formatSessionDate, formatLocation.
+ * Tests for format-date utilities — timeAgo, formatDate, formatShortDate,
+ * formatSessionDate, formatLocation, formatSalary.
  */
-import { timeAgo, formatDate, formatSessionDate, formatLocation } from "../format-date";
+import {
+  timeAgo,
+  formatDate,
+  formatShortDate,
+  formatSessionDate,
+  formatLocation,
+  formatSalary,
+} from "../format-date";
 
 describe("timeAgo", () => {
   it("returns null for null input", () => {
@@ -146,5 +154,156 @@ describe("formatLocation", () => {
 
   it("returns null for empty strings", () => {
     expect(formatLocation("", "")).toBeNull();
+  });
+});
+
+// =========================================================================
+// formatShortDate
+// =========================================================================
+
+describe("formatShortDate", () => {
+  it("formats a date object without year", () => {
+    const date = new Date("2025-01-15T12:00:00Z");
+    const result = formatShortDate(date);
+    expect(result).toContain("15");
+    // Should NOT contain the year
+    expect(result).not.toContain("2025");
+  });
+
+  it("formats a date string without year", () => {
+    const result = formatShortDate("2025-06-20T00:00:00Z");
+    expect(result).toContain("20");
+    expect(result).not.toContain("2025");
+  });
+
+  it("includes abbreviated month name", () => {
+    const result = formatShortDate(new Date("2025-03-05T00:00:00Z"));
+    expect(result).toContain("Mar");
+  });
+
+  it("returns a string", () => {
+    expect(typeof formatShortDate(new Date())).toBe("string");
+  });
+});
+
+// =========================================================================
+// formatSalary
+// =========================================================================
+
+describe("formatSalary", () => {
+  // --- null / empty inputs ---
+  it("returns null when both min and max are null", () => {
+    expect(formatSalary(null, null)).toBeNull();
+  });
+
+  it("returns null when both min and max are undefined", () => {
+    expect(formatSalary(undefined, undefined)).toBeNull();
+  });
+
+  // --- compact mode (default) with range ---
+  it("formats min-max range in compact mode", () => {
+    expect(formatSalary("80000", "120000", "USD", "yearly")).toBe("$80k - $120k/yr");
+  });
+
+  it("formats min-only in compact mode", () => {
+    expect(formatSalary("80000", null, "USD")).toBe("$80k+");
+  });
+
+  it("formats max-only in compact mode", () => {
+    expect(formatSalary(null, "120000", "USD")).toBe("Up to $120k");
+  });
+
+  // --- full mode ---
+  it("formats min-max range in full mode", () => {
+    expect(formatSalary("80000", "120000", "USD", "yearly", "full")).toBe(
+      "$80,000 - $120,000 /yearly"
+    );
+  });
+
+  it("formats min-only in full mode", () => {
+    expect(formatSalary("80000", null, "USD", null, "full")).toBe("$80,000+");
+  });
+
+  it("formats max-only in full mode", () => {
+    expect(formatSalary(null, "120000", "USD", null, "full")).toBe("Up to $120,000");
+  });
+
+  // --- interval suffixes (compact) ---
+  it("appends /yr for yearly interval in compact mode", () => {
+    expect(formatSalary("100000", "150000", "USD", "yearly")).toBe("$100k - $150k/yr");
+  });
+
+  it("appends /mo for monthly interval in compact mode", () => {
+    expect(formatSalary("5000", "8000", "USD", "monthly")).toBe("$5k - $8k/mo");
+  });
+
+  it("appends /hr for hourly interval in compact mode", () => {
+    expect(formatSalary("50", "100", "USD", "hourly")).toBe("$50 - $100/hr");
+  });
+
+  it("appends /yr for 'year' synonym in compact mode", () => {
+    expect(formatSalary("100000", "200000", "USD", "year")).toBe("$100k - $200k/yr");
+  });
+
+  it("appends /mo for 'month' synonym in compact mode", () => {
+    expect(formatSalary("5000", "10000", "USD", "month")).toBe("$5k - $10k/mo");
+  });
+
+  it("appends /hr for 'hour' synonym in compact mode", () => {
+    expect(formatSalary("25", "50", "USD", "hour")).toBe("$25 - $50/hr");
+  });
+
+  it("uses raw interval name as fallback for unknown intervals", () => {
+    expect(formatSalary("1000", "2000", "USD", "biweekly")).toBe("$1k - $2k/biweekly");
+  });
+
+  // --- full mode interval suffix ---
+  it("appends raw interval with space-slash in full mode", () => {
+    expect(formatSalary("80000", "120000", "USD", "yearly", "full")).toBe(
+      "$80,000 - $120,000 /yearly"
+    );
+  });
+
+  // --- currency handling ---
+  it("defaults to USD when currency is null", () => {
+    expect(formatSalary("80000", "120000")).toBe("$80k - $120k");
+  });
+
+  it("defaults to USD when currency is undefined", () => {
+    expect(formatSalary("80000", "120000", undefined)).toBe("$80k - $120k");
+  });
+
+  it("uses currency code as prefix for non-USD currencies", () => {
+    expect(formatSalary("80000", "120000", "EUR")).toBe("EUR80k - EUR120k");
+  });
+
+  it("uses GBP prefix for British pounds", () => {
+    expect(formatSalary("50000", "70000", "GBP")).toBe("GBP50k - GBP70k");
+  });
+
+  // --- compact mode threshold ---
+  it("does not abbreviate values below 1000 in compact mode", () => {
+    expect(formatSalary("500", "999", "USD")).toBe("$500 - $999");
+  });
+
+  it("abbreviates values at exactly 1000", () => {
+    expect(formatSalary("1000", "2000", "USD")).toBe("$1k - $2k");
+  });
+
+  // --- non-numeric values ---
+  it("passes through non-numeric values without currency symbol", () => {
+    // NaN values bypass the formatting logic and return the raw string
+    expect(formatSalary("competitive", null, "USD")).toBe("competitive+");
+  });
+
+  // --- no interval ---
+  it("omits interval suffix when interval is null", () => {
+    const result = formatSalary("80000", "120000", "USD", null);
+    expect(result).toBe("$80k - $120k");
+  });
+
+  it("omits interval suffix when interval is undefined", () => {
+    const result = formatSalary("80000", "120000", "USD", undefined);
+    expect(result).toBe("$80k - $120k");
   });
 });

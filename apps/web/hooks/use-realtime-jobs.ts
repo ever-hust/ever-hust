@@ -92,20 +92,37 @@ export function useRealtimeJobs({
           table: "jobs",
         } as Record<string, unknown>,
         (payload: Record<string, unknown>) => {
-          const eventType = payload.eventType as string;
-          const newRecord = payload.new as RealtimeJob | undefined;
-          const oldRecord = payload.old as { id: number } | undefined;
+          try {
+            const eventType = payload.eventType as string;
+            const newRecord = payload.new as RealtimeJob | undefined;
+            const oldRecord = payload.old as { id: number } | undefined;
 
-          if (eventType === "INSERT" && newRecord && onInsertRef.current) {
-            onInsertRef.current(newRecord);
-          } else if (eventType === "UPDATE" && newRecord && onUpdateRef.current) {
-            onUpdateRef.current(newRecord);
-          } else if (eventType === "DELETE" && oldRecord && onDeleteRef.current) {
-            onDeleteRef.current(oldRecord.id);
+            if (eventType === "INSERT" && newRecord && onInsertRef.current) {
+              onInsertRef.current(newRecord);
+            } else if (eventType === "UPDATE" && newRecord && onUpdateRef.current) {
+              onUpdateRef.current(newRecord);
+            } else if (eventType === "DELETE" && oldRecord && onDeleteRef.current) {
+              onDeleteRef.current(oldRecord.id);
+            }
+          } catch (err) {
+            console.error(
+              "[useRealtimeJobs] Error processing realtime event:",
+              err,
+            );
           }
         }
       )
-      .subscribe();
+      .subscribe((status: string, err?: Error) => {
+        if (status === "TIMED_OUT") {
+          console.warn("[useRealtimeJobs] Realtime subscription timed out");
+        }
+        if (err) {
+          console.error(
+            "[useRealtimeJobs] Realtime subscription error:",
+            err.message,
+          );
+        }
+      });
 
     channelRef.current = channel;
 

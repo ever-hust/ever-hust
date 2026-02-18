@@ -72,34 +72,52 @@ export async function POST(req: Request) {
     }
 
     // Fetch actual user preferences for model selection (BYOK keys, preferred model)
-    const userRow = await db
-      .select({ preferences: users.preferences })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    const preferences = (userRow[0]?.preferences as {
+    let preferences: {
       aiModel?: string;
       apiKeys?: { anthropic?: string; openai?: string; google?: string };
-    }) ?? null;
+    } | null = null;
+    try {
+      const userRow = await db
+        .select({ preferences: users.preferences })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      preferences = (userRow[0]?.preferences as typeof preferences) ?? null;
+    } catch (prefError) {
+      console.warn(
+        "[api/ai/chat] Failed to fetch user preferences, using defaults:",
+        prefError instanceof Error ? prefError.message : prefError,
+      );
+    }
 
     // Check if the user belongs to an organization and merge org AI config
-    const [membership] = await db
-      .select({ organizationId: organizationMembers.organizationId })
-      .from(organizationMembers)
-      .where(eq(organizationMembers.userId, userId))
-      .limit(1);
+    let mergedPreferences: {
+      aiModel?: string;
+      apiKeys?: { anthropic?: string; openai?: string; google?: string };
+    } | null = preferences;
+    try {
+      const [membership] = await db
+        .select({ organizationId: organizationMembers.organizationId })
+        .from(organizationMembers)
+        .where(eq(organizationMembers.userId, userId))
+        .limit(1);
 
-    let mergedPreferences = preferences;
-    if (membership) {
-      const orgConfig = await getOrgAiConfig(membership.organizationId);
-      if (orgConfig) {
-        const merged = mergeOrgConfig(preferences, orgConfig);
-        mergedPreferences = {
-          aiModel: merged.preferredModel,
-          apiKeys: merged.apiKeys,
-        };
+      if (membership) {
+        const orgConfig = await getOrgAiConfig(membership.organizationId);
+        if (orgConfig) {
+          const merged = mergeOrgConfig(preferences, orgConfig);
+          mergedPreferences = {
+            aiModel: merged.preferredModel,
+            apiKeys: merged.apiKeys,
+          };
+        }
       }
+    } catch (orgError) {
+      console.warn(
+        "[api/ai/chat] Failed to fetch org config, using user preferences only:",
+        orgError instanceof Error ? orgError.message : orgError,
+      );
     }
 
     const model = getModelForUser({

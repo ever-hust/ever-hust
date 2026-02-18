@@ -46,6 +46,10 @@ export const env = {
   ANTHROPIC_API_KEY: optional("ANTHROPIC_API_KEY"),
   DEFAULT_AI_MODEL: optional("DEFAULT_AI_MODEL", "claude-sonnet-4-20250514"),
 
+  // BYOK (Bring Your Own Key) — encryption key for storing user API keys at rest.
+  // Only required if the BYOK feature is enabled. Must be a 256-bit hex string.
+  BYOK_ENCRYPTION_KEY: optional("BYOK_ENCRYPTION_KEY"),
+
   // Stripe
   STRIPE_SECRET_KEY: required("STRIPE_SECRET_KEY"),
   STRIPE_WEBHOOK_SECRET: required("STRIPE_WEBHOOK_SECRET"),
@@ -58,7 +62,7 @@ export const env = {
   EMAIL_FROM: optional("EMAIL_FROM", "alerts@everjobs.ai"),
 
   // App
-  NEXT_PUBLIC_APP_URL: optional("NEXT_PUBLIC_APP_URL", "http://localhost:3000"),
+  NEXT_PUBLIC_APP_URL: optional("NEXT_PUBLIC_APP_URL", "https://everjobs.ai"),
   NEXT_PUBLIC_APP_NAME: optional("NEXT_PUBLIC_APP_NAME", "Ever Jobs"),
 
   // Langfuse (optional — falls back to hardcoded prompts)

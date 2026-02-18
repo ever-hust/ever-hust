@@ -8,7 +8,8 @@ export const submitAnswersTool = tool({
   description:
     "Submit the user's answers to application questions. This updates the application record with the answers provided. REQUIRES USER APPROVAL before executing. Only available to Pro subscribers.",
   inputSchema: z.object({
-    userId: z.string().describe("The current user's ID"),
+    // userId is injected server-side by the orchestrator — not LLM-provided
+    userId: z.string().optional(),
     applicationId: z
       .number()
       .describe("The application ID to submit answers for"),
@@ -23,6 +24,9 @@ export const submitAnswersTool = tool({
       .describe("Array of question-answer pairs"),
   }),
   execute: async ({ userId, applicationId, answers }) => {
+    if (!userId) return { submitted: false, error: "Not authenticated" };
+
+    try {
     // Check subscription — submitting answers is a Pro feature
     const userResult = await db
       .select({ subscriptionStatus: users.subscriptionStatus })
@@ -138,5 +142,9 @@ export const submitAnswersTool = tool({
       instruction:
         "The answers have been submitted successfully. Let the user know their application answers have been saved and the application status is now 'submitted'. If there's an external application URL, remind them to complete the process there.",
     };
+    } catch (err) {
+      console.error("[submit-answers] execute failed:", err instanceof Error ? err.message : err);
+      return { submitted: false, error: "Something went wrong while submitting answers. Please try again." };
+    }
   },
 });

@@ -26,6 +26,7 @@ import { FavoriteButton } from "@/components/jobs/favorite-button";
 import { Breadcrumbs } from "@/components/shared/breadcrumbs";
 import { getSessionUser } from "@/lib/get-session-user";
 import { formatSalary, formatLocation, timeAgo } from "@/lib/format-date";
+import { safeExternalUrl } from "@/lib/safe-url";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -192,7 +193,8 @@ export default async function JobDetailPage({ params }: PageProps) {
   );
   const postedDate = formatLongDate(job.datePosted);
   const postedAgo = timeAgo(job.datePosted);
-  const applyLink = job.applyUrl || job.jobUrl || job.jobUrlDirect;
+  const safeLogo = safeExternalUrl(job.companyLogo);
+  const applyLink = safeExternalUrl(job.applyUrl) ?? safeExternalUrl(job.jobUrl) ?? safeExternalUrl(job.jobUrlDirect) ?? null;
 
   // Build JSON-LD structured data for SEO (Google for Jobs)
   const jsonLd = {
@@ -209,8 +211,8 @@ export default async function JobDetailPage({ params }: PageProps) {
     hiringOrganization: {
       "@type": "Organization",
       name: job.companyName ?? "Unknown",
-      ...(job.companyUrl ? { sameAs: job.companyUrl } : {}),
-      ...(job.companyLogo ? { logo: job.companyLogo } : {}),
+      ...(safeExternalUrl(job.companyUrl) ? { sameAs: safeExternalUrl(job.companyUrl) } : {}),
+      ...(safeLogo ? { logo: safeLogo } : {}),
     },
     jobLocation: {
       "@type": "Place",
@@ -275,9 +277,9 @@ export default async function JobDetailPage({ params }: PageProps) {
           <div className="flex items-start gap-4">
             {/* Company Logo */}
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border bg-background">
-              {job.companyLogo ? (
+              {safeLogo ? (
                 <img
-                  src={job.companyLogo}
+                  src={safeLogo}
                   alt={job.companyName ?? "Company"}
                   className="h-10 w-10 rounded object-contain"
                 />
@@ -295,9 +297,9 @@ export default async function JobDetailPage({ params }: PageProps) {
                 {job.companyName && (
                   <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
                     <Building2 className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                    {job.companyUrl ? (
+                    {safeExternalUrl(job.companyUrl) ? (
                       <a
-                        href={job.companyUrl}
+                        href={safeExternalUrl(job.companyUrl)!}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="hover:underline"
@@ -547,9 +549,9 @@ export default async function JobDetailPage({ params }: PageProps) {
                     {job.site}
                   </Badge>
                 </div>
-                {job.jobUrl && (
+                {safeExternalUrl(job.jobUrl) && (
                   <a
-                    href={job.jobUrl}
+                    href={safeExternalUrl(job.jobUrl)!}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
@@ -572,10 +574,10 @@ export default async function JobDetailPage({ params }: PageProps) {
                     {job.companyName && (
                       <div className="flex items-center gap-3">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-background">
-                          {job.companyLogo ? (
+                          {safeLogo ? (
                             <img
-                              src={job.companyLogo}
-                              alt={job.companyName}
+                              src={safeLogo}
+                              alt={job.companyName ?? "Company"}
                               className="h-8 w-8 rounded object-contain"
                             />
                           ) : (
@@ -584,9 +586,9 @@ export default async function JobDetailPage({ params }: PageProps) {
                         </div>
                         <div>
                           <p className="text-sm font-medium">
-                            {job.companyUrl ? (
+                            {safeExternalUrl(job.companyUrl) ? (
                               <a
-                                href={job.companyUrl}
+                                href={safeExternalUrl(job.companyUrl)!}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="hover:underline"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type { JobCardData } from "@/components/canvas/job-card";
 import type { JobFilters } from "@/components/canvas/filter-bar";
 
@@ -21,6 +21,15 @@ interface CanvasState {
 }
 
 export function useCanvasSync() {
+  const loadMoreTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup safety-timeout on unmount to prevent setState on dead component
+  useEffect(() => {
+    return () => {
+      if (loadMoreTimerRef.current) clearTimeout(loadMoreTimerRef.current);
+    };
+  }, []);
+
   const [state, setState] = useState<CanvasState>({
     jobs: [],
     filters: {},
@@ -123,9 +132,16 @@ export function useCanvasSync() {
   }, []);
 
   const loadMore = useCallback(() => {
-    // This triggers a new search via the chat - we set loading state
-    // The actual search happens through the chat interaction
+    // This triggers a new search via the chat — set loading state.
+    // Safety timeout: if the AI doesn't produce a searchJobs result within
+    // 30 seconds, reset loading to prevent the button staying stuck.
+    // Previous timers are cleared to prevent accumulation on rapid calls.
+    if (loadMoreTimerRef.current) clearTimeout(loadMoreTimerRef.current);
     setState((prev) => ({ ...prev, isLoading: true }));
+    loadMoreTimerRef.current = setTimeout(() => {
+      loadMoreTimerRef.current = null;
+      setState((prev) => (prev.isLoading ? { ...prev, isLoading: false } : prev));
+    }, 30_000);
   }, []);
 
   const setFavorites = useCallback((favoritedJobIds: Set<number>) => {

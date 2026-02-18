@@ -36,11 +36,13 @@ export async function DELETE(_req: Request, context: RouteContext) {
       return apiNotFound("Session not found");
     }
 
-    // Delete messages first, then the session
-    await db.delete(chatMessages).where(eq(chatMessages.sessionId, id));
-    await db
-      .delete(chatSessions)
-      .where(and(eq(chatSessions.id, id), eq(chatSessions.userId, user.id)));
+    // Delete messages and session atomically
+    await db.transaction(async (tx) => {
+      await tx.delete(chatMessages).where(eq(chatMessages.sessionId, id));
+      await tx
+        .delete(chatSessions)
+        .where(and(eq(chatSessions.id, id), eq(chatSessions.userId, user.id)));
+    });
 
     return new NextResponse(null, { status: 204 });
   } catch (error) {

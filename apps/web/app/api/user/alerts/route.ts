@@ -58,12 +58,6 @@ export async function POST(req: Request) {
   const rateLimitedPost = applyRateLimit(user.id, "authenticated");
   if (rateLimitedPost) return rateLimitedPost;
 
-  // Only subscribed users can create alerts
-  const gate = await checkSubscription(user.id);
-  if (!gate.isActive) {
-    return apiForbidden("Upgrade to Pro to create job alerts.");
-  }
-
   const jsonResult = await safeJsonParse(req);
   if (!jsonResult.ok) return jsonResult.response;
   const validation = parseBody(alertCreateSchema, jsonResult.data);
@@ -73,6 +67,12 @@ export async function POST(req: Request) {
   const body = validation.data;
 
   try {
+    // Only subscribed users can create alerts
+    const gate = await checkSubscription(user.id);
+    if (!gate.isActive) {
+      return apiForbidden("Upgrade to Pro to create job alerts.");
+    }
+
     const [alert] = await db
       .insert(userAlerts)
       .values({

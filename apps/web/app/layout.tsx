@@ -23,7 +23,6 @@ export const viewport: Viewport = {
   ],
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
 };
 
 export const metadata: Metadata = {
@@ -62,9 +61,6 @@ export const metadata: Metadata = {
       "max-image-preview": "large",
       "max-snippet": -1,
     },
-  },
-  alternates: {
-    canonical: "/",
   },
   appleWebApp: {
     capable: true,

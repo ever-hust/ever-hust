@@ -8,7 +8,8 @@ export const generateCoverLetterTool = tool({
   description:
     "Generate a personalized cover letter for a specific job using the user's profile. Returns the cover letter text and job details.",
   inputSchema: z.object({
-    userId: z.string().describe("The current user's ID"),
+    // userId is injected server-side by the orchestrator — not LLM-provided
+    userId: z.string().optional(),
     jobId: z
       .number()
       .describe("The job ID to generate the cover letter for"),
@@ -27,6 +28,9 @@ export const generateCoverLetterTool = tool({
       ),
   }),
   execute: async ({ userId, jobId, tone = "professional", focusAreas }) => {
+    if (!userId) return { generated: false, error: "Not authenticated" };
+
+    try {
     // Get user profile for cover letter context.
     // NOTE: Subscription / free-tier rate-limiting is handled in the
     // orchestrator wrapper (see orchestrator.ts → checkCoverLetterLimit).
@@ -107,5 +111,9 @@ export const generateCoverLetterTool = tool({
       instruction:
         "Using the context above, write a compelling cover letter. The letter should highlight the matching skills, reference specific aspects of the job description, and be written in the requested tone. Format it as a professional letter with proper paragraphs. Do NOT include placeholders - use the actual data provided. Return the cover letter text in your response.",
     };
+    } catch (err) {
+      console.error("[generate-cover-letter] execute failed:", err instanceof Error ? err.message : err);
+      return { generated: false, error: "Something went wrong while preparing the cover letter. Please try again." };
+    }
   },
 });

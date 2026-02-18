@@ -8,7 +8,8 @@ export const interviewPrepTool = tool({
   description:
     "Prepare the user for a job interview by providing company research, common interview questions, and STAR method coaching based on the specific job and user profile.",
   inputSchema: z.object({
-    userId: z.string().describe("The current user's ID"),
+    // userId is injected server-side by the orchestrator — not LLM-provided
+    userId: z.string().optional(),
     jobId: z.number().describe("The job ID to prepare for"),
     focusArea: z
       .enum([
@@ -22,6 +23,9 @@ export const interviewPrepTool = tool({
       .describe("Which aspect of interview prep to focus on"),
   }),
   execute: async ({ userId, jobId, focusArea = "general" }) => {
+    if (!userId) return { prepared: false, error: "Not authenticated" };
+
+    try {
     // Get user profile
     const userResult = await db
       .select({
@@ -106,5 +110,9 @@ export const interviewPrepTool = tool({
 
 Highlight matching skills as strengths and missing skills as areas to prepare. Be specific and actionable.`,
     };
+    } catch (err) {
+      console.error("[interview-prep] execute failed:", err instanceof Error ? err.message : err);
+      return { prepared: false, error: "Something went wrong while preparing interview materials. Please try again." };
+    }
   },
 });

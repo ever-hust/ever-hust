@@ -129,15 +129,21 @@ export async function POST(
       metadata: m.metadata ?? null,
     }));
 
-    await db.insert(chatMessages).values(rows).onConflictDoNothing();
+    const inserted = await db
+      .insert(chatMessages)
+      .values(rows)
+      .onConflictDoNothing()
+      .returning({ id: chatMessages.id });
 
-    // Touch session updatedAt
-    await db
-      .update(chatSessions)
-      .set({ updatedAt: new Date() })
-      .where(eq(chatSessions.id, sessionId));
+    // Only bump session timestamp when new messages were actually inserted
+    if (inserted.length > 0) {
+      await db
+        .update(chatSessions)
+        .set({ updatedAt: new Date() })
+        .where(eq(chatSessions.id, sessionId));
+    }
 
-    return apiSuccess({ saved: rows.length });
+    return apiSuccess({ saved: inserted.length });
   } catch (error) {
     console.error("[api/chat/messages/POST]", error instanceof Error ? error.message : error);
     return apiError("Failed to save messages");

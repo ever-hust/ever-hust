@@ -7,6 +7,7 @@ import { Button } from "@repo/ui/button";
 import { cn } from "@repo/ui/lib/utils";
 import Link from "next/link";
 import { formatSalary, formatLocation, timeAgo } from "@/lib/format-date";
+import { safeExternalUrl } from "@/lib/safe-url";
 
 export interface JobCardData {
   id: number;
@@ -73,7 +74,8 @@ export const JobCard = memo(function JobCard({
     job.isRemote
   ) ?? "Unknown";
   const posted = timeAgo(job.datePosted);
-  const applyLink = job.applyUrl ?? job.jobUrl;
+  const safeLogo = safeExternalUrl(job.companyLogo);
+  const applyLink = safeExternalUrl(job.applyUrl) ?? safeExternalUrl(job.jobUrl) ?? null;
 
   const handleFavorite = useCallback(
     (e: React.MouseEvent) => {
@@ -101,9 +103,9 @@ export const JobCard = memo(function JobCard({
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-background transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={`View ${job.title} details`}
         >
-          {job.companyLogo ? (
+          {safeLogo ? (
             <img
-              src={job.companyLogo}
+              src={safeLogo}
               alt={job.companyName ? `${job.companyName} logo` : "Company logo"}
               className="h-8 w-8 rounded object-contain"
               loading="lazy"

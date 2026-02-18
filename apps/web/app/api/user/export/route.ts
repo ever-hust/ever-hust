@@ -27,8 +27,8 @@ export async function GET() {
   }
   const userId = user.id;
 
-  // Heavy endpoint — stricter rate limit
-  const rateLimited = applyRateLimit(userId, "authenticated");
+  // Heavy endpoint — stricter rate limit (5 req/min)
+  const rateLimited = applyRateLimit(userId, "export");
   if (rateLimited) return rateLimited;
 
   try {

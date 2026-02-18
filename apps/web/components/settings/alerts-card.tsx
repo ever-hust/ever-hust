@@ -71,15 +71,9 @@ export function AlertsCard({
         toast.success("Alert deleted");
       } else {
         toast.error("Failed to delete alert");
-        throw new Error("Failed to delete alert");
       }
-    } catch (err) {
-      if (
-        !(err instanceof Error && err.message === "Failed to delete alert")
-      ) {
-        toast.error("Failed to delete alert");
-      }
-      throw err;
+    } catch {
+      toast.error("Failed to delete alert");
     }
   }, [deleteAlertId]);
 

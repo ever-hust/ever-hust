@@ -5,7 +5,14 @@ let _resend: Resend | null = null;
 /** Lazy-initialized Resend client (avoids throwing at module import time during build) */
 export function getResend(): Resend {
   if (!_resend) {
-    _resend = new Resend(process.env.RESEND_API_KEY);
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      throw new Error(
+        "RESEND_API_KEY environment variable is not configured. " +
+          "Email sending is unavailable."
+      );
+    }
+    _resend = new Resend(apiKey);
   }
   return _resend;
 }

@@ -49,7 +49,7 @@ export async function POST(req: Request) {
   }
 
   const fileName = file.name?.toLowerCase() ?? "";
-  if (fileName && !fileName.endsWith(".pdf")) {
+  if (!fileName || !fileName.endsWith(".pdf")) {
     return apiBadRequest("File must have a .pdf extension");
   }
 
@@ -73,7 +73,7 @@ export async function POST(req: Request) {
     };
 
     // Merge CV skills with existing user skills
-    if (parsed.skills.length > 0) {
+    if ((parsed.skills ?? []).length > 0) {
       const existingUser = await db
         .select({ skills: users.skills })
         .from(users)
@@ -82,7 +82,7 @@ export async function POST(req: Request) {
 
       const existingSkills = (existingUser[0]?.skills as string[]) ?? [];
       updateFields.skills = [
-        ...new Set([...existingSkills, ...parsed.skills]),
+        ...new Set([...existingSkills, ...(parsed.skills ?? [])]),
       ];
     }
 
@@ -96,11 +96,11 @@ export async function POST(req: Request) {
         name: parsed.name,
         email: parsed.email,
         phone: parsed.phone,
-        skills: parsed.skills,
-        skillsCount: parsed.skills.length,
-        hasExperience: parsed.experience.length > 0,
-        hasEducation: parsed.education.length > 0,
-        textLength: parsed.rawText.length,
+        skills: parsed.skills ?? [],
+        skillsCount: (parsed.skills ?? []).length,
+        hasExperience: (parsed.experience ?? []).length > 0,
+        hasEducation: (parsed.education ?? []).length > 0,
+        textLength: parsed.rawText?.length ?? 0,
       },
     });
   } catch (error) {

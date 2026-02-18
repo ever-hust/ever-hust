@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { safeExternalUrl } from "@/lib/safe-url";
 
 type SubscriptionStatus = "free" | "active" | "canceled" | "past_due";
 
@@ -92,8 +93,9 @@ export function useSubscription(): SubscriptionInfo {
 
       if (res.ok) {
         const data = (await res.json()) as { url: string };
-        if (data.url) {
-          window.location.href = data.url;
+        const safeUrl = safeExternalUrl(data.url);
+        if (safeUrl) {
+          window.location.href = safeUrl;
           return;
         }
       }
@@ -112,8 +114,9 @@ export function useSubscription(): SubscriptionInfo {
       const res = await fetch("/api/stripe/portal", { method: "POST" });
       if (res.ok) {
         const data = (await res.json()) as { url: string };
-        if (data.url) {
-          window.location.href = data.url;
+        const safeUrl = safeExternalUrl(data.url);
+        if (safeUrl) {
+          window.location.href = safeUrl;
           return;
         }
       }

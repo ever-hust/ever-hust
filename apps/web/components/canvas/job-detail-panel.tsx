@@ -27,6 +27,7 @@ import {
 import { cn } from "@repo/ui/lib/utils";
 import Link from "next/link";
 import { timeAgo, formatSalary, formatLocation } from "@/lib/format-date";
+import { safeExternalUrl } from "@/lib/safe-url";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 
 interface JobDetail {
@@ -81,6 +82,7 @@ export function JobDetailPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<DetailTab>("overview");
+  const tabPanelRef = useRef<HTMLDivElement>(null);
   const { copied, copy } = useCopyToClipboard();
 
   const handleShare = useCallback(async () => {
@@ -103,10 +105,9 @@ export function JobDetailPanel({
   }, [job, copy]);
 
   useEffect(() => {
-    if (!open || jobId === null) {
-      setJob(null);
-      return;
-    }
+    // Don't clear job when dialog closes — it causes a blank flash during
+    // the close animation.  Only fetch when a new jobId opens.
+    if (!open || jobId === null) return;
 
     const controller = new AbortController();
     setLoading(true);
@@ -136,10 +137,11 @@ export function JobDetailPanel({
     };
   }, [open, jobId]);
 
-  const salary = job ? formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency, null, "full") : null;
+  const salary = job ? formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency, job.salaryInterval, "full") : null;
   const location = job ? formatLocation(job.locationCity, job.locationState, job.locationCountry) : null;
   const posted = job ? timeAgo(job.datePosted) : null;
-  const applyLink = job ? (job.applyUrl || job.jobUrl) : null;
+  const safeLogo = job ? safeExternalUrl(job.companyLogo) : undefined;
+  const applyLink = job ? safeExternalUrl(job.applyUrl) ?? safeExternalUrl(job.jobUrl) ?? null : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -176,9 +178,9 @@ export function JobDetailPanel({
             <DialogHeader className="border-b px-6 py-4">
               <div className="flex items-start gap-3">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border bg-background">
-                  {job.companyLogo ? (
+                  {safeLogo ? (
                     <img
-                      src={job.companyLogo}
+                      src={safeLogo}
                       alt={job.companyName ? `${job.companyName} logo` : "Company logo"}
                       className="h-8 w-8 rounded object-contain"
                       onError={(e) => {
@@ -332,8 +334,15 @@ export function JobDetailPanel({
               ))}
             </div>
 
-            {/* Scrollable content */}
-            <div id="job-detail-tabpanel" className="max-h-[50vh] overflow-y-auto px-6 py-4" role="tabpanel" aria-labelledby={`job-detail-tab-${activeTab}`}>
+            {/* Scrollable content — reset scroll position when switching tabs */}
+            <div
+              ref={tabPanelRef}
+              id="job-detail-tabpanel"
+              className="max-h-[50vh] overflow-y-auto px-6 py-4"
+              role="tabpanel"
+              aria-labelledby={`job-detail-tab-${activeTab}`}
+              key={activeTab}
+            >
               {/* Overview tab */}
               {activeTab === "overview" && (
                 <>
@@ -432,16 +441,16 @@ export function JobDetailPanel({
                         <p className="mt-0.5 text-sm font-medium">{job.companyNumEmployees} employees</p>
                       </div>
                     )}
-                    {job.companyUrl && (
+                    {safeExternalUrl(job.companyUrl) && (
                       <div className="rounded-lg border p-3 col-span-2">
                         <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Website</p>
                         <a
-                          href={job.companyUrl}
+                          href={safeExternalUrl(job.companyUrl)!}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="mt-0.5 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
                         >
-                          {job.companyUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+                          {safeExternalUrl(job.companyUrl)!.replace(/^https?:\/\//, "").replace(/\/$/, "")}
                           <ExternalLink className="h-3 w-3" aria-hidden="true" />
                         </a>
                       </div>

@@ -62,6 +62,7 @@ export const searchJobsTool = tool({
       .describe("Offset for pagination"),
   }),
   execute: async (params) => {
+    try {
     const conditions = [];
 
     // Escape ILIKE wildcard characters (%, _) in user input to prevent
@@ -97,11 +98,11 @@ export const searchJobsTool = tool({
       );
     }
 
-    if (params.salaryMin) {
+    if (params.salaryMin !== undefined) {
       conditions.push(sql`${jobs.salaryMin}::numeric >= ${params.salaryMin}`);
     }
 
-    if (params.salaryMax) {
+    if (params.salaryMax !== undefined) {
       conditions.push(sql`${jobs.salaryMax}::numeric <= ${params.salaryMax}`);
     }
 
@@ -120,50 +121,54 @@ export const searchJobsTool = tool({
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
 
-    const results = await db
-      .select({
-        id: jobs.id,
-        externalId: jobs.externalId,
-        title: jobs.title,
-        companyName: jobs.companyName,
-        companyLogo: jobs.companyLogo,
-        companyUrl: jobs.companyUrl,
-        jobUrl: jobs.jobUrl,
-        applyUrl: jobs.applyUrl,
-        locationCity: jobs.locationCity,
-        locationState: jobs.locationState,
-        locationCountry: jobs.locationCountry,
-        isRemote: jobs.isRemote,
-        jobType: jobs.jobType,
-        salaryMin: jobs.salaryMin,
-        salaryMax: jobs.salaryMax,
-        salaryCurrency: jobs.salaryCurrency,
-        salaryInterval: jobs.salaryInterval,
-        description: jobs.description,
-        skills: jobs.skills,
-        site: jobs.site,
-        datePosted: jobs.datePosted,
-        jobLevel: jobs.jobLevel,
-        companyIndustry: jobs.companyIndustry,
-      })
-      .from(jobs)
-      .where(where)
-      .orderBy(desc(jobs.datePosted))
-      .limit(limit)
-      .offset(params.offset ?? 0);
+    // Run search and count queries in parallel for better performance
+    const [results, countResult] = await Promise.all([
+      db
+        .select({
+          id: jobs.id,
+          externalId: jobs.externalId,
+          title: jobs.title,
+          companyName: jobs.companyName,
+          companyLogo: jobs.companyLogo,
+          companyUrl: jobs.companyUrl,
+          jobUrl: jobs.jobUrl,
+          applyUrl: jobs.applyUrl,
+          locationCity: jobs.locationCity,
+          locationState: jobs.locationState,
+          locationCountry: jobs.locationCountry,
+          isRemote: jobs.isRemote,
+          jobType: jobs.jobType,
+          salaryMin: jobs.salaryMin,
+          salaryMax: jobs.salaryMax,
+          salaryCurrency: jobs.salaryCurrency,
+          salaryInterval: jobs.salaryInterval,
+          description: jobs.description,
+          skills: jobs.skills,
+          site: jobs.site,
+          datePosted: jobs.datePosted,
+          jobLevel: jobs.jobLevel,
+          companyIndustry: jobs.companyIndustry,
+        })
+        .from(jobs)
+        .where(where)
+        .orderBy(desc(jobs.datePosted))
+        .limit(limit)
+        .offset(params.offset ?? 0),
+      db
+        .select({ count: sql<number>`count(*)` })
+        .from(jobs)
+        .where(where),
+    ]);
 
-    // Truncate descriptions for the response
+    // Truncate long descriptions to keep tool responses concise
     const jobResults = results.map((job) => ({
       ...job,
       description: job.description
-        ? job.description.substring(0, 300) + "..."
+        ? job.description.length > 300
+          ? job.description.substring(0, 300) + "..."
+          : job.description
         : null,
     }));
-
-    const countResult = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(jobs)
-      .where(where);
 
     const totalCount = Number(countResult[0]?.count ?? 0);
 
@@ -174,5 +179,9 @@ export const searchJobsTool = tool({
       offset: params.offset ?? 0,
       hasMore: (params.offset ?? 0) + limit < totalCount,
     };
+    } catch (err) {
+      console.error("[search-jobs] execute failed:", err instanceof Error ? err.message : err);
+      return { jobs: [], totalCount: 0, limit: 0, offset: 0, hasMore: false, error: "Something went wrong while searching for jobs. Please try again." };
+    }
   },
 });

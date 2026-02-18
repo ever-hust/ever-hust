@@ -118,12 +118,17 @@ export function parseWebhookEvent(
 
     case "customer.subscription.updated": {
       const sub = event.data.object as Stripe.Subscription;
+      // sub.customer can be a string ID or an expanded Customer/DeletedCustomer object.
+      // Guard with typeof check — same pattern used in checkout/invoice handlers above.
+      if (!sub.customer || typeof sub.customer !== "string") {
+        return null;
+      }
       const priceId = sub.items.data[0]?.price.id;
       const matchedPlan = PLANS.find((p) => p.stripePriceId === priceId);
       return {
         type: "customer.subscription.updated",
         data: {
-          stripeCustomerId: sub.customer as string,
+          stripeCustomerId: sub.customer,
           stripeSubscriptionId: sub.id,
           status: sub.status,
           currentPeriodStart: new Date(sub.current_period_start * 1000),
@@ -136,10 +141,13 @@ export function parseWebhookEvent(
 
     case "customer.subscription.deleted": {
       const sub = event.data.object as Stripe.Subscription;
+      if (!sub.customer || typeof sub.customer !== "string") {
+        return null;
+      }
       return {
         type: "customer.subscription.deleted",
         data: {
-          stripeCustomerId: sub.customer as string,
+          stripeCustomerId: sub.customer,
           stripeSubscriptionId: sub.id,
         },
       };

@@ -5,6 +5,17 @@ export type { ScraperInput, JobPostDto, JobSearchResponse } from "./types";
 const API_URL = process.env.EVER_JOBS_API_URL ?? "https://api.everjobs.ai";
 const API_KEY = process.env.EVER_JOBS_API_KEY;
 
+/** Typed error carrying the HTTP status code — used by withRetry to skip retries on 4xx. */
+class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Circuit Breaker
 // ---------------------------------------------------------------------------
@@ -36,10 +47,10 @@ async function withRetry<T>(
 
       // Don't retry on 4xx client errors (except 429 rate limit)
       if (
-        lastError.message.includes("400") ||
-        lastError.message.includes("401") ||
-        lastError.message.includes("403") ||
-        lastError.message.includes("404")
+        lastError instanceof ApiError &&
+        lastError.status >= 400 &&
+        lastError.status < 500 &&
+        lastError.status !== 429
       ) {
         throw lastError;
       }
@@ -160,7 +171,8 @@ export class EverJobsClient {
       );
 
       if (!response.ok) {
-        throw new Error(
+        throw new ApiError(
+          response.status,
           `Ever Jobs API error: ${response.status} ${response.statusText}`
         );
       }
@@ -181,7 +193,8 @@ export class EverJobsClient {
       });
 
       if (!response.ok) {
-        throw new Error(
+        throw new ApiError(
+          response.status,
           `Ever Jobs API error: ${response.status} ${response.statusText}`
         );
       }

@@ -49,12 +49,13 @@ export function useDebouncedCallback<T extends (...args: unknown[]) => void>(
     callbackRef.current = callback;
   }, [callback]);
 
-  // Cleanup timer on unmount
+  // Cleanup timer on unmount or when delayMs changes (prevents stale
+  // timer from the old delay firing after the callback is recreated).
   useEffect(() => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, []);
+  }, [delayMs]);
 
   const debouncedFn = useCallback(
     (...args: Parameters<T>) => {

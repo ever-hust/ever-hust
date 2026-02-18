@@ -5,10 +5,11 @@ export const runtime = "edge";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const title = searchParams.get("title") ?? "AI-Powered Job Search";
-  const description =
+  const title = (searchParams.get("title") ?? "AI-Powered Job Search").slice(0, 100);
+  const description = (
     searchParams.get("description") ??
-    "Find, apply, and land your dream job through natural conversation.";
+    "Find, apply, and land your dream job through natural conversation."
+  ).slice(0, 200);
 
   return new ImageResponse(
     (

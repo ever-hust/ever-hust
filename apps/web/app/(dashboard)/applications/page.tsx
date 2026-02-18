@@ -21,6 +21,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { timeAgo, formatDate, formatLocation } from "@/lib/format-date";
+import { safeExternalUrl } from "@/lib/safe-url";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -85,6 +86,7 @@ function ApplicationSkeleton() {
 
 const ApplicationCard = memo(function ApplicationCard({ app }: { app: Application }) {
   const statusConfig = STATUS_CONFIG[app.status];
+  const safeLogo = safeExternalUrl(app.companyLogo);
   const location = formatLocation(app.locationCity, app.locationState, null, app.isRemote);
 
   return (
@@ -95,9 +97,9 @@ const ApplicationCard = memo(function ApplicationCard({ app }: { app: Applicatio
       <div className="flex items-start gap-3">
         {/* Company logo */}
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-background">
-          {app.companyLogo ? (
+          {safeLogo ? (
             <img
-              src={app.companyLogo}
+              src={safeLogo}
               alt={app.companyName ? `${app.companyName} logo` : "Company logo"}
               className="h-8 w-8 rounded object-contain"
               onError={(e) => {
@@ -186,39 +188,44 @@ export default function ApplicationsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [retryKey, setRetryKey] = useState(0);
 
-  const fetchApplications = useCallback(async (signal?: AbortSignal) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      if (statusFilter !== "all") params.set("status", statusFilter);
-      params.set("limit", "100");
-
-      const res = await fetch(`/api/user/applications?${params.toString()}`, { signal });
-      if (!res.ok) {
-        if (res.status === 401) {
-          setError("Please sign in to view your applications.");
-          return;
-        }
-        throw new Error("Failed to load applications");
-      }
-      if (signal?.aborted) return;
-      const data = (await res.json()) as { applications: Application[] };
-      setApplications(data.applications);
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
-      setError(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      if (!signal?.aborted) setIsLoading(false);
-    }
-  }, [statusFilter]);
+  const handleRetry = useCallback(() => setRetryKey((k) => k + 1), []);
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchApplications(controller.signal);
+    setIsLoading(true);
+    setError(null);
+
+    async function loadApplications() {
+      try {
+        const params = new URLSearchParams();
+        if (statusFilter !== "all") params.set("status", statusFilter);
+        params.set("limit", "100");
+
+        const res = await fetch(`/api/user/applications?${params.toString()}`, {
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          if (res.status === 401) {
+            setError("Please sign in to view your applications.");
+            return;
+          }
+          throw new Error("Failed to load applications");
+        }
+        if (controller.signal.aborted) return;
+        const data = (await res.json()) as { applications: Application[] };
+        setApplications(data.applications);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setError(err instanceof Error ? err.message : "Something went wrong");
+      } finally {
+        if (!controller.signal.aborted) setIsLoading(false);
+      }
+    }
+    loadApplications();
     return () => { controller.abort(); };
-  }, [fetchApplications]);
+  }, [statusFilter, retryKey]);
 
   // Stats summary
   const stats = useMemo(() => {
@@ -296,7 +303,7 @@ export default function ApplicationsPage() {
             ))}
           </div>
         ) : error ? (
-          <ErrorState message={error} onRetry={fetchApplications} />
+          <ErrorState message={error} onRetry={handleRetry} />
         ) : applications.length === 0 ? (
           <EmptyState
             icon={ClipboardList}

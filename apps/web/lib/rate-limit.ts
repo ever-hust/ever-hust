@@ -18,6 +18,8 @@ export const API_RATE_LIMITS = {
   public: { limit: 20, windowMs: 60_000 },
   /** AI chat route: stricter limit of 30 req/min */
   chat: { limit: 30, windowMs: 60_000 },
+  /** Heavy/expensive endpoints (data export, etc.): 5 req/min */
+  export: { limit: 5, windowMs: 60_000 },
 } as const;
 
 interface RateLimitEntry {

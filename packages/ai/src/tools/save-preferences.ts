@@ -8,7 +8,8 @@ export const savePreferencesTool = tool({
   description:
     "Save or update the user's job search preferences. Use this during onboarding or when the user explicitly updates their preferences. Merges with existing preferences.",
   inputSchema: z.object({
-    userId: z.string().describe("The current user's ID"),
+    // userId is injected server-side by the orchestrator — not LLM-provided
+    userId: z.string().optional(),
     preferences: z
       .object({
         jobType: z
@@ -77,6 +78,9 @@ export const savePreferencesTool = tool({
       .describe("Set to true to mark onboarding as completed"),
   }),
   execute: async ({ userId, preferences, markOnboardingComplete }) => {
+    if (!userId) return { saved: false, error: "Not authenticated" };
+
+    try {
     // Get existing preferences
     const existing = await db
       .select({ preferences: users.preferences })
@@ -90,18 +94,13 @@ export const savePreferencesTool = tool({
     // Merge preferences
     const merged = { ...existingPrefs, ...preferences };
 
-    const updateData: Record<string, unknown> = {
-      preferences: merged,
-      updatedAt: new Date(),
-    };
-
-    if (markOnboardingComplete) {
-      updateData.onboardingCompleted = true;
-    }
-
     await db
       .update(users)
-      .set(updateData)
+      .set({
+        preferences: merged,
+        updatedAt: new Date(),
+        ...(markOnboardingComplete ? { onboardingCompleted: true } : {}),
+      })
       .where(eq(users.id, userId));
 
     return {
@@ -112,5 +111,9 @@ export const savePreferencesTool = tool({
         ? "Preferences saved and onboarding completed! Ready to find jobs."
         : "Preferences updated successfully.",
     };
+    } catch (err) {
+      console.error("[save-preferences] execute failed:", err instanceof Error ? err.message : err);
+      return { saved: false, error: "Something went wrong while saving preferences. Please try again." };
+    }
   },
 });

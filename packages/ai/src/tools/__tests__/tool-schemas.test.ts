@@ -199,12 +199,12 @@ describe("createAlertTool schema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("should reject missing userId", () => {
+  it("should allow missing userId (injected server-side by orchestrator)", () => {
     const result = createAlertTool.inputSchema.safeParse({
       frequency: "daily",
     });
 
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
   });
 
   it("should reject missing frequency", () => {
@@ -302,12 +302,12 @@ describe("favoriteJobTool schema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should reject missing userId", () => {
+  it("should allow missing userId (injected server-side by orchestrator)", () => {
     const result = favoriteJobTool.inputSchema.safeParse({
       jobId: 123,
     });
 
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
   });
 
   it("should reject string jobId", () => {

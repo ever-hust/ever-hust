@@ -11,45 +11,55 @@ export const getJobDetailsTool = tool({
     jobId: z.number().describe("The ID of the job to get details for"),
   }),
   execute: async ({ jobId }) => {
-    const result = await db
-      .select()
-      .from(jobs)
-      .where(eq(jobs.id, jobId))
-      .limit(1);
+    try {
+      const result = await db
+        .select({
+          id: jobs.id,
+          externalId: jobs.externalId,
+          title: jobs.title,
+          companyName: jobs.companyName,
+          companyUrl: jobs.companyUrl,
+          companyLogo: jobs.companyLogo,
+          companyIndustry: jobs.companyIndustry,
+          companyNumEmployees: jobs.companyNumEmployees,
+          companyDescription: jobs.companyDescription,
+          jobUrl: jobs.jobUrl,
+          applyUrl: jobs.applyUrl,
+          locationCity: jobs.locationCity,
+          locationState: jobs.locationState,
+          locationCountry: jobs.locationCountry,
+          isRemote: jobs.isRemote,
+          jobType: jobs.jobType,
+          description: jobs.description,
+          skills: jobs.skills,
+          department: jobs.department,
+          jobLevel: jobs.jobLevel,
+          jobFunction: jobs.jobFunction,
+          salaryMin: jobs.salaryMin,
+          salaryMax: jobs.salaryMax,
+          salaryCurrency: jobs.salaryCurrency,
+          salaryInterval: jobs.salaryInterval,
+          datePosted: jobs.datePosted,
+          site: jobs.site,
+        })
+        .from(jobs)
+        .where(eq(jobs.id, jobId))
+        .limit(1);
 
-    if (result.length === 0) {
-      return { error: "Job not found", jobId };
+      if (result.length === 0) {
+        return { error: "Job not found", jobId };
+      }
+
+      const job = result[0]!;
+      return {
+        ...job,
+        // Cap long text to prevent excessive token consumption in LLM context
+        companyDescription: job.companyDescription?.slice(0, 1500) ?? null,
+        description: job.description?.slice(0, 3000) ?? null,
+      };
+    } catch (err) {
+      console.error("[get-job-details] execute failed:", err instanceof Error ? err.message : err);
+      return { error: "Something went wrong while fetching job details. Please try again.", jobId };
     }
-
-    const job = result[0]!;
-    return {
-      id: job.id,
-      externalId: job.externalId,
-      title: job.title,
-      companyName: job.companyName,
-      companyUrl: job.companyUrl,
-      companyLogo: job.companyLogo,
-      companyIndustry: job.companyIndustry,
-      companyNumEmployees: job.companyNumEmployees,
-      companyDescription: job.companyDescription,
-      jobUrl: job.jobUrl,
-      applyUrl: job.applyUrl,
-      locationCity: job.locationCity,
-      locationState: job.locationState,
-      locationCountry: job.locationCountry,
-      isRemote: job.isRemote,
-      jobType: job.jobType,
-      description: job.description,
-      skills: job.skills,
-      department: job.department,
-      jobLevel: job.jobLevel,
-      jobFunction: job.jobFunction,
-      salaryMin: job.salaryMin,
-      salaryMax: job.salaryMax,
-      salaryCurrency: job.salaryCurrency,
-      salaryInterval: job.salaryInterval,
-      datePosted: job.datePosted,
-      site: job.site,
-    };
   },
 });

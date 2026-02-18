@@ -122,25 +122,27 @@ export async function DELETE() {
   if (rateLimited) return rateLimited;
 
   try {
-    // Get all session IDs for this user
-    const userSessions = await db
-      .select({ id: chatSessions.id })
-      .from(chatSessions)
-      .where(eq(chatSessions.userId, user.id));
+    await db.transaction(async (tx) => {
+      // Get all session IDs for this user
+      const userSessions = await tx
+        .select({ id: chatSessions.id })
+        .from(chatSessions)
+        .where(eq(chatSessions.userId, user.id));
 
-    const sessionIds = userSessions.map((s) => s.id);
+      const sessionIds = userSessions.map((s) => s.id);
 
-    if (sessionIds.length > 0) {
-      // Delete all messages for these sessions first
-      await db
-        .delete(chatMessages)
-        .where(inArray(chatMessages.sessionId, sessionIds));
-    }
+      if (sessionIds.length > 0) {
+        // Delete all messages for these sessions first
+        await tx
+          .delete(chatMessages)
+          .where(inArray(chatMessages.sessionId, sessionIds));
+      }
 
-    // Delete all sessions
-    await db
-      .delete(chatSessions)
-      .where(eq(chatSessions.userId, user.id));
+      // Delete all sessions
+      await tx
+        .delete(chatSessions)
+        .where(eq(chatSessions.userId, user.id));
+    });
 
     return new NextResponse(null, { status: 204 });
   } catch (err) {

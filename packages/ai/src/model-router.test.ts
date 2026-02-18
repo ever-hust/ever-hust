@@ -128,4 +128,26 @@ describe("getModelForUser", () => {
       "claude-sonnet-4-20250514"
     );
   });
+
+  it("should ignore model preference for free users (prevent cost bypass)", () => {
+    const model = getModelForUser({
+      subscriptionStatus: "free",
+      preferences: { aiModel: "claude-opus-4-6" },
+    });
+    // Free users always get haiku regardless of model preference
+    expect((model as { modelId: string }).modelId).toBe(
+      "claude-haiku-4-5-20251001"
+    );
+  });
+
+  it("should treat past_due users as free tier", () => {
+    const model = getModelForUser({
+      subscriptionStatus: "past_due",
+      preferences: { aiModel: "claude-sonnet-4-5-20250929" },
+    });
+    // Non-active users get the free model
+    expect((model as { modelId: string }).modelId).toBe(
+      "claude-haiku-4-5-20251001"
+    );
+  });
 });

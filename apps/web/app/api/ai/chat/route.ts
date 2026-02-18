@@ -35,52 +35,73 @@ export async function POST(req: Request) {
     return apiBadRequest("Invalid request body", parsed.error.flatten());
   }
 
-  const uiMessages = parsed.data.messages as UIMessage[];
-
-  const messages = await convertToModelMessages(uiMessages);
-
-  const gate = await checkSubscription(userId);
-
-  // Check message rate limit for free users
-  const responseHeaders = new Headers();
-  if (!gate.isActive) {
-    const { allowed, remaining } = await checkMessageLimit(userId);
-    if (!allowed) {
-      return apiError(
-        "Daily message limit reached. Upgrade to Pro for unlimited messages.",
-        429,
-        { limitType: "messages", remaining: 0 },
-      );
-    }
-
-    // Pass remaining count to the streaming response
-    responseHeaders.set("X-RateLimit-Remaining", String(remaining));
+  // Guard against oversized payloads: individual messages are capped at 50K chars
+  // by the schema, but 100 messages × 50K = 5MB total. Cap aggregate at 500K chars
+  // (~500KB) to avoid excessive memory and token costs.
+  const totalChars = parsed.data.messages.reduce(
+    (sum, m) => sum + m.content.length,
+    0
+  );
+  if (totalChars > 500_000) {
+    return apiBadRequest(
+      "Total message content is too large. Please start a new conversation or remove older messages."
+    );
   }
 
-  // Fetch actual user preferences for model selection (BYOK keys, preferred model)
-  const userRow = await db
-    .select({ preferences: users.preferences })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
+  const uiMessages = parsed.data.messages as UIMessage[];
 
-  const preferences = (userRow[0]?.preferences as {
-    aiModel?: string;
-    apiKeys?: { anthropic?: string; openai?: string; google?: string };
-  }) ?? null;
+  try {
+    const messages = await convertToModelMessages(uiMessages);
 
-  const model = getModelForUser({
-    subscriptionStatus: gate.isActive ? "active" : "free",
-    preferences,
-  });
+    const gate = await checkSubscription(userId);
 
-  // createOrchestratorStream is now async (fetches prompt from Langfuse)
-  const result = await createOrchestratorStream({
-    model,
-    messages,
-    userId,
-    isSubscribed: gate.isActive,
-  });
+    // Check message rate limit for free users
+    const responseHeaders = new Headers();
+    if (!gate.isActive) {
+      const { allowed, remaining } = await checkMessageLimit(userId);
+      if (!allowed) {
+        return apiError(
+          "Daily message limit reached. Upgrade to Pro for unlimited messages.",
+          429,
+          { limitType: "messages", remaining: 0 },
+        );
+      }
 
-  return result.toUIMessageStreamResponse({ headers: responseHeaders });
+      // Pass remaining count to the streaming response
+      responseHeaders.set("X-RateLimit-Remaining", String(remaining));
+    }
+
+    // Fetch actual user preferences for model selection (BYOK keys, preferred model)
+    const userRow = await db
+      .select({ preferences: users.preferences })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    const preferences = (userRow[0]?.preferences as {
+      aiModel?: string;
+      apiKeys?: { anthropic?: string; openai?: string; google?: string };
+    }) ?? null;
+
+    const model = getModelForUser({
+      subscriptionStatus: gate.isActive ? "active" : "free",
+      preferences,
+    });
+
+    // createOrchestratorStream is now async (fetches prompt from Langfuse)
+    const result = await createOrchestratorStream({
+      model,
+      messages,
+      userId,
+      isSubscribed: gate.isActive,
+    });
+
+    return result.toUIMessageStreamResponse({ headers: responseHeaders });
+  } catch (error) {
+    console.error(
+      "[api/ai/chat] Error processing chat request:",
+      error instanceof Error ? error.stack ?? error.message : error,
+    );
+    return apiError("Failed to process chat request");
+  }
 }

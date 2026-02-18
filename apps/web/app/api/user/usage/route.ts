@@ -7,7 +7,7 @@ import {
   peekCoverLetterUsage,
 } from "../../../../lib/subscription-gate";
 import { applyRateLimit } from "../../../../lib/rate-limit";
-import { apiSuccess } from "../../../../lib/api-response";
+import { apiSuccess, apiError } from "../../../../lib/api-response";
 
 /**
  * GET /api/user/usage
@@ -29,44 +29,50 @@ export async function GET() {
   const rateLimited = applyRateLimit(user.id, "authenticated");
   if (rateLimited) return rateLimited;
 
-  const gate = await checkSubscription(user.id);
+  try {
+    const gate = await checkSubscription(user.id);
 
-  if (gate.isActive) {
-    // Usage stats are relatively stable — brief cache for pro users
-    return apiSuccess(
-      { plan: "pro", unlimited: true, usage: null },
-      { cacheSeconds: 30 },
-    );
+    if (gate.isActive) {
+      // Usage stats are relatively stable — brief cache for pro users.
+      // isPrivate prevents CDN from sharing one user's plan status with another.
+      return apiSuccess(
+        { plan: "pro", unlimited: true, usage: null },
+        { cacheSeconds: 30, isPrivate: true },
+      );
+    }
+
+    // Read-only peek at current usage stats for free users.
+    // These do NOT increment counters.
+    const messages = peekMessageUsage(user.id);
+    const searches = peekSearchUsage(user.id);
+    const coverLetters = peekCoverLetterUsage(user.id);
+
+    return apiSuccess({
+      plan: "free",
+      unlimited: false,
+      usage: {
+        messages: {
+          used: messages.used,
+          remaining: messages.remaining,
+          limit: messages.limit,
+          period: "day",
+        },
+        searches: {
+          used: searches.used,
+          remaining: searches.remaining,
+          limit: searches.limit,
+          period: "day",
+        },
+        coverLetters: {
+          used: coverLetters.used,
+          remaining: coverLetters.remaining,
+          limit: coverLetters.limit,
+          period: "week",
+        },
+      },
+    });
+  } catch (err) {
+    console.error("[api/user/usage] GET failed:", err instanceof Error ? err.message : err);
+    return apiError("Failed to load usage stats");
   }
-
-  // Read-only peek at current usage stats for free users.
-  // These do NOT increment counters.
-  const messages = peekMessageUsage(user.id);
-  const searches = peekSearchUsage(user.id);
-  const coverLetters = peekCoverLetterUsage(user.id);
-
-  return apiSuccess({
-    plan: "free",
-    unlimited: false,
-    usage: {
-      messages: {
-        used: messages.used,
-        remaining: messages.remaining,
-        limit: messages.limit,
-        period: "day",
-      },
-      searches: {
-        used: searches.used,
-        remaining: searches.remaining,
-        limit: searches.limit,
-        period: "day",
-      },
-      coverLetters: {
-        used: coverLetters.used,
-        remaining: coverLetters.remaining,
-        limit: coverLetters.limit,
-        period: "week",
-      },
-    },
-  });
 }

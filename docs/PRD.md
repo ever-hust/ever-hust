@@ -1,9 +1,9 @@
 # Ever Jobs - Product Requirements Document (PRD)
 
-**Version**: 1.2
+**Version**: 1.3
 **Date**: 2026-02-18
-**Status**: MVP Implemented + Production Hardening
-**Previous Versions**: 1.1 (2026-02-15), 1.0 (2026-02-14, Approved)
+**Status**: MVP Implemented + Production Hardening + Architecture Audit
+**Previous Versions**: 1.2 (2026-02-18), 1.1 (2026-02-15), 1.0 (2026-02-14, Approved)
 **Domain**: everjobs.ai
 **License**: Proprietary (All Rights Reserved)
 **Repository**: github.com/ever-co/ever-jobs-website
@@ -43,7 +43,7 @@
 18. [API Contracts](#18-api-contracts)
 19. [Non-Functional Requirements](#19-non-functional-requirements)
 20. [Success Metrics](#20-success-metrics)
-- [Appendix A: Implementation Status](#appendix-a-implementation-status-v11)
+- [Appendix A: Implementation Status](#appendix-a-implementation-status-v13)
 - [Appendix B: License](#appendix-b-license)
 
 ---
@@ -54,7 +54,7 @@ Ever Jobs is an AI-first job search platform where the primary user experience i
 
 The platform consumes job data from an external Ever Jobs API (github.com/ever-co/ever-jobs, deployed separately in Kubernetes), which aggregates listings from 25 sources including LinkedIn, Indeed, Glassdoor, ZipRecruiter, and multiple ATS platforms. Jobs are stored locally in a shared PostgreSQL database (Supabase) and presented through an intelligent, agent-driven interface.
 
-The system is built as a Turborepo monorepo deployed on Vercel, with a Supabase PostgreSQL database managed via Drizzle ORM. Monetization is handled through Stripe subscriptions at three pricing tiers. Background jobs (alerts, job syncing) are managed by Trigger.dev v3. The AI layer uses Vercel AI SDK v6 with multiple specialized agents (job search, application, cover letter, interview prep) coordinated by an orchestrator agent, all supporting human-in-the-loop approval flows.
+The system is built as a Turborepo monorepo deployed on Vercel, with a Supabase PostgreSQL database managed via Drizzle ORM. Monetization is handled through Stripe subscriptions at three pricing tiers. Background jobs (alerts, job syncing) are managed by Trigger.dev v3. The AI layer uses Vercel AI SDK v6 with a unified orchestrator agent that handles all tasks (job search, application, cover letter, interview prep) via 11 registered tools and behavioral guidance in the system prompt, with OpenRouter for multi-model routing, Langfuse for observability, and human-in-the-loop approval flows.
 
 ---
 
@@ -76,7 +76,7 @@ Eliminate the friction of job searching by making an AI assistant the primary in
 ### What Makes Ever Jobs Different
 
 1. **AI Chat as Primary UX**: Not a search box with filters, but a conversation that understands career goals
-2. **Agent-First Architecture**: Built from day 1 as a multi-agent platform, not a traditional web app with AI bolted on
+2. **Agent-First Architecture**: Built from day 1 as a unified orchestrator agent platform with tool-based capabilities, not a traditional web app with AI bolted on
 3. **25 Source Aggregation**: Powered by the Ever Jobs API, covering major boards, ATS platforms, and direct company scrapers
 4. **End-to-End Application**: Moving toward fully automated job applications via AI agents (Phase 5+)
 5. **Real-Time Canvas**: Job results update live as the AI conversation refines preferences
@@ -298,12 +298,10 @@ ever-jobs-website/
 │   │   │   │   ├── jobs.ts
 │   │   │   │   ├── user-jobs.ts
 │   │   │   │   ├── user-alerts.ts
-│   │   │   │   ├── chat-sessions.ts
-│   │   │   │   ├── chat-messages.ts
-│   │   │   │   ├── agent-instances.ts
+│   │   │   │   ├── chat.ts              # Combined sessions + messages
+│   │   │   │   ├── agents.ts
 │   │   │   │   ├── subscriptions.ts
 │   │   │   │   ├── applications.ts
-│   │   │   │   ├── auth.ts              # BetterAuth required tables
 │   │   │   │   └── index.ts
 │   │   │   ├── migrations/
 │   │   │   ├── seed.ts
@@ -314,56 +312,51 @@ ever-jobs-website/
 │   │   └── package.json
 │   ├── auth/                            # BetterAuth configuration
 │   │   ├── src/
-│   │   │   ├── server.ts               # BetterAuth server instance
-│   │   │   ├── client.ts               # BetterAuth client helpers
-│   │   │   ├── linkedin-profile.ts     # LinkedIn data extraction logic
-│   │   │   └── index.ts
+│   │   │   ├── index.ts               # BetterAuth server config (includes LinkedIn profile logic)
+│   │   │   └── client.ts              # BetterAuth client helpers
 │   │   ├── tsconfig.json
 │   │   └── package.json
 │   ├── ai/                              # AI agents, tools, prompts, model router
 │   │   ├── src/
 │   │   │   ├── agents/
-│   │   │   │   ├── orchestrator.ts     # Routes to specialized agents
-│   │   │   │   ├── onboarding.ts       # Initial user onboarding flow
-│   │   │   │   ├── job-search.ts       # Search + filter agent
-│   │   │   │   ├── cover-letter.ts     # Cover letter generation agent
-│   │   │   │   ├── application.ts      # Job application agent (HITL)
-│   │   │   │   ├── interview-prep.ts   # Interview preparation agent
-│   │   │   │   └── types.ts            # Shared agent type definitions
+│   │   │   │   └── orchestrator.ts     # Unified agent handling all tasks via tools + system prompt
 │   │   │   ├── tools/
 │   │   │   │   ├── search-jobs.ts
-│   │   │   │   ├── apply-job.ts
-│   │   │   │   ├── generate-cover-letter.ts
-│   │   │   │   ├── get-user-profile.ts
 │   │   │   │   ├── update-filters.ts
 │   │   │   │   ├── favorite-job.ts
-│   │   │   │   ├── create-alert.ts
 │   │   │   │   ├── get-job-details.ts
+│   │   │   │   ├── get-user-profile.ts
+│   │   │   │   ├── save-preferences.ts
+│   │   │   │   ├── generate-cover-letter.ts
+│   │   │   │   ├── create-alert.ts
+│   │   │   │   ├── apply-job.ts
+│   │   │   │   ├── submit-answers.ts
+│   │   │   │   ├── interview-prep.ts
 │   │   │   │   └── index.ts
 │   │   │   ├── prompts/
-│   │   │   │   ├── system.ts           # Base system prompt
-│   │   │   │   ├── onboarding.ts       # Onboarding conversation guide
-│   │   │   │   ├── guidance-topics.ts  # Topics the AI should explore
+│   │   │   │   ├── orchestrator-system.ts # Unified system prompt (onboarding, search, cover letters, etc.)
+│   │   │   │   ├── guidance-topics.ts    # Topics the AI should explore
 │   │   │   │   └── index.ts
 │   │   │   ├── model-router.ts         # Multi-model routing (tier + BYOK)
+│   │   │   ├── crypto.ts              # BYOK AES-256-GCM encryption
+│   │   │   ├── rate-limit.ts          # AI request rate limiting
 │   │   │   └── index.ts
 │   │   ├── tsconfig.json
 │   │   └── package.json
 │   ├── jobs-api/                        # Ever Jobs API client library
 │   │   ├── src/
-│   │   │   ├── client.ts              # HTTP client with retry/circuit breaker
+│   │   │   ├── index.ts               # HTTP client + mappers (consolidated)
 │   │   │   ├── types.ts               # API request/response types (ScraperInputDto, JobPostDto)
-│   │   │   ├── mappers.ts             # API response to DB schema mappers
-│   │   │   └── index.ts
+│   │   │   └── types.test.ts          # Type validation tests
 │   │   ├── tsconfig.json
 │   │   └── package.json
 │   ├── stripe/                          # Stripe billing integration
 │   │   ├── src/
-│   │   │   ├── client.ts
 │   │   │   ├── plans.ts               # Plan definitions + price IDs
+│   │   │   ├── plans.test.ts          # Plan configuration tests
 │   │   │   ├── checkout.ts
 │   │   │   ├── portal.ts
-│   │   │   ├── webhooks.ts
+│   │   │   ├── webhook.ts            # Stripe webhook handler (singular)
 │   │   │   └── index.ts
 │   │   ├── tsconfig.json
 │   │   └── package.json
@@ -373,44 +366,35 @@ ever-jobs-website/
 │   │   │   │   ├── job-alert.tsx       # React Email template
 │   │   │   │   ├── welcome.tsx
 │   │   │   │   └── subscription-confirmed.tsx
-│   │   │   ├── sender.ts             # Email sending via Resend
+│   │   │   ├── send.ts               # Email sending via Resend
 │   │   │   └── index.ts
 │   │   ├── tsconfig.json
 │   │   └── package.json
 │   ├── triggers/                        # Trigger.dev task definitions
 │   │   ├── src/
-│   │   │   ├── jobs/
-│   │   │   │   ├── send-alerts.ts     # Cron: match jobs to alerts, send emails
-│   │   │   │   ├── sync-jobs.ts       # Cron: fetch new jobs from Ever Jobs API
-│   │   │   │   └── cleanup.ts         # Cron: expire old jobs, clean sessions
-│   │   │   ├── trigger.config.ts
-│   │   │   └── index.ts
+│   │   │   ├── sync-jobs.ts           # Cron: fetch new jobs from Ever Jobs API
+│   │   │   ├── send-job-alerts.ts     # Cron: match jobs to alerts, send emails
+│   │   │   └── trigger.config.ts
 │   │   ├── tsconfig.json
 │   │   └── package.json
-│   ├── supabase/                        # Supabase client (Realtime + Storage)
+│   ├── supabase/                        # Supabase client (Realtime)
 │   │   ├── src/
-│   │   │   ├── client.ts             # Supabase client instance
-│   │   │   ├── storage.ts            # Storage helpers (upload, download, URLs)
+│   │   │   ├── client.ts             # Supabase browser client instance
+│   │   │   ├── server.ts             # Supabase server client instance
 │   │   │   ├── realtime.ts           # Realtime subscription helpers
 │   │   │   └── index.ts
 │   │   ├── tsconfig.json
 │   │   └── package.json
-│   ├── cv-parser/                       # CV parsing logic
+│   ├── cv-parser/                       # CV parsing logic (AI-powered extraction)
 │   │   ├── src/
-│   │   │   ├── parser.ts             # Main parser (PDF/DOCX extraction)
-│   │   │   ├── extractors/
-│   │   │   │   ├── skills.ts
-│   │   │   │   ├── experience.ts
-│   │   │   │   └── education.ts
-│   │   │   ├── types.ts
-│   │   │   └── index.ts
+│   │   │   ├── index.ts              # Consolidated parser with AI-powered extraction
+│   │   │   └── index.test.ts         # Parser tests
 │   │   ├── tsconfig.json
 │   │   └── package.json
 │   ├── utils/                           # Shared utilities
 │   │   ├── src/
-│   │   │   ├── types.ts               # Shared TypeScript types
-│   │   │   ├── constants.ts           # App-wide constants
-│   │   │   ├── validation.ts          # Zod schemas for validation
+│   │   │   ├── helpers.ts             # Shared utility functions
+│   │   │   ├── helpers.test.ts        # Utility tests
 │   │   │   └── index.ts
 │   │   ├── tsconfig.json
 │   │   └── package.json
@@ -756,7 +740,7 @@ export function getModelForUser(user: User): LanguageModel {
 
 ## 9. AI Agent Architecture
 
-Built on Vercel AI SDK v6 `ToolLoopAgent` / `Agent` interface. Designed from day 1 as a multi-agent platform.
+Built on Vercel AI SDK v6 with a **unified orchestrator agent** architecture. All task-specific behavior (onboarding, job search, cover letters, applications, interview prep) is driven by the system prompt and tool selection, not separate agent instances. Model routing uses OpenRouter for multi-provider access and Langfuse for prompt management and observability.
 
 ### Architecture Overview
 
@@ -765,48 +749,48 @@ Built on Vercel AI SDK v6 `ToolLoopAgent` / `Agent` interface. Designed from day
                         |                   |
    User Message ------->|  Orchestrator     |
                         |  Agent            |
-                        |                   |
+                        |  (unified)        |
                         +--------+----------+
                                  |
-                    +------------+------------+
-                    |            |            |
-              +-----v----+ +----v-----+ +---v--------+
-              |          | |          | |            |
-              | Onboard  | | Job      | | Cover      |
-              | Agent    | | Search   | | Letter     |
-              |          | | Agent    | | Agent      |
-              +----------+ +----+-----+ +---+--------+
-                                |            |
-                          +-----v----+ +----v--------+
-                          |          | |             |
-                          | Apply    | | Interview   |
-                          | Agent    | | Prep Agent  |
-                          | (HITL)   | |             |
-                          +----------+ +-------------+
+              All 11 tools registered directly
+                                 |
+         +-------+-------+------+------+-------+-------+
+         |       |       |      |      |       |       |
+     search  update  favorite  get   save   generate  create
+     Jobs   Filters   Job    Details Prefs  CoverLtr  Alert
+                                 |
+                    +------+-----+------+
+                    |      |            |
+                 apply  submit     interview
+                 Job   Answers       Prep
+                (HITL)  (HITL)
 ```
 
-### 9.1 Orchestrator Agent
+**Key Design Principle**: "Agent routing" is handled by the LLM interpreting the system prompt at `packages/ai/src/prompts/orchestrator-system.ts`, NOT by code dispatching to separate agent instances. The system prompt includes behavioral guidance for all workflows.
 
-**Purpose**: Routes user requests to the appropriate specialized agent. Acts as the main conversation handler.
+### 9.1 Orchestrator Agent (Unified)
+
+**Purpose**: Single agent that handles ALL user interactions -- onboarding, job search, cover letters, applications, interview prep, and general conversation.
 
 **File**: `packages/ai/src/agents/orchestrator.ts`
 
 **Capabilities**:
-- Routes messages to specialized agents based on intent detection
-- Handles general conversation and simple queries directly
-- Has access to all basic tools (searchJobs, updateFilters, favoriteJob, getUserProfile, createAlert)
-- System prompt with routing heuristics
+- All 11 tools registered directly on a single agent instance
+- System prompt (`orchestrator-system.ts`) contains behavioral guidance for each workflow domain
+- Intent detection is implicit via LLM reasoning, not explicit code routing
+- Handles general conversation and complex multi-step workflows alike
+- Human-in-the-loop approval for sensitive actions (apply, submit answers)
 
-**Routing Logic**:
-- Job search queries -> Job Search Agent (or handle directly with searchJobs tool)
-- "Apply to..." requests -> Application Agent
-- "Cover letter for..." requests -> Cover Letter Agent
-- "Prepare me for interview at..." -> Interview Prep Agent
-- General conversation / onboarding -> Handle directly or delegate to Onboarding Agent
+**Behavioral Domains** (driven by system prompt, not separate agents):
+- **Onboarding**: Guides new users through preference collection using LinkedIn data; AI-guided with topic list from `guidance-topics.ts`, not hardcoded questions
+- **Job Search**: Translates natural language to structured filter parameters, queries jobs table, returns results with commentary
+- **Cover Letters**: Generates personalized cover letters using user profile + job description
+- **Applications**: End-to-end job application with HITL approval flows
+- **Interview Prep**: Interview question identification, STAR method coaching, mock interviews, company research
 
-### 9.2 Onboarding Agent
+### 9.2 Onboarding Behavior
 
-**Purpose**: Guides new users through preference collection using LinkedIn data.
+**Driven by**: System prompt guidance + `guidance-topics.ts`
 
 **Key Design**: NOT hardcoded questions. AI-guided with a topic list:
 - Job type preference (remote/hybrid/on-site)
@@ -822,29 +806,13 @@ Built on Vercel AI SDK v6 `ToolLoopAgent` / `Agent` interface. Designed from day
 
 The AI weaves these topics into natural conversation, not an interrogation.
 
-### 9.3 Job Search Agent
-
-**Purpose**: Executes complex job searches, applies filters, ranks results.
-
-**Tools**: searchJobs, updateFilters, getJobDetails
-
-**Behavior**: Translates natural language to structured filter parameters, queries the jobs table, returns results with commentary, can refine based on follow-up.
-
-### 9.4 Cover Letter Agent
-
-**Purpose**: Generates personalized cover letters.
-
-**Inputs**: User profile data (skills, experience, headline, CV) + job description + requirements
-
-**Output**: Formatted cover letter (300-500 words), adaptable tone (formal/casual/enthusiastic).
-
-### 9.5 Application Agent (Human-in-the-Loop)
+### 9.3 Application Flow (Human-in-the-Loop)
 
 **Purpose**: Handles end-to-end job application. Uses `needsApproval: true` on sensitive tools.
 
 **Flow**:
 1. User says "Apply to Senior React Developer at TechCorp"
-2. Orchestrator routes to Application Agent
+2. Orchestrator identifies application intent from conversation context
 3. Agent calls applyJob tool (needsApproval) -> client shows approval UI
 4. User approves -> tool opens application URL or sends to external API
 5. If external API returns questions -> agent presents in chat
@@ -856,18 +824,7 @@ The AI weaves these topics into natural conversation, not an interrogation.
 
 **Note**: The Ever Jobs API is read-only (no apply endpoint). Initially, the Apply button opens `applyUrl`/`jobUrl` in a new tab. In Phase 5, a separate external auto-apply API will handle automated applications.
 
-### 9.6 Interview Prep Agent
-
-**Purpose**: Helps users prepare for interviews.
-
-**Capabilities**:
-- Identifies likely interview questions based on role/company
-- STAR method coaching for behavioral questions
-- Mock interview conversation
-- Company research and talking points
-- Feedback on responses
-
-### 9.7 Tools
+### 9.4 Tools
 
 All tools in `packages/ai/src/tools/`:
 
@@ -876,14 +833,16 @@ All tools in `packages/ai/src/tools/`:
 | `search-jobs` | Query jobs table with filters | No |
 | `update-filters` | Push filter state to canvas UI | No |
 | `favorite-job` | Toggle favorite status | No |
-| `get-user-profile` | Read user profile data | No |
 | `get-job-details` | Fetch single job details | No |
+| `get-user-profile` | Read user profile data | No |
+| `save-preferences` | Save user preferences and settings | No |
 | `generate-cover-letter` | AI cover letter generation | No |
 | `create-alert` | Create job alert | No |
 | `apply-job` | Initiate application | **Yes** |
 | `submit-answers` | Submit application answers | **Yes** |
+| `interview-prep` | Interview preparation and coaching | No |
 
-### 9.8 Canvas Sync (Critical Bridge)
+### 9.5 Canvas Sync (Critical Bridge)
 
 Chat tool results stream to client via `useChat` hook. A custom `use-canvas-sync` hook watches for tool invocation results and dispatches to the canvas state store:
 
@@ -1699,7 +1658,7 @@ Response: {
 
 ---
 
-## Appendix A: Implementation Status (v1.2)
+## Appendix A: Implementation Status (v1.3)
 
 > Updated 2026-02-18. See [MVP Implementation Summary](./MVP-IMPLEMENTATION-SUMMARY.md) for detailed change log.
 
@@ -1716,9 +1675,9 @@ Response: {
 | Phase 6: Testing & Polish | ✅ Complete | E2E + unit tests, error boundaries, loading states, SEO, sitemap |
 | Phase 7: Production Hardening | ✅ Complete | Analytics, Speed Insights, bundle optimization, BYOK encryption, Realtime, a11y |
 
-### Phase 7: Production Hardening (v1.2)
+### Phase 7: Production Hardening (v1.2) + Architecture Audit (v1.3)
 
-Added in v1.2 to address known limitations from MVP:
+Added in v1.2 to address known limitations from MVP. Updated in v1.3 to reflect architecture audit findings:
 
 #### 7.1 Vercel Analytics & Speed Insights
 - **`@vercel/analytics`**: Web analytics with page view tracking, custom events
@@ -1753,6 +1712,35 @@ Added in v1.2 to address known limitations from MVP:
 - Skip links: "Skip to main content" link in root layout
 - Semantic HTML: Proper heading hierarchy, landmarks, and form associations
 
+#### 7.6 OpenRouter Integration
+- **Multi-model routing**: OpenRouter used as a provider for accessing multiple LLM backends (Anthropic, OpenAI, etc.) through a single API
+- **Configuration**: Integrated into `model-router.ts` alongside direct provider access
+- **Fallback**: Enables graceful model fallback when a primary provider is unavailable
+
+#### 7.7 Langfuse Observability
+- **Prompt management**: System prompts managed and versioned via Langfuse
+- **Tracing**: AI request/response tracing for debugging and optimization
+- **Analytics**: Token usage tracking, latency monitoring, and cost analysis per user/session
+
+#### 7.8 Chat Persistence & Session History
+- **3 API routes**: Chat sessions CRUD, message history retrieval, session management
+- **Schema**: Combined `chat.ts` schema handles both sessions and messages in a single file
+- **Resumable**: Users can continue previous conversations with full context restoration
+
+#### 7.9 PWA Support
+- **Install prompt**: Progressive Web App install prompt for mobile and desktop
+- **Offline page**: Custom offline fallback page when network is unavailable
+- **Service worker**: Caches critical assets for improved load performance
+
+#### 7.10 Keyboard Shortcuts
+- **System**: Global keyboard shortcuts for common actions (navigation, search focus, theme toggle)
+- **Discoverability**: Shortcut hints displayed in UI tooltips
+
+#### 7.11 API Endpoints
+- **Health check**: `/api/health` endpoint for uptime monitoring and deployment verification
+- **User data export**: `/api/user/export` endpoint for GDPR-compliant data export
+- **Usage stats/quota tracking**: `/api/user/usage` endpoint for tracking AI usage against subscription tier limits
+
 ### Key Architectural Decisions Made During Implementation
 
 1. **Route Groups**: `(dashboard)` does NOT add URL segments. Actual routes are `/chat`, `/jobs`, `/profile`, `/settings`.
@@ -1764,6 +1752,9 @@ Added in v1.2 to address known limitations from MVP:
 7. **BYOK Encryption**: AES-256-GCM with PBKDF2 key derivation; encrypted at rest in JSONB, decrypted only in model-router at runtime.
 8. **Analytics**: Vercel Analytics + Speed Insights for zero-config RUM on Vercel deployment.
 9. **Realtime Architecture**: Supabase Realtime subscriptions scoped to `jobs` table INSERTs; canvas updates via React hook.
+10. **Unified Agent Architecture**: Single orchestrator agent with 11 tools, NOT multi-agent dispatch. All behavioral specialization lives in the system prompt.
+11. **OpenRouter + Langfuse**: Multi-model routing via OpenRouter; prompt management and observability via Langfuse.
+12. **Chat Persistence**: 3 API routes for session management; combined `chat.ts` schema for sessions + messages.
 
 ### Known Limitations (Out of Scope)
 
@@ -1771,6 +1762,7 @@ Added in v1.2 to address known limitations from MVP:
 - Database branching for preview deployments (Supabase feature)
 - CV drag-and-drop zone in canvas (exists on profile page only)
 - Multi-provider BYOK (only Anthropic keys supported; OpenAI/Google keys stored but not yet routed)
+- Multi-agent architecture (consolidated into single orchestrator; separate agents may be reintroduced if complexity warrants it)
 
 ---
 

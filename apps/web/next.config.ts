@@ -3,7 +3,7 @@ import withBundleAnalyzer from "@next/bundle-analyzer";
 
 const nextConfig: NextConfig = {
   // Instrumentation (apps/web/instrumentation.ts) is auto-detected by Next.js 16+
-  transpilePackages: ["@repo/ui", "@repo/auth", "@repo/db", "@repo/utils", "@repo/cv-parser"],
+  transpilePackages: ["@repo/ui", "@repo/auth", "@repo/db", "@repo/utils", "@repo/cv-parser", "@repo/supabase"],
 
   // Enable response compression (gzip/brotli)
   compress: true,

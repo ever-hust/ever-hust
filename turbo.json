@@ -2,6 +2,15 @@
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
   "globalDependencies": [".env.local"],
+  "globalEnv": [
+    "NODE_ENV",
+    "ANALYZE",
+    "HEALTH_CHECK_TOKEN",
+    "VERCEL_GIT_COMMIT_SHA",
+    "STRIPE_WEBHOOK_SECRET",
+    "LANGFUSE_PUBLIC_KEY",
+    "LANGFUSE_SECRET_KEY"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

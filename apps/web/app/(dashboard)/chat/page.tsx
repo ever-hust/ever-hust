@@ -8,7 +8,7 @@ import { ChatPanel } from "@/components/chat/chat-panel";
 import { JobsCanvas } from "@/components/canvas/jobs-canvas";
 import { useCanvasSync } from "@/hooks/use-canvas-sync";
 import { useFavorites } from "@/hooks/use-favorites";
-import { useRealtimeJobs } from "@/hooks/use-realtime-jobs";
+import { useRealtimeJobs, type RealtimeJob } from "@/hooks/use-realtime-jobs";
 import { useKeyboardShortcuts, getChatShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { toast } from "sonner";
 
@@ -69,22 +69,31 @@ export default function ChatPage() {
   // automatically without requiring a page refresh or new search.
   useRealtimeJobs({
     onInsert: useCallback(
-      (job) => {
+      (job: RealtimeJob) => {
         canvas.addRealtimeJob({
           id: job.id,
+          externalId: job.external_id,
           title: job.title,
           companyName: job.company_name,
           companyLogo: job.company_logo,
+          companyUrl: null,
           jobUrl: job.job_url,
+          applyUrl: null,
           locationCity: job.location_city,
+          locationState: null,
           locationCountry: job.location_country,
           isRemote: job.is_remote,
-          salaryMin: job.salary_min,
-          salaryMax: job.salary_max,
+          jobType: null,
+          salaryMin: job.salary_min != null ? String(job.salary_min) : null,
+          salaryMax: job.salary_max != null ? String(job.salary_max) : null,
           salaryCurrency: job.salary_currency,
+          salaryInterval: null,
+          description: null,
           skills: job.skills,
           datePosted: job.date_posted,
           site: job.site,
+          jobLevel: null,
+          companyIndustry: null,
         });
       },
       // eslint-disable-next-line react-hooks/exhaustive-deps

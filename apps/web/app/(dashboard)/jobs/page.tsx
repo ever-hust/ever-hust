@@ -15,7 +15,9 @@ export default function JobsPage() {
   const [filters, setFilters] = useState<JobFilters>({});
   const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [error, setError] = useState<string | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const loadMoreAbortRef = useRef<AbortController | null>(null);

@@ -18,9 +18,7 @@ import {
   Clock,
   Heart,
   DollarSign,
-  Briefcase,
   FileText,
-  X,
   Share2,
   Check,
 } from "lucide-react";

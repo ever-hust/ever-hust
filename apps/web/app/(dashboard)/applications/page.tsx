@@ -9,7 +9,6 @@ import {
   Clock,
   FileText,
   ExternalLink,
-  Loader2,
   Filter,
 } from "lucide-react";
 import { Button } from "@repo/ui/button";
@@ -20,7 +19,7 @@ import { ScrollToTop } from "@/components/shared/scroll-to-top";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { PageHeader } from "@/components/shared/page-header";
-import { timeAgo, formatDate, formatLocation } from "@/lib/format-date";
+import { timeAgo, formatLocation } from "@/lib/format-date";
 import { safeExternalUrl } from "@/lib/safe-url";
 
 // ---------------------------------------------------------------------------

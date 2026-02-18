@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
-import { getSupabaseClient } from "@repo/supabase/client";
+import { getSupabaseClient } from "@repo/supabase";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
-interface RealtimeJob {
+export interface RealtimeJob {
   id: number;
   external_id: string;
   title: string;

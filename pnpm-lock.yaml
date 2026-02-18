@@ -101,6 +101,9 @@ importers:
       '@repo/stripe':
         specifier: workspace:*
         version: link:../../packages/stripe
+      '@repo/supabase':
+        specifier: workspace:*
+        version: link:../../packages/supabase
       '@repo/ui':
         specifier: workspace:*
         version: link:../../packages/ui

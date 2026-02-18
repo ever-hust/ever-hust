@@ -51,6 +51,7 @@ export function useFetch<T>(
   // Serialize deps to a stable string so callers can pass inline arrays
   // (e.g. `{ deps: [userId] }`) without triggering infinite refetch loops
   // due to new array references on every render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const depsKey = useMemo(() => JSON.stringify(deps), deps);
 
   // Keep transform in a ref to avoid stale closures without re-creating

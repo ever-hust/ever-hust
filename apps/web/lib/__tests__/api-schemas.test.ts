@@ -5,7 +5,6 @@
 import {
   jobSearchParamsSchema,
   chatRequestSchema,
-  settingsPatchSchema,
   checkoutSchema,
   favoriteToggleSchema,
   profilePatchSchema,

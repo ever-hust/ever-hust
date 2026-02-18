@@ -32,6 +32,7 @@
     "@repo/auth": "workspace:*",
     "@repo/cv-parser": "workspace:*",
     "@repo/db": "workspace:*",
+    "@repo/supabase": "workspace:*",
     "@repo/email": "workspace:^",
     "@repo/stripe": "workspace:*",
     "@repo/ui": "workspace:*",

@@ -105,6 +105,7 @@ async function checkRateLimit(
 export function peekRateLimit(
   key: string,
   limit: number,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   windowMs: number
 ): { used: number; remaining: number; limit: number } {
   const now = Date.now();

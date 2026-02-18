@@ -40,6 +40,7 @@ function CopyButton({ text }: { text: string }) {
 
 // Simple tokenizer / renderer -----------------------------------------------
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 type Token =
   | { type: "text"; value: string }
   | { type: "bold"; value: string }

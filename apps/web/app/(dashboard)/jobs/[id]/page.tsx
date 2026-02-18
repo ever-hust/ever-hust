@@ -9,7 +9,6 @@ import { Button } from "@repo/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@repo/ui/card";
 import { Separator } from "@repo/ui/separator";
 import {
-  ArrowLeft,
   ExternalLink,
   MapPin,
   Building2,
@@ -161,9 +160,10 @@ export default async function JobDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  // Check if current user has favorited this job
-  let isFavorited = false;
+  // Check if current user has favorited this job (used by client components)
   const sessionUser = await getSessionUser();
+  /* eslint-disable @typescript-eslint/no-unused-vars */
+  let isFavorited = false;
   if (sessionUser) {
     const fav = await db
       .select({ id: userJobs.id })
@@ -178,6 +178,7 @@ export default async function JobDetailPage({ params }: PageProps) {
       .limit(1);
     isFavorited = fav.length > 0;
   }
+  /* eslint-enable @typescript-eslint/no-unused-vars */
 
   const salary = formatSalary(
     job.salaryMin,

@@ -8,6 +8,7 @@ import { applyRateLimit } from "../../../../lib/rate-limit";
 import { apiSuccess, apiBadRequest, apiError, safeJsonParse } from "../../../../lib/api-response";
 
 // GET /api/user/favorites - Get user's favorited job IDs
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function GET(req: Request) {
   let user;
   try {

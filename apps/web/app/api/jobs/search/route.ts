@@ -1,6 +1,6 @@
 import { db } from "@repo/db";
 import { jobs } from "@repo/db";
-import { and, eq, gte, lte, ilike, desc, sql } from "drizzle-orm";
+import { and, eq, ilike, desc, sql } from "drizzle-orm";
 import { jobSearchParamsSchema } from "../../../../lib/api-schemas";
 import { applyRateLimit } from "../../../../lib/rate-limit";
 import { apiSuccess, apiBadRequest, apiError } from "../../../../lib/api-response";

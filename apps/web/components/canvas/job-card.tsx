@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect, memo } from "react";
-import { Heart, ExternalLink, MapPin, Building2, Clock, FileText } from "lucide-react";
+import { Heart, ExternalLink, MapPin, Building2, Clock, FileText, Share2, Check } from "lucide-react";
 import { Badge } from "@repo/ui/badge";
 import { Button } from "@repo/ui/button";
 import { cn } from "@repo/ui/lib/utils";
 import Link from "next/link";
 import { formatSalary, formatLocation, timeAgo } from "@/lib/format-date";
+import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { safeExternalUrl } from "@/lib/safe-url";
 
 export interface JobCardData {
@@ -38,8 +39,11 @@ export interface JobCardData {
 interface JobCardProps {
   job: JobCardData;
   isFavorited?: boolean;
+  isCompareMode?: boolean;
+  isSelected?: boolean;
   onFavorite?: (jobId: number) => void;
   onViewDetails?: (jobId: number) => void;
+  onToggleCompare?: (jobId: number) => void;
 }
 
 /** Duration of the favorite-button bounce animation (ms). */
@@ -48,8 +52,11 @@ const FAVORITE_ANIMATION_MS = 300;
 export const JobCard = memo(function JobCard({
   job,
   isFavorited = false,
+  isCompareMode = false,
+  isSelected = false,
   onFavorite,
   onViewDetails,
+  onToggleCompare,
 }: JobCardProps) {
   const [animating, setAnimating] = useState(false);
   const animTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -90,12 +97,65 @@ export const JobCard = memo(function JobCard({
     [onFavorite, job.id]
   );
 
+  const handleCompareToggle = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onToggleCompare?.(job.id);
+    },
+    [onToggleCompare, job.id]
+  );
+
+  const { copied, copy } = useCopyToClipboard();
+
+  const handleShare = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      const url = `${window.location.origin}/jobs/${job.id}`;
+      try {
+        if (navigator.share) {
+          await navigator.share({
+            title: `${job.title} at ${job.companyName ?? ""}`,
+            url,
+          });
+          return;
+        }
+        await copy(url);
+      } catch {
+        // User cancelled share or clipboard failed
+      }
+    },
+    [job.id, job.title, job.companyName, copy]
+  );
+
   return (
     <article
       aria-label={`${job.title} at ${job.companyName ?? "Unknown Company"}`}
-      className="group rounded-lg border bg-card p-4 transition-all hover:bg-accent/50 hover:shadow-sm"
+      className={cn(
+        "group rounded-lg border bg-card p-4 transition-all hover:bg-accent/50 hover:shadow-sm",
+        isCompareMode && "cursor-pointer",
+        isSelected && "ring-2 ring-primary"
+      )}
+      onClick={isCompareMode ? handleCompareToggle : undefined}
     >
       <div className="flex items-start gap-3">
+        {/* Compare mode selection indicator */}
+        {isCompareMode && (
+          <button
+            type="button"
+            onClick={handleCompareToggle}
+            className={cn(
+              "flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors",
+              isSelected
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-muted-foreground/30 bg-background hover:border-primary"
+            )}
+            aria-label={isSelected ? `Deselect ${job.title} from comparison` : `Select ${job.title} for comparison`}
+            aria-pressed={isSelected}
+          >
+            {isSelected && <Check className="h-3 w-3" aria-hidden="true" />}
+          </button>
+        )}
+
         {/* Company logo — clicking it opens details */}
         <button
           type="button"
@@ -241,6 +301,19 @@ export const JobCard = memo(function JobCard({
                 <FileText className="h-3 w-3" aria-hidden="true" />
                 <span className="hidden sm:inline">Cover Letter</span>
               </Link>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:underline"
+                onClick={handleShare}
+                aria-label={copied ? "Link copied" : `Share ${job.title}`}
+              >
+                {copied ? (
+                  <Check className="h-3 w-3 text-green-500" aria-hidden="true" />
+                ) : (
+                  <Share2 className="h-3 w-3" aria-hidden="true" />
+                )}
+                <span className="hidden sm:inline">{copied ? "Copied!" : "Share"}</span>
+              </button>
               {applyLink && (
                 <a
                   href={applyLink}

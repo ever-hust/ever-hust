@@ -17,6 +17,7 @@ import {
   applyJobTool,
   submitAnswersTool,
   interviewPrepTool,
+  companyResearchTool,
 } from "../tools";
 import { checkSearchLimit, checkCoverLetterLimit } from "../rate-limit";
 import { getOrchestratorPrompt } from "../prompts";
@@ -166,6 +167,7 @@ export async function createOrchestratorStream({
           );
         },
       },
+      companyResearch: companyResearchTool,
     },
     stopWhen: stepCountIs(5),
   });

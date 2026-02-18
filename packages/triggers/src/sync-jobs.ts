@@ -104,6 +104,8 @@ async function syncJobs() {
         searchTerm,
         resultsWanted: 50,
         descriptionFormat: "markdown",
+        distance: 50,
+        country: "USA",
       },
       { pageSize: 50 }
     );

@@ -13,10 +13,10 @@ function mulberry32(seed: number) {
   };
 }
 const rand = mulberry32(42);
-function pick<T>(arr: T[]): T {
-  return arr[Math.floor(rand() * arr.length)];
+function pick<T>(arr: readonly T[]): T {
+  return arr[Math.floor(rand() * arr.length)]!;
 }
-function pickN<T>(arr: T[], n: number): T[] {
+function pickN<T>(arr: readonly T[], n: number): T[] {
   const shuffled = [...arr].sort(() => rand() - 0.5);
   return shuffled.slice(0, n);
 }
@@ -1192,7 +1192,7 @@ function generateJobs(count: number): SeedJob[] {
     ) * 1000;
 
     // Skills: base + 1-3 bonus from category
-    const bonusPool = BONUS_SKILLS[role.jobFunction] || BONUS_SKILLS["Software Engineering"];
+    const bonusPool = BONUS_SKILLS[role.jobFunction] ?? BONUS_SKILLS["Software Engineering"] ?? [];
     const bonusCount = randInt(1, 3);
     const skills = [...role.baseSkills, ...pickN(bonusPool, bonusCount)];
 

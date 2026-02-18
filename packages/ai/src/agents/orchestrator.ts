@@ -1,4 +1,9 @@
-import { streamText, stepCountIs, type ModelMessage } from "ai";
+import {
+  streamText,
+  stepCountIs,
+  type ModelMessage,
+  type StreamTextResult,
+} from "ai";
 import type { LanguageModel } from "ai";
 import {
   searchJobsTool,
@@ -29,7 +34,7 @@ export async function createOrchestratorStream({
   messages,
   userId,
   isSubscribed = false,
-}: OrchestratorOptions) {
+}: OrchestratorOptions): Promise<StreamTextResult<any, any>> {
   // Fetch system prompt from Langfuse (falls back to hardcoded default)
   const { text: systemPrompt, langfusePrompt } =
     await getOrchestratorPrompt();
@@ -54,7 +59,7 @@ export async function createOrchestratorStream({
     tools: {
       searchJobs: {
         ...searchJobsTool,
-        execute: async (params, execOptions) => {
+        execute: async (params: any, execOptions: any) => {
           // Enforce free-tier search limit
           if (!isSubscribed) {
             const { allowed, remaining } = await checkSearchLimit(userId);
@@ -75,7 +80,7 @@ export async function createOrchestratorStream({
       updateFilters: updateFiltersTool,
       favoriteJob: {
         ...favoriteJobTool,
-        execute: async (params, execOptions) => {
+        execute: async (params: any, execOptions: any) => {
           return favoriteJobTool.execute!(
             { ...params, userId },
             execOptions
@@ -85,7 +90,7 @@ export async function createOrchestratorStream({
       getJobDetails: getJobDetailsTool,
       getUserProfile: {
         ...getUserProfileTool,
-        execute: async (_params, execOptions) => {
+        execute: async (_params: any, execOptions: any) => {
           return getUserProfileTool.execute!(
             { userId },
             execOptions
@@ -94,7 +99,7 @@ export async function createOrchestratorStream({
       },
       savePreferences: {
         ...savePreferencesTool,
-        execute: async (params, execOptions) => {
+        execute: async (params: any, execOptions: any) => {
           return savePreferencesTool.execute!(
             { ...params, userId },
             execOptions
@@ -103,7 +108,7 @@ export async function createOrchestratorStream({
       },
       generateCoverLetter: {
         ...generateCoverLetterTool,
-        execute: async (params, execOptions) => {
+        execute: async (params: any, execOptions: any) => {
           // Enforce free-tier cover letter limit
           if (!isSubscribed) {
             const { allowed, remaining } = await checkCoverLetterLimit(userId);
@@ -127,7 +132,7 @@ export async function createOrchestratorStream({
       },
       createAlert: {
         ...createAlertTool,
-        execute: async (params, execOptions) => {
+        execute: async (params: any, execOptions: any) => {
           return createAlertTool.execute!(
             { ...params, userId },
             execOptions
@@ -136,7 +141,7 @@ export async function createOrchestratorStream({
       },
       applyJob: {
         ...applyJobTool,
-        execute: async (params, execOptions) => {
+        execute: async (params: any, execOptions: any) => {
           return applyJobTool.execute!(
             { ...params, userId },
             execOptions
@@ -145,7 +150,7 @@ export async function createOrchestratorStream({
       },
       submitAnswers: {
         ...submitAnswersTool,
-        execute: async (params, execOptions) => {
+        execute: async (params: any, execOptions: any) => {
           return submitAnswersTool.execute!(
             { ...params, userId },
             execOptions
@@ -154,7 +159,7 @@ export async function createOrchestratorStream({
       },
       interviewPrep: {
         ...interviewPrepTool,
-        execute: async (params, execOptions) => {
+        execute: async (params: any, execOptions: any) => {
           return interviewPrepTool.execute!(
             { ...params, userId },
             execOptions

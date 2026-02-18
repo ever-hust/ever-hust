@@ -164,7 +164,7 @@ Eliminate the friction of job searching by making an AI assistant the primary in
 
 1. **Job Ingestion**: Trigger.dev scheduled task calls Ever Jobs API every 15 minutes, fetches new jobs, deduplicates, and upserts into the shared `jobs` table. Supabase Realtime broadcasts changes to connected clients.
 2. **User Session**: User authenticates via LinkedIn OAuth (BetterAuth). LinkedIn profile data is extracted and stored in `users` table.
-3. **Chat Interaction**: User messages flow from `useChat` hook to `/api/ai/chat` route. The orchestrator agent routes to specialized agents. Agents call tools (search jobs, update filters, generate cover letters). Tool results update the canvas in real time via streaming.
+3. **Chat Interaction**: User messages flow from `useChat` hook to `/api/ai/chat` route. The unified orchestrator agent selects appropriate tools based on user intent. Tools (search jobs, update filters, generate cover letters, etc.) are called directly by the orchestrator. Tool results update the canvas in real time via streaming.
 4. **Canvas Updates**: Job search results stream back through tool invocation results. The frontend reacts to tool invocation parts in the message stream and updates the jobs canvas accordingly.
 5. **Subscriptions**: Stripe Checkout creates subscriptions. Webhooks update `subscriptions` table. Middleware checks subscription status for gated features.
 6. **Alerts**: Trigger.dev cron tasks query user alert criteria, match against new jobs, and send email notifications via Resend.
@@ -959,7 +959,7 @@ Tell me about what you're looking for, or I can ask a few questions
 to get started."
 ```
 
-**System Prompt** (`packages/ai/src/prompts/system.ts`):
+**System Prompt** (`packages/ai/src/prompts/orchestrator-system.ts`):
 - Act as career advisor and job search assistant
 - Use conversational style (not interrogative)
 - Reference user's profile data

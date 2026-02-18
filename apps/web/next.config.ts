@@ -1,5 +1,8 @@
 import type { NextConfig } from "next";
 import withBundleAnalyzer from "@next/bundle-analyzer";
+import createNextIntlPlugin from "next-intl/plugin";
+
+const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
 const nextConfig: NextConfig = {
   // Instrumentation (apps/web/instrumentation.ts) is auto-detected by Next.js 16+
@@ -37,4 +40,4 @@ const analyzer = withBundleAnalyzer({
   enabled: process.env.ANALYZE === "true",
 });
 
-export default analyzer(nextConfig);
+export default withNextIntl(analyzer(nextConfig));

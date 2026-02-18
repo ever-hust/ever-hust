@@ -1,0 +1,85 @@
+{
+  "common": {
+    "loading": "Cargando...",
+    "error": "Algo sali\u00f3 mal",
+    "retry": "Reintentar",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "close": "Cerrar",
+    "search": "Buscar",
+    "noResults": "No se encontraron resultados",
+    "viewDetails": "Ver detalles",
+    "share": "Compartir",
+    "copy": "Copiar",
+    "copied": "\u00a1Copiado!",
+    "dismiss": "Descartar"
+  },
+  "nav": {
+    "chat": "Chat IA",
+    "jobs": "Empleos",
+    "favorites": "Favoritos",
+    "applications": "Solicitudes",
+    "profile": "Perfil",
+    "settings": "Configuraci\u00f3n",
+    "signOut": "Cerrar sesi\u00f3n"
+  },
+  "chat": {
+    "title": "Asistente de empleo IA",
+    "placeholder": "Preg\u00fantame sobre empleos, salarios o consejos profesionales...",
+    "thinking": "Pensando...",
+    "welcome": "\u00a1Hola! Soy tu asistente de b\u00fasqueda de empleo con IA. \u00bfC\u00f3mo puedo ayudarte hoy?"
+  },
+  "jobs": {
+    "title": "Empleos",
+    "totalCount": "{count, plural, =0 {Ning\u00fan empleo} one {# empleo} other {# empleos}} encontrado(s)",
+    "loadMore": "Cargar m\u00e1s",
+    "compare": "Comparar",
+    "comparing": "Comparando {count} empleos",
+    "favorite": "A\u00f1adir a favoritos",
+    "unfavorite": "Quitar de favoritos",
+    "remote": "Remoto",
+    "onSite": "Presencial",
+    "hybrid": "H\u00edbrido",
+    "salary": "Salario",
+    "postedOn": "Publicado el {date}",
+    "apply": "Aplicar ahora",
+    "filterBy": "Filtrar por"
+  },
+  "salary": {
+    "title": "Informaci\u00f3n salarial",
+    "median": "Mediana",
+    "average": "Promedio",
+    "range": "Rango",
+    "percentile25": "Percentil 25",
+    "percentile75": "Percentil 75",
+    "byLevel": "Por nivel de puesto",
+    "remoteVsOnSite": "Remoto vs Presencial",
+    "topCompanies": "Empresas que mejor pagan",
+    "overallRange": "Rango general ({currency}/a\u00f1o)",
+    "smallSample": "Basado en una muestra peque\u00f1a ({count} empleos). Los resultados pueden no ser representativos."
+  },
+  "settings": {
+    "title": "Configuraci\u00f3n",
+    "profile": "Perfil",
+    "subscription": "Suscripci\u00f3n",
+    "aiModel": "Modelo de IA",
+    "apiKeys": "Claves API",
+    "alerts": "Alertas de empleo",
+    "notifications": "Notificaciones",
+    "privacy": "Privacidad y datos",
+    "dangerZone": "Zona de peligro",
+    "referrals": "Programa de referidos"
+  },
+  "auth": {
+    "signIn": "Iniciar sesi\u00f3n",
+    "signUp": "Registrarse",
+    "signInWith": "Iniciar sesi\u00f3n con {provider}",
+    "welcomeBack": "\u00a1Bienvenido de nuevo!"
+  },
+  "landing": {
+    "heroTitle": "Tu asistente de b\u00fasqueda de empleo con IA",
+    "heroSubtitle": "Encuentra tu empleo ideal con ayuda de la IA. B\u00fasqueda inteligente, informaci\u00f3n salarial y recomendaciones personalizadas.",
+    "getStarted": "Comenzar",
+    "learnMore": "Saber m\u00e1s"
+  }
+}

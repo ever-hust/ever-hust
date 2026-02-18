@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import dynamic from "next/dynamic";
 import { Settings, AlertTriangle } from "lucide-react";
 import { Button } from "@repo/ui/button";
 import { Card } from "@repo/ui/card";
@@ -18,6 +19,28 @@ import { PrivacyDataCard } from "@/components/settings/privacy-data-card";
 import { DangerZoneCard } from "@/components/settings/danger-zone-card";
 import type { UserSettings, Alert } from "@/components/settings/types";
 import type { UserPreferences } from "@/lib/api-schemas";
+
+const ReferralProgramCard = dynamic(
+  () =>
+    import("@/components/settings/referral-program-card").then(
+      (mod) => mod.ReferralProgramCard,
+    ),
+  {
+    loading: () => <Skeleton className="h-40 w-full rounded-lg" />,
+    ssr: false,
+  },
+);
+
+const DeveloperApiCard = dynamic(
+  () =>
+    import("@/components/settings/developer-api-card").then(
+      (mod) => mod.DeveloperApiCard,
+    ),
+  {
+    loading: () => <Skeleton className="h-40 w-full rounded-lg" />,
+    ssr: false,
+  },
+);
 
 export default function SettingsPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -155,11 +178,13 @@ export default function SettingsPage() {
 
       <ProfileSettingsCard user={user} />
       <SubscriptionCard subscriptionStatus={subscriptionStatus} />
+      <ReferralProgramCard />
       <AIModelCard
         subscriptionStatus={subscriptionStatus}
         initialModel={initialModel}
       />
       <ApiKeysCard initialKeys={initialApiKeys} />
+      <DeveloperApiCard />
       <AlertsCard
         subscriptionStatus={subscriptionStatus}
         initialAlerts={alerts}

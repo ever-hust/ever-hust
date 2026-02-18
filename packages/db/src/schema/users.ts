@@ -40,6 +40,9 @@ export const users = pgTable("users", {
     .default("free"),
   stripeCustomerId: text("stripe_customer_id").unique(),
 
+  // Role
+  role: text("role").notNull().default("user"), // 'user' | 'recruiter' | 'admin'
+
   // Onboarding
   onboardingCompleted: boolean("onboarding_completed").notNull().default(false),
 
@@ -78,6 +81,8 @@ export const accounts = pgTable("accounts", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+export type UserRole = "user" | "recruiter" | "admin";
 
 export const verifications = pgTable("verifications", {
   id: text("id").primaryKey(),

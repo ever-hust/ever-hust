@@ -1,0 +1,85 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "error": "Something went wrong",
+    "retry": "Try Again",
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "search": "Search",
+    "noResults": "No results found",
+    "viewDetails": "View Details",
+    "share": "Share",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "dismiss": "Dismiss"
+  },
+  "nav": {
+    "chat": "AI Chat",
+    "jobs": "Jobs",
+    "favorites": "Favorites",
+    "applications": "Applications",
+    "profile": "Profile",
+    "settings": "Settings",
+    "signOut": "Sign Out"
+  },
+  "chat": {
+    "title": "AI Job Assistant",
+    "placeholder": "Ask me about jobs, salaries, or career advice...",
+    "thinking": "Thinking...",
+    "welcome": "Hello! I'm your AI job search assistant. How can I help you today?"
+  },
+  "jobs": {
+    "title": "Jobs",
+    "totalCount": "{count, plural, =0 {No jobs} one {# job} other {# jobs}} found",
+    "loadMore": "Load More",
+    "compare": "Compare",
+    "comparing": "Comparing {count} jobs",
+    "favorite": "Add to favorites",
+    "unfavorite": "Remove from favorites",
+    "remote": "Remote",
+    "onSite": "On-site",
+    "hybrid": "Hybrid",
+    "salary": "Salary",
+    "postedOn": "Posted {date}",
+    "apply": "Apply Now",
+    "filterBy": "Filter by"
+  },
+  "salary": {
+    "title": "Salary Insights",
+    "median": "Median",
+    "average": "Average",
+    "range": "Range",
+    "percentile25": "25th Percentile",
+    "percentile75": "75th Percentile",
+    "byLevel": "By Job Level",
+    "remoteVsOnSite": "Remote vs On-Site",
+    "topCompanies": "Top Paying Companies",
+    "overallRange": "Overall Range ({currency}/year)",
+    "smallSample": "Based on a small sample ({count} jobs). Results may not be representative."
+  },
+  "settings": {
+    "title": "Settings",
+    "profile": "Profile",
+    "subscription": "Subscription",
+    "aiModel": "AI Model",
+    "apiKeys": "API Keys",
+    "alerts": "Job Alerts",
+    "notifications": "Notifications",
+    "privacy": "Privacy & Data",
+    "dangerZone": "Danger Zone",
+    "referrals": "Referral Program"
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "signUp": "Sign Up",
+    "signInWith": "Sign in with {provider}",
+    "welcomeBack": "Welcome back!"
+  },
+  "landing": {
+    "heroTitle": "Your AI-Powered Job Search Assistant",
+    "heroSubtitle": "Find your dream job with the help of AI. Smart search, salary insights, and personalized recommendations.",
+    "getStarted": "Get Started",
+    "learnMore": "Learn More"
+  }
+}

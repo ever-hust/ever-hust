@@ -198,6 +198,56 @@ export const pushUnsubscribeSchema = z.object({
   endpoint: z.string().url().max(2048),
 });
 
+// === Referral Program Routes ===
+export const referralInviteSchema = z.object({
+  email: z.string().email().max(320),
+});
+
+export const referralRedeemSchema = z.object({
+  code: z.string().min(1).max(20).regex(/^[A-Z0-9]+$/, "Invalid referral code format"),
+});
+
+// === Admin Routes ===
+export const updateUserRoleSchema = z.object({
+  role: z.enum(["user", "recruiter", "admin"]),
+});
+
+export const adminUsersQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+  search: z.string().optional(),
+});
+
+// === Developer API Key Routes ===
+export const createApiKeySchema = z.object({
+  name: z.string().min(1).max(100),
+  scopes: z.array(z.enum(["read", "write", "admin"])).default(["read"]),
+  rateLimit: z.number().int().min(100).max(10000).default(1000),
+});
+
+// === Enterprise API v1 Routes ===
+export const jobsApiQuerySchema = z.object({
+  q: z.string().optional(),
+  location: z.string().optional(),
+  remote: z.coerce.boolean().optional(),
+  salaryMin: z.coerce.number().optional(),
+  salaryMax: z.coerce.number().optional(),
+  skills: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+export const companiesApiQuerySchema = z.object({
+  q: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+export const salaryApiQuerySchema = z.object({
+  title: z.string().min(1),
+  location: z.string().optional(),
+  level: z.string().optional(),
+});
+
 // === Helper to safely parse and return 400 on failure ===
 export function parseBody<T>(
   schema: z.ZodSchema<T>,

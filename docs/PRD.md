@@ -1441,10 +1441,10 @@ EMAIL_FROM=alerts@everjobs.ai
 **Exit Criteria**: Lighthouse 95+ performance, BYOK keys encrypted at rest, live job updates on canvas, analytics dashboard active.
 
 ### Phase 8: Growth & Engagement (Weeks 16-18) — IN PROGRESS
-- Push notifications (web push API)
-- Salary insights and market data visualization
+- ~~Push notifications (web push API)~~ **DONE** — Web Push API with VAPID keys, service worker registration, push subscription management, notification settings card in settings page
+- ~~Salary insights and market data visualization~~ **DONE** — `salaryInsights` AI tool with salary range visualization, by-level breakdown, remote vs on-site comparison, top-paying companies
 - ~~Company research agent (company culture, Glassdoor reviews, funding)~~ **DONE** — `companyResearch` AI tool queries jobs DB by company name, aggregates positions/locations/departments/levels
-- Resume builder agent (generate ATS-optimized resumes)
+- ~~Resume builder agent (generate ATS-optimized resumes)~~ **DONE** — `resumeBuilder` AI tool with ATS keyword extraction, skill overlap analysis, format tips, section suggestions
 - ~~Job comparison tool (side-by-side comparison of 2-3 jobs)~~ **DONE** — `JobCompareDialog` with compare mode in canvas, difference highlighting, max 3 jobs
 - ~~Social sharing (share job cards via link)~~ **DONE** — Share button on job cards using Web Share API with clipboard fallback
 - Referral program (invite friends, earn credits)
@@ -1674,7 +1674,7 @@ Response: {
 | Phase 5: AI Agents | ✅ Complete | Application agent (HITL), interview prep, BYOK, agent status |
 | Phase 6: Testing & Polish | ✅ Complete | E2E + unit tests, error boundaries, loading states, SEO, sitemap |
 | Phase 7: Production Hardening | ✅ Complete | Analytics, Speed Insights, bundle optimization, BYOK encryption, Realtime, a11y |
-| Phase 8: Growth & Engagement | 🔄 In Progress (3/7) | Job comparison, social sharing, company research AI tool |
+| Phase 8: Growth & Engagement | 🔄 In Progress (6/7) | Job comparison, social sharing, company research, salary insights, resume builder, push notifications |
 
 ### Phase 7: Production Hardening (v1.2) + Architecture Audit (v1.3)
 

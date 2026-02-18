@@ -6,6 +6,7 @@ import { requireSessionUser } from "../../../../lib/get-session-user";
 import { settingsPatchSchema, parseBody } from "../../../../lib/api-schemas";
 import { applyRateLimit } from "../../../../lib/rate-limit";
 import { apiSuccess, apiBadRequest, apiError, safeJsonParse } from "../../../../lib/api-response";
+import { encryptApiKey } from "@repo/ai/crypto";
 
 // PATCH /api/user/settings - Update user settings
 export async function PATCH(req: Request) {
@@ -54,9 +55,26 @@ export async function PATCH(req: Request) {
       if (body.preferences.apiKeys !== undefined) {
         const existingApiKeys =
           (existingPrefs.apiKeys as Record<string, unknown>) ?? {};
+        const incomingKeys = body.preferences.apiKeys as Record<string, string>;
+
+        // Encrypt non-empty API keys before storing
+        const encryptedKeys: Record<string, string> = {};
+        for (const [provider, key] of Object.entries(incomingKeys)) {
+          if (key && key.trim()) {
+            try {
+              encryptedKeys[provider] = encryptApiKey(key);
+            } catch {
+              // If encryption env var is missing, store as-is (dev mode)
+              encryptedKeys[provider] = key;
+            }
+          } else {
+            encryptedKeys[provider] = ""; // Clearing a key
+          }
+        }
+
         mergedPrefs.apiKeys = {
           ...existingApiKeys,
-          ...body.preferences.apiKeys,
+          ...encryptedKeys,
         };
       }
 

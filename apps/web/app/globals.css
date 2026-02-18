@@ -111,6 +111,34 @@
       scroll-behavior: auto !important;
     }
   }
+
+  /* High contrast mode support (Windows) */
+  @media (forced-colors: active) {
+    :focus-visible {
+      outline: 2px solid LinkText;
+      outline-offset: 2px;
+    }
+
+    button,
+    a,
+    input,
+    select,
+    textarea {
+      border: 1px solid ButtonText;
+    }
+  }
+
+  /* Ensure minimum touch target sizes for mobile accessibility (WCAG 2.5.8) */
+  @media (pointer: coarse) {
+    button,
+    a,
+    [role="button"],
+    input[type="checkbox"],
+    input[type="radio"] {
+      min-height: 44px;
+      min-width: 44px;
+    }
+  }
 }
 
 @keyframes accordion-down {

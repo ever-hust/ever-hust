@@ -8,6 +8,7 @@ import { ChatPanel } from "@/components/chat/chat-panel";
 import { JobsCanvas } from "@/components/canvas/jobs-canvas";
 import { useCanvasSync } from "@/hooks/use-canvas-sync";
 import { useFavorites } from "@/hooks/use-favorites";
+import { useRealtimeJobs } from "@/hooks/use-realtime-jobs";
 import { useKeyboardShortcuts, getChatShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { toast } from "sonner";
 
@@ -62,6 +63,34 @@ export default function ChatPage() {
     canvas.setFavorites(hookFavorites);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hookFavorites]);
+
+  // Subscribe to live job updates via Supabase Realtime.
+  // New jobs inserted by the background sync task will appear on the canvas
+  // automatically without requiring a page refresh or new search.
+  useRealtimeJobs({
+    onInsert: useCallback(
+      (job) => {
+        canvas.addRealtimeJob({
+          id: job.id,
+          title: job.title,
+          companyName: job.company_name,
+          companyLogo: job.company_logo,
+          jobUrl: job.job_url,
+          locationCity: job.location_city,
+          locationCountry: job.location_country,
+          isRemote: job.is_remote,
+          salaryMin: job.salary_min,
+          salaryMax: job.salary_max,
+          salaryCurrency: job.salary_currency,
+          skills: job.skills,
+          datePosted: job.date_posted,
+          site: job.site,
+        });
+      },
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      []
+    ),
+  });
 
   // Handle ?job= deep link — fetch job info and build initial prompt
   useEffect(() => {

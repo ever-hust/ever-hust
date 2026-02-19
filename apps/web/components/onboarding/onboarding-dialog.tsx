@@ -92,9 +92,13 @@ export function OnboardingDialog({
   }, []);
 
   const addCustomSkill = useCallback(() => {
-    const skill = customSkill.trim();
-    if (skill && skill.length <= 100) {
-      setSelectedSkills((prev) => new Set(prev).add(skill));
+    // Strip HTML tags to prevent stored XSS, then trim whitespace
+    const sanitized = customSkill.replace(/<[^>]*>/g, "").trim();
+    // Only allow reasonable characters: letters, numbers, spaces, hyphens,
+    // dots, plus, sharp/hash, and slashes (e.g. "C++", "C#", "CI/CD", "Node.js")
+    const isValid = /^[\p{L}\p{N}\s\-.+#/]+$/u.test(sanitized);
+    if (sanitized && sanitized.length <= 100 && isValid) {
+      setSelectedSkills((prev) => new Set(prev).add(sanitized));
       setCustomSkill("");
     }
   }, [customSkill]);

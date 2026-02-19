@@ -52,6 +52,8 @@ export function useRealtimeJobs({
   enabled = true,
 }: UseRealtimeJobsOptions = {}) {
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const reconnectAttemptRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Use refs for callbacks to avoid re-subscribing on every render
   const onInsertRef = useRef(onInsert);
@@ -61,12 +63,22 @@ export function useRealtimeJobs({
   onUpdateRef.current = onUpdate;
   onDeleteRef.current = onDelete;
 
+  const MAX_RECONNECT_ATTEMPTS = 3;
+
+  const clearReconnectTimer = useCallback(() => {
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+  }, []);
+
   const unsubscribe = useCallback(() => {
+    clearReconnectTimer();
     if (channelRef.current) {
       channelRef.current.unsubscribe();
       channelRef.current = null;
     }
-  }, []);
+  }, [clearReconnectTimer]);
 
   useEffect(() => {
     if (!enabled) {
@@ -82,54 +94,87 @@ export function useRealtimeJobs({
       return;
     }
 
-    const channel = supabase
-      .channel("jobs-realtime")
-      .on(
-        "postgres_changes" as "system",
-        {
-          event: "*",
-          schema: "public",
-          table: "jobs",
-        } as Record<string, unknown>,
-        (payload: Record<string, unknown>) => {
-          try {
-            const eventType = payload.eventType as string;
-            const newRecord = payload.new as RealtimeJob | undefined;
-            const oldRecord = payload.old as { id: number } | undefined;
+    const subscribe = () => {
+      // Clean up any existing channel before creating a new one
+      if (channelRef.current) {
+        channelRef.current.unsubscribe();
+        channelRef.current = null;
+      }
 
-            if (eventType === "INSERT" && newRecord && onInsertRef.current) {
-              onInsertRef.current(newRecord);
-            } else if (eventType === "UPDATE" && newRecord && onUpdateRef.current) {
-              onUpdateRef.current(newRecord);
-            } else if (eventType === "DELETE" && oldRecord && onDeleteRef.current) {
-              onDeleteRef.current(oldRecord.id);
+      const channel = supabase
+        .channel("jobs-realtime")
+        .on(
+          "postgres_changes" as "system",
+          {
+            event: "*",
+            schema: "public",
+            table: "jobs",
+          } as Record<string, unknown>,
+          (payload: Record<string, unknown>) => {
+            try {
+              const eventType = payload.eventType as string;
+              const newRecord = payload.new as RealtimeJob | undefined;
+              const oldRecord = payload.old as { id: number } | undefined;
+
+              if (eventType === "INSERT" && newRecord && onInsertRef.current) {
+                onInsertRef.current(newRecord);
+              } else if (eventType === "UPDATE" && newRecord && onUpdateRef.current) {
+                onUpdateRef.current(newRecord);
+              } else if (eventType === "DELETE" && oldRecord && onDeleteRef.current) {
+                onDeleteRef.current(oldRecord.id);
+              }
+            } catch (err) {
+              console.error(
+                "[useRealtimeJobs] Error processing realtime event:",
+                err,
+              );
             }
-          } catch (err) {
+          }
+        )
+        .subscribe((status: string, err?: Error) => {
+          if (status === "SUBSCRIBED") {
+            // Reset reconnect counter on successful subscription
+            reconnectAttemptRef.current = 0;
+            return;
+          }
+
+          if (status === "TIMED_OUT") {
+            console.warn("[useRealtimeJobs] Realtime subscription timed out");
+          }
+          if (err) {
             console.error(
-              "[useRealtimeJobs] Error processing realtime event:",
-              err,
+              "[useRealtimeJobs] Realtime subscription error:",
+              err.message,
             );
           }
-        }
-      )
-      .subscribe((status: string, err?: Error) => {
-        if (status === "TIMED_OUT") {
-          console.warn("[useRealtimeJobs] Realtime subscription timed out");
-        }
-        if (err) {
-          console.error(
-            "[useRealtimeJobs] Realtime subscription error:",
-            err.message,
-          );
-        }
-      });
 
-    channelRef.current = channel;
+          // Attempt reconnection on timeout or error
+          if (
+            (status === "TIMED_OUT" || err) &&
+            reconnectAttemptRef.current < MAX_RECONNECT_ATTEMPTS
+          ) {
+            const attempt = reconnectAttemptRef.current;
+            const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+            console.info(
+              `[useRealtimeJobs] Reconnecting in ${delay}ms (attempt ${attempt + 1}/${MAX_RECONNECT_ATTEMPTS})`,
+            );
+            reconnectAttemptRef.current = attempt + 1;
+            clearReconnectTimer();
+            reconnectTimerRef.current = setTimeout(() => {
+              subscribe();
+            }, delay);
+          }
+        });
+
+      channelRef.current = channel;
+    };
+
+    subscribe();
 
     return () => {
       unsubscribe();
     };
-  }, [enabled, unsubscribe]);
+  }, [enabled, unsubscribe, clearReconnectTimer]);
 
   return { unsubscribe };
 }

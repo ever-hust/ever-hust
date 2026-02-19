@@ -58,6 +58,13 @@ export async function POST(req: Request) {
     return apiBadRequest("File must be under 10MB");
   }
 
+  // Reject empty or suspiciously small files
+  if (file.size < 100) {
+    return apiBadRequest(
+      "File appears to be empty or too small to be a valid PDF",
+    );
+  }
+
   try {
     // Read file buffer
     const arrayBuffer = await file.arrayBuffer();

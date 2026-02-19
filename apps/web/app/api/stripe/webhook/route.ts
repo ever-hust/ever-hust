@@ -6,6 +6,7 @@ import { getStripe, parseWebhookEvent } from "@repo/stripe";
 import { sendSubscriptionConfirmedEmail } from "@repo/email";
 import { eq, and, ne } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { apiBadRequest, apiError } from "../../../../lib/api-response";
 
 // ── Idempotency Guard ─────────────────────────────────────────────────────
 // Database-backed deduplication that works across multiple server instances.
@@ -53,7 +54,7 @@ export async function POST(req: Request) {
   const signature = req.headers.get("stripe-signature");
 
   if (!signature) {
-    return NextResponse.json({ error: "No signature" }, { status: 400 });
+    return apiBadRequest("No signature");
   }
 
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -61,10 +62,7 @@ export async function POST(req: Request) {
     console.error("[stripe/webhook] STRIPE_WEBHOOK_SECRET is not configured");
     // Return 400 (not 500) so Stripe treats this as a permanent error and
     // does not retry indefinitely for a server misconfiguration.
-    return NextResponse.json(
-      { error: "Webhook secret not configured" },
-      { status: 400 },
-    );
+    return apiBadRequest("Webhook secret not configured");
   }
 
   let event;
@@ -79,7 +77,7 @@ export async function POST(req: Request) {
       "[stripe/webhook] Signature verification failed:",
       err instanceof Error ? err.message : err,
     );
-    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+    return apiBadRequest("Invalid signature");
   }
 
   // Idempotency: skip if we've already processed this event
@@ -155,10 +153,7 @@ export async function POST(req: Request) {
       error instanceof Error ? error.stack ?? error.message : error,
     );
     // Return 500 so Stripe retries the webhook
-    return NextResponse.json(
-      { error: "Webhook handler failed" },
-      { status: 500 },
-    );
+    return apiError("Webhook handler failed");
   }
 
   return NextResponse.json({ received: true });

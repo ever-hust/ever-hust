@@ -34,6 +34,7 @@ const RECOMMENDED_ENV_VARS: ReadonlyArray<{ name: string; impact: string }> = [
   { name: "RESEND_API_KEY", impact: "Transactional emails will not be sent" },
   { name: "NEXT_PUBLIC_SUPABASE_URL", impact: "Supabase Realtime and Storage will not work" },
   { name: "NEXT_PUBLIC_SUPABASE_ANON_KEY", impact: "Supabase client-side access will not work" },
+  { name: "NEXT_PUBLIC_APP_URL", impact: "Email links and OAuth callbacks may use incorrect host" },
 ];
 
 /**

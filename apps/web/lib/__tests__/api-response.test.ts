@@ -39,9 +39,11 @@ describe("apiSuccess", () => {
     );
   });
 
-  it("omits cache headers when cacheSeconds not set", () => {
+  it("defaults to private no-cache when cacheSeconds not set", () => {
     const res = apiSuccess({ data: 1 });
-    expect(res.headers.get("Cache-Control")).toBeNull();
+    expect(res.headers.get("Cache-Control")).toBe(
+      "private, no-cache, no-store, must-revalidate",
+    );
   });
 
   it("merges extra headers", () => {

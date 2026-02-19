@@ -1,5 +1,6 @@
 import { Navbar } from "@/components/landing/navbar";
 import { Footer } from "@/components/landing/footer";
+import { AboutStructuredData } from "@/components/landing/about-structured-data";
 import { BriefcaseBusiness, Bot, Users, Globe } from "lucide-react";
 import type { Metadata } from "next";
 
@@ -56,6 +57,7 @@ const VALUES = [
 export default function AboutPage() {
   return (
     <div className="flex min-h-screen flex-col">
+      <AboutStructuredData />
       <Navbar />
       <main id="main-content" className="flex-1">
         {/* Hero Section */}

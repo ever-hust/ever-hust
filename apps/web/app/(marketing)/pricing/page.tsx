@@ -1,6 +1,7 @@
 import { Navbar } from "@/components/landing/navbar";
 import { PricingSection } from "@/components/landing/pricing-section";
 import { Footer } from "@/components/landing/footer";
+import { PricingStructuredData } from "@/components/landing/pricing-structured-data";
 import type { Metadata } from "next";
 
 // ISR: revalidate pricing page every hour
@@ -38,6 +39,7 @@ export const metadata: Metadata = {
 export default function PricingPage() {
   return (
     <div className="flex min-h-screen flex-col">
+      <PricingStructuredData />
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground focus:shadow-lg"

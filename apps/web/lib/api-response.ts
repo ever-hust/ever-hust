@@ -29,12 +29,18 @@ export function apiSuccess<T>(
   const headers: Record<string, string> = { ...extraHeaders };
 
   if (cacheSeconds !== undefined && cacheSeconds > 0) {
-    const scope = isPrivate ? "private" : "public";
-    headers["Cache-Control"] = `${scope}, s-maxage=${cacheSeconds}, stale-while-revalidate=${cacheSeconds * 2}`;
+    if (isPrivate) {
+      headers["Cache-Control"] = `private, max-age=${cacheSeconds}`;
+    } else {
+      headers["Cache-Control"] = `public, s-maxage=${cacheSeconds}, stale-while-revalidate=${cacheSeconds * 2}`;
+    }
   } else if (cacheSeconds === 0) {
     headers["Cache-Control"] = isPrivate
       ? "private, no-cache, no-store, must-revalidate"
       : "no-cache, no-store, must-revalidate";
+  } else {
+    // Default: prevent caching of authenticated responses
+    headers["Cache-Control"] = "private, no-cache, no-store, must-revalidate";
   }
 
   return NextResponse.json(data, { status, headers });
@@ -51,7 +57,12 @@ export function apiError(
       error: message,
       ...(details !== undefined ? { details } : {}),
     },
-    { status },
+    {
+      status,
+      headers: {
+        "Cache-Control": "private, no-cache, no-store, must-revalidate",
+      },
+    },
   );
 }
 
@@ -100,6 +111,7 @@ export function apiRateLimited(retryAfterSeconds: number) {
     {
       status: 429,
       headers: {
+        "Cache-Control": "private, no-cache, no-store, must-revalidate",
         "Retry-After": String(retryAfterSeconds),
       },
     },

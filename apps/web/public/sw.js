@@ -84,3 +84,53 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 });
+
+// Push: handle incoming push notifications
+self.addEventListener("push", (event) => {
+  let payload = {};
+
+  if (event.data) {
+    try {
+      payload = event.data.json();
+    } catch {
+      // Fallback: treat the payload as plain text
+      payload = { title: "Ever Jobs", body: event.data.text() };
+    }
+  }
+
+  const title = payload.title || "Ever Jobs";
+  const options = {
+    body: payload.body || "",
+    icon: payload.icon || "/icons/icon-192x192.png",
+    badge: payload.badge || "/icons/icon-192x192.png",
+    tag: payload.tag || "ever-jobs-notification",
+    data: {
+      url: (payload.data && payload.data.url) || payload.url || "/",
+    },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// Notification click: open or focus the relevant page
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const targetUrl = (event.notification.data && event.notification.data.url) || "/";
+
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clientList) => {
+        // If an existing window matches the target URL, focus it
+        for (const client of clientList) {
+          const clientUrl = new URL(client.url);
+          if (clientUrl.pathname === targetUrl && "focus" in client) {
+            return client.focus();
+          }
+        }
+        // Otherwise open a new window
+        return self.clients.openWindow(targetUrl);
+      })
+  );
+});

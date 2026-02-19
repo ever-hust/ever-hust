@@ -56,6 +56,64 @@ test.describe("Landing Page", () => {
       expect(classAttr).toBeTruthy();
     }
   });
+
+  test("has structured data (JSON-LD) for SEO", async ({ page }) => {
+    const jsonLd = page.locator('script[type="application/ld+json"]');
+    const count = await jsonLd.count();
+    expect(count).toBeGreaterThanOrEqual(1);
+  });
+
+  test("has proper meta description", async ({ page }) => {
+    const metaDesc = page.locator('meta[name="description"]');
+    const content = await metaDesc.getAttribute("content");
+    expect(content).toBeTruthy();
+    expect(content!.length).toBeGreaterThan(0);
+  });
+
+  test("has proper Open Graph meta tags", async ({ page }) => {
+    const ogTitle = page.locator('meta[property="og:title"]');
+    await expect(ogTitle).toHaveAttribute("content", /.+/);
+
+    const ogDescription = page.locator('meta[property="og:description"]');
+    await expect(ogDescription).toHaveAttribute("content", /.+/);
+  });
+});
+
+test.describe("Landing Page - Accessibility", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+  });
+
+  test("has exactly one h1 heading", async ({ page }) => {
+    const h1 = page.locator("h1");
+    const count = await h1.count();
+    expect(count).toBe(1);
+  });
+
+  test("has header, main, and footer landmarks", async ({ page }) => {
+    await expect(page.locator("header").first()).toBeVisible();
+    await expect(page.locator("main").first()).toBeVisible();
+    await expect(page.locator('footer[role="contentinfo"]')).toBeVisible();
+  });
+
+  test("has a skip-to-content link", async ({ page }) => {
+    const skipLink = page.locator('a[href="#main-content"]');
+    await expect(skipLink).toHaveCount(1);
+  });
+
+  test("navbar has proper aria-label", async ({ page }) => {
+    const nav = page.locator('nav[aria-label="Main navigation"]');
+    await expect(nav).toBeVisible();
+  });
+
+  test("images and icons have alt text or are aria-hidden", async ({
+    page,
+  }) => {
+    // All decorative icons should have aria-hidden="true"
+    const ariaHiddenIcons = page.locator('svg[aria-hidden="true"]');
+    const count = await ariaHiddenIcons.count();
+    expect(count).toBeGreaterThan(0);
+  });
 });
 
 test.describe("Navigation", () => {
@@ -69,5 +127,33 @@ test.describe("Navigation", () => {
   test("navigates to login page", async ({ page }) => {
     await page.goto("/login");
     await expect(page.getByText(/sign in/i)).toBeVisible();
+  });
+
+  test("navigates to about page", async ({ page }) => {
+    await page.goto("/about");
+    await expect(
+      page.getByRole("heading", { name: /about ever jobs/i })
+    ).toBeVisible();
+  });
+
+  test("navigates to contact page", async ({ page }) => {
+    await page.goto("/contact");
+    await expect(
+      page.getByRole("heading", { name: /contact us/i }).first()
+    ).toBeVisible();
+  });
+
+  test("navigates to terms page", async ({ page }) => {
+    await page.goto("/terms");
+    await expect(
+      page.getByRole("heading", { name: /terms of service/i }).first()
+    ).toBeVisible();
+  });
+
+  test("navigates to privacy page", async ({ page }) => {
+    await page.goto("/privacy");
+    await expect(
+      page.getByRole("heading", { name: /privacy policy/i }).first()
+    ).toBeVisible();
   });
 });

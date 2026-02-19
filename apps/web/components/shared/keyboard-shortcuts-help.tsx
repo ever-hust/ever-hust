@@ -38,7 +38,6 @@ const SHORTCUT_SECTIONS: {
       { keys: ["g", "f"], description: "Go to Favorites" },
       { keys: ["g", "p"], description: "Go to Profile" },
       { keys: ["g", "s"], description: "Go to Settings" },
-      { keys: ["⌘", "\\"], description: "Toggle jobs canvas" },
       { keys: ["?"], description: "Show keyboard shortcuts" },
     ],
   },
@@ -108,22 +107,22 @@ export function KeyboardShortcutsHelp() {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+        <div className="space-y-4 max-h-[60vh] overflow-y-auto" role="list" aria-label="Keyboard shortcuts">
           {SHORTCUT_SECTIONS.map((section) => (
-            <div key={section.title}>
+            <section key={section.title} role="listitem" aria-label={`${section.title} shortcuts`}>
               <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {section.title}
               </h3>
-              <div className="space-y-1">
+              <dl className="space-y-1">
                 {section.shortcuts.map((shortcut) => (
                   <div
                     key={shortcut.description}
                     className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-accent/50"
                   >
-                    <span className="text-muted-foreground">
+                    <dt className="text-muted-foreground">
                       {shortcut.description}
-                    </span>
-                    <div className="flex items-center gap-1">
+                    </dt>
+                    <dd className="flex items-center gap-1">
                       {shortcut.keys.map((key, i) => {
                         // Use "then" separator for sequential keys (all lowercase single chars)
                         const isSequential =
@@ -144,11 +143,11 @@ export function KeyboardShortcutsHelp() {
                           </span>
                         );
                       })}
-                    </div>
+                    </dd>
                   </div>
                 ))}
-              </div>
-            </div>
+              </dl>
+            </section>
           ))}
         </div>
 

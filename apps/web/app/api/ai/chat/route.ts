@@ -56,8 +56,10 @@ export async function POST(req: Request) {
 
     const gate = await checkSubscription(userId);
 
-    // Check message rate limit for free users
-    const responseHeaders = new Headers();
+    // Ensure streaming response is never cached (user-specific data)
+    const responseHeaders = new Headers({
+      "Cache-Control": "private, no-cache, no-store, must-revalidate",
+    });
     if (!gate.isActive) {
       const { allowed, remaining } = await checkMessageLimit(userId);
       if (!allowed) {

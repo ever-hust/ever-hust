@@ -41,6 +41,10 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcut[]) {
         target.tagName === "TEXTAREA" ||
         target.isContentEditable;
 
+      // Ignore shortcuts (except Escape) when a dialog/modal is open
+      const isDialogOpen =
+        event.key !== "Escape" && !!target.closest("[role='dialog']");
+
       for (const shortcut of shortcutsRef.current) {
         const ctrlOrMeta = shortcut.ctrl || shortcut.meta;
         const modifierMatch = ctrlOrMeta
@@ -62,6 +66,9 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcut[]) {
             if (!ctrlOrMeta) continue;
           }
 
+          // Skip non-Escape shortcuts when a dialog is open
+          if (isDialogOpen) continue;
+
           event.preventDefault();
           shortcut.handler();
           break;
@@ -81,7 +88,6 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcut[]) {
 export function getChatShortcuts(handlers: {
   focusInput: () => void;
   clearSelection?: () => void;
-  toggleCanvas?: () => void;
 }): KeyboardShortcut[] {
   const shortcuts: KeyboardShortcut[] = [
     {
@@ -102,15 +108,6 @@ export function getChatShortcuts(handlers: {
       key: "Escape",
       handler: handlers.clearSelection,
       description: "Clear selection / close panel",
-    });
-  }
-
-  if (handlers.toggleCanvas) {
-    shortcuts.push({
-      key: "\\",
-      ctrl: true,
-      handler: handlers.toggleCanvas,
-      description: "Toggle jobs canvas",
     });
   }
 

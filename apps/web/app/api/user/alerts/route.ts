@@ -39,7 +39,7 @@ export async function GET() {
       .where(eq(userAlerts.userId, user.id))
       .orderBy(userAlerts.createdAt);
 
-    return apiSuccess({ alerts });
+    return apiSuccess({ alerts }, { cacheSeconds: 0, isPrivate: true });
   } catch (err) {
     console.error("[api/user/alerts] GET failed:", err instanceof Error ? err.message : err);
     return apiError("Failed to load alerts");

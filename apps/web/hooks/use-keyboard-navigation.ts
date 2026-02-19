@@ -52,6 +52,9 @@ export function useKeyboardNavigation() {
         return;
       }
 
+      // Don't trigger when a dialog/modal is open
+      if (target.closest("[role='dialog']")) return;
+
       // Don't trigger with modifier keys (except for specific combos)
       if (e.ctrlKey || e.metaKey || e.altKey) return;
 

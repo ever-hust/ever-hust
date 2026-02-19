@@ -32,7 +32,9 @@ export function apiSuccess<T>(
     const scope = isPrivate ? "private" : "public";
     headers["Cache-Control"] = `${scope}, s-maxage=${cacheSeconds}, stale-while-revalidate=${cacheSeconds * 2}`;
   } else if (cacheSeconds === 0) {
-    headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+    headers["Cache-Control"] = isPrivate
+      ? "private, no-cache, no-store, must-revalidate"
+      : "no-cache, no-store, must-revalidate";
   }
 
   return NextResponse.json(data, { status, headers });

@@ -1,7 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test.describe("Chat Page", () => {
-  // Chat requires auth — unauthenticated users get redirected
+test.describe("Chat Page - Auth Redirect", () => {
   test("redirects to login when not authenticated", async ({ page }) => {
     await page.goto("/chat");
     await page.waitForURL(/\/login/);
@@ -14,12 +13,16 @@ test.describe("Chat Page", () => {
     const url = new URL(page.url());
     expect(url.searchParams.get("callbackUrl")).toBe("/chat");
   });
+
+  test("chat with query params preserves callback", async ({ page }) => {
+    await page.goto("/chat?session=test-123");
+    await page.waitForURL(/\/login/);
+    const url = new URL(page.url());
+    expect(url.searchParams.get("callbackUrl")).toBeTruthy();
+  });
 });
 
-test.describe("Chat UI Elements (unauthenticated)", () => {
-  // These tests verify the login page is correctly shown when
-  // attempting to access chat without authentication
-
+test.describe("Chat UI - Login Prompt", () => {
   test("login page has LinkedIn sign-in for chat access", async ({ page }) => {
     await page.goto("/chat");
     await page.waitForURL(/\/login/);
@@ -28,22 +31,34 @@ test.describe("Chat UI Elements (unauthenticated)", () => {
   });
 });
 
-test.describe("Chat Page Structure", () => {
-  // These tests would run with authentication.
-  // In a CI environment, you'd set up auth state via storageState.
-  // For now, these validate the redirect behavior is correct.
-
-  test("chat route is protected", async ({ page }) => {
+test.describe("Chat Route Protection", () => {
+  test("chat route is protected and redirects", async ({ page }) => {
     const response = await page.goto("/chat");
     // Should redirect (302) to login
     const finalUrl = page.url();
     expect(finalUrl).toContain("/login");
   });
 
-  test("chat with query params preserves callback", async ({ page }) => {
-    await page.goto("/chat?session=test-123");
+  test("chat does not expose any content to unauthenticated users", async ({
+    page,
+  }) => {
+    await page.goto("/chat");
     await page.waitForURL(/\/login/);
-    const url = new URL(page.url());
-    expect(url.searchParams.get("callbackUrl")).toBeTruthy();
+
+    // Should not see any chat UI elements
+    const chatInput = page.locator('[data-testid="chat-input"]');
+    await expect(chatInput).not.toBeVisible();
+  });
+});
+
+test.describe("Chat AI API", () => {
+  test("AI chat endpoint requires authentication", async ({ request }) => {
+    const response = await request.post("/api/ai/chat", {
+      data: {
+        messages: [{ role: "user", content: "Hello" }],
+      },
+    });
+    // Should return 401 (unauthenticated)
+    expect(response.status()).toBe(401);
   });
 });

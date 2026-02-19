@@ -31,6 +31,20 @@ test.describe("Pricing Page", () => {
     const href = await firstCta.getAttribute("href");
     expect(href).toBe("/login");
   });
+
+  test("pricing page has proper page structure", async ({ page }) => {
+    // Has header
+    await expect(page.locator("header")).toBeVisible();
+    // Has main content
+    await expect(page.locator("main#main-content")).toBeVisible();
+    // Has footer
+    await expect(page.locator('footer[role="contentinfo"]')).toBeVisible();
+  });
+
+  test("pricing page has skip-to-content link", async ({ page }) => {
+    const skipLink = page.locator('a[href="#main-content"]');
+    await expect(skipLink).toHaveCount(1);
+  });
 });
 
 test.describe("Stripe API Endpoints", () => {
@@ -55,6 +69,12 @@ test.describe("Stripe API Endpoints", () => {
     // 400 (bad signature) is expected, not 404
     expect([400, 500]).toContain(response.status());
   });
+
+  test("webhook endpoint rejects GET requests", async ({ request }) => {
+    const response = await request.get("/api/stripe/webhook");
+    // Should return 405 (Method Not Allowed) or 404
+    expect([404, 405]).toContain(response.status());
+  });
 });
 
 test.describe("Subscription Flow (Landing Page)", () => {
@@ -67,5 +87,34 @@ test.describe("Subscription Flow (Landing Page)", () => {
       .getByRole("link", { name: /get started/i })
       .first();
     await expect(getStartedBtn).toHaveAttribute("href", "/login");
+  });
+
+  test("clicking pricing CTA navigates to login", async ({ page }) => {
+    await page.goto("/pricing");
+    const firstCta = page
+      .getByRole("link", { name: /get started/i })
+      .first();
+    await firstCta.click();
+    await page.waitForURL(/\/login/);
+    await expect(page).toHaveURL(/\/login/);
+  });
+});
+
+test.describe("Subscription - Settings Page (Unauthenticated)", () => {
+  test("settings page redirects to login", async ({ page }) => {
+    await page.goto("/settings");
+    await page.waitForURL(/\/login/);
+    await expect(page).toHaveURL(/\/login/);
+  });
+
+  test("settings page does not expose subscription data", async ({
+    page,
+  }) => {
+    await page.goto("/settings");
+    await page.waitForURL(/\/login/);
+
+    // Should not see subscription-related content
+    const subscriptionCard = page.getByText("Subscription");
+    await expect(subscriptionCard).not.toBeVisible();
   });
 });

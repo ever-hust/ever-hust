@@ -83,8 +83,8 @@ export const FilterBar = memo(function FilterBar({ filters, onFiltersChange }: F
   return (
     <div role="search" aria-label="Job filters" className="space-y-2 border-b p-3">
       {/* Main search row */}
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-0 flex-1 basis-[140px]">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input
             aria-label="Search jobs by keyword"
@@ -98,7 +98,7 @@ export const FilterBar = memo(function FilterBar({ filters, onFiltersChange }: F
             className="h-8 pl-8 text-sm"
           />
         </div>
-        <div className="relative flex-1">
+        <div className="relative min-w-0 flex-1 basis-[140px]">
           <Input
             aria-label="Filter by location"
             placeholder="Location..."
@@ -148,6 +148,7 @@ export const FilterBar = memo(function FilterBar({ filters, onFiltersChange }: F
             size="sm"
             className="h-8 gap-1 text-xs"
             onClick={clearFilters}
+            aria-label="Clear all filters"
           >
             <X className="h-3 w-3" aria-hidden="true" />
             Clear

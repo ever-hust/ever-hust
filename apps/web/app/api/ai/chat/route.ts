@@ -1,6 +1,8 @@
-// Allow long-running AI streaming responses (Vercel serverless default is 10s)
-import { AI_STREAM_MAX_DURATION_SECONDS, MAX_CHAT_PAYLOAD_CHARS } from "@/lib/constants";
-export const maxDuration = AI_STREAM_MAX_DURATION_SECONDS;
+// Allow long-running AI streaming responses (Vercel serverless default is 10s).
+// Segment config exports must be literal values for Next.js static analysis.
+export const maxDuration = 60;
+
+import { MAX_CHAT_PAYLOAD_CHARS } from "@/lib/constants";
 
 import { createOrchestratorStream, getModelForUser, getOrgAiConfig, mergeOrgConfig } from "@repo/ai";
 import { db, users, organizationMembers } from "@repo/db";

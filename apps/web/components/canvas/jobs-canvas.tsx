@@ -145,7 +145,7 @@ export const JobsCanvas = memo(function JobsCanvas({
       <FilterBar filters={filters} onFiltersChange={onFiltersChange} />
 
       {/* Results count + compare toggle */}
-      <div className="flex items-center justify-between px-3 py-2" aria-live="polite" aria-atomic="true">
+      <div className="flex flex-wrap items-center justify-between gap-1 px-3 py-2" aria-live="polite" aria-atomic="true">
         <p className="text-xs text-muted-foreground">
           {totalCount > 0 ? (
             <>

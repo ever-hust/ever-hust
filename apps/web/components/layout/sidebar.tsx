@@ -268,6 +268,7 @@ export function Sidebar() {
             size="sm"
             className="w-full justify-start gap-3 text-muted-foreground"
             onClick={() => setSignOutOpen(true)}
+            aria-label="Sign out"
           >
             <LogOut className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span className="hidden lg:inline">Sign out</span>

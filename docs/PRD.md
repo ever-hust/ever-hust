@@ -1,9 +1,9 @@
 # Ever Jobs - Product Requirements Document (PRD)
 
-**Version**: 1.8
+**Version**: 1.9
 **Date**: 2026-02-19
-**Status**: MVP Implemented + Production Hardening + Growth Features + Enterprise Features + Audit Fixes + Post-MVP Polish (Phase 9 Complete + Post-Audit + Batches 2-6)
-**Previous Versions**: 1.7 (2026-02-19), 1.6 (2026-02-18), 1.5 (2026-02-18), 1.4 (2026-02-18), 1.3 (2026-02-18), 1.2 (2026-02-18), 1.1 (2026-02-15), 1.0 (2026-02-14, Approved)
+**Status**: MVP Implemented + Production Hardening + Growth Features + Enterprise Features + Audit Fixes + Post-MVP Polish (Phase 9 Complete + Post-Audit + Batches 2-7)
+**Previous Versions**: 1.8 (2026-02-19), 1.7 (2026-02-19), 1.6 (2026-02-18), 1.5 (2026-02-18), 1.4 (2026-02-18), 1.3 (2026-02-18), 1.2 (2026-02-18), 1.1 (2026-02-15), 1.0 (2026-02-14, Approved)
 **Domain**: everjobs.ai
 **License**: Proprietary (All Rights Reserved)
 **Repository**: github.com/ever-co/ever-jobs-website
@@ -43,7 +43,7 @@
 18. [API Contracts](#18-api-contracts)
 19. [Non-Functional Requirements](#19-non-functional-requirements)
 20. [Success Metrics](#20-success-metrics)
-- [Appendix A: Implementation Status](#appendix-a-implementation-status-v18)
+- [Appendix A: Implementation Status](#appendix-a-implementation-status-v19)
 - [Appendix B: License](#appendix-b-license)
 
 ---
@@ -1658,9 +1658,9 @@ Response: {
 
 ---
 
-## Appendix A: Implementation Status (v1.8)
+## Appendix A: Implementation Status (v1.9)
 
-> Updated 2026-02-19. See [MVP Implementation Summary](./MVP-IMPLEMENTATION-SUMMARY.md) for detailed change log.
+> Updated 2026-02-19 (v1.9). See [MVP Implementation Summary](./MVP-IMPLEMENTATION-SUMMARY.md) for detailed change log.
 
 ### Phase Completion
 
@@ -1677,7 +1677,7 @@ Response: {
 | Phase 8: Growth & Engagement | ✅ Complete | Job comparison, social sharing, company research, salary insights, resume builder, push notifications, referral program |
 | Phase 9: Enterprise & Scale | ✅ Complete (7/7) | Team accounts, admin dashboard, enterprise API, org AI config, white-label, analytics, i18n |
 | Post-Audit Fixes (v1.6) | ✅ Complete | Security hardening, broken link fixes, dead code cleanup, feature wiring |
-| Post-MVP Polish (v1.7-1.8) | ✅ Complete | Batches 2-6: rate limiting, DB indexes, Stripe idempotency, SEO, health checks, env validation, test expansion (246→470, 19 suites), keyboard a11y, error standardization |
+| Post-MVP Polish (v1.7-1.9) | ✅ Complete | Batches 2-7: rate limiting, DB indexes, Stripe idempotency, SEO, health checks, env validation, test expansion (246→470, 19 suites), keyboard a11y, error standardization, Cache-Control headers, push handlers, structured data, XSS sanitization, zero-byte validation, Realtime reconnection, bundle optimization |
 
 ### Post-Audit Fixes (v1.6)
 
@@ -1710,9 +1710,9 @@ Comprehensive codebase audit identified and resolved 19 issues across security, 
 - ~~Missing DB indexes on `jobs.department`, `applications(userId, jobId)`~~ **RESOLVED** — Composite indexes added in Batch 3
 - ~~Stripe webhook idempotency uses in-memory Map (production should use Redis SET NX)~~ **RESOLVED** — Database-backed idempotency in Batch 4
 
-### Post-MVP Polish (v1.7-1.8) — Batches 2-6
+### Post-MVP Polish (v1.7-1.9) — Batches 2-7
 
-After the v1.6 audit fixes, four additional improvement batches were completed to harden the platform for production readiness, improve developer experience, and polish the user-facing experience.
+After the v1.6 audit fixes, six additional improvement batches were completed to harden the platform for production readiness, improve developer experience, and polish the user-facing experience.
 
 #### Batch 2: MVP Improvements
 
@@ -1771,6 +1771,18 @@ Focus: Test suite expansion, keyboard accessibility, error response consistency,
 - **Job card keyboard accessibility in compare mode** — Job cards in the compare selection mode are now fully keyboard navigable. Users can tab between cards and toggle compare selection with Enter/Space. Focus indicators are visible and ARIA attributes (`aria-selected`, `aria-label`) are set correctly for screen reader compatibility.
 - **Webhook error response standardization** — The Stripe webhook route (`/api/stripe/webhook`) now uses the standardized `apiBadRequest()` and `apiError()` helpers from `apps/web/lib/api-response.ts` for all error responses, replacing ad-hoc `NextResponse.json()` calls. This ensures consistent error shape (`{ error, message, status }`) across all API routes.
 - **Startup check improvements** — Added `NEXT_PUBLIC_APP_URL` to the recommended environment variables validated during server startup in `apps/web/lib/startup-checks.ts`. Missing `NEXT_PUBLIC_APP_URL` now logs a warning at boot, since it is required for email template links, OAuth callback URLs, and Open Graph metadata.
+
+#### Batch 7: Security, Caching & Resilience
+
+Focus: API response security, push notification reliability, SEO structured data expansion, input validation hardening, and client-side resilience.
+
+- **Default Cache-Control headers on all API responses** — All API routes now include `Cache-Control: private, no-cache, no-store, must-revalidate` headers by default. This prevents browsers and intermediate proxies from caching sensitive authenticated API responses (user data, subscription status, AI chat streams). Applied consistently across all route handlers via a shared response helper.
+- **Push notification handlers in service worker** — The service worker (`public/sw.js`) now includes `push` and `notificationclick` event handlers for Web Push API integration. The `push` handler parses incoming push payloads and displays system notifications with the app icon, badge, and configurable actions. The `notificationclick` handler opens the relevant app page (e.g., job detail, chat) when the user taps a notification, focusing an existing window if available or opening a new one.
+- **JSON-LD structured data for pricing and about pages** — Extended structured data coverage beyond the landing page. The `/pricing` page now includes `FAQPage` and `PricingTable`/`Offers` JSON-LD schemas for rich search results. The `/about` page includes an `Organization` schema with company details. All structured data types across the site: `Organization` (landing + about), `WebSite` (landing), `SoftwareApplication` (landing), `FAQPage` (pricing), `PricingTable`/`Offers` (pricing).
+- **XSS sanitization for custom skill input** — Custom skill tags entered by users on the profile and onboarding flows are now sanitized to strip HTML tags and script content before storage. This prevents stored XSS attacks where malicious skill names could be rendered in job match displays, cover letters, or admin views.
+- **Zero-byte file validation for CV uploads** — The CV upload endpoint (`/api/cv/upload`) now rejects zero-byte files with a descriptive error message, in addition to the existing 10MB max size and PDF/DOCX MIME type checks. Previously, empty files would pass validation but cause downstream parsing failures in the CV parser.
+- **Realtime subscription auto-reconnection** — The `useRealtimeJobs` hook now implements automatic reconnection with exponential backoff (3 attempts, starting at 1 second). When the Supabase Realtime WebSocket connection drops (network interruption, server restart, auth token expiry), the hook automatically attempts to re-establish the subscription. Failed reconnection attempts surface an error state to the canvas UI, and successful reconnection resumes live job updates without user intervention.
+- **Bundle optimization** — Added `optimizePackageImports` configuration in `next.config.ts` for `lucide-react` and `recharts`. This enables tree-shaking at the module level for these icon and chart libraries, reducing the client-side JavaScript bundle by eliminating unused exports. Particularly impactful for `lucide-react` which exports 1000+ icon components but only ~50 are used in the app.
 
 ### Phase 7: Production Hardening (v1.2) + Architecture Audit (v1.3)
 

@@ -86,6 +86,7 @@ Prompts are managed through Langfuse with local fallbacks. The orchestrator syst
 - **Route Groups**: `(marketing)` for public pages, `(auth)` for login/signup, `(dashboard)` for authenticated pages
 - **Middleware** (`apps/web/middleware.ts`): Checks BetterAuth session cookie for protected routes (`/chat`, `/jobs`, `/profile`, `/settings`, `/applications`, `/favorites`), applies security headers (CSP, HSTS, etc.) to all responses
 - **Auth catch-all**: `apps/web/app/api/auth/[...all]/route.ts` proxies to BetterAuth
+- **Production build**: 72 routes total (62 static/dynamic pages + API routes)
 - **Job not-found page**: `apps/web/app/(dashboard)/jobs/[id]/not-found.tsx` — custom 404 page for invalid job IDs
 - **Admin loading skeleton**: `apps/web/app/(admin)/admin/loading.tsx` — skeleton UI shown while admin pages load
 
@@ -109,6 +110,7 @@ API routes in `apps/web/app/api/` follow a consistent pattern:
 - Apply rate limiting with `applyRateLimit(key, tier)` from `apps/web/lib/rate-limit.ts`. Available tiers: `authenticated` (100 req/min), `public` (20 req/min), `publicHighThroughput` (100 req/min), `chat` (30 req/min), `admin` (60 req/min), `adminWrite` (30 req/min), `export` (5 req/min). Uses in-memory sliding window; swap to Redis/Upstash for distributed deployments.
 - Validate request body with Zod schemas from `apps/web/lib/api-schemas.ts`
 - Return errors via `apiBadRequest()` / `apiError()` helpers from `apps/web/lib/api-response.ts` (including the Stripe webhook route, which uses these standardized helpers for consistent error responses)
+- All API responses include default `Cache-Control: private, no-cache, no-store, must-revalidate` headers to prevent sensitive data caching
 - Streaming AI routes set `export const maxDuration = 60` for Vercel
 
 ### Component Organization
@@ -123,12 +125,22 @@ API routes in `apps/web/app/api/` follow a consistent pattern:
 - **`apps/web/lib/constants.ts`** — Shared application constants (AI limits, free-tier caps, canvas settings)
 - **`packages/ui/src/alert-dialog.tsx`** — ShadCN AlertDialog component (imported as `@repo/ui/alert-dialog`)
 
+### Structured Data (JSON-LD)
+
+All marketing pages include JSON-LD structured data: `Organization` (landing), `WebSite` (landing), `SoftwareApplication` (landing), `FAQPage` (pricing), `PricingTable`/`Offers` (pricing), and `Organization` (about). The structured data component escapes `</script>` to prevent XSS injection.
+
+### Security Hardening
+
+- **XSS sanitization**: Custom skill input on the profile/onboarding flow is sanitized to prevent stored XSS attacks
+- **CV upload validation**: Rejects zero-byte files in addition to enforcing the 10MB max size and PDF/DOCX type checks
+- **Service worker**: Includes `push` and `notificationclick` event handlers for Web Push notifications, in addition to offline caching
+
 ### Custom Hooks
 
 Located in `apps/web/hooks/`. Key hooks:
 
 - `useCanvasSync` — Manages jobs canvas state, syncs AI tool results to canvas
-- `useRealtimeJobs` — Supabase Realtime subscription for live job updates
+- `useRealtimeJobs` — Supabase Realtime subscription for live job updates with auto-reconnection (3 attempts with exponential backoff)
 - `useFavorites` — Favorite job management
 - `useChatPersistence` — Chat session persistence
 - `useKeyboardShortcuts` — Global keyboard shortcut management

@@ -24,6 +24,9 @@ import {
 import { checkSearchLimit, checkCoverLetterLimit } from "../rate-limit";
 import { getOrchestratorPrompt } from "../prompts";
 
+/** Maximum agentic tool-use steps the orchestrator may take per chat turn. */
+const MAX_AI_STEPS_PER_TURN = 5;
+
 interface OrchestratorOptions {
   model: LanguageModel;
   messages: ModelMessage[];
@@ -173,6 +176,6 @@ export async function createOrchestratorStream({
       resumeBuilder: resumeBuilderTool,
       salaryInsights: salaryInsightsTool,
     },
-    stopWhen: stepCountIs(5),
+    stopWhen: stepCountIs(MAX_AI_STEPS_PER_TURN),
   });
 }

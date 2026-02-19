@@ -1,5 +1,5 @@
 import { task, schedules } from "@trigger.dev/sdk/v3";
-import { db, jobs } from "@repo/db";
+import { db, jobs, stripeWebhookEvents } from "@repo/db";
 import { lt, and, isNotNull, sql } from "drizzle-orm";
 
 /**
@@ -61,9 +61,22 @@ async function runCleanup() {
     // Table may not exist yet
   }
 
+  // Delete processed Stripe webhook events older than 7 days
+  let deletedWebhookEvents = 0;
+  try {
+    const webhookResult = await db
+      .delete(stripeWebhookEvents)
+      .where(lt(stripeWebhookEvents.processedAt, sevenDaysAgo))
+      .returning({ id: stripeWebhookEvents.id });
+    deletedWebhookEvents = webhookResult.length;
+  } catch {
+    // Table may not exist yet
+  }
+
   return {
     deletedJobs: totalDeletedJobs,
     deletedAgents,
+    deletedWebhookEvents,
     cleanupDate: now.toISOString(),
   };
 }

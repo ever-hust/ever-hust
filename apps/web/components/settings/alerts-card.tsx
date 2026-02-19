@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { Bell, Power, Trash2 } from "lucide-react";
+import { Bell, Power, Trash2, Loader2 } from "lucide-react";
 import { Badge } from "@repo/ui/badge";
 import { Button } from "@repo/ui/button";
 import { Card } from "@repo/ui/card";
@@ -25,6 +25,7 @@ export function AlertsCard({
 }: AlertsCardProps) {
   const [alerts, setAlerts] = useState<Alert[]>(initialAlerts);
   const [deleteAlertId, setDeleteAlertId] = useState<number | null>(null);
+  const [togglingAlertId, setTogglingAlertId] = useState<number | null>(null);
   const isPro = subscriptionStatus === "active";
 
   // Sync with parent when initial alerts resolve
@@ -34,6 +35,7 @@ export function AlertsCard({
 
   const handleToggleAlert = useCallback(
     async (alertId: number, isActive: boolean) => {
+      setTogglingAlertId(alertId);
       try {
         const res = await fetch("/api/user/alerts", {
           method: "PATCH",
@@ -52,6 +54,8 @@ export function AlertsCard({
         }
       } catch {
         toast.error("Failed to update alert");
+      } finally {
+        setTogglingAlertId(null);
       }
     },
     []
@@ -169,8 +173,13 @@ export function AlertsCard({
                       onClick={() =>
                         handleToggleAlert(alert.id, alert.isActive)
                       }
+                      disabled={togglingAlertId === alert.id}
                     >
-                      <Power className="h-3.5 w-3.5" aria-hidden="true" />
+                      {togglingAlertId === alert.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Power className="h-3.5 w-3.5" aria-hidden="true" />
+                      )}
                     </Button>
                     <Button
                       variant="ghost"
@@ -178,6 +187,7 @@ export function AlertsCard({
                       className="h-7 w-7 text-destructive hover:text-destructive"
                       aria-label="Delete alert"
                       onClick={() => setDeleteAlertId(alert.id)}
+                      disabled={togglingAlertId === alert.id}
                     >
                       <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                     </Button>

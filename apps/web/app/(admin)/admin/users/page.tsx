@@ -5,6 +5,8 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  Users,
+  SearchX,
 } from "lucide-react";
 import {
   Card,
@@ -170,9 +172,37 @@ export default function AdminUsersPage() {
               ))}
             </div>
           ) : data?.users.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">
-              No users found.
-            </p>
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="rounded-full bg-muted p-4">
+                {search ? (
+                  <SearchX className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
+                ) : (
+                  <Users className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
+                )}
+              </div>
+              <h3 className="mt-4 text-lg font-semibold">
+                {search ? "No users match your search" : "No users found"}
+              </h3>
+              <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                {search
+                  ? `No users found matching "${search}". Try a different name or email address.`
+                  : "There are no registered users on the platform yet."}
+              </p>
+              {search && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-4"
+                  onClick={() => {
+                    setSearchInput("");
+                    setSearch("");
+                    setPage(1);
+                  }}
+                >
+                  Clear Search
+                </Button>
+              )}
+            </div>
           ) : (
             <>
               {/* Table header */}

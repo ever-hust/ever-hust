@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useMemo, useEffect, memo } from "react";
-import { Briefcase, Loader2, GitCompareArrows, X } from "lucide-react";
+import { Briefcase, Loader2, GitCompareArrows, X, SearchX } from "lucide-react";
 import { Button } from "@repo/ui/button";
 import { Badge } from "@repo/ui/badge";
 import { JobCard, type JobCardData } from "./job-card";
@@ -9,9 +9,20 @@ import { JobCardSkeletonList } from "./job-card-skeleton";
 import { FilterBar, type JobFilters } from "./filter-bar";
 import { JobCompareDialog } from "./job-compare-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
+import { MAX_COMPARE_JOBS } from "@/lib/constants";
 
-/** Maximum number of jobs that can be compared at once. */
-const MAX_COMPARE = 3;
+/** Returns true if any filter field has a non-empty value. */
+function hasActiveFilters(filters: JobFilters): boolean {
+  return !!(
+    filters.keywords ||
+    filters.location ||
+    filters.isRemote ||
+    filters.jobType ||
+    (filters.salaryMin != null && filters.salaryMin > 0) ||
+    (filters.salaryMax != null && filters.salaryMax > 0) ||
+    (filters.skills && filters.skills.length > 0)
+  );
+}
 
 interface JobsCanvasProps {
   jobs: JobCardData[];
@@ -74,7 +85,7 @@ export const JobsCanvas = memo(function JobsCanvas({
           const next = new Set(prev);
           if (next.has(jobId)) {
             next.delete(jobId);
-          } else if (next.size < MAX_COMPARE) {
+          } else if (next.size < MAX_COMPARE_JOBS) {
             next.add(jobId);
           }
           return next;
@@ -179,7 +190,7 @@ export const JobsCanvas = memo(function JobsCanvas({
           </p>
           {selectedJobIds.size > 0 && (
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-              {selectedJobIds.size}/{MAX_COMPARE} selected
+              {selectedJobIds.size}/{MAX_COMPARE_JOBS} selected
             </Badge>
           )}
           <Button
@@ -199,11 +210,27 @@ export const JobsCanvas = memo(function JobsCanvas({
         {jobs.length === 0 && isLoading ? (
           <JobCardSkeletonList count={5} />
         ) : jobs.length === 0 && !isLoading ? (
-          <EmptyState
-            icon={Briefcase}
-            title="No jobs yet"
-            description='Use the chat to search for jobs. Try saying "Find me remote React developer positions" or use the filters above.'
-          />
+          hasActiveFilters(filters) ? (
+            <EmptyState
+              icon={SearchX}
+              title="No jobs found matching your criteria"
+              description="Try adjusting your filters, broadening your search terms, or removing some filter conditions to see more results."
+            >
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onFiltersChange({})}
+              >
+                Clear All Filters
+              </Button>
+            </EmptyState>
+          ) : (
+            <EmptyState
+              icon={Briefcase}
+              title="No jobs yet"
+              description='Use the chat to search for jobs. Try saying "Find me remote React developer positions" or use the filters above.'
+            />
+          )
         ) : (
           <ul className="space-y-2" aria-label="Job results">
             {jobs.map((job, index) => (

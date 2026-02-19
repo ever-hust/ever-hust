@@ -197,6 +197,18 @@ export default async function JobDetailPage({ params }: PageProps) {
   const safeLogo = safeExternalUrl(job.companyLogo);
   const applyLink = safeExternalUrl(job.applyUrl) ?? safeExternalUrl(job.jobUrl) ?? safeExternalUrl(job.jobUrlDirect) ?? null;
 
+  // Check if any structured job details exist for the sidebar card
+  const hasJobDetails =
+    (job.jobType && job.jobType.length > 0) ||
+    job.jobLevel ||
+    job.department ||
+    job.team ||
+    job.employmentType ||
+    job.jobFunction ||
+    salary ||
+    location ||
+    postedDate;
+
   // Build JSON-LD structured data for SEO (Google for Jobs)
   const jsonLd = {
     "@context": "https://schema.org/",
@@ -295,10 +307,10 @@ export default async function JobDetailPage({ params }: PageProps) {
                 {job.title}
               </h1>
               <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                {job.companyName && (
-                  <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
-                    <Building2 className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                    {safeExternalUrl(job.companyUrl) ? (
+                <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+                  <Building2 className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  {job.companyName ? (
+                    safeExternalUrl(job.companyUrl) ? (
                       <a
                         href={safeExternalUrl(job.companyUrl)!}
                         target="_blank"
@@ -309,9 +321,11 @@ export default async function JobDetailPage({ params }: PageProps) {
                       </a>
                     ) : (
                       job.companyName
-                    )}
-                  </span>
-                )}
+                    )
+                  ) : (
+                    <span className="text-muted-foreground font-normal">Company not specified</span>
+                  )}
+                </span>
 
                 {location && (
                   <span className="inline-flex items-center gap-1.5">
@@ -383,18 +397,23 @@ export default async function JobDetailPage({ params }: PageProps) {
           {/* Description Column */}
           <div className="lg:col-span-2">
             {/* Description */}
-            {job.description && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Job Description</CardTitle>
-                </CardHeader>
-                <CardContent>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Job Description</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {job.description ? (
                   <div className="prose prose-sm max-w-none">
                     {renderDescription(job.description)}
                   </div>
-                </CardContent>
-              </Card>
-            )}
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">
+                    No description available for this position. Visit the
+                    original listing for more details.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
 
             {/* Skills */}
             {job.skills && job.skills.length > 0 && (
@@ -423,6 +442,12 @@ export default async function JobDetailPage({ params }: PageProps) {
                 <CardTitle className="text-lg">Job Details</CardTitle>
               </CardHeader>
               <CardContent>
+                {!hasJobDetails ? (
+                  <p className="text-sm text-muted-foreground italic">
+                    No additional details available. Check the original listing
+                    for more information.
+                  </p>
+                ) : (
                 <dl className="space-y-4">
                   {job.jobType && job.jobType.length > 0 && (
                     <div className="flex items-start gap-3">
@@ -535,6 +560,7 @@ export default async function JobDetailPage({ params }: PageProps) {
                     </div>
                   )}
                 </dl>
+                )}
               </CardContent>
             </Card>
 

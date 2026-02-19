@@ -1,5 +1,6 @@
 // Allow long-running AI streaming responses (Vercel serverless default is 10s)
-export const maxDuration = 60;
+import { AI_STREAM_MAX_DURATION_SECONDS, MAX_CHAT_PAYLOAD_CHARS } from "@/lib/constants";
+export const maxDuration = AI_STREAM_MAX_DURATION_SECONDS;
 
 import { createOrchestratorStream, getModelForUser, getOrgAiConfig, mergeOrgConfig } from "@repo/ai";
 import { db, users, organizationMembers } from "@repo/db";
@@ -42,7 +43,7 @@ export async function POST(req: Request) {
     (sum, m) => sum + m.content.length,
     0
   );
-  if (totalChars > 500_000) {
+  if (totalChars > MAX_CHAT_PAYLOAD_CHARS) {
     return apiBadRequest(
       "Total message content is too large. Please start a new conversation or remove older messages."
     );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Bot, Check } from "lucide-react";
+import { Bot, Check, Loader2 } from "lucide-react";
 import { Badge } from "@repo/ui/badge";
 import { Card } from "@repo/ui/card";
 import { toast } from "sonner";
@@ -15,6 +15,7 @@ interface AIModelCardProps {
 export function AIModelCard({ subscriptionStatus, initialModel }: AIModelCardProps) {
   const [selectedModel, setSelectedModel] = useState(initialModel);
   const [modelSaving, setModelSaving] = useState(false);
+  const [savingModelId, setSavingModelId] = useState<string | null>(null);
   const isPro = subscriptionStatus === "active";
 
   const handleModelSelect = useCallback(
@@ -27,6 +28,7 @@ export function AIModelCard({ subscriptionStatus, initialModel }: AIModelCardPro
 
       setSelectedModel(modelId);
       setModelSaving(true);
+      setSavingModelId(modelId);
       try {
         const res = await fetch("/api/user/settings", {
           method: "PATCH",
@@ -44,6 +46,7 @@ export function AIModelCard({ subscriptionStatus, initialModel }: AIModelCardPro
         toast.error("Failed to update AI model");
       } finally {
         setModelSaving(false);
+        setSavingModelId(null);
       }
     },
     [isPro]
@@ -82,6 +85,11 @@ export function AIModelCard({ subscriptionStatus, initialModel }: AIModelCardPro
                 </div>
                 {isLocked ? (
                   <Badge variant="secondary">Pro only</Badge>
+                ) : savingModelId === model.id ? (
+                  <Badge variant="default">
+                    <Loader2 className="mr-1 h-3 w-3 animate-spin" aria-hidden="true" />
+                    Saving...
+                  </Badge>
                 ) : isSelected ? (
                   <Badge variant="default">
                     <Check className="mr-1 h-3 w-3" aria-hidden="true" />

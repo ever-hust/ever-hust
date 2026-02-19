@@ -1,35 +1,44 @@
 // Stripe webhook may need to fetch subscription details — allow up to 30s
 export const maxDuration = 30;
 
-import { db, users, subscriptions } from "@repo/db";
+import { db, users, subscriptions, stripeWebhookEvents } from "@repo/db";
 import { getStripe, parseWebhookEvent } from "@repo/stripe";
 import { sendSubscriptionConfirmedEmail } from "@repo/email";
 import { eq, and, ne } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 // ── Idempotency Guard ─────────────────────────────────────────────────────
-// Prevents duplicate processing of the same Stripe event.
-// In production with multiple instances, use Redis SET NX instead.
-const processedEvents = new Map<string, number>();
-const IDEMPOTENCY_TTL = 5 * 60 * 1000; // 5 minutes
-const CLEANUP_INTERVAL = 60 * 1000; // Run cleanup at most once per minute
-let lastIdempotencyCleanup = 0;
+// Database-backed deduplication that works across multiple server instances.
+// Old events are cleaned up by the daily cleanup task (7-day retention).
 
-function cleanupProcessedEvents(now: number): void {
-  if (now - lastIdempotencyCleanup < CLEANUP_INTERVAL && processedEvents.size <= 1000) return;
-  lastIdempotencyCleanup = now;
-  for (const [id, ts] of processedEvents) {
-    if (now - ts > IDEMPOTENCY_TTL) processedEvents.delete(id);
+/**
+ * Check if a webhook event has already been processed.
+ * Returns `true` if this is the first time (caller should process it),
+ * or `false` if it was already handled (caller should skip).
+ */
+async function claimEvent(eventId: string): Promise<boolean> {
+  try {
+    await db.insert(stripeWebhookEvents).values({ id: eventId });
+    return true; // Insert succeeded — first time seeing this event
+  } catch (error) {
+    // Unique constraint violation means another instance already processed it.
+    // PostgreSQL error code 23505 = unique_violation.
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      (error as { code: string }).code === "23505"
+    ) {
+      return false;
+    }
+    // For any other DB error, log and allow processing to proceed.
+    // It's safer to risk double-processing (handlers are idempotent)
+    // than to silently drop a webhook.
+    console.warn(
+      "[stripe/webhook] Idempotency check failed, proceeding with processing:",
+      error instanceof Error ? error.message : error,
+    );
+    return true;
   }
-}
-
-function markProcessed(eventId: string): boolean {
-  const now = Date.now();
-  cleanupProcessedEvents(now);
-
-  if (processedEvents.has(eventId)) return false; // Already processed
-  processedEvents.set(eventId, now);
-  return true; // First time
 }
 
 /** Map plan ID to display info for emails. */
@@ -74,7 +83,8 @@ export async function POST(req: Request) {
   }
 
   // Idempotency: skip if we've already processed this event
-  if (!markProcessed(event.id)) {
+  const isNew = await claimEvent(event.id);
+  if (!isNew) {
     return NextResponse.json({ received: true, deduplicated: true });
   }
 

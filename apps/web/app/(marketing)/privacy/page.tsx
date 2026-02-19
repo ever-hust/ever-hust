@@ -14,6 +14,14 @@ export const metadata: Metadata = {
     description:
       "Learn how Ever Jobs collects, uses, and protects your personal information.",
     url: "/privacy",
+    siteName: "Ever Jobs",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Privacy Policy — Ever Jobs",
+    description:
+      "Learn how Ever Jobs collects, uses, and protects your personal information.",
   },
 };
 

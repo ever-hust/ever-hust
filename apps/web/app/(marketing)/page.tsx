@@ -19,6 +19,14 @@ export const metadata: Metadata = {
     description:
       "Chat with AI to search 50+ job boards, generate tailored cover letters, and land your dream job.",
     url: "/",
+    siteName: "Ever Jobs",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Ever Jobs - AI-Powered Job Search Assistant",
+    description:
+      "Chat with AI to search 50+ job boards, generate tailored cover letters, and land your dream job.",
   },
   alternates: {
     canonical: "/",

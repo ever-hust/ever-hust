@@ -15,6 +15,14 @@ export const metadata: Metadata = {
     description:
       "Get in touch with the Ever Jobs team for support, partnerships, or general inquiries.",
     url: "/contact",
+    siteName: "Ever Jobs",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Contact — Ever Jobs",
+    description:
+      "Get in touch with the Ever Jobs team for support, partnerships, or general inquiries.",
   },
 };
 

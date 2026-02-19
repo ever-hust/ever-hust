@@ -14,6 +14,14 @@ export const metadata: Metadata = {
     description:
       "Read the Terms of Service for Ever Jobs, the AI-powered job search platform.",
     url: "/terms",
+    siteName: "Ever Jobs",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Terms of Service — Ever Jobs",
+    description:
+      "Read the Terms of Service for Ever Jobs, the AI-powered job search platform.",
   },
 };
 

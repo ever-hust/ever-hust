@@ -15,6 +15,14 @@ export const metadata: Metadata = {
     description:
       "Learn about Ever Jobs, the AI-powered job search platform helping job seekers worldwide.",
     url: "/about",
+    siteName: "Ever Jobs",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "About — Ever Jobs",
+    description:
+      "Learn about Ever Jobs, the AI-powered job search platform helping job seekers worldwide.",
   },
 };
 

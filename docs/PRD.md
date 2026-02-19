@@ -1,9 +1,9 @@
 # Ever Jobs - Product Requirements Document (PRD)
 
-**Version**: 1.7
+**Version**: 1.8
 **Date**: 2026-02-19
-**Status**: MVP Implemented + Production Hardening + Growth Features + Enterprise Features + Audit Fixes + Post-MVP Polish (Phase 9 Complete + Post-Audit + Batches 2-5)
-**Previous Versions**: 1.6 (2026-02-18), 1.5 (2026-02-18), 1.4 (2026-02-18), 1.3 (2026-02-18), 1.2 (2026-02-18), 1.1 (2026-02-15), 1.0 (2026-02-14, Approved)
+**Status**: MVP Implemented + Production Hardening + Growth Features + Enterprise Features + Audit Fixes + Post-MVP Polish (Phase 9 Complete + Post-Audit + Batches 2-6)
+**Previous Versions**: 1.7 (2026-02-19), 1.6 (2026-02-18), 1.5 (2026-02-18), 1.4 (2026-02-18), 1.3 (2026-02-18), 1.2 (2026-02-18), 1.1 (2026-02-15), 1.0 (2026-02-14, Approved)
 **Domain**: everjobs.ai
 **License**: Proprietary (All Rights Reserved)
 **Repository**: github.com/ever-co/ever-jobs-website
@@ -43,7 +43,7 @@
 18. [API Contracts](#18-api-contracts)
 19. [Non-Functional Requirements](#19-non-functional-requirements)
 20. [Success Metrics](#20-success-metrics)
-- [Appendix A: Implementation Status](#appendix-a-implementation-status-v17)
+- [Appendix A: Implementation Status](#appendix-a-implementation-status-v18)
 - [Appendix B: License](#appendix-b-license)
 
 ---
@@ -1658,7 +1658,7 @@ Response: {
 
 ---
 
-## Appendix A: Implementation Status (v1.7)
+## Appendix A: Implementation Status (v1.8)
 
 > Updated 2026-02-19. See [MVP Implementation Summary](./MVP-IMPLEMENTATION-SUMMARY.md) for detailed change log.
 
@@ -1677,7 +1677,7 @@ Response: {
 | Phase 8: Growth & Engagement | ✅ Complete | Job comparison, social sharing, company research, salary insights, resume builder, push notifications, referral program |
 | Phase 9: Enterprise & Scale | ✅ Complete (7/7) | Team accounts, admin dashboard, enterprise API, org AI config, white-label, analytics, i18n |
 | Post-Audit Fixes (v1.6) | ✅ Complete | Security hardening, broken link fixes, dead code cleanup, feature wiring |
-| Post-MVP Polish (v1.7) | ✅ Complete | Batches 2-5: rate limiting, DB indexes, Stripe idempotency, SEO, health checks, env validation, test expansion (246→434) |
+| Post-MVP Polish (v1.7-1.8) | ✅ Complete | Batches 2-6: rate limiting, DB indexes, Stripe idempotency, SEO, health checks, env validation, test expansion (246→470, 19 suites), keyboard a11y, error standardization |
 
 ### Post-Audit Fixes (v1.6)
 
@@ -1710,7 +1710,7 @@ Comprehensive codebase audit identified and resolved 19 issues across security, 
 - ~~Missing DB indexes on `jobs.department`, `applications(userId, jobId)`~~ **RESOLVED** — Composite indexes added in Batch 3
 - ~~Stripe webhook idempotency uses in-memory Map (production should use Redis SET NX)~~ **RESOLVED** — Database-backed idempotency in Batch 4
 
-### Post-MVP Polish (v1.7) — Batches 2-5
+### Post-MVP Polish (v1.7-1.8) — Batches 2-6
 
 After the v1.6 audit fixes, four additional improvement batches were completed to harden the platform for production readiness, improve developer experience, and polish the user-facing experience.
 
@@ -1758,6 +1758,19 @@ Focus: SEO, monitoring, environment safety, and error resilience.
 - **Health check endpoint** — Enhanced `/api/health` to include database connectivity check with a 5-second timeout, HEAD method support for lightweight monitoring, and response body with `version` (from `package.json`), `uptime` (process uptime), `status` ("healthy" / "degraded"), and `timestamp`. Returns 200 for healthy, 503 for degraded (DB unreachable).
 - **Startup environment validation** — Added `apps/web/instrumentation.ts` logic that runs on server startup, validating environment variables in three tiers: **critical** (app crashes without these: `DATABASE_URL`, `BETTER_AUTH_SECRET`), **recommended** (features degrade: `STRIPE_SECRET_KEY`, `RESEND_API_KEY`, `ANTHROPIC_API_KEY`), and **optional** (nice-to-have: `LANGFUSE_PUBLIC_KEY`, `NEXT_PUBLIC_POSTHOG_KEY`). Missing critical vars throw; missing recommended vars log warnings.
 - **Admin error boundary** — Added a dedicated error boundary for the `/admin` route segment. Previously, admin page errors would bubble up to the root error boundary, losing the admin sidebar context. The admin error boundary preserves the admin layout and provides a "Return to Dashboard" action.
+
+#### Batch 6: Test Coverage & Accessibility Polish
+
+Focus: Test suite expansion, keyboard accessibility, error response consistency, and missing page states.
+
+- **Test coverage expansion (434 to 470 tests, 19 suites)** — Added 36 new unit tests, bringing the total to 470 across 19 test suites. Coverage now spans all core packages (`ai`, `stripe`, `cv-parser`, `jobs-api`, `utils`, `email`, `web-lib`) with deeper coverage of edge cases and integration scenarios.
+- **Org-config merge tests** (`org-config.test.ts`) — New test file validating the `mergeOrgConfig()` helper that merges organization-level AI configuration overrides with user preferences. Tests cover: default fallback behavior, partial overrides, system prompt concatenation, temperature/max-token clamping, and edge cases with missing org or user configs.
+- **Webhook idempotency tests** (`webhook-idempotency.test.ts`) — New test file verifying the database-backed Stripe webhook idempotency logic. Tests cover: first-time event processing, duplicate event rejection, concurrent event handling, and cleanup of expired event records.
+- **Job not-found page** — Added `apps/web/app/(dashboard)/jobs/[id]/not-found.tsx`, a custom 404 page rendered when a job ID does not exist in the database. Provides a user-friendly message with a link back to the jobs listing, instead of the generic Next.js 404 page.
+- **Admin loading skeleton** — Added `apps/web/app/(admin)/admin/loading.tsx`, a skeleton UI displayed while admin pages load. Preserves the admin layout context (sidebar) and shows shimmer placeholders for stat cards, tables, and charts, preventing layout shift during data fetching.
+- **Job card keyboard accessibility in compare mode** — Job cards in the compare selection mode are now fully keyboard navigable. Users can tab between cards and toggle compare selection with Enter/Space. Focus indicators are visible and ARIA attributes (`aria-selected`, `aria-label`) are set correctly for screen reader compatibility.
+- **Webhook error response standardization** — The Stripe webhook route (`/api/stripe/webhook`) now uses the standardized `apiBadRequest()` and `apiError()` helpers from `apps/web/lib/api-response.ts` for all error responses, replacing ad-hoc `NextResponse.json()` calls. This ensures consistent error shape (`{ error, message, status }`) across all API routes.
+- **Startup check improvements** — Added `NEXT_PUBLIC_APP_URL` to the recommended environment variables validated during server startup in `apps/web/lib/startup-checks.ts`. Missing `NEXT_PUBLIC_APP_URL` now logs a warning at boot, since it is required for email template links, OAuth callback URLs, and Open Graph metadata.
 
 ### Phase 7: Production Hardening (v1.2) + Architecture Audit (v1.3)
 

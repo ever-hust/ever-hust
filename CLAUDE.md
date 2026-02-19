@@ -86,6 +86,8 @@ Prompts are managed through Langfuse with local fallbacks. The orchestrator syst
 - **Route Groups**: `(marketing)` for public pages, `(auth)` for login/signup, `(dashboard)` for authenticated pages
 - **Middleware** (`apps/web/middleware.ts`): Checks BetterAuth session cookie for protected routes (`/chat`, `/jobs`, `/profile`, `/settings`, `/applications`, `/favorites`), applies security headers (CSP, HSTS, etc.) to all responses
 - **Auth catch-all**: `apps/web/app/api/auth/[...all]/route.ts` proxies to BetterAuth
+- **Job not-found page**: `apps/web/app/(dashboard)/jobs/[id]/not-found.tsx` — custom 404 page for invalid job IDs
+- **Admin loading skeleton**: `apps/web/app/(admin)/admin/loading.tsx` — skeleton UI shown while admin pages load
 
 ### Subscription & Rate Limiting
 
@@ -106,12 +108,12 @@ API routes in `apps/web/app/api/` follow a consistent pattern:
 - Authenticate with `requireSessionUser()` (throws NextResponse on failure)
 - Apply rate limiting with `applyRateLimit(key, tier)` from `apps/web/lib/rate-limit.ts`. Available tiers: `authenticated` (100 req/min), `public` (20 req/min), `publicHighThroughput` (100 req/min), `chat` (30 req/min), `admin` (60 req/min), `adminWrite` (30 req/min), `export` (5 req/min). Uses in-memory sliding window; swap to Redis/Upstash for distributed deployments.
 - Validate request body with Zod schemas from `apps/web/lib/api-schemas.ts`
-- Return errors via `apiBadRequest()` / `apiError()` helpers from `apps/web/lib/api-response.ts`
+- Return errors via `apiBadRequest()` / `apiError()` helpers from `apps/web/lib/api-response.ts` (including the Stripe webhook route, which uses these standardized helpers for consistent error responses)
 - Streaming AI routes set `export const maxDuration = 60` for Vercel
 
 ### Component Organization
 
-- **`apps/web/components/canvas/`** — Jobs canvas, job cards, filter bar, CV dropzone
+- **`apps/web/components/canvas/`** — Jobs canvas, job cards (keyboard navigable in compare mode), filter bar, CV dropzone
 - **`apps/web/components/chat/`** — Chat panel, messages, input, tool approval, agent status
 - **`apps/web/components/landing/`** — Marketing page sections (hero, features, pricing, etc.)
 - **`apps/web/components/layout/`** — Sidebar, split-screen layout
@@ -134,8 +136,8 @@ Located in `apps/web/hooks/`. Key hooks:
 
 ### Testing
 
-- **Jest**: ~434 unit tests live alongside source files as `*.test.ts`. Projects configured for: `ai`, `stripe`, `cv-parser`, `jobs-api`, `utils`, `email`, `web-lib`. Uses `ts-jest` with `isolatedModules: true` to avoid OOM from complex AI SDK/Zod generics. Key test files include `model-router.test.ts`, `prompts.test.ts`, `rate-limit.test.ts`, `tool-schemas.test.ts`, `crypto.test.ts`, `api-client.test.ts`, `api-response.test.ts`, `api-schemas.test.ts`, `subscription-gate.test.ts`, `referral-utils.test.ts`, `format-date.test.ts`.
-- **Playwright**: E2E tests in `tests/e2e/`. Specs for: auth, landing, chat, jobs, profile, subscription. Runs against `http://localhost:3000`.
+- **Jest**: 470 unit tests across 19 suites, living alongside source files as `*.test.ts`. Projects configured for: `ai`, `stripe`, `cv-parser`, `jobs-api`, `utils`, `email`, `web-lib`. Uses `ts-jest` with `isolatedModules: true` to avoid OOM from complex AI SDK/Zod generics. Key test files include `model-router.test.ts`, `prompts.test.ts`, `rate-limit.test.ts`, `tool-schemas.test.ts`, `crypto.test.ts`, `api-client.test.ts`, `api-response.test.ts`, `api-schemas.test.ts`, `subscription-gate.test.ts`, `referral-utils.test.ts`, `format-date.test.ts`, `org-config.test.ts`, `webhook-idempotency.test.ts`.
+- **Playwright**: 175 E2E tests across 8 spec files in `tests/e2e/`. Specs for: auth, landing, chat, jobs, profile, subscription. Runs against `http://localhost:3000`.
 
 ### UI Package Pattern
 
@@ -148,4 +150,4 @@ Langfuse tracing is set up via `apps/web/instrumentation.ts` (Next.js instrument
 ### Environment & Startup
 
 - **`.env.example`** — Reference file listing all environment variables with descriptions. Copy to `.env.local` to get started.
-- **Startup checks** (`apps/web/lib/startup-checks.ts`): Runs automatically via `instrumentation.ts` on server boot. Validates critical env vars (`DATABASE_URL`, `BETTER_AUTH_SECRET`) — missing ones throw and prevent startup. Logs warnings for recommended vars (Stripe, LinkedIn OAuth, Resend, Supabase) and info for optional vars (OpenRouter, Langfuse, Upstash, Trigger.dev). Also validates that at least one AI provider key is configured.
+- **Startup checks** (`apps/web/lib/startup-checks.ts`): Runs automatically via `instrumentation.ts` on server boot. Validates critical env vars (`DATABASE_URL`, `BETTER_AUTH_SECRET`) — missing ones throw and prevent startup. Logs warnings for recommended vars (Stripe, LinkedIn OAuth, Resend, Supabase, `NEXT_PUBLIC_APP_URL`) and info for optional vars (OpenRouter, Langfuse, Upstash, Trigger.dev). Also validates that at least one AI provider key is configured.

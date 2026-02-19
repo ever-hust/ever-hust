@@ -11,6 +11,11 @@ const nextConfig: NextConfig = {
   // Enable response compression (gzip/brotli)
   compress: true,
 
+  // Tree-shake barrel exports for icon and UI libraries
+  experimental: {
+    optimizePackageImports: ["lucide-react", "recharts"],
+  },
+
   // Remove the X-Powered-By header to reduce fingerprinting surface
   poweredByHeader: false,
 

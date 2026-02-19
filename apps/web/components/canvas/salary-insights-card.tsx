@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useState } from "react";
 import {
   DollarSign,
   TrendingUp,
@@ -11,7 +11,6 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
-import { useState } from "react";
 import {
   Card,
   CardContent,

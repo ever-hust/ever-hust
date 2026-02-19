@@ -95,7 +95,7 @@ Prompts are managed through Langfuse with local fallbacks. The orchestrator syst
 
 ### Database Schema
 
-Tables defined in `packages/db/src/schema/`: `users`, `sessions`, `accounts`, `verifications` (BetterAuth), `jobs`, `userJobs` (favorites), `userAlerts`, `chatSessions`, `chatMessages`, `agentInstances`, `subscriptions`, `applications`.
+Tables defined in `packages/db/src/schema/`: `users`, `sessions`, `accounts`, `verifications` (BetterAuth), `jobs`, `userJobs` (favorites), `userAlerts`, `chatSessions`, `chatMessages`, `agentInstances`, `subscriptions`, `applications`, `pushSubscriptions`, `referrals`, `referralCredits`, `apiKeys`, `organizations`, `organizationMembers`, `organizationInvitations`, `brandingConfigs`, `organizationAiConfigs`, `stripeWebhookEvents`.
 
 The DB client (`packages/db/src/client.ts`) is a lazy singleton using a Proxy pattern — it only connects when first accessed.
 
@@ -104,7 +104,7 @@ The DB client (`packages/db/src/client.ts`) is a lazy singleton using a Proxy pa
 API routes in `apps/web/app/api/` follow a consistent pattern:
 
 - Authenticate with `requireSessionUser()` (throws NextResponse on failure)
-- Apply rate limiting with `applyRateLimit()`
+- Apply rate limiting with `applyRateLimit(key, tier)` from `apps/web/lib/rate-limit.ts`. Available tiers: `authenticated` (100 req/min), `public` (20 req/min), `publicHighThroughput` (100 req/min), `chat` (30 req/min), `admin` (60 req/min), `adminWrite` (30 req/min), `export` (5 req/min). Uses in-memory sliding window; swap to Redis/Upstash for distributed deployments.
 - Validate request body with Zod schemas from `apps/web/lib/api-schemas.ts`
 - Return errors via `apiBadRequest()` / `apiError()` helpers from `apps/web/lib/api-response.ts`
 - Streaming AI routes set `export const maxDuration = 60` for Vercel
@@ -118,6 +118,8 @@ API routes in `apps/web/app/api/` follow a consistent pattern:
 - **`apps/web/components/settings/`** — Settings page cards (AI model, API keys, subscription, etc.)
 - **`apps/web/components/shared/`** — Reusable components (dialogs, error states, keyboard shortcuts)
 - **`apps/web/components/onboarding/`** — New user onboarding flow
+- **`apps/web/lib/constants.ts`** — Shared application constants (AI limits, free-tier caps, canvas settings)
+- **`packages/ui/src/alert-dialog.tsx`** — ShadCN AlertDialog component (imported as `@repo/ui/alert-dialog`)
 
 ### Custom Hooks
 
@@ -128,10 +130,11 @@ Located in `apps/web/hooks/`. Key hooks:
 - `useFavorites` — Favorite job management
 - `useChatPersistence` — Chat session persistence
 - `useKeyboardShortcuts` — Global keyboard shortcut management
+- `useReferralRedeem` — Auto-redeems referral codes stored in localStorage after authentication
 
 ### Testing
 
-- **Jest**: Unit tests live alongside source files as `*.test.ts`. Projects configured for: `ai`, `stripe`, `cv-parser`, `jobs-api`, `utils`, `email`, `web-lib`. Uses `ts-jest` with `isolatedModules: true` to avoid OOM from complex AI SDK/Zod generics.
+- **Jest**: ~434 unit tests live alongside source files as `*.test.ts`. Projects configured for: `ai`, `stripe`, `cv-parser`, `jobs-api`, `utils`, `email`, `web-lib`. Uses `ts-jest` with `isolatedModules: true` to avoid OOM from complex AI SDK/Zod generics. Key test files include `model-router.test.ts`, `prompts.test.ts`, `rate-limit.test.ts`, `tool-schemas.test.ts`, `crypto.test.ts`, `api-client.test.ts`, `api-response.test.ts`, `api-schemas.test.ts`, `subscription-gate.test.ts`, `referral-utils.test.ts`, `format-date.test.ts`.
 - **Playwright**: E2E tests in `tests/e2e/`. Specs for: auth, landing, chat, jobs, profile, subscription. Runs against `http://localhost:3000`.
 
 ### UI Package Pattern
@@ -141,3 +144,8 @@ ShadCN components in `packages/ui/src/` are imported as `@repo/ui/<component-nam
 ### Telemetry
 
 Langfuse tracing is set up via `apps/web/instrumentation.ts` (Next.js instrumentation hook). OTEL spans from the Vercel AI SDK are automatically sent to Langfuse when `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` are configured.
+
+### Environment & Startup
+
+- **`.env.example`** — Reference file listing all environment variables with descriptions. Copy to `.env.local` to get started.
+- **Startup checks** (`apps/web/lib/startup-checks.ts`): Runs automatically via `instrumentation.ts` on server boot. Validates critical env vars (`DATABASE_URL`, `BETTER_AUTH_SECRET`) — missing ones throw and prevent startup. Logs warnings for recommended vars (Stripe, LinkedIn OAuth, Resend, Supabase) and info for optional vars (OpenRouter, Langfuse, Upstash, Trigger.dev). Also validates that at least one AI provider key is configured.

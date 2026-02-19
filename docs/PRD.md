@@ -1,9 +1,9 @@
 # Ever Jobs - Product Requirements Document (PRD)
 
-**Version**: 1.6
-**Date**: 2026-02-18
-**Status**: MVP Implemented + Production Hardening + Growth Features + Enterprise Features + Audit Fixes (Phase 9 Complete + Post-Audit)
-**Previous Versions**: 1.5 (2026-02-18), 1.4 (2026-02-18), 1.3 (2026-02-18), 1.2 (2026-02-18), 1.1 (2026-02-15), 1.0 (2026-02-14, Approved)
+**Version**: 1.7
+**Date**: 2026-02-19
+**Status**: MVP Implemented + Production Hardening + Growth Features + Enterprise Features + Audit Fixes + Post-MVP Polish (Phase 9 Complete + Post-Audit + Batches 2-5)
+**Previous Versions**: 1.6 (2026-02-18), 1.5 (2026-02-18), 1.4 (2026-02-18), 1.3 (2026-02-18), 1.2 (2026-02-18), 1.1 (2026-02-15), 1.0 (2026-02-14, Approved)
 **Domain**: everjobs.ai
 **License**: Proprietary (All Rights Reserved)
 **Repository**: github.com/ever-co/ever-jobs-website
@@ -43,7 +43,7 @@
 18. [API Contracts](#18-api-contracts)
 19. [Non-Functional Requirements](#19-non-functional-requirements)
 20. [Success Metrics](#20-success-metrics)
-- [Appendix A: Implementation Status](#appendix-a-implementation-status-v13)
+- [Appendix A: Implementation Status](#appendix-a-implementation-status-v17)
 - [Appendix B: License](#appendix-b-license)
 
 ---
@@ -1658,9 +1658,9 @@ Response: {
 
 ---
 
-## Appendix A: Implementation Status (v1.6)
+## Appendix A: Implementation Status (v1.7)
 
-> Updated 2026-02-18. See [MVP Implementation Summary](./MVP-IMPLEMENTATION-SUMMARY.md) for detailed change log.
+> Updated 2026-02-19. See [MVP Implementation Summary](./MVP-IMPLEMENTATION-SUMMARY.md) for detailed change log.
 
 ### Phase Completion
 
@@ -1677,6 +1677,7 @@ Response: {
 | Phase 8: Growth & Engagement | ✅ Complete | Job comparison, social sharing, company research, salary insights, resume builder, push notifications, referral program |
 | Phase 9: Enterprise & Scale | ✅ Complete (7/7) | Team accounts, admin dashboard, enterprise API, org AI config, white-label, analytics, i18n |
 | Post-Audit Fixes (v1.6) | ✅ Complete | Security hardening, broken link fixes, dead code cleanup, feature wiring |
+| Post-MVP Polish (v1.7) | ✅ Complete | Batches 2-5: rate limiting, DB indexes, Stripe idempotency, SEO, health checks, env validation, test expansion (246→434) |
 
 ### Post-Audit Fixes (v1.6)
 
@@ -1703,11 +1704,60 @@ Comprehensive codebase audit identified and resolved 19 issues across security, 
 - Removed dead `orchestrator-system.ts` prompt (outdated copy, never used)
 - Extracted shared `StatCard` component; deduplicated `timeAgo`/`formatDate` across admin pages
 
-#### Known Low-Severity Items (deferred)
-- Inconsistent `withTimezone` on older schema tables
-- In-memory rate limiting (production should use Redis)
-- Missing DB indexes on `jobs.department`, `applications(userId, jobId)`
-- Stripe webhook idempotency uses in-memory Map (production should use Redis SET NX)
+#### Known Low-Severity Items (resolved in v1.7)
+- ~~Inconsistent `withTimezone` on older schema tables~~ (deferred, low impact)
+- ~~In-memory rate limiting (production should use Redis)~~ **RESOLVED** — Upstash Redis rate limiting on all routes with tiered limits
+- ~~Missing DB indexes on `jobs.department`, `applications(userId, jobId)`~~ **RESOLVED** — Composite indexes added in Batch 3
+- ~~Stripe webhook idempotency uses in-memory Map (production should use Redis SET NX)~~ **RESOLVED** — Database-backed idempotency in Batch 4
+
+### Post-MVP Polish (v1.7) — Batches 2-5
+
+After the v1.6 audit fixes, four additional improvement batches were completed to harden the platform for production readiness, improve developer experience, and polish the user-facing experience.
+
+#### Batch 2: MVP Improvements
+
+Focus: Route hardening, new user flows, admin polish, and code cleanup.
+
+- **Rate limiting on admin/public routes** — Added Upstash Redis rate limiting to 11 admin and public API routes with 3 new tiers: `adminWrite` (30 req/min), `adminRead` (60 req/min), `publicRead` (100 req/min). All routes now have consistent rate limit enforcement.
+- **Organization invitation acceptance page** — New `/organizations/invitations/[token]` page with GET handler that validates invitation tokens, shows org details, and allows users to accept invitations with a single click.
+- **Referral code capture in login** — Login page captures `?ref=CODE` query parameter from referral links. Referral codes are stored in session and automatically redeemed when users reach the dashboard, crediting both referrer and referee.
+- **API documentation page** — New `/developers` page for enterprise API consumers with endpoint documentation, authentication guide, code examples, rate limit details, and interactive "Try It" sections.
+- **Mobile-responsive admin sidebar** — Admin layout sidebar now collapses to a hamburger menu on mobile viewports. Uses Sheet component from `@repo/ui` for slide-out navigation with proper focus management.
+- **Admin error states with retry** — All admin pages now display user-friendly error states with retry buttons when data fetching fails, replacing silent failures with actionable UI.
+- **AI tool export fixes** — `companyResearch` and `resumeBuilder` tools were defined but not exported from `packages/ai/src/tools/index.ts`. Both are now properly exported and available to the orchestrator.
+- **Unused function cleanup** — Removed dead utility functions across packages. Consolidated triggers package by removing redundant task definitions and unifying shared helpers.
+
+#### Batch 3: Production Hardening
+
+Focus: Database performance, UI components, error handling, validation, and test coverage.
+
+- **Database indexes** — Added GIN indexes on `jobs.skills` (JSONB) and `jobs.title` (trigram) for fast full-text and skill-based search. Added composite indexes on `applications(userId, jobId)` and `userJobs(userId, jobId)` for efficient favorite and application lookups. These indexes support the 10M+ row scalability target.
+- **AlertDialog UI component** — Added ShadCN `AlertDialog` to `packages/ui/` for destructive action confirmations. Used for organization member removal with explicit "Remove Member" / "Cancel" actions instead of instant deletion.
+- **Chat route error handling** — `/api/ai/chat` route now catches model provider errors, rate limit exhaustion, and malformed requests with graceful degradation. Returns structured error responses instead of 500s, and the chat UI displays user-friendly error messages with suggestions.
+- **Supabase Realtime error handling** — `useRealtimeJobs` hook now handles subscription errors (auth failures, connection drops) with automatic reconnection and exponential backoff. Error states are surfaced to the canvas UI.
+- **Environment variable validation** — Added runtime validation for `BYOK_ENCRYPTION_KEY` (required for BYOK features) and `NEXT_PUBLIC_APP_URL` / `APP_URL` (required for email links and OAuth callbacks). Missing variables now produce clear startup warnings instead of cryptic runtime errors.
+- **Test suite expansion** — Expanded from 246 to 434 tests across all packages. New coverage includes: admin API routes, organization CRUD operations, rate limiting behavior, referral code flow, environment validation, error boundary rendering, and Supabase Realtime reconnection logic.
+
+#### Batch 4: Infrastructure & Polish
+
+Focus: Payment reliability, UI loading states, empty states, and developer experience.
+
+- **Stripe webhook idempotency** — Replaced the in-memory `Map`-based idempotency check with a database-backed implementation using a `webhookEvents` table. Webhook event IDs are stored with `ON CONFLICT DO NOTHING` semantics, ensuring duplicate Stripe events are safely ignored even across serverless function instances and cold starts.
+- **Loading spinners for async operations** — Added loading state indicators for AI model save in settings (prevents double-save) and job alert toggle switches (shows pending state while API call completes). Uses `useTransition` for non-blocking updates.
+- **Empty states** — Added contextual empty state illustrations and messaging for: jobs canvas when search returns no results ("Try broadening your search"), job detail page when job data is unavailable, and admin search results when no users/jobs match the query.
+- **Shared constants file** — Created `apps/web/lib/constants.ts` centralizing magic numbers and repeated strings: pagination defaults, rate limit tier names, subscription plan IDs, file upload size limits, and default filter values. Replaces scattered hardcoded values across components and API routes.
+- **Comprehensive .env.example** — Updated `.env.example` to include all environment variables used across the monorepo, grouped by service (Supabase, Auth, AI, Stripe, Trigger.dev, Email, Analytics, Feature Flags). Each variable includes a comment describing its purpose and whether it is required or optional.
+
+#### Batch 5: Production Readiness
+
+Focus: SEO, monitoring, environment safety, and error resilience.
+
+- **SEO metadata** — Added OpenGraph and Twitter Card metadata to all marketing pages (`/`, `/pricing`, `/about`, `/contact`, `/terms`, `/privacy`, `/developers`). Each page has unique `title`, `description`, `og:image`, and `twitter:card` tags. Uses Next.js `generateMetadata()` for dynamic metadata generation.
+- **Updated sitemap** — `apps/web/app/sitemap.ts` now includes all public pages with appropriate `changeFrequency` and `priority` values. Marketing pages are prioritized; dashboard routes are excluded.
+- **robots.txt** — Added `apps/web/app/robots.ts` that blocks crawlers from `/api/`, `/admin/`, and authenticated dashboard routes while allowing all marketing pages. Includes sitemap URL reference.
+- **Health check endpoint** — Enhanced `/api/health` to include database connectivity check with a 5-second timeout, HEAD method support for lightweight monitoring, and response body with `version` (from `package.json`), `uptime` (process uptime), `status` ("healthy" / "degraded"), and `timestamp`. Returns 200 for healthy, 503 for degraded (DB unreachable).
+- **Startup environment validation** — Added `apps/web/instrumentation.ts` logic that runs on server startup, validating environment variables in three tiers: **critical** (app crashes without these: `DATABASE_URL`, `BETTER_AUTH_SECRET`), **recommended** (features degrade: `STRIPE_SECRET_KEY`, `RESEND_API_KEY`, `ANTHROPIC_API_KEY`), and **optional** (nice-to-have: `LANGFUSE_PUBLIC_KEY`, `NEXT_PUBLIC_POSTHOG_KEY`). Missing critical vars throw; missing recommended vars log warnings.
+- **Admin error boundary** — Added a dedicated error boundary for the `/admin` route segment. Previously, admin page errors would bubble up to the root error boundary, losing the admin sidebar context. The admin error boundary preserves the admin layout and provides a "Return to Dashboard" action.
 
 ### Phase 7: Production Hardening (v1.2) + Architecture Audit (v1.3)
 

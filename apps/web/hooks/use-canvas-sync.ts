@@ -117,7 +117,7 @@ export function useCanvasSync() {
         }
 
         case "salaryInsights": {
-          const salaryResult = data as unknown as SalaryInsightsData;
+          const salaryResult = result as SalaryInsightsData;
           // Only show the card if there's actual salary data (sampleSize > 0)
           if (salaryResult.sampleSize > 0 || salaryResult.error) {
             setState((prev) => ({

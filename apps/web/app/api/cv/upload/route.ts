@@ -33,7 +33,8 @@ export async function POST(req: Request) {
   let formData: FormData;
   try {
     formData = await req.formData();
-  } catch {
+  } catch (err) {
+    console.error("[api/cv/upload] Failed to parse form data:", err instanceof Error ? err.message : err);
     return apiBadRequest("Invalid multipart form data");
   }
 

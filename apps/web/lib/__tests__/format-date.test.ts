@@ -68,6 +68,47 @@ describe("timeAgo", () => {
     const now = new Date().toISOString();
     expect(timeAgo(now)).toBe("Just now");
   });
+
+  it("returns null for empty string (falsy)", () => {
+    expect(timeAgo("")).toBeNull();
+  });
+
+  it("handles an invalid date string", () => {
+    // new Date("garbage") gives NaN for getTime(), so diff will be NaN
+    // The function should still return something without crashing
+    const result = timeAgo("not-a-real-date");
+    expect(typeof result === "string" || result === null).toBe(true);
+  });
+
+  it("handles a future date (negative diff)", () => {
+    const oneHourFromNow = new Date(Date.now() + 60 * 60_000);
+    const result = timeAgo(oneHourFromNow);
+    // mins will be negative, so it should return "Just now" or a string
+    expect(typeof result).toBe("string");
+  });
+
+  it("returns exactly 1m ago for date exactly 1 minute old", () => {
+    const oneMinAgo = new Date(Date.now() - 60_000);
+    expect(timeAgo(oneMinAgo)).toBe("1m ago");
+  });
+
+  it("returns 1h ago for date exactly 60 minutes old", () => {
+    const oneHourAgo = new Date(Date.now() - 60 * 60_000);
+    expect(timeAgo(oneHourAgo)).toBe("1h ago");
+  });
+
+  it("returns 1w ago for date exactly 7 days old", () => {
+    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60_000);
+    expect(timeAgo(oneWeekAgo)).toBe("1w ago");
+  });
+
+  it("handles a very old date (year 1970)", () => {
+    const epoch = new Date(0);
+    const result = timeAgo(epoch);
+    // Should fall through to formatDate for dates older than 365 days
+    expect(result).toBeTruthy();
+    expect(result).toContain("1970");
+  });
 });
 
 describe("formatDate", () => {
@@ -83,6 +124,39 @@ describe("formatDate", () => {
     const result = formatDate("2025-06-20T00:00:00Z");
     expect(result).toContain("20");
     expect(result).toContain("2025");
+  });
+
+  it("handles an invalid date string gracefully", () => {
+    // new Date("not-a-date") returns Invalid Date; toLocaleDateString returns "Invalid Date"
+    const result = formatDate("not-a-date");
+    expect(typeof result).toBe("string");
+    // The output will be "Invalid Date" on most engines
+    expect(result).toBeTruthy();
+  });
+
+  it("formats a very old date (year 1900)", () => {
+    // Use midday UTC to avoid timezone offset flipping to the previous day
+    const result = formatDate("1900-06-15T12:00:00Z");
+    expect(result).toContain("1900");
+    expect(result).toContain("15");
+  });
+
+  it("formats a date far in the future (year 2099)", () => {
+    // Use midday UTC to avoid timezone offset flipping to the next day
+    const result = formatDate("2099-06-15T12:00:00Z");
+    expect(result).toContain("2099");
+    expect(result).toContain("15");
+  });
+
+  it("formats epoch date (1970-01-01)", () => {
+    const result = formatDate(new Date(0));
+    expect(result).toContain("1970");
+  });
+
+  it("formats a leap day date", () => {
+    const result = formatDate("2024-02-29T12:00:00Z");
+    expect(result).toContain("29");
+    expect(result).toContain("2024");
   });
 });
 
@@ -120,6 +194,28 @@ describe("formatSessionDate", () => {
   it("accepts string input", () => {
     const result = formatSessionDate(new Date().toISOString());
     expect(result).toMatch(/^Today at /);
+  });
+
+  it("includes year for dates in a different year", () => {
+    const oldDate = new Date("2020-07-04T15:00:00Z");
+    const result = formatSessionDate(oldDate);
+    // Should contain the year since it's not the current year
+    expect(result).toContain("2020");
+  });
+
+  it("formats a very old date without crashing", () => {
+    const ancient = new Date("1970-01-01T00:00:00Z");
+    const result = formatSessionDate(ancient);
+    expect(typeof result).toBe("string");
+    expect(result.length).toBeGreaterThan(0);
+  });
+
+  it("formats a future date without crashing", () => {
+    const future = new Date("2099-12-31T23:59:59Z");
+    const result = formatSessionDate(future);
+    // diffDays will be negative, so it goes to the "older" branch
+    expect(typeof result).toBe("string");
+    expect(result.length).toBeGreaterThan(0);
   });
 });
 
@@ -183,6 +279,22 @@ describe("formatShortDate", () => {
 
   it("returns a string", () => {
     expect(typeof formatShortDate(new Date())).toBe("string");
+  });
+
+  it("formats December correctly", () => {
+    const result = formatShortDate(new Date("2025-12-25T00:00:00Z"));
+    expect(result).toContain("Dec");
+    expect(result).toContain("25");
+  });
+
+  it("does not include year for very old dates", () => {
+    const result = formatShortDate(new Date("1999-06-15T00:00:00Z"));
+    expect(result).not.toContain("1999");
+  });
+
+  it("handles an invalid date string without crashing", () => {
+    const result = formatShortDate("invalid-date");
+    expect(typeof result).toBe("string");
   });
 });
 

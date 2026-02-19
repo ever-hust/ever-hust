@@ -225,6 +225,7 @@ function Section({
         className="flex w-full items-center justify-between text-sm font-medium text-foreground hover:text-foreground/80 transition-colors"
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
+        aria-label={`Toggle ${title} section`}
       >
         <span className="flex items-center gap-1.5">
           <Icon className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />

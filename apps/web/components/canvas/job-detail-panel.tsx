@@ -339,7 +339,6 @@ export function JobDetailPanel({
               className="max-h-[50vh] overflow-y-auto px-6 py-4"
               role="tabpanel"
               aria-labelledby={`job-detail-tab-${activeTab}`}
-              key={activeTab}
             >
               {/* Overview tab */}
               {activeTab === "overview" && (

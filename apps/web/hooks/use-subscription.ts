@@ -12,6 +12,8 @@ interface SubscriptionInfo {
   isSubscribed: boolean;
   /** Whether data is still loading */
   isLoading: boolean;
+  /** Error message if subscription status fetch failed */
+  error: string | null;
   /** Navigate to Stripe checkout for upgrade */
   upgrade: (planId?: string) => Promise<void>;
   /** Navigate to Stripe customer portal */
@@ -44,6 +46,7 @@ export const PRO_LIMITS = {
 export function useSubscription(): SubscriptionInfo {
   const [status, setStatus] = useState<SubscriptionStatus>("free");
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -65,6 +68,7 @@ export function useSubscription(): SubscriptionInfo {
           } else {
             setStatus("free");
           }
+          setError(null);
         }
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -72,6 +76,7 @@ export function useSubscription(): SubscriptionInfo {
           "[useSubscription] Failed to load subscription status:",
           error instanceof Error ? error.message : error
         );
+        setError("Failed to load subscription status");
       } finally {
         if (!controller.signal.aborted) setIsLoading(false);
       }
@@ -136,6 +141,7 @@ export function useSubscription(): SubscriptionInfo {
     status,
     isSubscribed,
     isLoading,
+    error,
     upgrade,
     manageSubscription,
   };

@@ -76,7 +76,9 @@ export function useFetch<T>(
     setError(null);
 
     try {
-      const res = await fetch(url, { signal: controller.signal });
+      const res = await fetch(url, {
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30000)]),
+      });
 
       if (!res.ok) {
         if (res.status === 401) {
@@ -89,8 +91,14 @@ export function useFetch<T>(
       const result = transformRef.current ? transformRef.current(json) : (json as T);
       setData(result);
     } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") {
-        return; // Ignore aborted requests
+      // User-initiated abort (e.g. component unmount or new request) — ignore silently
+      if (controller.signal.aborted) {
+        return;
+      }
+      // Timeout from AbortSignal.timeout — show a user-friendly message
+      if (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) {
+        setError("Request timed out. Please check your connection and try again.");
+        return;
       }
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {

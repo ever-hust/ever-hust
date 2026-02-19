@@ -264,19 +264,25 @@ export const JobCompareDialog = memo(function JobCompareDialog({
         <div className="max-h-[70vh] overflow-auto">
           {/* Job headers — title + company logo per column */}
           <div
+            role="table"
+            aria-label="Job comparison"
+          >
+          <div
+            role="row"
             className={cn(
               "grid border-b",
               columns === 3 ? "grid-cols-[140px_1fr_1fr_1fr]" : "grid-cols-[140px_1fr_1fr]"
             )}
           >
             {/* Empty cell for the label column */}
-            <div className="border-r bg-muted/30 px-4 py-3" />
+            <div role="rowheader" className="border-r bg-muted/30 px-4 py-3" />
 
             {jobs.map((job, i) => {
               const logo = formatted[i]?.safeLogo;
               return (
                 <div
                   key={job.id}
+                  role="cell"
                   className={cn(
                     "px-4 py-3",
                     i < columns - 1 && "border-r"
@@ -327,6 +333,7 @@ export const JobCompareDialog = memo(function JobCompareDialog({
             return (
               <div
                 key={row.label}
+                role="row"
                 className={cn(
                   "grid border-b last:border-b-0",
                   columns === 3
@@ -335,7 +342,7 @@ export const JobCompareDialog = memo(function JobCompareDialog({
                 )}
               >
                 {/* Row label */}
-                <div className="flex items-center border-r bg-muted/30 px-4 py-2.5">
+                <div role="rowheader" className="flex items-center border-r bg-muted/30 px-4 py-2.5">
                   <span className="text-xs font-medium text-muted-foreground">
                     {row.label}
                   </span>
@@ -345,6 +352,7 @@ export const JobCompareDialog = memo(function JobCompareDialog({
                 {jobs.map((job, i) => (
                   <div
                     key={job.id}
+                    role="cell"
                     className={cn(
                       "flex items-center px-4 py-2.5",
                       i < columns - 1 && "border-r",
@@ -360,6 +368,7 @@ export const JobCompareDialog = memo(function JobCompareDialog({
 
           {/* Action buttons row */}
           <div
+            role="row"
             className={cn(
               "grid border-t",
               columns === 3
@@ -368,7 +377,7 @@ export const JobCompareDialog = memo(function JobCompareDialog({
             )}
           >
             {/* Label */}
-            <div className="flex items-center border-r bg-muted/30 px-4 py-3">
+            <div role="rowheader" className="flex items-center border-r bg-muted/30 px-4 py-3">
               <span className="text-xs font-medium text-muted-foreground">
                 Actions
               </span>
@@ -379,6 +388,7 @@ export const JobCompareDialog = memo(function JobCompareDialog({
               return (
                 <div
                   key={job.id}
+                  role="cell"
                   className={cn(
                     "flex flex-wrap items-center gap-2 px-4 py-3",
                     i < columns - 1 && "border-r"
@@ -424,6 +434,7 @@ export const JobCompareDialog = memo(function JobCompareDialog({
                 </div>
               );
             })}
+          </div>
           </div>
         </div>
       </DialogContent>

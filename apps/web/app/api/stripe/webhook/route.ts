@@ -166,13 +166,23 @@ export async function POST(req: Request) {
 
 // ── Event Handlers ──────────────────────────────────────────────────────────
 
+/** Validate planId from Stripe metadata against known plan IDs. */
+const VALID_PLAN_IDS = new Set(["monthly", "quarterly", "annual"]);
+function validPlanId(id: string): "monthly" | "quarterly" | "annual" {
+  if (VALID_PLAN_IDS.has(id)) return id as "monthly" | "quarterly" | "annual";
+  // Default to monthly for unknown plan IDs rather than storing invalid data
+  console.warn(`[stripe/webhook] Unknown planId "${id}", defaulting to "monthly"`);
+  return "monthly";
+}
+
 async function handleCheckoutCompleted(data: {
   userId: string;
   planId: string;
   stripeCustomerId: string;
   stripeSubscriptionId: string;
 }) {
-  const { userId, planId, stripeCustomerId, stripeSubscriptionId } = data;
+  const { userId, planId: rawPlanId, stripeCustomerId, stripeSubscriptionId } = data;
+  const planId = validPlanId(rawPlanId);
 
   // Fetch the subscription to get period dates
   const sub = await getStripe().subscriptions.retrieve(stripeSubscriptionId);
@@ -199,7 +209,7 @@ async function handleCheckoutCompleted(data: {
       .values({
         userId,
         stripeSubscriptionId,
-        planType: planId as "monthly" | "quarterly" | "annual",
+        planType: planId,
         status: "active",
         currentPeriodStart: periodStart,
         currentPeriodEnd: periodEnd,
@@ -209,7 +219,7 @@ async function handleCheckoutCompleted(data: {
         target: subscriptions.stripeSubscriptionId,
         set: {
           status: "active",
-          planType: planId as "monthly" | "quarterly" | "annual",
+          planType: planId,
           currentPeriodStart: periodStart,
           currentPeriodEnd: periodEnd,
           cancelAtPeriodEnd: sub.cancel_at_period_end,

@@ -177,12 +177,14 @@ export default function AdminDashboardPage() {
                 {stats?.recentUsers.map((user) => (
                   <div key={user.id} className="flex items-center gap-3">
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
-                      {user.name
-                        .split(" ")
+                      {(user.name || "?")
+                        .trim()
+                        .split(/\s+/)
+                        .filter(Boolean)
                         .map((n) => n[0])
                         .join("")
                         .slice(0, 2)
-                        .toUpperCase()}
+                        .toUpperCase() || "?"}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">

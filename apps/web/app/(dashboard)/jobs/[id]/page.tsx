@@ -2,8 +2,8 @@ import { cache } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { db, jobs, userJobs } from "@repo/db";
-import { eq, and } from "drizzle-orm";
+import { db, jobs } from "@repo/db";
+import { eq } from "drizzle-orm";
 import { Badge } from "@repo/ui/badge";
 import { Button } from "@repo/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@repo/ui/card";
@@ -23,7 +23,6 @@ import {
 } from "lucide-react";
 import { FavoriteButton } from "@/components/jobs/favorite-button";
 import { Breadcrumbs } from "@/components/shared/breadcrumbs";
-import { getSessionUser } from "@/lib/get-session-user";
 import { formatSalary, formatLocation, timeAgo } from "@/lib/format-date";
 import { safeExternalUrl } from "@/lib/safe-url";
 
@@ -159,26 +158,6 @@ export default async function JobDetailPage({ params }: PageProps) {
   if (!job) {
     notFound();
   }
-
-  // Check if current user has favorited this job (used by client components)
-  const sessionUser = await getSessionUser();
-  /* eslint-disable @typescript-eslint/no-unused-vars */
-  let isFavorited = false;
-  if (sessionUser) {
-    const fav = await db
-      .select({ id: userJobs.id })
-      .from(userJobs)
-      .where(
-        and(
-          eq(userJobs.userId, sessionUser.id),
-          eq(userJobs.jobId, jobId),
-          eq(userJobs.status, "favorited")
-        )
-      )
-      .limit(1);
-    isFavorited = fav.length > 0;
-  }
-  /* eslint-enable @typescript-eslint/no-unused-vars */
 
   const salary = formatSalary(
     job.salaryMin,

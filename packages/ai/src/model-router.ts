@@ -93,7 +93,16 @@ export function getModelForUser(user: UserForModel): LanguageModel {
   //    Respect their aiModel preference if set; fall back to opus otherwise.
   if (user.preferences?.apiKeys?.anthropic) {
     const rawKey = user.preferences.apiKeys.anthropic;
-    const apiKey = decryptApiKey(rawKey) ?? rawKey;
+    const decrypted = decryptApiKey(rawKey);
+    // If decryption returned null and the value looks encrypted (contains `:` separators),
+    // the BYOK_ENCRYPTION_KEY is likely missing — fall through to platform model instead
+    // of sending ciphertext as an API key (which would cause a 401).
+    if (decrypted === null && rawKey.includes(":")) {
+      return getPlatformModel(
+        user.subscriptionStatus === "active" ? PAID_MODEL_ID : FREE_MODEL_ID
+      );
+    }
+    const apiKey = decrypted ?? rawKey;
     // Fall through to platform model if the key is empty/whitespace after decryption
     if (!apiKey.trim()) {
       return getPlatformModel(FREE_MODEL_ID);

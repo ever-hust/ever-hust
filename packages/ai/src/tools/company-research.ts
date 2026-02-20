@@ -9,7 +9,7 @@ export const companyResearchTool = tool({
   description:
     "Research a company to provide information about their industry, size, culture, and open positions. Use when the user asks about a specific company.",
   inputSchema: z.object({
-    companyName: z.string().describe("The name of the company to research"),
+    companyName: z.string().max(200).describe("The name of the company to research"),
     jobId: z
       .number()
       .optional()

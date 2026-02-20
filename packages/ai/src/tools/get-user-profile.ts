@@ -40,9 +40,15 @@ export const getUserProfileTool = tool({
     }
 
     const user = result[0]!;
+    // Strip sensitive fields (encrypted API keys) before returning to LLM context
+    const prefs = user.preferences as Record<string, unknown> | null;
+    const safePreferences = prefs
+      ? { ...prefs, apiKeys: undefined }
+      : undefined;
     return {
       found: true,
       ...user,
+      preferences: safePreferences,
       onboardingCompleted: !!user.onboardingCompleted,
     };
     } catch (err) {

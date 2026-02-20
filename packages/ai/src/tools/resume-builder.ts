@@ -15,6 +15,7 @@ export const resumeBuilderTool = tool({
   inputSchema: z.object({
     targetJobTitle: z
       .string()
+      .max(200)
       .describe("The job title the user is targeting for their resume"),
     targetJobId: z
       .number()
@@ -24,16 +25,19 @@ export const resumeBuilderTool = tool({
       ),
     userSummary: z
       .string()
+      .max(2000)
       .optional()
       .describe(
         "Optional summary of the user's professional experience and background"
       ),
     skills: z
-      .array(z.string())
+      .array(z.string().max(100))
+      .max(50)
       .optional()
       .describe("Optional list of the user's skills"),
     experience: z
-      .array(z.string())
+      .array(z.string().max(500))
+      .max(20)
       .optional()
       .describe(
         "Optional list of the user's past roles (e.g. 'Software Engineer at Google, 2020-2023')"

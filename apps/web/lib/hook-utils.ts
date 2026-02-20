@@ -73,7 +73,7 @@ export function matchesShortcut(
   const ctrlOrMeta = shortcut.ctrl || shortcut.meta;
   const modifierMatch = ctrlOrMeta
     ? event.ctrlKey || event.metaKey
-    : true;
+    : !(event.ctrlKey || event.metaKey);
 
   const shiftMatch = shortcut.shift ? event.shiftKey : !event.shiftKey;
   const altMatch = shortcut.alt ? event.altKey : !event.altKey;

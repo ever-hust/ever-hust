@@ -281,6 +281,22 @@ describe("matchesShortcut", () => {
     ).toBe(true);
   });
 
+  it("rejects when ctrl is pressed but not required", () => {
+    expect(
+      matchesShortcut(makeEvent({ key: "k", ctrlKey: true }), {
+        key: "k",
+      }),
+    ).toBe(false);
+  });
+
+  it("rejects when meta is pressed but not required", () => {
+    expect(
+      matchesShortcut(makeEvent({ key: "k", metaKey: true }), {
+        key: "k",
+      }),
+    ).toBe(false);
+  });
+
   it("rejects Ctrl+Shift+P when only Ctrl is pressed", () => {
     expect(
       matchesShortcut(makeEvent({ key: "p", ctrlKey: true }), {

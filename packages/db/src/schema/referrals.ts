@@ -17,7 +17,7 @@ export const referrals = pgTable(
     referredUserId: text("referred_user_id").references(() => users.id, {
       onDelete: "set null",
     }),
-    referralCode: text("referral_code").notNull(),
+    referralCode: text("referral_code").notNull().unique(),
     referredEmail: text("referred_email"),
     status: text("status", {
       enum: ["pending", "signed_up", "credited"],

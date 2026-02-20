@@ -88,6 +88,7 @@ export function JobDetailPanel({
   }, [activeTab]);
 
   const { copied, copy } = useCopyToClipboard();
+  const tabListRef = useRef<HTMLDivElement>(null);
 
   const handleShare = useCallback(async () => {
     if (!job) return;
@@ -305,8 +306,8 @@ export function JobDetailPanel({
               </Button>
             </div>
 
-            {/* Tab navigation */}
-            <div className="flex border-b px-6" role="tablist" aria-label="Job detail sections">
+            {/* Tab navigation — arrow keys move focus per WAI-ARIA tablist pattern */}
+            <div ref={tabListRef} className="flex border-b px-6" role="tablist" aria-label="Job detail sections">
               {(
                 [
                   { id: "overview" as DetailTab, label: "Overview" },
@@ -323,9 +324,25 @@ export function JobDetailPanel({
                   id={`job-detail-tab-${tab.id}`}
                   type="button"
                   role="tab"
+                  tabIndex={activeTab === tab.id ? 0 : -1}
                   aria-selected={activeTab === tab.id}
                   aria-controls="job-detail-tabpanel"
                   onClick={() => setActiveTab(tab.id)}
+                  onKeyDown={(e) => {
+                    const tabs = tabListRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+                    if (!tabs?.length) return;
+                    const idx = Array.from(tabs).indexOf(e.currentTarget);
+                    let next = -1;
+                    if (e.key === "ArrowRight") next = (idx + 1) % tabs.length;
+                    else if (e.key === "ArrowLeft") next = (idx - 1 + tabs.length) % tabs.length;
+                    else if (e.key === "Home") next = 0;
+                    else if (e.key === "End") next = tabs.length - 1;
+                    if (next >= 0) {
+                      e.preventDefault();
+                      tabs[next]!.focus();
+                      tabs[next]!.click();
+                    }
+                  }}
                   className={cn(
                     "border-b-2 px-3 py-2 text-xs font-medium transition-colors",
                     activeTab === tab.id

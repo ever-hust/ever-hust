@@ -77,6 +77,8 @@ export const FilterBar = memo(function FilterBar({ filters, onFiltersChange }: F
   const clearFilters = () => {
     setLocalKeywords("");
     setLocalLocation("");
+    setLocalSalaryMin("");
+    setLocalSalaryMax("");
     onFiltersChange({});
   };
 
@@ -183,6 +185,7 @@ export const FilterBar = memo(function FilterBar({ filters, onFiltersChange }: F
           </select>
           <Input
             type="number"
+            min={0}
             aria-label="Minimum salary"
             placeholder="Min salary"
             value={localSalaryMin}
@@ -195,6 +198,7 @@ export const FilterBar = memo(function FilterBar({ filters, onFiltersChange }: F
           />
           <Input
             type="number"
+            min={0}
             aria-label="Maximum salary"
             placeholder="Max salary"
             value={localSalaryMax}

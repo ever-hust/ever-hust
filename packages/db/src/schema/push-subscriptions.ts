@@ -15,7 +15,7 @@ export const pushSubscriptions = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    endpoint: text("endpoint").notNull(),
+    endpoint: text("endpoint").notNull().unique(),
     keys: jsonb("keys")
       .notNull()
       .$type<{ p256dh: string; auth: string }>(),

@@ -11,7 +11,7 @@ You are a security-focused code reviewer for the Ever Jobs platform. Review chan
 ## Focus Areas
 
 ### Authentication & Session Management
-- **BetterAuth cookies**: Verify session token handling in `apps/web/middleware.ts` — both `__Secure-` prefixed (production) and unprefixed (development) variants
+- **BetterAuth cookies**: Verify session token handling in `apps/web/proxy.ts` — both `__Secure-` prefixed (production) and unprefixed (development) variants
 - **`requireSessionUser()`**: Ensure all protected API routes call this before processing
 - **OAuth data**: LinkedIn profile data in `packages/auth/src/index.ts` must be sanitized before storage
 
@@ -32,7 +32,7 @@ You are a security-focused code reviewer for the Ever Jobs platform. Review chan
 - **Amount validation**: Never trust client-provided price/plan data
 
 ### Content Security Policy
-- **CSP headers**: `apps/web/middleware.ts` applies CSP — review changes don't weaken directives
+- **CSP headers**: `apps/web/proxy.ts` applies CSP — review changes don't weaken directives
 - **`connect-src`**: Must explicitly list allowed domains (Stripe, Supabase, Resend)
 - **`frame-src`**: Only Stripe frames should be allowed
 
@@ -49,7 +49,7 @@ You are a security-focused code reviewer for the Ever Jobs platform. Review chan
 ### Sensitive Files
 Flag if any changes touch:
 - `.env*` files (secrets exposure)
-- `middleware.ts` (auth bypass)
+- `proxy.ts` (auth bypass)
 - `crypto.ts` (encryption weakening)
 - `webhook.ts` (payment security)
 - `rate-limit.ts` (DoS protection)

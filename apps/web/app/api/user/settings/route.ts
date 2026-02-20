@@ -64,7 +64,10 @@ export async function PATCH(req: Request) {
             try {
               encryptedKeys[provider] = encryptApiKey(key);
             } catch {
-              // If encryption env var is missing, store as-is (dev mode)
+              // If BYOK_ENCRYPTION_KEY is missing, store as-is (development only)
+              console.warn(
+                "[api/user/settings] BYOK_ENCRYPTION_KEY not configured — storing API key unencrypted. Set this env var in production."
+              );
               encryptedKeys[provider] = key;
             }
           } else {

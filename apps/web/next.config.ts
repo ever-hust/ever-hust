@@ -36,8 +36,8 @@ const nextConfig: NextConfig = {
     ],
   },
 
-  // Security headers are applied by middleware.ts which provides
-  // environment-aware CSP, HSTS, and auth redirects for all matched routes.
+  // Security headers are applied by proxy.ts (Next.js 16.1 proxy, formerly middleware)
+  // which provides environment-aware CSP, HSTS, and auth redirects for all matched routes.
   // No headers() config here to avoid duplication / mismatched values.
 };
 

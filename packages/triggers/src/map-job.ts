@@ -42,9 +42,9 @@ export function mapJobToDb(dto: JobPostDto) {
   };
 }
 
-/** Convert a number to string for PostgreSQL numeric columns, returning null for NaN/Infinity/undefined. */
+/** Convert a number to string for PostgreSQL numeric columns, returning null for NaN/Infinity/negative/undefined. */
 function safeNumericString(value: number | undefined | null): string | null {
-  if (value == null || !Number.isFinite(value)) return null;
+  if (value == null || !Number.isFinite(value) || value < 0) return null;
   return value.toString();
 }
 

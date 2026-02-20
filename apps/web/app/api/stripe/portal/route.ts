@@ -46,6 +46,11 @@ export async function POST() {
       returnUrl: `${appUrl}/settings`,
     });
 
+    if (!url) {
+      console.error("[stripe/portal] Stripe returned null portal URL");
+      return apiError("Failed to create billing portal session");
+    }
+
     return apiSuccess({ url });
   } catch (error) {
     console.error(

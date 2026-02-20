@@ -326,17 +326,16 @@ describe("mapJobToDb", () => {
       expect(result.salaryMax).toBeNull();
     });
 
-    it("handles negative salary amounts (treats as valid)", () => {
+    it("rejects negative salary amounts", () => {
       const result = mapJobToDb(
         makeDto({
           compensation: { minAmount: -100, maxAmount: -50 },
         })
       );
 
-      // Negative numbers are finite, so they pass through
-      // (some APIs may use negative to indicate "negotiable")
-      expect(result.salaryMin).toBe("-100");
-      expect(result.salaryMax).toBe("-50");
+      // Negative salary values are invalid data quality — discard them
+      expect(result.salaryMin).toBeNull();
+      expect(result.salaryMax).toBeNull();
     });
   });
 

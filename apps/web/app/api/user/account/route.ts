@@ -9,6 +9,7 @@ import { apiError } from "../../../../lib/api-response";
  * DELETE /api/user/account — Permanently delete the user account.
  * Cascading deletes handle related data (applications, chat sessions,
  * favorites, alerts) via foreign key constraints.
+ * Also deletes the Stripe customer record for GDPR compliance.
  */
 export async function DELETE() {
   let user;
@@ -24,8 +25,29 @@ export async function DELETE() {
   if (rateLimited) return rateLimited;
 
   try {
+    // Fetch Stripe customer ID before deleting the user record
+    const [dbUser] = await db
+      .select({ stripeCustomerId: users.stripeCustomerId })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
     // Delete the user — cascading FK constraints handle related records
     await db.delete(users).where(eq(users.id, userId));
+
+    // Best-effort Stripe customer deletion (GDPR right to erasure)
+    if (dbUser?.stripeCustomerId) {
+      try {
+        const { getStripe } = await import("@repo/stripe");
+        await getStripe().customers.del(dbUser.stripeCustomerId);
+      } catch (stripeErr) {
+        // Log but don't fail the account deletion — DB record is already gone
+        console.warn(
+          "[api/user/account] Stripe customer cleanup failed:",
+          stripeErr instanceof Error ? stripeErr.message : stripeErr,
+        );
+      }
+    }
 
     return new NextResponse(null, { status: 204 });
   } catch (error) {

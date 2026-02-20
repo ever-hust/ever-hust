@@ -9,8 +9,13 @@ import {
   chatSessions,
   chatMessages,
   userAlerts,
+  apiKeys,
+  organizationMembers,
+  pushSubscriptions,
+  referrals,
+  referralCredits,
 } from "@repo/db";
-import { eq, inArray } from "drizzle-orm";
+import { eq, or, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { applyRateLimit } from "../../../../lib/rate-limit";
@@ -36,7 +41,10 @@ export async function GET() {
 
   try {
     // Fetch all user data in parallel
-    const [profile, favorites, apps, sessions, alerts] = await Promise.all([
+    const [
+      profile, favorites, apps, sessions, alerts,
+      keys, orgMemberships, pushSubs, userReferrals, credits,
+    ] = await Promise.all([
       db
         .select({
           id: users.id,
@@ -74,6 +82,44 @@ export async function GET() {
         .select()
         .from(userAlerts)
         .where(eq(userAlerts.userId, userId)),
+      // API keys — redact the hash, only export metadata
+      db
+        .select({
+          id: apiKeys.id,
+          name: apiKeys.name,
+          keyPrefix: apiKeys.keyPrefix,
+          scopes: apiKeys.scopes,
+          rateLimit: apiKeys.rateLimit,
+          lastUsedAt: apiKeys.lastUsedAt,
+          createdAt: apiKeys.createdAt,
+        })
+        .from(apiKeys)
+        .where(eq(apiKeys.userId, userId)),
+      // Organization memberships
+      db
+        .select()
+        .from(organizationMembers)
+        .where(eq(organizationMembers.userId, userId)),
+      // Push notification subscriptions
+      db
+        .select()
+        .from(pushSubscriptions)
+        .where(eq(pushSubscriptions.userId, userId)),
+      // Referrals (both sent and received)
+      db
+        .select()
+        .from(referrals)
+        .where(
+          or(
+            eq(referrals.referrerId, userId),
+            eq(referrals.referredUserId, userId),
+          )
+        ),
+      // Referral credits
+      db
+        .select()
+        .from(referralCredits)
+        .where(eq(referralCredits.userId, userId)),
     ]);
 
     // Fetch chat messages for user's sessions in a single query (avoids N+1)
@@ -110,6 +156,11 @@ export async function GET() {
       chatSessions: sessions,
       chatMessages: messages,
       alerts,
+      apiKeys: keys,
+      organizationMemberships: orgMemberships,
+      pushSubscriptions: pushSubs,
+      referrals: userReferrals,
+      referralCredits: credits,
     };
 
     return new NextResponse(JSON.stringify(exportData, null, 2), {

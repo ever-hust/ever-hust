@@ -26,7 +26,8 @@ export async function GET(req: Request) {
     const favorites = await db
       .select({ jobId: userJobs.jobId })
       .from(userJobs)
-      .where(and(eq(userJobs.userId, userId), eq(userJobs.status, "favorited")));
+      .where(and(eq(userJobs.userId, userId), eq(userJobs.status, "favorited")))
+      .limit(500);
 
     return apiSuccess({
       favoriteJobIds: favorites.map((f) => f.jobId),

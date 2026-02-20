@@ -121,11 +121,11 @@ describe("env module", () => {
       expect(env.EMAIL_FROM).toBe("alerts@everjobs.ai");
     });
 
-    it("DEFAULT_AI_MODEL falls back to claude-sonnet-4-20250514", async () => {
+    it("DEFAULT_AI_MODEL falls back to claude-sonnet-4-5-20250929", async () => {
       setAllRequiredEnvVars();
       delete process.env.DEFAULT_AI_MODEL;
       const { env } = await importEnv();
-      expect(env.DEFAULT_AI_MODEL).toBe("claude-sonnet-4-20250514");
+      expect(env.DEFAULT_AI_MODEL).toBe("claude-sonnet-4-5-20250929");
     });
 
     it("LANGFUSE_BASE_URL falls back to https://cloud.langfuse.com", async () => {

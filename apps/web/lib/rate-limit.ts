@@ -87,7 +87,7 @@ export function checkApiRateLimit(
   entry.timestamps = entry.timestamps.filter((t) => t > cutoff);
 
   if (entry.timestamps.length >= limit) {
-    const oldest = entry.timestamps[0]!;
+    const oldest = entry.timestamps[0] ?? now;
     return {
       allowed: false,
       remaining: 0,

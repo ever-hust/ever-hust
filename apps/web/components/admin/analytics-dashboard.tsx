@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   BarChart3,
   Users,
@@ -110,6 +110,11 @@ export default function AnalyticsDashboard() {
   const [subscriptionData, setSubscriptionData] =
     useState<SubscriptionData | null>(null);
 
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    return () => { mountedRef.current = false; };
+  }, []);
+
   const fetchAll = useCallback(async () => {
     setLoading(true);
     setError(false);
@@ -132,6 +137,8 @@ export default function AnalyticsDashboard() {
           showToast: false,
         }),
       ]);
+
+    if (!mountedRef.current) return;
 
     // Track whether all requests failed
     const allFailed =

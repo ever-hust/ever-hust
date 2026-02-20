@@ -75,10 +75,11 @@ export function useFetch<T>(
     setIsLoading(true);
     setError(null);
 
+    // Manual timeout (more compatible than AbortSignal.any / AbortSignal.timeout)
+    const timeoutId = setTimeout(() => controller.abort("timeout"), 30_000);
+
     try {
-      const res = await fetch(url, {
-        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30000)]),
-      });
+      const res = await fetch(url, { signal: controller.signal });
 
       if (!res.ok) {
         if (res.status === 401) {
@@ -93,15 +94,15 @@ export function useFetch<T>(
     } catch (err) {
       // User-initiated abort (e.g. component unmount or new request) — ignore silently
       if (controller.signal.aborted) {
-        return;
-      }
-      // Timeout from AbortSignal.timeout — show a user-friendly message
-      if (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) {
-        setError("Request timed out. Please check your connection and try again.");
+        // Distinguish timeout from user/component abort
+        if (controller.signal.reason === "timeout") {
+          setError("Request timed out. Please check your connection and try again.");
+        }
         return;
       }
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
+      clearTimeout(timeoutId);
       if (!controller.signal.aborted) {
         setIsLoading(false);
       }

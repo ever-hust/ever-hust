@@ -125,7 +125,7 @@ async function extractWithAI(
 
   try {
     const anthropic = createAnthropic({ apiKey });
-    const model = anthropic("claude-haiku-4-20250514");
+    const model = anthropic("claude-haiku-4-5-20251001");
 
     const { object } = await generateObject({
       model,

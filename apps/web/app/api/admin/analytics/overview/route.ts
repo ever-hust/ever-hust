@@ -23,7 +23,7 @@ export async function GET() {
     return response as NextResponse;
   }
 
-  const rateLimited = applyRateLimit(admin.id, "adminWrite");
+  const rateLimited = applyRateLimit(admin.id, "admin");
   if (rateLimited) return rateLimited;
 
   try {

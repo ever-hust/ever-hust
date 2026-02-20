@@ -36,11 +36,15 @@ export async function GET(req: Request) {
       .limit(1);
 
     if (credits.length === 0) {
-      const [newCredits] = await db
+      await db
         .insert(referralCredits)
         .values({ userId })
-        .returning();
-      credits = newCredits ? [newCredits] : [];
+        .onConflictDoNothing();
+      credits = await db
+        .select()
+        .from(referralCredits)
+        .where(eq(referralCredits.userId, userId))
+        .limit(1);
     }
 
     const creditsRow = credits[0];

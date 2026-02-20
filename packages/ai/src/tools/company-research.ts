@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@repo/db";
 import { jobs } from "@repo/db";
 import { eq, ilike } from "drizzle-orm";
+import { escapeIlike } from "@repo/db";
 
 export const companyResearchTool = tool({
   description:
@@ -38,10 +39,6 @@ export const companyResearchTool = tool({
           companyName = jobResult[0]!.companyName;
         }
       }
-
-      // Escape ILIKE wildcard characters in user input
-      const escapeIlike = (str: string) =>
-        str.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
 
       const pattern = `%${escapeIlike(companyName)}%`;
 

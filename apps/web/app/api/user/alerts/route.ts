@@ -83,6 +83,10 @@ export async function POST(req: Request) {
       })
       .returning();
 
+    if (!alert) {
+      return apiError("Failed to create alert");
+    }
+
     return apiSuccess({ alert }, { status: 201 });
   } catch (err) {
     console.error("[api/user/alerts] POST failed:", err instanceof Error ? err.message : err);

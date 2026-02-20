@@ -57,7 +57,7 @@ Turborepo with `apps/*` and `packages/*` workspaces. All packages use `@repo/` n
 
 - **`apps/web/`** — Next.js application (the only app)
 - **`packages/ai/`** — AI orchestrator agent, tools, model router, prompts, rate limits
-- **`packages/db/`** — Drizzle ORM schemas and database client (lazy singleton via Proxy)
+- **`packages/db/`** — Drizzle ORM schemas, database client (lazy singleton via Proxy), and shared DB helpers (e.g. `escapeIlike`)
 - **`packages/auth/`** — BetterAuth configuration with LinkedIn OAuth + welcome email hook
 - **`packages/ui/`** — ShadCN components exported as `@repo/ui/<component-name>`
 - **`packages/stripe/`** — Stripe checkout, portal, webhook parsing, plan definitions
@@ -84,10 +84,12 @@ Prompts are managed through Langfuse with local fallbacks. The orchestrator syst
 ### Routing & Auth
 
 - **Route Groups**: `(marketing)` for public pages, `(auth)` for login/signup, `(dashboard)` for authenticated pages
-- **Middleware** (`apps/web/middleware.ts`): Checks BetterAuth session cookie for protected routes (`/chat`, `/jobs`, `/profile`, `/settings`, `/applications`, `/favorites`), applies security headers (CSP, HSTS, etc.) to all responses
+- **Proxy** (`apps/web/proxy.ts`): Checks BetterAuth session cookie for protected routes (`/chat`, `/jobs`, `/profile`, `/settings`, `/applications`, `/favorites`), applies security headers (CSP, HSTS, etc.) to all responses. Migrated from `middleware.ts` per Next.js 16.1 convention.
 - **Auth catch-all**: `apps/web/app/api/auth/[...all]/route.ts` proxies to BetterAuth
 - **Production build**: 72 routes total (62 static/dynamic pages + API routes)
 - **Job not-found page**: `apps/web/app/(dashboard)/jobs/[id]/not-found.tsx` — custom 404 page for invalid job IDs
+- **Organization not-found page**: `apps/web/app/(dashboard)/organizations/[orgId]/not-found.tsx` — custom 404 for invalid org IDs
+- **Invitation not-found page**: `apps/web/app/(dashboard)/organizations/invitations/[token]/not-found.tsx` — custom 404 for invalid/expired invitations
 - **Admin loading skeleton**: `apps/web/app/(admin)/admin/loading.tsx` — skeleton UI shown while admin pages load
 
 ### Subscription & Rate Limiting
@@ -148,7 +150,7 @@ Located in `apps/web/hooks/`. Key hooks:
 
 ### Testing
 
-- **Jest**: 470 unit tests across 19 suites, living alongside source files as `*.test.ts`. Projects configured for: `ai`, `stripe`, `cv-parser`, `jobs-api`, `utils`, `email`, `web-lib`. Uses `ts-jest` with `isolatedModules: true` to avoid OOM from complex AI SDK/Zod generics. Key test files include `model-router.test.ts`, `prompts.test.ts`, `rate-limit.test.ts`, `tool-schemas.test.ts`, `crypto.test.ts`, `api-client.test.ts`, `api-response.test.ts`, `api-schemas.test.ts`, `subscription-gate.test.ts`, `referral-utils.test.ts`, `format-date.test.ts`, `org-config.test.ts`, `webhook-idempotency.test.ts`.
+- **Jest**: 949 unit tests across 34 suites, living alongside source files as `*.test.ts`. Projects configured for: `ai`, `stripe`, `cv-parser`, `jobs-api`, `db`, `utils`, `email`, `triggers`, `web-lib`. Uses `ts-jest` with `isolatedModules: true` to avoid OOM from complex AI SDK/Zod generics. Key test files include `model-router.test.ts`, `prompts.test.ts`, `rate-limit.test.ts`, `tool-schemas.test.ts`, `crypto.test.ts`, `api-client.test.ts`, `api-response.test.ts`, `api-schemas.test.ts`, `subscription-gate.test.ts`, `referral-utils.test.ts`, `format-date.test.ts`, `org-config.test.ts`, `webhook-idempotency.test.ts`, `orchestrator.test.ts`, `constants.test.ts`, `env.test.ts`, `startup-checks.test.ts`, `safe-url.test.ts`, `salary-insights.test.ts`, `resume-builder.test.ts`, `webhook.test.ts`, `checkout.test.ts`, `portal.test.ts`, `plans.test.ts`, `client.test.ts`, `types.test.ts`, `guidance-topics.test.ts`, `db-helpers.test.ts`, `map-job.test.ts`, `helpers.test.ts`.
 - **Playwright**: 175 E2E tests across 8 spec files in `tests/e2e/`. Specs for: auth, landing, chat, jobs, profile, subscription. Runs against `http://localhost:3000`.
 
 ### UI Package Pattern

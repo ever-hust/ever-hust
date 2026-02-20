@@ -391,8 +391,8 @@ export function JobDetailPanel({
                       {job.description
                         .split(/\n{2,}/)
                         .filter(Boolean)
-                        .map((para, i) => (
-                          <p key={i} className="mb-3 whitespace-pre-wrap">
+                        .map((para) => (
+                          <p key={para.slice(0, 60)} className="mb-3 whitespace-pre-wrap">
                             {para.trim()}
                           </p>
                         ))}

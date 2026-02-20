@@ -52,7 +52,8 @@ export async function GET() {
             eq(chatMessages.role, "user")
           )
         )
-        .orderBy(asc(chatMessages.createdAt));
+        .orderBy(asc(chatMessages.createdAt))
+        .limit(500);
 
       // Keep only the first user message per session
       for (const msg of firstMessages) {
@@ -98,6 +99,10 @@ export async function POST() {
         status: "active",
       })
       .returning();
+
+    if (!session) {
+      return apiError("Failed to create chat session");
+    }
 
     return apiSuccess({ session }, { status: 201 });
   } catch (err) {

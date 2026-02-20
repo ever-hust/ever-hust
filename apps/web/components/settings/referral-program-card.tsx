@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Gift,
   Copy,
@@ -69,6 +69,13 @@ export function ReferralProgramCard() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviting, setInviting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
 
   const loadReferrals = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -101,7 +108,7 @@ export function ReferralProgramCard() {
       await navigator.clipboard.writeText(referralLink);
       setCopied(true);
       toast.success("Referral link copied to clipboard");
-      setTimeout(() => setCopied(false), 2000);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error("Failed to copy link");
     }

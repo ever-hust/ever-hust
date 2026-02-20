@@ -56,9 +56,10 @@ async function runCleanup() {
     const agentResult = await db.execute(
       sql`DELETE FROM agent_instances WHERE status IN ('completed', 'failed') AND updated_at < ${sevenDaysAgo}`
     );
-    deletedAgents = Number((agentResult as unknown as { rowCount?: number }).rowCount ?? 0);
-  } catch {
-    // Table may not exist yet
+    deletedAgents = Number((agentResult as { rowCount?: number }).rowCount ?? 0);
+  } catch (err) {
+    // Table may not exist yet — log for visibility
+    console.warn("[cleanup] agent_instances cleanup skipped:", err instanceof Error ? err.message : err);
   }
 
   // Delete processed Stripe webhook events older than 7 days
@@ -69,8 +70,9 @@ async function runCleanup() {
       .where(lt(stripeWebhookEvents.processedAt, sevenDaysAgo))
       .returning({ id: stripeWebhookEvents.id });
     deletedWebhookEvents = webhookResult.length;
-  } catch {
-    // Table may not exist yet
+  } catch (err) {
+    // Table may not exist yet — log for visibility
+    console.warn("[cleanup] webhook events cleanup skipped:", err instanceof Error ? err.message : err);
   }
 
   return {

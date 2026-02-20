@@ -166,7 +166,13 @@ export default function OrgDetailPage() {
   }, [loadOrg, retryKey]);
 
   const handleInvite = useCallback(async () => {
-    if (!inviteEmail.trim()) return;
+    const email = inviteEmail.trim();
+    if (!email) return;
+    // Basic email format validation before sending to server
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
     setInviting(true);
     try {
       const res = await fetch(`/api/organizations/${orgId}/members`, {

@@ -3,44 +3,8 @@ import { z } from "zod";
 import { db } from "@repo/db";
 import { jobs } from "@repo/db";
 import { and, ilike, isNotNull, sql, eq, or } from "drizzle-orm";
-
-/**
- * Normalise a salary value to an annual figure so comparisons are meaningful.
- * The jobs table stores salaryInterval as free-text (e.g. "yearly", "monthly",
- * "hourly", "weekly"). We convert everything to yearly for aggregation.
- *
- * Falls back to assuming yearly if the interval is unknown.
- */
-function annualise(salary: number, interval: string | null): number {
-  switch (interval?.toLowerCase()) {
-    case "hourly":
-      return salary * 2080; // 40h * 52w
-    case "weekly":
-      return salary * 52;
-    case "biweekly":
-      return salary * 26;
-    case "monthly":
-      return salary * 12;
-    case "yearly":
-    case "annual":
-    case "annually":
-    default:
-      return salary;
-  }
-}
-
-/**
- * Compute the median of a sorted (ascending) array of numbers.
- * Returns 0 for an empty array.
- */
-function median(sorted: number[]): number {
-  if (sorted.length === 0) return 0;
-  const mid = Math.floor(sorted.length / 2);
-  if (sorted.length % 2 === 1) {
-    return sorted[mid]!;
-  }
-  return Math.round(((sorted[mid - 1]! + sorted[mid]!) / 2) * 100) / 100;
-}
+import { annualise, median } from "./salary-helpers";
+import { escapeIlike } from "@repo/db";
 
 export const salaryInsightsTool = tool({
   description:
@@ -69,10 +33,6 @@ export const salaryInsightsTool = tool({
   }),
   execute: async ({ jobTitle, location, jobLevel }) => {
     try {
-      // Escape ILIKE wildcard characters in user input
-      const escapeIlike = (str: string) =>
-        str.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
-
       const titlePattern = `%${escapeIlike(jobTitle)}%`;
 
       // Build filter conditions

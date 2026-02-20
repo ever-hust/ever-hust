@@ -1,3 +1,6 @@
+// Date-grouped aggregation queries may be slow on large tables — allow up to 30s
+export const maxDuration = 30;
+
 import { db } from "@repo/db";
 import { sql } from "drizzle-orm";
 import type { NextRequest, NextResponse } from "next/server";
@@ -14,7 +17,7 @@ export async function GET(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const rateLimited = applyRateLimit(admin.id, "adminWrite");
+  const rateLimited = applyRateLimit(admin.id, "admin");
   if (rateLimited) return rateLimited;
 
   try {

@@ -24,7 +24,7 @@ export async function GET() {
     return response as NextResponse;
   }
 
-  const rateLimited = applyRateLimit(admin.id, "adminWrite");
+  const rateLimited = applyRateLimit(admin.id, "admin");
   if (rateLimited) return rateLimited;
 
   try {
@@ -94,6 +94,10 @@ export async function POST(req: Request) {
         .where(eq(brandingConfigs.id, existing.id))
         .returning();
 
+      if (!updated) {
+        return apiError("Failed to update branding config");
+      }
+
       return apiSuccess({ config: updated });
     }
 
@@ -113,6 +117,10 @@ export async function POST(req: Request) {
         customDomain: body.customDomain ?? null,
       })
       .returning();
+
+    if (!created) {
+      return apiError("Failed to create branding config");
+    }
 
     return apiSuccess({ config: created }, { status: 201 });
   } catch (err) {

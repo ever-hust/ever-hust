@@ -154,6 +154,11 @@ export const FilterBar = memo(function FilterBar({ filters, onFiltersChange }: F
             Clear
           </Button>
         )}
+        <span className="sr-only" aria-live="polite" role="status">
+          {activeFilterCount > 0
+            ? `${activeFilterCount} filter${activeFilterCount !== 1 ? "s" : ""} active`
+            : "No filters active"}
+        </span>
       </div>
 
       {/* Advanced filters */}

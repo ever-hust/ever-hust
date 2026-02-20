@@ -8,6 +8,8 @@ import {
   FREE_TIER_DAILY_MESSAGES,
   FREE_TIER_DAILY_SEARCHES,
   FREE_TIER_WEEKLY_COVER_LETTERS,
+  ONE_DAY_MS,
+  ONE_WEEK_MS,
 } from "../constants";
 
 describe("AI / Chat constants", () => {
@@ -84,6 +86,17 @@ describe("Free-Tier Limits", () => {
     expect(FREE_TIER_DAILY_MESSAGES).toBeLessThanOrEqual(100);
     expect(FREE_TIER_DAILY_SEARCHES).toBeLessThanOrEqual(100);
     expect(FREE_TIER_WEEKLY_COVER_LETTERS).toBeLessThanOrEqual(100);
+  });
+});
+
+describe("Time constants", () => {
+  it("ONE_DAY_MS is exactly 86,400,000 ms", () => {
+    expect(ONE_DAY_MS).toBe(86_400_000);
+  });
+
+  it("ONE_WEEK_MS is exactly 7 days", () => {
+    expect(ONE_WEEK_MS).toBe(7 * ONE_DAY_MS);
+    expect(ONE_WEEK_MS).toBe(604_800_000);
   });
 });
 

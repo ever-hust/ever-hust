@@ -171,4 +171,41 @@ describe("safeExternalUrl", () => {
       expect(safeExternalUrl(url)).toBe(url);
     });
   });
+
+  // ── Protocol case-insensitivity ──────────────────────────────────────
+
+  describe("protocol case variations", () => {
+    it("accepts HTTPS with uppercase protocol", () => {
+      expect(safeExternalUrl("HTTPS://example.com")).toBe("HTTPS://example.com");
+    });
+
+    it("accepts HTTP with uppercase protocol", () => {
+      expect(safeExternalUrl("HTTP://example.com")).toBe("HTTP://example.com");
+    });
+
+    it("accepts mixed-case protocols", () => {
+      expect(safeExternalUrl("HtTpS://example.com")).toBe("HtTpS://example.com");
+    });
+  });
+
+  // ── Percent-encoded protocol bypass attempts ─────────────────────────
+
+  describe("encoded protocol bypass attempts", () => {
+    it("rejects percent-encoded javascript protocol", () => {
+      // Naive decoders might miss this but URL constructor handles it
+      expect(safeExternalUrl("javascript%3Aalert(1)")).not.toBe("javascript:alert(1)");
+    });
+
+    it("rejects data URI with image MIME type", () => {
+      expect(safeExternalUrl("data:image/png;base64,iVBOR")).toBeUndefined();
+    });
+
+    it("rejects data URI with JSON MIME type", () => {
+      expect(safeExternalUrl("data:application/json,{}")).toBeUndefined();
+    });
+
+    it("rejects vbscript: protocol", () => {
+      expect(safeExternalUrl("vbscript:MsgBox('XSS')")).toBeUndefined();
+    });
+  });
 });

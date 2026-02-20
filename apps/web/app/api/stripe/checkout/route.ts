@@ -49,6 +49,7 @@ export async function POST(req: Request) {
       return apiNotFound("User not found");
     }
 
+    // Safe: guarded by userResult.length === 0 check above
     const dbUser = userResult[0]!;
 
     // Prevent creating a duplicate subscription for already-subscribed users

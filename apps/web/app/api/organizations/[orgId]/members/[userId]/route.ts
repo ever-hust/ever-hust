@@ -28,6 +28,9 @@ export async function PATCH(
   if (!Number.isInteger(orgId) || orgId <= 0) {
     return apiBadRequest("Invalid organization ID");
   }
+  if (!targetUserId || typeof targetUserId !== "string" || targetUserId.length > 100) {
+    return apiBadRequest("Invalid user ID");
+  }
 
   let memberInfo;
   try {
@@ -101,6 +104,10 @@ export async function PATCH(
       .where(eq(organizationMembers.id, targetMember.id))
       .returning();
 
+    if (!updated) {
+      return apiError("Failed to update member role");
+    }
+
     return apiSuccess({ member: updated });
   } catch (err) {
     console.error(
@@ -120,6 +127,9 @@ export async function DELETE(
   const orgId = Number(orgIdStr);
   if (!Number.isInteger(orgId) || orgId <= 0) {
     return apiBadRequest("Invalid organization ID");
+  }
+  if (!targetUserId || typeof targetUserId !== "string" || targetUserId.length > 100) {
+    return apiBadRequest("Invalid user ID");
   }
 
   let memberInfo;

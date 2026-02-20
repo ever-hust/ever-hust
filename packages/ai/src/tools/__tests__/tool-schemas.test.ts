@@ -105,6 +105,39 @@ describe("searchJobsTool schema", () => {
 
     expect(result.success).toBe(false);
   });
+
+  it("should reject negative salaryMin", () => {
+    const result = searchJobsTool.inputSchema.safeParse({
+      salaryMin: -1,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("should reject negative salaryMax", () => {
+    const result = searchJobsTool.inputSchema.safeParse({
+      salaryMax: -100,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("should reject salaryMin exceeding 10,000,000", () => {
+    const result = searchJobsTool.inputSchema.safeParse({
+      salaryMin: 10_000_001,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("should accept salaryMin at boundary (0 and 10,000,000)", () => {
+    expect(searchJobsTool.inputSchema.safeParse({ salaryMin: 0 }).success).toBe(true);
+    expect(searchJobsTool.inputSchema.safeParse({ salaryMin: 10_000_000 }).success).toBe(true);
+  });
+
+  it("should reject non-integer salary values", () => {
+    const result = searchJobsTool.inputSchema.safeParse({
+      salaryMin: 50000.5,
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("updateFiltersTool schema", () => {
@@ -281,6 +314,17 @@ describe("createAlertTool schema", () => {
     });
 
     expect(result.success).toBe(false);
+  });
+
+  it("should accept empty arrays for optional fields", () => {
+    const result = createAlertTool.inputSchema.safeParse({
+      userId: "user_123",
+      frequency: "daily",
+      keywords: [],
+      locations: [],
+      skills: [],
+    });
+    expect(result.success).toBe(true);
   });
 });
 

@@ -32,7 +32,11 @@ export async function requireOrgMember(orgId: number) {
     );
   }
 
-  return { user, orgRole: membership.role as OrgRole };
+  const validRoles: OrgRole[] = ["owner", "admin", "member"];
+  const role = validRoles.includes(membership.role as OrgRole)
+    ? (membership.role as OrgRole)
+    : "member";
+  return { user, orgRole: role };
 }
 
 /**

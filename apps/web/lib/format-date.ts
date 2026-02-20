@@ -96,7 +96,8 @@ export function formatSessionDate(dateInput: string | Date): string {
   const diffMs = now.getTime() - date.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-  const timeStr = date.toLocaleTimeString(undefined, {
+  // Use a fixed locale to avoid hydration mismatches between server and client
+  const timeStr = date.toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
   });
@@ -104,10 +105,10 @@ export function formatSessionDate(dateInput: string | Date): string {
   if (diffDays === 0) return `Today at ${timeStr}`;
   if (diffDays === 1) return `Yesterday at ${timeStr}`;
   if (diffDays < 7) {
-    const dayName = date.toLocaleDateString(undefined, { weekday: "long" });
+    const dayName = date.toLocaleDateString("en-US", { weekday: "long" });
     return `${dayName} at ${timeStr}`;
   }
-  return date.toLocaleDateString(undefined, {
+  return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: now.getFullYear() !== date.getFullYear() ? "numeric" : undefined,

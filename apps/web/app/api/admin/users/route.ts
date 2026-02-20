@@ -1,4 +1,7 @@
-import { db } from "@repo/db";
+// ILIKE search on the users table may be slow on large datasets — allow up to 30s
+export const maxDuration = 30;
+
+import { db, escapeIlike } from "@repo/db";
 import { users } from "@repo/db/schema";
 import { count, desc, ilike, or } from "drizzle-orm";
 import type { NextResponse } from "next/server";
@@ -36,10 +39,6 @@ export async function GET(req: Request) {
 
     const { page, limit, search } = validation.data;
     const offset = (page - 1) * limit;
-
-    // Escape ILIKE wildcard characters to prevent injection
-    const escapeIlike = (str: string) =>
-      str.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
 
     // Build search condition
     const searchCondition = search

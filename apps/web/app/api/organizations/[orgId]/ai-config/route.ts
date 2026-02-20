@@ -3,6 +3,7 @@ import { organizationAiConfigs } from "@repo/db/schema";
 import { eq } from "drizzle-orm";
 import type { NextResponse } from "next/server";
 import { requireOrgMember, requireOrgRole } from "../../../../../lib/auth-org";
+import { applyRateLimit } from "../../../../../lib/rate-limit";
 import { orgAiConfigSchema, parseBody } from "../../../../../lib/api-schemas";
 import {
   apiSuccess,
@@ -21,11 +22,15 @@ export async function GET(_req: Request, context: RouteContext) {
     return apiBadRequest("Invalid organization ID");
   }
 
+  let memberInfo;
   try {
-    await requireOrgMember(orgId);
+    memberInfo = await requireOrgMember(orgId);
   } catch (response) {
     return response as NextResponse;
   }
+
+  const rateLimited = applyRateLimit(memberInfo.user.id, "authenticated");
+  if (rateLimited) return rateLimited;
 
   try {
     const [config] = await db
@@ -63,11 +68,15 @@ export async function PUT(req: Request, context: RouteContext) {
     return apiBadRequest("Invalid organization ID");
   }
 
+  let memberInfo;
   try {
-    await requireOrgRole(orgId, "owner", "admin");
+    memberInfo = await requireOrgRole(orgId, "owner", "admin");
   } catch (response) {
     return response as NextResponse;
   }
+
+  const rateLimitedPut = applyRateLimit(memberInfo.user.id, "authenticated");
+  if (rateLimitedPut) return rateLimitedPut;
 
   const jsonResult = await safeJsonParse(req);
   if (!jsonResult.ok) return jsonResult.response;
@@ -128,6 +137,10 @@ export async function PUT(req: Request, context: RouteContext) {
         })
         .returning();
       config = created;
+    }
+
+    if (!config) {
+      return apiError("Failed to save AI configuration");
     }
 
     return apiSuccess({ config });

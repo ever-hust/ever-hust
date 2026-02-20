@@ -1,4 +1,4 @@
-import { db } from "@repo/db";
+import { db, escapeIlike } from "@repo/db";
 import { jobs } from "@repo/db";
 import { and, eq, ilike, desc, sql } from "drizzle-orm";
 import { jobSearchParamsSchema } from "../../../../lib/api-schemas";
@@ -32,11 +32,6 @@ export async function GET(req: Request) {
     const safeSalaryMax = salaryMax !== undefined && Number.isFinite(salaryMax) ? salaryMax : undefined;
 
     const conditions = [];
-
-    // Escape ILIKE wildcard characters (%, _) in user input to prevent
-    // unintended pattern matching. Backslash-escape is the Postgres default.
-    const escapeIlike = (str: string) =>
-      str.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
 
     if (keywords) {
       const kw = `%${escapeIlike(keywords)}%`;

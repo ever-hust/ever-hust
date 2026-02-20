@@ -187,15 +187,15 @@ export type CVParsedData = z.infer<typeof cvParsedDataSchema>;
 
 // === Push Subscription Route ===
 export const pushSubscribeSchema = z.object({
-  endpoint: z.string().url().max(2048),
+  endpoint: z.string().trim().url().max(2048),
   keys: z.object({
-    p256dh: z.string().min(1).max(500),
-    auth: z.string().min(1).max(500),
+    p256dh: z.string().trim().min(1).max(500),
+    auth: z.string().trim().min(1).max(500),
   }),
 });
 
 export const pushUnsubscribeSchema = z.object({
-  endpoint: z.string().url().max(2048),
+  endpoint: z.string().trim().url().max(2048),
 });
 
 // === Referral Program Routes ===

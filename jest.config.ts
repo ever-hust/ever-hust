@@ -23,6 +23,7 @@ const workspaceModuleMapper: Record<string, string> = {
   "^@repo/email(.*)$": `${rootDir}/packages/email/src$1`,
   "^@repo/cv-parser(.*)$": `${rootDir}/packages/cv-parser/src$1`,
   "^@repo/auth(.*)$": `${rootDir}/packages/auth/src$1`,
+  "^@repo/triggers(.*)$": `${rootDir}/packages/triggers/src$1`,
   // ESM .js → .ts resolution
   "^(\\.{1,2}/.*)\\.js$": "$1",
 };
@@ -70,6 +71,12 @@ const config: Config = {
       ...sharedConfig,
     },
     {
+      displayName: "db",
+      rootDir,
+      testMatch: [`${rootDir}/packages/db/src/**/*.test.ts`],
+      ...sharedConfig,
+    },
+    {
       displayName: "utils",
       rootDir,
       testMatch: [`${rootDir}/packages/utils/src/**/*.test.ts`],
@@ -79,6 +86,12 @@ const config: Config = {
       displayName: "email",
       rootDir,
       testMatch: [`${rootDir}/packages/email/src/**/*.test.ts`],
+      ...sharedConfig,
+    },
+    {
+      displayName: "triggers",
+      rootDir,
+      testMatch: [`${rootDir}/packages/triggers/src/**/*.test.ts`],
       ...sharedConfig,
     },
     {

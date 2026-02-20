@@ -74,10 +74,10 @@ function applySecurityHeaders(response: NextResponse): NextResponse {
 }
 
 // ---------------------------------------------------------------------------
-// Middleware
+// Proxy (formerly middleware — renamed per Next.js 16.1 convention)
 // ---------------------------------------------------------------------------
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Check if it's a protected route

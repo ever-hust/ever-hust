@@ -58,12 +58,13 @@ export function useCanvasSync() {
             hasMore: boolean;
           };
 
+          const jobs = searchResult.jobs ?? [];
           setState((prev) => ({
             ...prev,
             jobs:
               searchResult.offset > 0
-                ? [...prev.jobs, ...searchResult.jobs]
-                : searchResult.jobs,
+                ? [...prev.jobs, ...jobs]
+                : jobs,
             totalCount: searchResult.totalCount,
             hasMore: searchResult.hasMore,
             isLoading: false,

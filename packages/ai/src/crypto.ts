@@ -66,8 +66,9 @@ export function decryptApiKey(encrypted: string): string | null {
     decrypted += decipher.final("utf8");
 
     return decrypted;
-  } catch {
+  } catch (err) {
     // Decryption failed — the value may be plaintext (pre-encryption migration)
+    console.warn("[crypto] decryptApiKey failed:", err instanceof Error ? err.message : err);
     return null;
   }
 }

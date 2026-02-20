@@ -94,13 +94,17 @@ export async function POST(req: Request) {
         keyPrefix: apiKeys.keyPrefix,
       });
 
+    if (!created) {
+      return apiError("Failed to create API key");
+    }
+
     // Return the full key ONCE — user must save it
     return apiSuccess(
       {
         key: rawKey,
-        id: created!.id,
-        name: created!.name,
-        keyPrefix: created!.keyPrefix,
+        id: created.id,
+        name: created.name,
+        keyPrefix: created.keyPrefix,
       },
       { status: 201 }
     );

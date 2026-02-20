@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Key, Copy, Trash2, Loader2, Shield, Plus, AlertTriangle, Book } from "lucide-react";
 import { Button } from "@repo/ui/button";
 import { Card } from "@repo/ui/card";
@@ -38,6 +38,13 @@ export function DeveloperApiCard() {
   const [newKeyName, setNewKeyName] = useState("");
   const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
 
   const loadKeys = useCallback(async () => {
     try {
@@ -126,7 +133,7 @@ export function DeveloperApiCard() {
       await navigator.clipboard.writeText(newlyCreatedKey);
       setCopied(true);
       toast.success("API key copied to clipboard");
-      setTimeout(() => setCopied(false), 2000);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error("Failed to copy to clipboard");
     }

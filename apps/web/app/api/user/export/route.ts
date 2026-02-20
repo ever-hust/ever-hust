@@ -1,3 +1,6 @@
+// Data export queries span multiple tables — allow up to 30s
+export const maxDuration = 30;
+
 import {
   db,
   users,

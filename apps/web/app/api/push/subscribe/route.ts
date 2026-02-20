@@ -56,6 +56,10 @@ export async function POST(req: Request) {
       })
       .returning();
 
+    if (!subscription) {
+      return apiError("Failed to save push subscription");
+    }
+
     return apiSuccess({ subscription }, { status: 201 });
   } catch (err) {
     console.error(

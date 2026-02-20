@@ -64,6 +64,7 @@ describe("crypto", () => {
     });
 
     it("returns null if decryption fails (wrong key)", () => {
+      jest.spyOn(console, "warn").mockImplementation(() => {});
       const plaintext = "sk-ant-api03-test-key";
       const encrypted = encryptApiKey(plaintext);
 
@@ -76,6 +77,7 @@ describe("crypto", () => {
 
       // Restore
       process.env.BYOK_ENCRYPTION_KEY = TEST_ENCRYPTION_KEY;
+      jest.restoreAllMocks();
     });
   });
 
@@ -146,6 +148,12 @@ describe("crypto", () => {
   });
 
   describe("decryptApiKey — malformed inputs", () => {
+    beforeEach(() => {
+      jest.spyOn(console, "warn").mockImplementation(() => {});
+    });
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
     it("returns value as-is for a string with only one colon (2 parts)", () => {
       // Format requires exactly 3 parts (iv:tag:cipher). Two parts is not valid.
       const result = decryptApiKey("part1:part2");

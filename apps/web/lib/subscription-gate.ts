@@ -1,6 +1,7 @@
 import { db, users } from "@repo/db";
 import { FREE_LIMITS } from "@repo/stripe";
 import { eq } from "drizzle-orm";
+import { ONE_DAY_MS, ONE_WEEK_MS } from "./constants";
 
 export interface SubscriptionGate {
   userId: string;
@@ -122,8 +123,6 @@ export function peekRateLimit(
   };
 }
 
-const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-const ONE_WEEK_MS = 7 * ONE_DAY_MS;
 
 /**
  * Check if a free user has exceeded their daily message limit.
@@ -136,14 +135,14 @@ export function checkMessageLimit(
 
 // -- Read-only peek functions for usage stats endpoint --
 
-export function peekMessageUsage(userId: string) {
+export function peekMessageUsage(userId: string): { used: number; remaining: number; limit: number } {
   return peekRateLimit(`msg:${userId}`, FREE_LIMITS.messagesPerDay, ONE_DAY_MS);
 }
 
-export function peekSearchUsage(userId: string) {
+export function peekSearchUsage(userId: string): { used: number; remaining: number; limit: number } {
   return peekRateLimit(`search:${userId}`, FREE_LIMITS.searchesPerDay, ONE_DAY_MS);
 }
 
-export function peekCoverLetterUsage(userId: string) {
+export function peekCoverLetterUsage(userId: string): { used: number; remaining: number; limit: number } {
   return peekRateLimit(`cover:${userId}`, FREE_LIMITS.coverLettersPerWeek, ONE_WEEK_MS);
 }

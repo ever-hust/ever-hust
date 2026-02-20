@@ -3,7 +3,7 @@ import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../../lib/get-session-user";
 import { applyRateLimit } from "../../../../../lib/rate-limit";
-import { apiNotFound, apiError } from "../../../../../lib/api-response";
+import { apiBadRequest, apiNotFound, apiError } from "../../../../../lib/api-response";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -23,6 +23,10 @@ export async function DELETE(_req: Request, context: RouteContext) {
   if (rateLimited) return rateLimited;
 
   const { id } = await context.params;
+
+  if (!id || typeof id !== "string" || id.length > 100) {
+    return apiBadRequest("Invalid session ID");
+  }
 
   try {
     // Verify the session belongs to this user

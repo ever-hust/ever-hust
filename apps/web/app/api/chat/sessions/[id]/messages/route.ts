@@ -42,6 +42,10 @@ export async function GET(
 
   const { id: sessionId } = await params;
 
+  if (!sessionId || typeof sessionId !== "string" || sessionId.length > 100) {
+    return apiBadRequest("Invalid session ID");
+  }
+
   try {
     // Verify session belongs to user
     const session = await db
@@ -68,7 +72,8 @@ export async function GET(
       })
       .from(chatMessages)
       .where(eq(chatMessages.sessionId, sessionId))
-      .orderBy(asc(chatMessages.createdAt));
+      .orderBy(asc(chatMessages.createdAt))
+      .limit(500);
 
     return apiSuccess({ messages });
   } catch (error) {
@@ -96,6 +101,10 @@ export async function POST(
   if (rateLimited) return rateLimited;
 
   const { id: sessionId } = await params;
+
+  if (!sessionId || typeof sessionId !== "string" || sessionId.length > 100) {
+    return apiBadRequest("Invalid session ID");
+  }
 
   try {
     // Verify session belongs to user

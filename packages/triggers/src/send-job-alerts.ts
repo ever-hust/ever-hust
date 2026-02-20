@@ -1,5 +1,5 @@
 import { task, schedules } from "@trigger.dev/sdk/v3";
-import { db, userAlerts, jobs, users } from "@repo/db";
+import { db, escapeIlike, userAlerts, jobs, users } from "@repo/db";
 import { sendJobAlertEmail } from "@repo/email";
 import { eq, and, gte, ilike, or, sql } from "drizzle-orm";
 
@@ -10,13 +10,14 @@ import { eq, and, gte, ilike, or, sql } from "drizzle-orm";
 async function processAlerts(
   frequency: "daily" | "twice_daily" | "weekly"
 ) {
-  // Get all active alerts for this frequency
+  // Get active alerts for this frequency (capped to prevent OOM)
   const alerts = await db
     .select()
     .from(userAlerts)
     .where(
       and(eq(userAlerts.frequency, frequency), eq(userAlerts.isActive, true))
-    );
+    )
+    .limit(5000);
 
   for (const alert of alerts) {
     try {
@@ -36,11 +37,6 @@ async function processAlerts(
       // Build query conditions based on alert criteria
       const criteria = alert.criteria;
       const conditions = [];
-
-      // Escape ILIKE wildcard characters (%, _) in user input to prevent
-      // unintended pattern matching. Backslash-escape is the Postgres default.
-      const escapeIlike = (str: string) =>
-        str.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
 
       // Time filter: jobs posted since last alert
       const since = alert.lastSentAt ?? new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -118,7 +114,8 @@ async function processAlerts(
         const maxNum = max ? Number(max) : null;
         if (minNum && maxNum) return `${c} ${minNum.toLocaleString()}-${maxNum.toLocaleString()}`;
         if (minNum) return `${c} ${minNum.toLocaleString()}+`;
-        return `Up to ${c} ${maxNum!.toLocaleString()}`;
+        if (maxNum) return `Up to ${c} ${maxNum.toLocaleString()}`;
+        return undefined;
       };
 
       // Build criteria description for email

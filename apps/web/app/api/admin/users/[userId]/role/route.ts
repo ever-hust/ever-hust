@@ -29,6 +29,10 @@ export async function PATCH(
 
   const { userId } = await params;
 
+  if (!userId || typeof userId !== "string" || userId.length > 100) {
+    return apiBadRequest("Invalid user ID");
+  }
+
   // Prevent admins from demoting themselves
   if (userId === admin.id) {
     return apiBadRequest("You cannot change your own role");

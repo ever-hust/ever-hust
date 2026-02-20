@@ -3,9 +3,20 @@ import { NextResponse } from "next/server";
 /**
  * Standardized API response helpers.
  *
- * Provides consistent response shapes, cache headers, and error formatting
- * across all API routes.
+ * Provides consistent response shapes, cache headers, error formatting,
+ * and request ID tracing across all API routes.
  */
+
+/**
+ * Generate a short unique request ID for tracing.
+ * Uses crypto.randomUUID when available, falls back to timestamp + random.
+ */
+export function generateRequestId(): string {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID().slice(0, 8);
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+}
 
 /** Standard success response with optional cache headers */
 export function apiSuccess<T>(
@@ -26,7 +37,10 @@ export function apiSuccess<T>(
 ) {
   const { status = 200, cacheSeconds, isPrivate = false, headers: extraHeaders } = options ?? {};
 
-  const headers: Record<string, string> = { ...extraHeaders };
+  const headers: Record<string, string> = {
+    "X-Request-Id": generateRequestId(),
+    ...extraHeaders,
+  };
 
   if (cacheSeconds !== undefined && cacheSeconds > 0) {
     if (isPrivate) {
@@ -61,6 +75,7 @@ export function apiError(
       status,
       headers: {
         "Cache-Control": "private, no-cache, no-store, must-revalidate",
+        "X-Request-Id": generateRequestId(),
       },
     },
   );
@@ -113,6 +128,7 @@ export function apiRateLimited(retryAfterSeconds: number) {
       headers: {
         "Cache-Control": "private, no-cache, no-store, must-revalidate",
         "Retry-After": String(retryAfterSeconds),
+        "X-Request-Id": generateRequestId(),
       },
     },
   );

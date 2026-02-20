@@ -1,4 +1,4 @@
-import { db } from "@repo/db";
+import { db, escapeIlike } from "@repo/db";
 import { jobs } from "@repo/db";
 import { ilike, sql, isNotNull } from "drizzle-orm";
 import type { NextRequest } from "next/server";
@@ -58,9 +58,6 @@ export async function GET(req: NextRequest) {
   const { q, limit } = parsed.data;
 
   try {
-    const escapeIlike = (str: string) =>
-      str.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
-
     // Build conditions: only include jobs that have a company name
     const conditions = [isNotNull(jobs.companyName)];
 

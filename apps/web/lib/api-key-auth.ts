@@ -39,12 +39,17 @@ export async function validateApiKey(
   if (!record) return null;
   if (record.expiresAt && new Date(record.expiresAt) < new Date()) return null;
 
-  // Update lastUsedAt (fire-and-forget)
+  // Update lastUsedAt (fire-and-forget — log errors for observability)
   db.update(apiKeys)
     .set({ lastUsedAt: new Date() })
     .where(eq(apiKeys.id, record.id))
     .then(() => {})
-    .catch(() => {});
+    .catch((err) => {
+      console.error(
+        "[api-key-auth] Failed to update lastUsedAt:",
+        err instanceof Error ? err.message : err
+      );
+    });
 
   return {
     userId: record.userId,

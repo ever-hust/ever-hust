@@ -44,7 +44,7 @@ export const env = {
   // OpenRouter is the primary provider; Anthropic is the fallback / BYOK provider.
   OPENROUTER_API_KEY: optional("OPENROUTER_API_KEY"),
   ANTHROPIC_API_KEY: optional("ANTHROPIC_API_KEY"),
-  DEFAULT_AI_MODEL: optional("DEFAULT_AI_MODEL", "claude-sonnet-4-20250514"),
+  DEFAULT_AI_MODEL: optional("DEFAULT_AI_MODEL", "claude-sonnet-4-5-20250929"),
 
   // BYOK (Bring Your Own Key) — encryption key for storing user API keys at rest.
   // Only required if the BYOK feature is enabled. Must be a 256-bit hex string.

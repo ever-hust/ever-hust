@@ -1,27 +1,3 @@
-export function formatSalary(
-  min?: string | number | null,
-  max?: string | number | null,
-  currency = "USD",
-  interval = "yearly"
-): string {
-  if (!min && !max) return "";
-
-  const formatter = new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  });
-
-  const suffix = interval === "yearly" ? "/yr" : `/${interval}`;
-
-  if (min && max) {
-    return `${formatter.format(Number(min))} - ${formatter.format(Number(max))}${suffix}`;
-  }
-  if (min) return `${formatter.format(Number(min))}+${suffix}`;
-  if (max) return `Up to ${formatter.format(Number(max))}${suffix}`;
-  return "";
-}
-
 export function formatDate(date: Date | string | null | undefined): string {
   if (!date) return "";
   const d = typeof date === "string" ? new Date(date) : date;

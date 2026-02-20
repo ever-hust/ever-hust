@@ -140,6 +140,28 @@ describe("apiFetch", () => {
       })
     );
   });
+
+  it("falls back to status code when error response body is empty object", async () => {
+    global.fetch = jest.fn().mockResolvedValue(
+      mockResponse({}, { status: 400 })
+    );
+
+    const result = await apiFetch("/api/empty-error");
+
+    expect(result).toBeNull();
+    expect(mockToastError).toHaveBeenCalledWith("Request failed (400)");
+  });
+
+  it("handles 204 No Content response", async () => {
+    global.fetch = jest.fn().mockResolvedValue(
+      new Response(null, { status: 204 })
+    );
+
+    const result = await apiFetch("/api/no-content");
+
+    expect(result).toBeNull();
+    expect(mockToastError).not.toHaveBeenCalled();
+  });
 });
 
 // ── apiMutate ──────────────────────────────────────────────────────────────

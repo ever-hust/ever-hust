@@ -1,4 +1,4 @@
-import { db } from "@repo/db";
+import { db, escapeIlike } from "@repo/db";
 import { jobs } from "@repo/db";
 import { and, ilike, isNotNull, or } from "drizzle-orm";
 import type { NextRequest } from "next/server";
@@ -91,9 +91,6 @@ export async function GET(req: NextRequest) {
   const { title, location, level } = parsed.data;
 
   try {
-    const escapeIlike = (str: string) =>
-      str.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
-
     const titlePattern = `%${escapeIlike(title)}%`;
 
     const conditions = [

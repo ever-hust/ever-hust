@@ -1,4 +1,4 @@
-import { db } from "@repo/db";
+import { db, escapeIlike } from "@repo/db";
 import { jobs } from "@repo/db";
 import { and, eq, ilike, or, desc, sql } from "drizzle-orm";
 import type { NextRequest } from "next/server";
@@ -61,10 +61,6 @@ export async function GET(req: NextRequest) {
 
   try {
     const conditions = [];
-
-    // Escape ILIKE wildcard characters
-    const escapeIlike = (str: string) =>
-      str.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
 
     if (q) {
       const kw = `%${escapeIlike(q)}%`;

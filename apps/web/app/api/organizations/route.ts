@@ -112,27 +112,33 @@ export async function POST(req: Request) {
     }
     const slug = await ensureUniqueSlug(baseSlug);
 
-    const [org] = await db
-      .insert(organizations)
-      .values({
-        name: body.name,
-        slug,
-        logo: body.logo ?? null,
-        website: body.website ?? null,
-        createdById: user.id,
-      })
-      .returning();
+    const org = await db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(organizations)
+        .values({
+          name: body.name,
+          slug,
+          logo: body.logo ?? null,
+          website: body.website ?? null,
+          createdById: user.id,
+        })
+        .returning();
+
+      if (!created) return null;
+
+      // Add the creator as an owner
+      await tx.insert(organizationMembers).values({
+        organizationId: created.id,
+        userId: user.id,
+        role: "owner",
+      });
+
+      return created;
+    });
 
     if (!org) {
       return apiError("Failed to create organization");
     }
-
-    // Add the creator as an owner
-    await db.insert(organizationMembers).values({
-      organizationId: org.id,
-      userId: user.id,
-      role: "owner",
-    });
 
     return apiSuccess({ organization: org }, { status: 201 });
   } catch (err) {

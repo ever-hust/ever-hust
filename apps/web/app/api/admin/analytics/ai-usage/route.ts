@@ -1,3 +1,6 @@
+// Analytics queries may involve multi-table joins — allow up to 30s
+export const maxDuration = 30;
+
 import { db } from "@repo/db";
 import { chatSessions, chatMessages } from "@repo/db/schema";
 import { count, gte, sql } from "drizzle-orm";
@@ -15,7 +18,7 @@ export async function GET(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const rateLimited = applyRateLimit(admin.id, "adminWrite");
+  const rateLimited = applyRateLimit(admin.id, "admin");
   if (rateLimited) return rateLimited;
 
   try {

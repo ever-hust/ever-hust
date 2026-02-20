@@ -88,6 +88,16 @@ describe("jobSearchParamsSchema", () => {
     const result = jobSearchParamsSchema.safeParse({ limit: "200" });
     expect(result.success).toBe(false);
   });
+
+  it("rejects negative salaryMin", () => {
+    const result = jobSearchParamsSchema.safeParse({ salaryMin: "-1" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects negative salaryMax", () => {
+    const result = jobSearchParamsSchema.safeParse({ salaryMax: "-1" });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("chatRequestSchema", () => {
@@ -111,6 +121,54 @@ describe("chatRequestSchema", () => {
 
   it("rejects missing messages", () => {
     const result = chatRequestSchema.safeParse({});
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects content exceeding 50,000 chars", () => {
+    const result = chatRequestSchema.safeParse({
+      messages: [{ id: "1", role: "user", content: "x".repeat(50_001) }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts content at exactly 50,000 chars", () => {
+    const result = chatRequestSchema.safeParse({
+      messages: [{ id: "1", role: "user", content: "x".repeat(50_000) }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects more than 100 messages", () => {
+    const messages = Array.from({ length: 101 }, (_, i) => ({
+      id: String(i),
+      role: "user" as const,
+      content: "hi",
+    }));
+    const result = chatRequestSchema.safeParse({ messages });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts exactly 100 messages", () => {
+    const messages = Array.from({ length: 100 }, (_, i) => ({
+      id: String(i),
+      role: "user" as const,
+      content: "hi",
+    }));
+    const result = chatRequestSchema.safeParse({ messages });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects more than 200 parts", () => {
+    const result = chatRequestSchema.safeParse({
+      messages: [
+        {
+          id: "1",
+          role: "user",
+          content: "hi",
+          parts: Array.from({ length: 201 }, () => ({ type: "text" })),
+        },
+      ],
+    });
     expect(result.success).toBe(false);
   });
 });
@@ -165,6 +223,43 @@ describe("profilePatchSchema", () => {
   it("rejects name > 200 chars", () => {
     const result = profilePatchSchema.safeParse({ name: "x".repeat(201) });
     expect(result.success).toBe(false);
+  });
+
+  it("accepts skills array at boundary (50 items)", () => {
+    const result = profilePatchSchema.safeParse({
+      skills: Array.from({ length: 50 }, (_, i) => `skill${i}`),
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects skills array exceeding 50 items", () => {
+    const result = profilePatchSchema.safeParse({
+      skills: Array.from({ length: 51 }, (_, i) => `skill${i}`),
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts experience array at boundary (20 items)", () => {
+    const exp = Array.from({ length: 20 }, (_, i) => ({
+      title: `Title ${i}`,
+      company: `Company ${i}`,
+    }));
+    const result = profilePatchSchema.safeParse({ experience: exp });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects experience array exceeding 20 items", () => {
+    const exp = Array.from({ length: 21 }, (_, i) => ({
+      title: `Title ${i}`,
+      company: `Company ${i}`,
+    }));
+    const result = profilePatchSchema.safeParse({ experience: exp });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts empty skills array", () => {
+    const result = profilePatchSchema.safeParse({ skills: [] });
+    expect(result.success).toBe(true);
   });
 });
 
@@ -265,6 +360,61 @@ describe("alertCreateSchema", () => {
     const result = alertCreateSchema.safeParse({
       frequency: "daily",
       email: "not-an-email",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts criteria with salary range", () => {
+    const result = alertCreateSchema.safeParse({
+      frequency: "daily",
+      email: "user@example.com",
+      criteria: {
+        salary: { min: 50_000, max: 150_000 },
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects negative salary values", () => {
+    const result = alertCreateSchema.safeParse({
+      frequency: "daily",
+      email: "user@example.com",
+      criteria: { salary: { min: -1 } },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects salary exceeding 10,000,000", () => {
+    const result = alertCreateSchema.safeParse({
+      frequency: "daily",
+      email: "user@example.com",
+      criteria: { salary: { max: 10_000_001 } },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts criteria at array boundaries (20 keywords, 10 locations, 30 skills)", () => {
+    const result = alertCreateSchema.safeParse({
+      frequency: "weekly",
+      email: "user@example.com",
+      criteria: {
+        keywords: Array.from({ length: 20 }, (_, i) => `kw${i}`),
+        locations: Array.from({ length: 10 }, (_, i) => `loc${i}`),
+        skills: Array.from({ length: 30 }, (_, i) => `skill${i}`),
+        roleLevel: Array.from({ length: 10 }, (_, i) => `level${i}`),
+        industries: Array.from({ length: 20 }, (_, i) => `ind${i}`),
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects criteria exceeding array limits", () => {
+    const result = alertCreateSchema.safeParse({
+      frequency: "daily",
+      email: "user@example.com",
+      criteria: {
+        keywords: Array.from({ length: 21 }, (_, i) => `kw${i}`),
+      },
     });
     expect(result.success).toBe(false);
   });

@@ -282,7 +282,7 @@ export const JobCompareDialog = memo(function JobCompareDialog({
               return (
                 <div
                   key={job.id}
-                  role="cell"
+                  role="columnheader"
                   className={cn(
                     "px-4 py-3",
                     i < columns - 1 && "border-r"

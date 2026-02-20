@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@repo/db";
 import { jobs } from "@repo/db";
 import { and, eq, ilike, or, gte, lte, desc, sql } from "drizzle-orm";
+import { escapeIlike } from "@repo/db";
 
 export const searchJobsTool = tool({
   description:
@@ -57,18 +58,14 @@ export const searchJobsTool = tool({
       .number()
       .int()
       .min(0)
+      .max(10_000)
       .optional()
       .default(0)
-      .describe("Offset for pagination"),
+      .describe("Offset for pagination (max 10000)"),
   }),
   execute: async (params) => {
     try {
     const conditions = [];
-
-    // Escape ILIKE wildcard characters (%, _) in user input to prevent
-    // unintended pattern matching. Backslash-escape is the Postgres default.
-    const escapeIlike = (str: string) =>
-      str.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
 
     if (params.keywords) {
       const kw = `%${escapeIlike(params.keywords)}%`;

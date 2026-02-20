@@ -47,3 +47,13 @@ export const FREE_TIER_DAILY_SEARCHES = 5;
 
 /** Weekly cover letter limit for free-tier users. */
 export const FREE_TIER_WEEKLY_COVER_LETTERS = 1;
+
+// ---------------------------------------------------------------------------
+// Time Constants
+// ---------------------------------------------------------------------------
+
+/** One day in milliseconds. */
+export const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+/** One week in milliseconds. */
+export const ONE_WEEK_MS = 7 * ONE_DAY_MS;

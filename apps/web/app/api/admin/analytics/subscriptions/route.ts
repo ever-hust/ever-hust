@@ -1,3 +1,6 @@
+// Subscription analytics queries may be slow — allow up to 30s
+export const maxDuration = 30;
+
 import { db } from "@repo/db";
 import { subscriptions } from "@repo/db/schema";
 import { count, desc } from "drizzle-orm";
@@ -14,7 +17,7 @@ export async function GET() {
     return response as NextResponse;
   }
 
-  const rateLimited = applyRateLimit(admin.id, "adminWrite");
+  const rateLimited = applyRateLimit(admin.id, "admin");
   if (rateLimited) return rateLimited;
 
   try {

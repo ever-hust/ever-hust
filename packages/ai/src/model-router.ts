@@ -8,6 +8,7 @@ const ALLOWED_MODELS = new Set([
   "claude-haiku-4-5-20251001",
   "claude-sonnet-4-20250514",
   "claude-sonnet-4-5-20250929",
+  "claude-sonnet-4-6",
   "claude-opus-4-6",
 ]);
 
@@ -26,6 +27,7 @@ interface UserForModel {
 /** Map of Anthropic model IDs to their OpenRouter equivalents */
 const ANTHROPIC_TO_OPENROUTER: Record<string, string> = {
   "claude-opus-4-6": "anthropic/claude-opus-4",
+  "claude-sonnet-4-6": "anthropic/claude-sonnet-4",
   "claude-sonnet-4-20250514": "anthropic/claude-sonnet-4",
   "claude-sonnet-4-5-20250929": "anthropic/claude-sonnet-4-5",
   "claude-haiku-4-5-20251001": "anthropic/claude-3.5-haiku",
@@ -75,7 +77,7 @@ const FREE_MODEL_ID = "claude-haiku-4-5-20251001";
  * Paid-tier default model.
  */
 const PAID_MODEL_ID =
-  process.env.DEFAULT_AI_MODEL ?? "claude-sonnet-4-20250514";
+  process.env.DEFAULT_AI_MODEL ?? "claude-sonnet-4-5-20250929";
 
 /**
  * Resolve the correct LanguageModel for a given user.
@@ -92,6 +94,10 @@ export function getModelForUser(user: UserForModel): LanguageModel {
   if (user.preferences?.apiKeys?.anthropic) {
     const rawKey = user.preferences.apiKeys.anthropic;
     const apiKey = decryptApiKey(rawKey) ?? rawKey;
+    // Fall through to platform model if the key is empty/whitespace after decryption
+    if (!apiKey.trim()) {
+      return getPlatformModel(FREE_MODEL_ID);
+    }
     const byokProvider = createAnthropic({
       apiKey,
     });

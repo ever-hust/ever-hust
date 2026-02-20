@@ -1,3 +1,6 @@
+// Dashboard stats run multiple parallel counts — allow up to 30s
+export const maxDuration = 30;
+
 import { db } from "@repo/db";
 import { users, jobs, subscriptions } from "@repo/db/schema";
 import { count, desc, gte } from "drizzle-orm";

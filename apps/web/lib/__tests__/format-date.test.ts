@@ -169,8 +169,8 @@ describe("formatSessionDate", () => {
   });
 
   it('returns "Yesterday at ..." for yesterday', () => {
-    const yesterday = new Date(Date.now() - 24 * 60 * 60_000);
-    yesterday.setHours(10, 30, 0);
+    // Use 30 hours ago to guarantee diffDays=1 regardless of time-of-day
+    const yesterday = new Date(Date.now() - 30 * 60 * 60_000);
     const result = formatSessionDate(yesterday);
     expect(result).toMatch(/^Yesterday at /);
   });

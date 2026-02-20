@@ -4,7 +4,7 @@ import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../../lib/get-session-user";
 import { applyRateLimit } from "../../../../../lib/rate-limit";
-import { apiError, apiNotFound } from "../../../../../lib/api-response";
+import { apiBadRequest, apiError, apiNotFound } from "../../../../../lib/api-response";
 
 // DELETE /api/developer/keys/[keyId] - Revoke (soft-delete) an API key
 export async function DELETE(
@@ -25,7 +25,7 @@ export async function DELETE(
   const keyIdNum = Number(keyId);
 
   if (isNaN(keyIdNum) || keyIdNum <= 0 || !Number.isInteger(keyIdNum)) {
-    return apiNotFound("API key not found");
+    return apiBadRequest("Invalid API key ID");
   }
 
   try {

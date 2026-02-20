@@ -5,8 +5,7 @@ import { db, users, subscriptions, stripeWebhookEvents } from "@repo/db";
 import { getStripe, parseWebhookEvent } from "@repo/stripe";
 import { sendSubscriptionConfirmedEmail } from "@repo/email";
 import { eq, and, ne } from "drizzle-orm";
-import { NextResponse } from "next/server";
-import { apiBadRequest, apiError } from "../../../../lib/api-response";
+import { apiBadRequest, apiError, apiSuccess } from "../../../../lib/api-response";
 
 // ── Idempotency Guard ─────────────────────────────────────────────────────
 // Database-backed deduplication that works across multiple server instances.
@@ -50,7 +49,12 @@ const PLAN_INFO: Record<string, { name: string; amount: string; cycle: string }>
 };
 
 export async function POST(req: Request) {
-  const body = await req.text();
+  let body: string;
+  try {
+    body = await req.text();
+  } catch {
+    return apiBadRequest("Failed to read request body");
+  }
   const signature = req.headers.get("stripe-signature");
 
   if (!signature) {
@@ -83,13 +87,13 @@ export async function POST(req: Request) {
   // Idempotency: skip if we've already processed this event
   const isNew = await claimEvent(event.id);
   if (!isNew) {
-    return NextResponse.json({ received: true, deduplicated: true });
+    return apiSuccess({ received: true, deduplicated: true });
   }
 
   const parsed = parseWebhookEvent(event);
   if (!parsed) {
     // Event type we don't handle — acknowledge it
-    return NextResponse.json({ received: true });
+    return apiSuccess({ received: true });
   }
 
   try {
@@ -133,15 +137,16 @@ export async function POST(req: Request) {
 
       case "customer.subscription.deleted": {
         const { stripeCustomerId, stripeSubscriptionId } = parsed.data;
+        const now = new Date();
         await db.transaction(async (tx) => {
           await tx
             .update(users)
-            .set({ subscriptionStatus: "canceled", updatedAt: new Date() })
+            .set({ subscriptionStatus: "canceled", updatedAt: now })
             .where(eq(users.stripeCustomerId, stripeCustomerId));
 
           await tx
             .update(subscriptions)
-            .set({ status: "canceled", updatedAt: new Date() })
+            .set({ status: "canceled", updatedAt: now })
             .where(eq(subscriptions.stripeSubscriptionId, stripeSubscriptionId));
         });
         break;
@@ -156,7 +161,7 @@ export async function POST(req: Request) {
     return apiError("Webhook handler failed");
   }
 
-  return NextResponse.json({ received: true });
+  return apiSuccess({ received: true });
 }
 
 // ── Event Handlers ──────────────────────────────────────────────────────────
@@ -173,13 +178,17 @@ async function handleCheckoutCompleted(data: {
   const sub = await getStripe().subscriptions.retrieve(stripeSubscriptionId);
 
   // Use a transaction to ensure user + subscription are updated atomically
+  const now = new Date();
+  const periodStart = new Date(sub.current_period_start * 1000);
+  const periodEnd = new Date(sub.current_period_end * 1000);
+
   await db.transaction(async (tx) => {
     await tx
       .update(users)
       .set({
         stripeCustomerId,
         subscriptionStatus: "active",
-        updatedAt: new Date(),
+        updatedAt: now,
       })
       .where(eq(users.id, userId));
 
@@ -192,8 +201,8 @@ async function handleCheckoutCompleted(data: {
         stripeSubscriptionId,
         planType: planId as "monthly" | "quarterly" | "annual",
         status: "active",
-        currentPeriodStart: new Date(sub.current_period_start * 1000),
-        currentPeriodEnd: new Date(sub.current_period_end * 1000),
+        currentPeriodStart: periodStart,
+        currentPeriodEnd: periodEnd,
         cancelAtPeriodEnd: sub.cancel_at_period_end,
       })
       .onConflictDoUpdate({
@@ -201,10 +210,10 @@ async function handleCheckoutCompleted(data: {
         set: {
           status: "active",
           planType: planId as "monthly" | "quarterly" | "annual",
-          currentPeriodStart: new Date(sub.current_period_start * 1000),
-          currentPeriodEnd: new Date(sub.current_period_end * 1000),
+          currentPeriodStart: periodStart,
+          currentPeriodEnd: periodEnd,
           cancelAtPeriodEnd: sub.cancel_at_period_end,
-          updatedAt: new Date(),
+          updatedAt: now,
         },
       });
   });
@@ -217,11 +226,12 @@ async function handleCheckoutCompleted(data: {
       .where(eq(users.id, userId))
       .limit(1);
 
-    if (userRow.length > 0 && userRow[0]!.email) {
-      const plan = PLAN_INFO[planId] ?? PLAN_INFO.monthly!;
+    const subscriber = userRow[0];
+    if (subscriber?.email) {
+      const plan = PLAN_INFO[planId] ?? { name: "Pro", amount: "$20", cycle: "month" };
       await sendSubscriptionConfirmedEmail({
-        to: userRow[0]!.email,
-        userName: userRow[0]!.name ?? "there",
+        to: subscriber.email,
+        userName: subscriber.name ?? "there",
         planName: plan.name,
         amount: plan.amount,
         billingCycle: plan.cycle,
@@ -286,10 +296,11 @@ async function handleSubscriptionUpdated(data: {
         ? "past_due"
         : "canceled";
 
+  const now = new Date();
   await db.transaction(async (tx) => {
     await tx
       .update(users)
-      .set({ subscriptionStatus: userStatus, updatedAt: new Date() })
+      .set({ subscriptionStatus: userStatus, updatedAt: now })
       .where(eq(users.stripeCustomerId, stripeCustomerId));
 
     await tx
@@ -299,7 +310,7 @@ async function handleSubscriptionUpdated(data: {
         currentPeriodStart,
         currentPeriodEnd,
         cancelAtPeriodEnd,
-        updatedAt: new Date(),
+        updatedAt: now,
         ...(planId ? { planType: planId as "monthly" | "quarterly" | "annual" } : {}),
       })
       .where(eq(subscriptions.stripeSubscriptionId, stripeSubscriptionId));

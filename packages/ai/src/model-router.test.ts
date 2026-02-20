@@ -41,13 +41,13 @@ describe("getModelForUser", () => {
   });
 
   it("should return paid-tier default (sonnet) for paid users with no preferences", () => {
-    // PAID_MODEL_ID resolves at module load: process.env.DEFAULT_AI_MODEL ?? "claude-sonnet-4-20250514"
+    // PAID_MODEL_ID resolves at module load: process.env.DEFAULT_AI_MODEL ?? "claude-sonnet-4-5-20250929"
     const model = getModelForUser({
       subscriptionStatus: "active",
       preferences: null,
     });
     expect((model as { modelId: string }).modelId).toBe(
-      "claude-sonnet-4-20250514"
+      "claude-sonnet-4-5-20250929"
     );
   });
 
@@ -56,6 +56,25 @@ describe("getModelForUser", () => {
       subscriptionStatus: "active",
       preferences: { aiModel: "claude-sonnet-4-5-20250929" },
     });
+    expect((model as { modelId: string }).modelId).toBe(
+      "claude-sonnet-4-5-20250929"
+    );
+  });
+
+  it("should accept claude-sonnet-4-6 as a valid model choice", () => {
+    const model = getModelForUser({
+      subscriptionStatus: "active",
+      preferences: { aiModel: "claude-sonnet-4-6" },
+    });
+    expect((model as { modelId: string }).modelId).toBe("claude-sonnet-4-6");
+  });
+
+  it("should reject unlisted model IDs and fall back to paid default", () => {
+    const model = getModelForUser({
+      subscriptionStatus: "active",
+      preferences: { aiModel: "gpt-4o-mini" },
+    });
+    // Falls through to PAID_MODEL_ID since "gpt-4o-mini" is not in ALLOWED_MODELS
     expect((model as { modelId: string }).modelId).toBe(
       "claude-sonnet-4-5-20250929"
     );
@@ -99,13 +118,13 @@ describe("getModelForUser", () => {
   it("should use PAID_MODEL_ID resolved at module load for paid users", () => {
     // NOTE: PAID_MODEL_ID is a module-level const, so changing process.env
     // after import has no effect.  This test verifies the default path uses
-    // the resolved PAID_MODEL_ID ("claude-sonnet-4-20250514").
+    // the resolved PAID_MODEL_ID ("claude-sonnet-4-5-20250929").
     const model = getModelForUser({
       subscriptionStatus: "active",
       preferences: null,
     });
     expect((model as { modelId: string }).modelId).toBe(
-      "claude-sonnet-4-20250514"
+      "claude-sonnet-4-5-20250929"
     );
   });
 
@@ -125,7 +144,7 @@ describe("getModelForUser", () => {
     });
     // Empty preferences → no aiModel set → falls through to PAID_MODEL_ID default
     expect((model as { modelId: string }).modelId).toBe(
-      "claude-sonnet-4-20250514"
+      "claude-sonnet-4-5-20250929"
     );
   });
 
@@ -149,5 +168,63 @@ describe("getModelForUser", () => {
     expect((model as { modelId: string }).modelId).toBe(
       "claude-haiku-4-5-20251001"
     );
+  });
+
+  it("should treat null subscriptionStatus as free tier", () => {
+    const model = getModelForUser({
+      subscriptionStatus: null as unknown as string,
+      preferences: null,
+    });
+    expect((model as { modelId: string }).modelId).toBe(
+      "claude-haiku-4-5-20251001"
+    );
+  });
+
+  it("should treat undefined subscriptionStatus as free tier", () => {
+    const model = getModelForUser({
+      subscriptionStatus: undefined as unknown as string,
+      preferences: null,
+    });
+    expect((model as { modelId: string }).modelId).toBe(
+      "claude-haiku-4-5-20251001"
+    );
+  });
+
+  it("should not use empty string BYOK key as valid API key", () => {
+    const model = getModelForUser({
+      subscriptionStatus: "free",
+      preferences: {
+        apiKeys: { anthropic: "" },
+      },
+    });
+    // Empty string is falsy — should fall through to free tier haiku
+    expect((model as { modelId: string }).modelId).toBe(
+      "claude-haiku-4-5-20251001"
+    );
+  });
+
+  it("should not use whitespace-only BYOK key as valid API key", () => {
+    const model = getModelForUser({
+      subscriptionStatus: "free",
+      preferences: {
+        apiKeys: { anthropic: "   " },
+      },
+    });
+    // Whitespace-only key should fall through to free tier haiku
+    expect((model as { modelId: string }).modelId).toBe(
+      "claude-haiku-4-5-20251001"
+    );
+  });
+
+  it("should use BYOK but fall back to opus when model preference is invalid", () => {
+    const model = getModelForUser({
+      subscriptionStatus: "free",
+      preferences: {
+        aiModel: "gpt-4o-turbo",
+        apiKeys: { anthropic: "sk-ant-valid-key" },
+      },
+    });
+    // BYOK with invalid model preference → should use opus default
+    expect((model as { modelId: string }).modelId).toBe("claude-opus-4-6");
   });
 });

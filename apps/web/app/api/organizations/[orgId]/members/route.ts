@@ -53,7 +53,8 @@ export async function GET(
       })
       .from(organizationMembers)
       .innerJoin(users, eq(organizationMembers.userId, users.id))
-      .where(eq(organizationMembers.organizationId, orgId));
+      .where(eq(organizationMembers.organizationId, orgId))
+      .limit(200);
 
     // Also fetch pending invitations if user is owner/admin
     let invitations: Array<{
@@ -81,7 +82,8 @@ export async function GET(
             eq(organizationInvitations.organizationId, orgId),
             eq(organizationInvitations.status, "pending")
           )
-        );
+        )
+        .limit(200);
     }
 
     return apiSuccess({ members, invitations });
@@ -205,6 +207,10 @@ export async function POST(
         expiresAt,
       })
       .returning();
+
+    if (!invitation) {
+      return apiError("Failed to create invitation");
+    }
 
     return apiSuccess({ invitation }, { status: 201 });
   } catch (err) {

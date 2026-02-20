@@ -80,6 +80,20 @@ export const createAlertTool = tool({
       };
     }
 
+    // Require at least one filter criterion
+    const hasFilters =
+      (keywords && keywords.length > 0) ||
+      (locations && locations.length > 0) ||
+      (skills && skills.length > 0) ||
+      (roleLevel && roleLevel.length > 0) ||
+      (industries && industries.length > 0);
+    if (!hasFilters) {
+      return {
+        created: false,
+        error: "Please provide at least one filter (keywords, locations, skills, etc.) to create a useful alert.",
+      };
+    }
+
     // Create the alert
     const result = await db
       .insert(userAlerts)

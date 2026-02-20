@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@repo/ui/button";
@@ -10,6 +11,9 @@ import { Button } from "@repo/ui/button";
  */
 export function ThemeToggle() {
   const { setTheme, theme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   const cycle = () => {
     if (theme === "light") setTheme("dark");
@@ -17,8 +21,10 @@ export function ThemeToggle() {
     else setTheme("light");
   };
 
-  const label =
-    theme === "light"
+  // Use a generic label until mounted to avoid hydration mismatch
+  const label = !mounted
+    ? "Toggle theme"
+    : theme === "light"
       ? "Switch to dark theme"
       : theme === "dark"
         ? "Switch to system theme"

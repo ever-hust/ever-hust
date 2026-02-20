@@ -13,39 +13,7 @@ import {
   apiRateLimited,
   apiError,
 } from "../../../../lib/api-response";
-
-/**
- * Normalise a salary value to an annual figure.
- */
-function annualise(salary: number, interval: string | null): number {
-  switch (interval?.toLowerCase()) {
-    case "hourly":
-      return salary * 2080;
-    case "weekly":
-      return salary * 52;
-    case "biweekly":
-      return salary * 26;
-    case "monthly":
-      return salary * 12;
-    case "yearly":
-    case "annual":
-    case "annually":
-    default:
-      return salary;
-  }
-}
-
-/**
- * Compute the median of a sorted (ascending) array of numbers.
- */
-function median(sorted: number[]): number {
-  if (sorted.length === 0) return 0;
-  const mid = Math.floor(sorted.length / 2);
-  if (sorted.length % 2 === 1) {
-    return sorted[mid]!;
-  }
-  return Math.round(((sorted[mid - 1]! + sorted[mid]!) / 2) * 100) / 100;
-}
+import { annualise, median } from "@repo/ai/tools/salary-helpers";
 
 // GET /api/v1/salary - Salary insights (API key or session auth)
 export async function GET(req: NextRequest) {

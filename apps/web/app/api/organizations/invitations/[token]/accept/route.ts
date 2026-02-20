@@ -4,7 +4,7 @@ import {
   organizationMembers,
   organizations,
 } from "@repo/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, count } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../../../lib/get-session-user";
 import { applyRateLimit } from "../../../../../../lib/rate-limit";
@@ -178,12 +178,12 @@ export async function POST(
       return apiError("Organization not found");
     }
 
-    const currentMembers = await db
-      .select({ id: organizationMembers.id })
+    const [memberCount] = await db
+      .select({ value: count() })
       .from(organizationMembers)
       .where(eq(organizationMembers.organizationId, invitation.organizationId));
 
-    if (currentMembers.length >= org.maxMembers) {
+    if ((memberCount?.value ?? 0) >= org.maxMembers) {
       return apiBadRequest(
         "This organization has reached its member limit"
       );

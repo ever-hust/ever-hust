@@ -92,7 +92,7 @@ export default function InvitationAcceptPage() {
         { method: "POST" }
       );
 
-      const data = (await res.json()) as {
+      const data = (await res.json().catch(() => ({}))) as {
         message?: string;
         organizationId?: number;
         error?: string;

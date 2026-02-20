@@ -186,7 +186,7 @@ export default function OrgDetailPage() {
         setInviteRole("member");
         await loadOrg();
       } else {
-        const errorData = (await res.json()) as { error?: string };
+        const errorData = (await res.json().catch(() => ({}))) as { error?: string };
         toast.error(errorData.error ?? "Failed to send invitation");
       }
     } catch {
@@ -204,12 +204,12 @@ export default function OrgDetailPage() {
           `/api/organizations/${orgId}/members/${userId}`,
           { method: "DELETE" }
         );
-        if (res.ok || res.status === 204) {
+        if (res.ok) {
           toast.success("Member removed");
           setMembers((prev) => prev.filter((m) => m.userId !== userId));
           setMemberCount((c) => Math.max(0, c - 1));
         } else {
-          const errorData = (await res.json()) as { error?: string };
+          const errorData = (await res.json().catch(() => ({}))) as { error?: string };
           toast.error(errorData.error ?? "Failed to remove member");
         }
       } catch {

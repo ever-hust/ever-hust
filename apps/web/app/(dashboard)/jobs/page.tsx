@@ -15,10 +15,6 @@ export default function JobsPage() {
   const [filters, setFilters] = useState<JobFilters>({});
   const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [error, setError] = useState<string | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const loadMoreAbortRef = useRef<AbortController | null>(null);
   // Track page in a ref so handleLoadMore doesn't depend on `page` state,
@@ -30,7 +26,6 @@ export default function JobsPage() {
     const controller = new AbortController();
     async function loadJobs() {
       setIsLoading(true);
-      setError(null);
       try {
         const params = new URLSearchParams({ page: "1", limit: "25" });
         if (filters.keywords) params.set("keywords", filters.keywords);
@@ -51,12 +46,10 @@ export default function JobsPage() {
           setJobs(data.jobs);
           setTotalCount(data.total);
           setHasMore(data.hasMore);
-          setPage(1);
           pageRef.current = 1;
         }
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
-        setError(err instanceof Error ? err.message : "Failed to load jobs");
         toast.error("Failed to load jobs. Please try again.");
       } finally {
         if (!controller.signal.aborted) setIsLoading(false);
@@ -99,7 +92,6 @@ export default function JobsPage() {
         if (!controller.signal.aborted) {
           setJobs((prev) => [...prev, ...data.jobs]);
           setHasMore(data.hasMore);
-          setPage(nextPage);
           pageRef.current = nextPage;
         }
       } else {

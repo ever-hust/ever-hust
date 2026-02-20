@@ -107,7 +107,7 @@ export default function OrganizationsPage() {
         setShowCreate(false);
         await loadOrgs();
       } else {
-        const errorData = (await res.json()) as { error?: string };
+        const errorData = (await res.json().catch(() => ({}))) as { error?: string };
         toast.error(errorData.error ?? "Failed to create organization");
       }
     } catch {

@@ -56,6 +56,11 @@ export async function GET(
       return apiNotFound("Invitation not found");
     }
 
+    // Only show invitation details to the intended recipient
+    if (user.email !== invitation.email) {
+      return apiNotFound("Invitation not found");
+    }
+
     // Look up the organization name
     const [org] = await db
       .select({ name: organizations.name })

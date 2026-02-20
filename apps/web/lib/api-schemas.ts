@@ -233,25 +233,25 @@ export const createApiKeySchema = z.object({
 
 // === Enterprise API v1 Routes ===
 export const jobsApiQuerySchema = z.object({
-  q: z.string().optional(),
-  location: z.string().optional(),
+  q: z.string().max(500).optional(),
+  location: z.string().max(200).optional(),
   remote: z.coerce.boolean().optional(),
-  salaryMin: z.coerce.number().optional(),
-  salaryMax: z.coerce.number().optional(),
-  skills: z.string().optional(),
+  salaryMin: z.coerce.number().min(0).max(10_000_000).optional(),
+  salaryMax: z.coerce.number().min(0).max(10_000_000).optional(),
+  skills: z.string().max(500).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).default(0),
 });
 
 export const companiesApiQuerySchema = z.object({
-  q: z.string().optional(),
+  q: z.string().max(200).optional(),
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
 
 export const salaryApiQuerySchema = z.object({
-  title: z.string().min(1),
-  location: z.string().optional(),
-  level: z.string().optional(),
+  title: z.string().min(1).max(200),
+  location: z.string().max(200).optional(),
+  level: z.string().max(100).optional(),
 });
 
 // === Analytics Routes ===

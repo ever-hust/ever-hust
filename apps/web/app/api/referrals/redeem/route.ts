@@ -37,36 +37,36 @@ export async function POST(req: Request) {
   const { code } = validation.data;
 
   try {
-    // Find a pending referral with this code
-    const pendingReferrals = await db
-      .select()
-      .from(referrals)
-      .where(
-        and(
-          eq(referrals.referralCode, code),
-          eq(referrals.status, "pending"),
-        ),
-      )
-      .limit(1);
-
-    if (pendingReferrals.length === 0) {
-      return apiBadRequest("Invalid or already used referral code");
-    }
-
-    const referral = pendingReferrals[0]!;
-
-    // Prevent self-referral
-    if (referral.referrerId === userId) {
-      return apiBadRequest("You cannot redeem your own referral code");
-    }
-
     const now = new Date();
 
-    // Wrap status update + credit upsert in a transaction to prevent
-    // double-credit race conditions.
-    await db.transaction(async (tx) => {
-      // Update the referral record
-      await tx
+    // Everything inside a single transaction to prevent double-credit
+    // race conditions (two concurrent redeems of the same code).
+    const result = await db.transaction(async (tx) => {
+      // Find a pending referral with this code (SELECT inside tx for atomicity)
+      const pendingReferrals = await tx
+        .select()
+        .from(referrals)
+        .where(
+          and(
+            eq(referrals.referralCode, code),
+            eq(referrals.status, "pending"),
+          ),
+        )
+        .limit(1);
+
+      if (pendingReferrals.length === 0) {
+        return { error: "Invalid or already used referral code" } as const;
+      }
+
+      const referral = pendingReferrals[0]!;
+
+      // Prevent self-referral
+      if (referral.referrerId === userId) {
+        return { error: "You cannot redeem your own referral code" } as const;
+      }
+
+      // Atomically claim: only update if still pending (prevents double-credit)
+      const [updated] = await tx
         .update(referrals)
         .set({
           referredUserId: userId,
@@ -75,7 +75,17 @@ export async function POST(req: Request) {
           completedAt: now,
           updatedAt: now,
         })
-        .where(eq(referrals.id, referral.id));
+        .where(
+          and(
+            eq(referrals.id, referral.id),
+            eq(referrals.status, "pending"),
+          ),
+        )
+        .returning({ id: referrals.id });
+
+      if (!updated) {
+        return { error: "Referral code has already been redeemed" } as const;
+      }
 
       // Award credits to the referrer — upsert their credit balance
       const existingCredits = await tx
@@ -102,11 +112,17 @@ export async function POST(req: Request) {
           })
           .where(eq(referralCredits.userId, referral.referrerId));
       }
+
+      return { referrerId: referral.referrerId } as const;
     });
+
+    if ("error" in result) {
+      return apiBadRequest(result.error);
+    }
 
     return apiSuccess({
       message: "Referral code redeemed successfully",
-      referrerId: referral.referrerId,
+      referrerId: result.referrerId,
       creditsAwarded: REFERRAL_CREDIT_AMOUNT,
     });
   } catch (err) {

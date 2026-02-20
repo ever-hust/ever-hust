@@ -71,12 +71,18 @@ export async function PATCH(
       return apiNotFound("Member not found");
     }
 
-    // Only owners can change roles to/from owner
+    // Only owners can change roles to/from owner or admin
     if (
       (targetMember.role === "owner" || newRole === "owner") &&
       memberInfo.orgRole !== "owner"
     ) {
       return apiBadRequest("Only owners can transfer or modify owner roles");
+    }
+    if (
+      (targetMember.role === "admin" || newRole === "admin") &&
+      memberInfo.orgRole !== "owner"
+    ) {
+      return apiBadRequest("Only owners can promote or demote admins");
     }
 
     // If demoting an owner, ensure at least one owner remains

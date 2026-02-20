@@ -125,6 +125,11 @@ export async function POST(
   }
   const body = validation.data;
 
+  // Only owners can invite users as admins (prevent privilege escalation)
+  if (body.role === "admin" && memberInfo.orgRole !== "owner") {
+    return apiBadRequest("Only organization owners can invite admins");
+  }
+
   try {
     // Check org member limit
     const [org] = await db

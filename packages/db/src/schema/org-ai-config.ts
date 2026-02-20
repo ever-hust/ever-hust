@@ -8,6 +8,7 @@ import {
   jsonb,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { organizations } from "./organizations";
 
 export const organizationAiConfigs = pgTable(
   "organization_ai_configs",
@@ -15,7 +16,9 @@ export const organizationAiConfigs = pgTable(
     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
 
     /** Organization this config belongs to */
-    organizationId: integer("organization_id").notNull(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
 
     /** Preferred AI model ID (e.g. "claude-sonnet-4-6", "claude-opus-4-6") */
     preferredModel: text("preferred_model"),

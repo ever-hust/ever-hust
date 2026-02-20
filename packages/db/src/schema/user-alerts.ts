@@ -42,5 +42,6 @@ export const userAlerts = pgTable(
   (table) => [
     index("user_alerts_user_id_idx").on(table.userId),
     index("user_alerts_active_idx").on(table.userId, table.isActive),
+    index("user_alerts_frequency_active_idx").on(table.frequency, table.isActive),
   ]
 );

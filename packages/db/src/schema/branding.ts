@@ -7,12 +7,16 @@ import {
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { organizations } from "./organizations";
 
 export const brandingConfigs = pgTable(
   "branding_configs",
   {
     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-    organizationId: integer("organization_id"),
+    organizationId: integer("organization_id").references(
+      () => organizations.id,
+      { onDelete: "cascade" }
+    ),
     name: text("name").notNull(),
     logoUrl: text("logo_url"),
     faviconUrl: text("favicon_url"),

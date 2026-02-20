@@ -232,8 +232,8 @@ export default function ProfilePage() {
         </h2>
         {skills.length > 0 ? (
           <div className="mt-3 flex flex-wrap gap-2">
-            {skills.map((skill) => (
-              <Badge key={skill} variant="secondary">
+            {skills.map((skill, i) => (
+              <Badge key={`${skill}-${i}`} variant="secondary">
                 {skill}
               </Badge>
             ))}

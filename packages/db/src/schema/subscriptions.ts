@@ -35,5 +35,6 @@ export const subscriptions = pgTable(
   },
   (table) => [
     index("subscriptions_user_id_idx").on(table.userId),
+    index("subscriptions_period_end_idx").on(table.currentPeriodEnd),
   ]
 );

@@ -4,6 +4,7 @@ export type { ScraperInput, JobPostDto, JobSearchResponse } from "./types";
 
 const API_URL = process.env.EVER_JOBS_API_URL ?? "https://api.everjobs.ai";
 const API_KEY = process.env.EVER_JOBS_API_KEY;
+const DEFAULT_FETCH_TIMEOUT_MS = 15_000; // 15 seconds
 
 /** Typed error carrying the HTTP status code — used by withRetry to skip retries on 4xx. */
 class ApiError extends Error {
@@ -79,16 +80,19 @@ export class EverJobsClient {
   private failureThreshold: number;
   private resetTimeoutMs: number;
 
+  private fetchTimeoutMs: number;
+
   constructor(
     baseUrl?: string,
     apiKey?: string,
-    options?: { failureThreshold?: number; resetTimeoutMs?: number }
+    options?: { failureThreshold?: number; resetTimeoutMs?: number; fetchTimeoutMs?: number }
   ) {
     this.baseUrl = baseUrl ?? API_URL;
     this.apiKey = apiKey ?? API_KEY;
     this.failureThreshold =
       options?.failureThreshold ?? DEFAULT_FAILURE_THRESHOLD;
     this.resetTimeoutMs = options?.resetTimeoutMs ?? DEFAULT_RESET_TIMEOUT_MS;
+    this.fetchTimeoutMs = options?.fetchTimeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
     this.circuit = { failures: 0, lastFailure: 0, state: "closed" };
   }
 
@@ -158,17 +162,71 @@ export class EverJobsClient {
         page_size: String(options?.pageSize ?? 25),
       });
 
-      const response = await fetch(
-        `${this.baseUrl}/api/jobs/search?${params}`,
-        {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), this.fetchTimeoutMs);
+
+      let response: Response;
+      try {
+        response = await fetch(
+          `${this.baseUrl}/api/jobs/search?${params}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(this.apiKey ? { "x-api-key": this.apiKey } : {}),
+            },
+            body: JSON.stringify(input),
+            signal: controller.signal,
+          }
+        );
+      } catch (error) {
+        clearTimeout(timeout);
+        if (error instanceof Error && error.name === "AbortError") {
+          throw new ApiError(408, "Ever Jobs API request timed out");
+        }
+        throw error;
+      }
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        throw new ApiError(
+          response.status,
+          `Ever Jobs API error: ${response.status} ${response.statusText}`
+        );
+      }
+
+      try {
+        return (await response.json()) as JobSearchResponse;
+      } catch {
+        throw new ApiError(502, "Ever Jobs API returned invalid JSON");
+      }
+    });
+  }
+
+  async analyzeJobs(input: ScraperInput): Promise<unknown> {
+    return this.execute(async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), this.fetchTimeoutMs);
+
+      let response: Response;
+      try {
+        response = await fetch(`${this.baseUrl}/api/jobs/analyze`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             ...(this.apiKey ? { "x-api-key": this.apiKey } : {}),
           },
           body: JSON.stringify(input),
+          signal: controller.signal,
+        });
+      } catch (error) {
+        clearTimeout(timeout);
+        if (error instanceof Error && error.name === "AbortError") {
+          throw new ApiError(408, "Ever Jobs API request timed out");
         }
-      );
+        throw error;
+      }
+      clearTimeout(timeout);
 
       if (!response.ok) {
         throw new ApiError(
@@ -177,29 +235,11 @@ export class EverJobsClient {
         );
       }
 
-      return response.json() as Promise<JobSearchResponse>;
-    });
-  }
-
-  async analyzeJobs(input: ScraperInput): Promise<unknown> {
-    return this.execute(async () => {
-      const response = await fetch(`${this.baseUrl}/api/jobs/analyze`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(this.apiKey ? { "x-api-key": this.apiKey } : {}),
-        },
-        body: JSON.stringify(input),
-      });
-
-      if (!response.ok) {
-        throw new ApiError(
-          response.status,
-          `Ever Jobs API error: ${response.status} ${response.statusText}`
-        );
+      try {
+        return await response.json();
+      } catch {
+        throw new ApiError(502, "Ever Jobs API returned invalid JSON");
       }
-
-      return response.json();
     });
   }
 

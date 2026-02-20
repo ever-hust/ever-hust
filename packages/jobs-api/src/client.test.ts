@@ -505,6 +505,108 @@ describe("EverJobsClient -- API key handling", () => {
 });
 
 // ==========================================================================
+// Fetch Timeout Tests
+// ==========================================================================
+
+describe("EverJobsClient -- fetch timeout", () => {
+  it("aborts fetch and throws 408 when the request exceeds the timeout", async () => {
+    const client = new EverJobsClient(BASE_URL, API_KEY, {
+      failureThreshold: 5,
+      resetTimeoutMs: RESET_TIMEOUT_MS,
+      fetchTimeoutMs: 50, // Very short timeout for testing
+    });
+
+    // Simulate a slow response that never resolves before timeout
+    fetchMock.mockImplementation(
+      (_url, init) =>
+        new Promise((resolve, reject) => {
+          // Listen for abort signal
+          const signal = (init as RequestInit)?.signal;
+          if (signal) {
+            signal.addEventListener("abort", () => {
+              const err = new Error("The operation was aborted");
+              err.name = "AbortError";
+              reject(err);
+            });
+          }
+        })
+    );
+
+    await expect(client.searchJobs(SEARCH_INPUT)).rejects.toThrow(
+      /timed out/
+    );
+  });
+
+  it("passes AbortSignal to fetch for searchJobs", async () => {
+    const client = createClient();
+    fetchMock.mockImplementation(() => Promise.resolve(RESP_OK()));
+
+    await client.searchJobs(SEARCH_INPUT);
+
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect((init as RequestInit).signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("passes AbortSignal to fetch for analyzeJobs", async () => {
+    const client = createClient();
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(mockResponse(MOCK_ANALYZE_RESPONSE))
+    );
+
+    await client.analyzeJobs(SEARCH_INPUT);
+
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect((init as RequestInit).signal).toBeInstanceOf(AbortSignal);
+  });
+});
+
+// ==========================================================================
+// Invalid JSON Response Tests
+// ==========================================================================
+
+describe("EverJobsClient -- invalid JSON handling", () => {
+  /** Build a Response whose .json() rejects (simulating malformed JSON). */
+  function mockBadJsonResponse(): Response {
+    return {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: () => Promise.reject(new SyntaxError("Unexpected token")),
+      headers: new Headers(),
+      redirected: false,
+      type: "basic" as ResponseType,
+      url: "",
+      clone: () => mockBadJsonResponse() as Response,
+      body: null,
+      bodyUsed: false,
+      arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
+      blob: () => Promise.resolve(new Blob()),
+      formData: () => Promise.resolve(new FormData()),
+      text: () => Promise.resolve("not valid json"),
+      bytes: () => Promise.resolve(new Uint8Array()),
+    } as Response;
+  }
+
+  it("throws 502 when searchJobs gets invalid JSON", async () => {
+    const client = createClient();
+    fetchMock.mockImplementation(() => Promise.resolve(mockBadJsonResponse()));
+
+    await expect(client.searchJobs(SEARCH_INPUT)).rejects.toThrow(
+      /invalid JSON/
+    );
+  });
+
+  it("throws 502 when analyzeJobs gets invalid JSON", async () => {
+    const client = createClient();
+    fetchMock.mockImplementation(() => Promise.resolve(mockBadJsonResponse()));
+
+    await expect(client.analyzeJobs(SEARCH_INPUT)).rejects.toThrow(
+      /invalid JSON/
+    );
+  });
+});
+
+// ==========================================================================
 // Integration: Circuit Breaker + Retry Together
 // ==========================================================================
 

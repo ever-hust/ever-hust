@@ -27,7 +27,7 @@ export default function AdminAiConfigPage() {
       });
 
       const firstOrg = data?.organizations?.[0];
-      if (firstOrg) {
+      if (firstOrg?.organization?.id) {
         setOrgId(firstOrg.organization.id);
       }
       setLoading(false);

@@ -20,6 +20,7 @@ export const submitAnswersTool = tool({
           answer: z.string().max(5000).describe("The user's answer to the question"),
         })
       )
+      .min(1)
       .max(50)
       .describe("Array of question-answer pairs"),
   }),
@@ -46,99 +47,108 @@ export const submitAnswersTool = tool({
       };
     }
 
-    // Verify the application belongs to the user
-    const appResult = await db
-      .select({
-        id: applications.id,
-        status: applications.status,
-        agentInstanceId: applications.agentInstanceId,
-        questionsAsked: applications.questionsAsked,
-      })
-      .from(applications)
-      .where(
-        and(eq(applications.id, applicationId), eq(applications.userId, userId))
-      )
-      .limit(1);
+    // Wrap SELECT + UPDATE in a transaction to prevent race conditions
+    // (e.g. two concurrent submits both reading "in_progress" then both writing)
+    const txResult = await db.transaction(async (tx) => {
+      // Verify the application belongs to the user
+      const appResult = await tx
+        .select({
+          id: applications.id,
+          status: applications.status,
+          agentInstanceId: applications.agentInstanceId,
+          questionsAsked: applications.questionsAsked,
+        })
+        .from(applications)
+        .where(
+          and(eq(applications.id, applicationId), eq(applications.userId, userId))
+        )
+        .limit(1);
 
-    if (appResult.length === 0) {
-      return {
-        submitted: false,
-        error: "Application not found or does not belong to this user.",
-      };
-    }
-
-    const app = appResult[0]!;
-
-    if (app.status === "submitted") {
-      return {
-        submitted: false,
-        error: "This application has already been submitted.",
-      };
-    }
-
-    if (app.status === "failed") {
-      return {
-        submitted: false,
-        error:
-          "This application previously failed. Please start a new application.",
-      };
-    }
-
-    // Validate that all required questions have answers
-    const questions = app.questionsAsked as
-      | {
-          question: string;
-          fieldType: string;
-          required: boolean;
-          options: string[] | null;
-        }[]
-      | null;
-
-    if (questions && questions.length > 0) {
-      const answeredIds = new Set(answers.map((a) => a.questionId));
-      const unanswered = questions.filter(
-        (q, i) => q.required && !answeredIds.has(String(i))
-      );
-      if (unanswered.length > 0) {
+      if (appResult.length === 0) {
         return {
-          submitted: false,
-          error: `Missing answers for required questions: ${unanswered.map((q) => q.question).join(", ")}`,
-          missingQuestions: unanswered,
+          submitted: false as const,
+          error: "Application not found or does not belong to this user.",
         };
       }
-    }
 
-    // Update the application with answers and mark as submitted
-    // Include userId in WHERE for defense-in-depth (complements the SELECT check above)
-    await db
-      .update(applications)
-      .set({
-        answersProvided: answers,
-        status: "submitted",
-        updatedAt: new Date(),
-      })
-      .where(and(eq(applications.id, applicationId), eq(applications.userId, userId)));
+      const app = appResult[0]!;
 
-    // Update agent instance status if linked
-    if (app.agentInstanceId) {
-      await db
-        .update(agentInstances)
+      if (app.status === "submitted") {
+        return {
+          submitted: false as const,
+          error: "This application has already been submitted.",
+        };
+      }
+
+      if (app.status === "failed") {
+        return {
+          submitted: false as const,
+          error:
+            "This application previously failed. Please start a new application.",
+        };
+      }
+
+      // Validate that all required questions have answers
+      const questions = app.questionsAsked as
+        | {
+            question: string;
+            fieldType: string;
+            required: boolean;
+            options: string[] | null;
+          }[]
+        | null;
+
+      if (questions && questions.length > 0) {
+        const answeredIds = new Set(answers.map((a) => a.questionId));
+        const unanswered = questions.filter(
+          (q, i) => q.required && !answeredIds.has(String(i))
+        );
+        if (unanswered.length > 0) {
+          return {
+            submitted: false as const,
+            error: `Missing answers for required questions: ${unanswered.map((q) => q.question).join(", ")}`,
+            missingQuestions: unanswered,
+          };
+        }
+      }
+
+      // Update the application with answers and mark as submitted
+      await tx
+        .update(applications)
         .set({
-          status: "completed",
-          state: {
-            step: "answers_submitted",
-            answersCount: answers.length,
-            submittedAt: new Date().toISOString(),
-          },
+          answersProvided: answers,
+          status: "submitted",
           updatedAt: new Date(),
         })
-        .where(eq(agentInstances.id, app.agentInstanceId));
-    }
+        .where(and(eq(applications.id, applicationId), eq(applications.userId, userId)));
+
+      // Update agent instance status if linked
+      if (app.agentInstanceId) {
+        await tx
+          .update(agentInstances)
+          .set({
+            status: "completed",
+            state: {
+              step: "answers_submitted",
+              answersCount: answers.length,
+              submittedAt: new Date().toISOString(),
+            },
+            updatedAt: new Date(),
+          })
+          .where(eq(agentInstances.id, app.agentInstanceId));
+      }
+
+      return {
+        submitted: true as const,
+        applicationId,
+        answersCount: answers.length,
+      };
+    });
+
+    if (!txResult.submitted) return txResult;
 
     return {
-      submitted: true,
-      applicationId,
-      answersCount: answers.length,
+      ...txResult,
       instruction:
         "The answers have been submitted successfully. Let the user know their application answers have been saved and the application status is now 'submitted'. If there's an external application URL, remind them to complete the process there.",
     };

@@ -291,6 +291,36 @@ describe("profilePatchSchema", () => {
       expect(result.data.skills).toEqual(["C++", "C#", "CI/CD", "Node.js", "Machine Learning"]);
     }
   });
+
+  it("strips HTML tags from name (XSS prevention)", () => {
+    const result = profilePatchSchema.safeParse({
+      name: '<script>alert("xss")</script>John',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.name).toBe('alert("xss")John');
+    }
+  });
+
+  it("strips HTML tags from headline (XSS prevention)", () => {
+    const result = profilePatchSchema.safeParse({
+      headline: 'Senior <img src=x onerror="steal()"> Developer',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.headline).toBe("Senior  Developer");
+    }
+  });
+
+  it("strips HTML tags from location (XSS prevention)", () => {
+    const result = profilePatchSchema.safeParse({
+      location: "<b>New York</b>, NY",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.location).toBe("New York, NY");
+    }
+  });
 });
 
 describe("userPreferencesSchema", () => {
@@ -523,6 +553,28 @@ describe("settingsPatchSchema", () => {
       preferences: { aiModel: "test", unknownKey: "nope" },
     });
     expect(result.success).toBe(false);
+  });
+
+  it("strips HTML tags from name (XSS prevention)", () => {
+    const result = settingsPatchSchema.safeParse({
+      name: '<script>alert("xss")</script>Alice',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.name).toBe('alert("xss")Alice');
+    }
+  });
+
+  it("strips HTML tags from headline and location", () => {
+    const result = settingsPatchSchema.safeParse({
+      headline: '<img src=x onerror="steal()">Engineer',
+      location: "<b>NYC</b>",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.headline).toBe("Engineer");
+      expect(result.data.location).toBe("NYC");
+    }
   });
 });
 

@@ -71,9 +71,11 @@ export async function GET(req: Request) {
         .orderBy(desc(applications.updatedAt))
         .limit(limit)
         .offset(offset),
+      // Use same join so count matches results (deleted jobs excluded from both)
       db
         .select({ count: sql<number>`count(*)` })
         .from(applications)
+        .innerJoin(jobs, eq(applications.jobId, jobs.id))
         .where(where),
     ]);
 

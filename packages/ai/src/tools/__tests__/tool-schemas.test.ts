@@ -906,11 +906,11 @@ describe("submitAnswersTool schema", () => {
     ).toBe(true);
   });
 
-  it("should accept empty answers array", () => {
-    // An empty array is technically valid — the tool execution would handle the no-op
+  it("should reject empty answers array", () => {
+    // At least 1 answer is required — submitting with 0 answers is meaningless
     expect(
       submitAnswersTool.inputSchema.safeParse({ applicationId: 1, answers: [] }).success
-    ).toBe(true);
+    ).toBe(false);
   });
 });
 

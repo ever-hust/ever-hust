@@ -14,11 +14,14 @@ export const chatRequestSchema = z.object({
     .max(100),
 });
 
+// Strip HTML tags to prevent stored XSS (defense-in-depth; React also escapes output)
+const stripHtml = (s: string) => s.replace(/<[^>]*>/g, "").trim();
+
 // === User Settings Route ===
 export const settingsPatchSchema = z.object({
-  name: z.string().max(200).optional(),
-  headline: z.string().max(500).optional(),
-  location: z.string().max(200).optional(),
+  name: z.string().max(200).transform(stripHtml).optional(),
+  headline: z.string().max(500).transform(stripHtml).optional(),
+  location: z.string().max(200).transform(stripHtml).optional(),
   preferences: z
     .object({
       aiModel: z.string().max(100).optional(),
@@ -73,9 +76,9 @@ export const alertDeleteSchema = z.object({
 
 // === Profile PATCH Route ===
 export const profilePatchSchema = z.object({
-  name: z.string().max(200).optional(),
-  headline: z.string().max(500).optional(),
-  location: z.string().max(200).optional(),
+  name: z.string().max(200).transform(stripHtml).optional(),
+  headline: z.string().max(500).transform(stripHtml).optional(),
+  location: z.string().max(200).transform(stripHtml).optional(),
   skills: z
     .array(
       z

@@ -61,38 +61,37 @@ export async function POST(req: Request) {
   const { jobId } = validation.data;
 
   try {
-    // Check if already favorited
-    const existing = await db
-      .select()
-      .from(userJobs)
-      .where(and(eq(userJobs.userId, userId), eq(userJobs.jobId, jobId)))
-      .limit(1);
+    // Wrap in transaction to prevent TOCTOU race on concurrent toggle requests
+    const favorited = await db.transaction(async (tx) => {
+      const existing = await tx
+        .select({ id: userJobs.id, status: userJobs.status })
+        .from(userJobs)
+        .where(and(eq(userJobs.userId, userId), eq(userJobs.jobId, jobId)))
+        .limit(1);
 
-    if (existing.length > 0 && existing[0]!.status === "favorited") {
-      // Unfavorite - delete the record
-      await db
-        .delete(userJobs)
-        .where(and(eq(userJobs.userId, userId), eq(userJobs.jobId, jobId)));
+      if (existing.length > 0 && existing[0]!.status === "favorited") {
+        await tx
+          .delete(userJobs)
+          .where(and(eq(userJobs.userId, userId), eq(userJobs.jobId, jobId)));
+        return false;
+      }
 
-      return apiSuccess({ jobId, favorited: false });
-    }
+      if (existing.length > 0) {
+        await tx
+          .update(userJobs)
+          .set({ status: "favorited" as const, updatedAt: new Date() })
+          .where(and(eq(userJobs.userId, userId), eq(userJobs.jobId, jobId)));
+      } else {
+        await tx.insert(userJobs).values({
+          userId,
+          jobId,
+          status: "favorited",
+        });
+      }
+      return true;
+    });
 
-    if (existing.length > 0) {
-      // Update existing record to favorited
-      await db
-        .update(userJobs)
-        .set({ status: "favorited" as const, updatedAt: new Date() })
-        .where(and(eq(userJobs.userId, userId), eq(userJobs.jobId, jobId)));
-    } else {
-      // Create new favorite
-      await db.insert(userJobs).values({
-        userId,
-        jobId,
-        status: "favorited",
-      });
-    }
-
-    return apiSuccess({ jobId, favorited: true });
+    return apiSuccess({ jobId, favorited });
   } catch (err) {
     console.error("[api/user/favorites] POST failed:", err instanceof Error ? err.message : err);
     return apiError("Failed to toggle favorite");

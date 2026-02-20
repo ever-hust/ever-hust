@@ -40,9 +40,8 @@ describe("safeExternalUrl", () => {
       expect(safeExternalUrl(url)).toBe(url);
     });
 
-    it("handles URLs with authentication info", () => {
-      const url = "https://user:pass@example.com/path";
-      expect(safeExternalUrl(url)).toBe(url);
+    it("rejects URLs with userinfo credentials", () => {
+      expect(safeExternalUrl("https://user:pass@example.com/path")).toBeUndefined();
     });
 
     it("handles URLs with encoded characters", () => {
@@ -206,6 +205,26 @@ describe("safeExternalUrl", () => {
 
     it("rejects vbscript: protocol", () => {
       expect(safeExternalUrl("vbscript:MsgBox('XSS')")).toBeUndefined();
+    });
+  });
+
+  // ── Userinfo / open-redirect bypass attempts ─────────────────────────
+
+  describe("userinfo bypass prevention", () => {
+    it("rejects bare @-domain that could confuse URL parsing", () => {
+      expect(safeExternalUrl("@attacker.com")).toBeUndefined();
+    });
+
+    it("rejects user@host patterns without scheme", () => {
+      expect(safeExternalUrl("victim.com@attacker.com")).toBeUndefined();
+    });
+
+    it("rejects URLs with username but no password", () => {
+      expect(safeExternalUrl("https://admin@evil.com")).toBeUndefined();
+    });
+
+    it("allows normal email-less domains after https:// prefix", () => {
+      expect(safeExternalUrl("example.com/path")).toBe("https://example.com/path");
     });
   });
 });

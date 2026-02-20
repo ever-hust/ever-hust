@@ -11,16 +11,22 @@ export function safeExternalUrl(url: string | null | undefined): string | undefi
   if (!url) return undefined;
   try {
     const parsed = new URL(url);
-    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+    if (
+      (parsed.protocol === "http:" || parsed.protocol === "https:") &&
+      !parsed.username && !parsed.password // block userinfo like "https://user@evil.com"
+    ) {
       return url;
     }
     return undefined;
   } catch {
     // Invalid URL — try adding https:// prefix for bare domains like "example.com"
+    // Reject inputs starting with @ or containing @ before the first / to block
+    // userinfo-based URL confusion (e.g. "@attacker.com", "user@attacker.com")
+    if (url.includes("@")) return undefined;
     try {
       const withScheme = `https://${url}`;
       const parsed = new URL(withScheme);
-      if (parsed.protocol === "https:") {
+      if (parsed.protocol === "https:" && !parsed.username && !parsed.password) {
         return withScheme;
       }
     } catch {

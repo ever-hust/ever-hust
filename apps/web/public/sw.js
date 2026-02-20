@@ -109,7 +109,11 @@ self.addEventListener("push", (event) => {
     },
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(
+    self.registration.showNotification(title, options).catch((err) => {
+      console.warn("[sw] showNotification failed:", err);
+    })
+  );
 });
 
 // Notification click: open or focus the relevant page
@@ -119,7 +123,7 @@ self.addEventListener("notificationclick", (event) => {
   // Validate URL to prevent open-redirect via malicious push payloads
   let targetUrl = "/";
   const rawUrl = (event.notification.data && event.notification.data.url) || "/";
-  if (rawUrl.startsWith("/")) {
+  if (rawUrl.startsWith("/") && !rawUrl.startsWith("//")) {
     targetUrl = rawUrl;
   } else {
     try {
@@ -139,7 +143,8 @@ self.addEventListener("notificationclick", (event) => {
         // If an existing window matches the target URL, focus it
         for (const client of clientList) {
           const clientUrl = new URL(client.url);
-          if (clientUrl.pathname === targetUrl && "focus" in client) {
+          const clientPath = clientUrl.pathname + clientUrl.search;
+          if (clientPath === targetUrl && "focus" in client) {
             return client.focus();
           }
         }

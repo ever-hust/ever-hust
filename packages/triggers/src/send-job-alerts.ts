@@ -110,9 +110,13 @@ async function processAlerts(
         const c = currency ?? "USD";
         const minNum = min ? Number(min) : null;
         const maxNum = max ? Number(max) : null;
-        if (minNum && maxNum) return `${c} ${minNum.toLocaleString()}-${maxNum.toLocaleString()}`;
-        if (minNum) return `${c} ${minNum.toLocaleString()}+`;
-        if (maxNum) return `Up to ${c} ${maxNum.toLocaleString()}`;
+        // Guard against NaN from malformed DB values
+        const safeMin = minNum !== null && Number.isFinite(minNum) ? minNum : null;
+        const safeMax = maxNum !== null && Number.isFinite(maxNum) ? maxNum : null;
+        if (!safeMin && !safeMax) return undefined;
+        if (safeMin && safeMax) return `${c} ${safeMin.toLocaleString()}-${safeMax.toLocaleString()}`;
+        if (safeMin) return `${c} ${safeMin.toLocaleString()}+`;
+        if (safeMax) return `Up to ${c} ${safeMax.toLocaleString()}`;
         return undefined;
       };
 
@@ -125,18 +129,35 @@ async function processAlerts(
         .filter(Boolean)
         .join(", ") || "Your job preferences";
 
+      // Only include jobs with valid http(s) URLs
+      const safeJobs = matchingJobs
+        .map((j) => {
+          let jobUrl = "#";
+          if (j.jobUrl) {
+            try {
+              const parsed = new URL(j.jobUrl);
+              if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+                jobUrl = j.jobUrl;
+              }
+            } catch {
+              // Invalid URL — skip link
+            }
+          }
+          return {
+            title: j.title,
+            companyName: j.companyName ?? "Unknown Company",
+            location: j.locationCity ?? undefined,
+            isRemote: j.isRemote ?? undefined,
+            salary: formatSalary(j.salaryMin, j.salaryMax, j.salaryCurrency),
+            jobUrl,
+          };
+        });
+
       await sendJobAlertEmail({
         to: alert.email,
         userName: user.name,
         alertCriteria: criteriaDesc,
-        jobs: matchingJobs.map((j) => ({
-          title: j.title,
-          companyName: j.companyName ?? "Unknown Company",
-          location: j.locationCity ?? undefined,
-          isRemote: j.isRemote ?? undefined,
-          salary: formatSalary(j.salaryMin, j.salaryMax, j.salaryCurrency),
-          jobUrl: j.jobUrl ?? "#",
-        })),
+        jobs: safeJobs,
       });
 
       // Update last sent timestamp

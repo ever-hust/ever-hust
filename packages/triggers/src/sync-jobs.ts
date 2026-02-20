@@ -1,7 +1,6 @@
 import { task, schedules } from "@trigger.dev/sdk/v3";
 import { db, jobs } from "@repo/db";
 import { everJobsClient } from "@repo/jobs-api";
-import { eq } from "drizzle-orm";
 import { mapJobToDb, SEARCH_TERMS } from "./map-job";
 
 async function syncJobs() {
@@ -33,28 +32,17 @@ async function syncJobs() {
           continue;
         }
 
-        // Check if job exists
-        const existing = await db
-          .select({ id: jobs.id })
-          .from(jobs)
-          .where(eq(jobs.externalId, dto.id))
-          .limit(1);
-
         const mapped = mapJobToDb(dto);
 
-        if (existing.length > 0) {
-          // Update existing
-          await db
-            .update(jobs)
-            .set(mapped)
-            .where(eq(jobs.externalId, dto.id));
-        } else {
-          // Insert new
-          await db.insert(jobs).values({
-            ...mapped,
-            createdAt: new Date(),
+        // Atomic upsert: insert new job or update existing by externalId.
+        // Eliminates the race condition from a separate SELECT + INSERT/UPDATE.
+        await db
+          .insert(jobs)
+          .values({ ...mapped, createdAt: new Date() })
+          .onConflictDoUpdate({
+            target: jobs.externalId,
+            set: mapped,
           });
-        }
 
         totalUpserted++;
       } catch (error) {

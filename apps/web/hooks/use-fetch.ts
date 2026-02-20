@@ -97,6 +97,7 @@ export function useFetch<T>(
         // Distinguish timeout from user/component abort
         if (controller.signal.reason === "timeout") {
           setError("Request timed out. Please check your connection and try again.");
+          setIsLoading(false);
         }
         return;
       }

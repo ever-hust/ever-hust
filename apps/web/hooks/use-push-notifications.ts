@@ -130,6 +130,8 @@ export function usePushNotifications(): UsePushNotificationsReturn {
         | undefined;
 
       if (!keys?.p256dh || !keys?.auth) {
+        // Unsubscribe locally since we can't save without keys
+        await subscription.unsubscribe().catch(() => {});
         throw new Error("Push subscription keys are missing");
       }
 
@@ -147,6 +149,10 @@ export function usePushNotifications(): UsePushNotificationsReturn {
       });
 
       if (!res.ok) {
+        // Unsubscribe locally — server doesn't know about us, so the local
+        // subscription would be orphaned (UI shows "subscribed" but no
+        // notifications would actually arrive).
+        await subscription.unsubscribe().catch(() => {});
         throw new Error("Failed to save subscription on server");
       }
 

@@ -14,7 +14,4 @@ export {
   cleanupSchedule,
 } from "./cleanup";
 
-export {
-  cleanupExpiredJobsTask,
-  cleanupExpiredJobsSchedule,
-} from "./cleanup-expired-jobs";
+export { cleanupExpiredJobsTask } from "./cleanup-expired-jobs";

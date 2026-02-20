@@ -218,8 +218,8 @@ export function JobDetailPanel({
               {/* Badges */}
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {job.isRemote && <Badge variant="default">Remote</Badge>}
-                {job.jobType?.map((type) => (
-                  <Badge key={type} variant="secondary">{type}</Badge>
+                {job.jobType?.map((type, i) => (
+                  <Badge key={`${type}-${i}`} variant="secondary">{type}</Badge>
                 ))}
                 {job.jobLevel && <Badge variant="secondary">{job.jobLevel}</Badge>}
                 {salary && (
@@ -391,8 +391,8 @@ export function JobDetailPanel({
                       {job.description
                         .split(/\n{2,}/)
                         .filter(Boolean)
-                        .map((para) => (
-                          <p key={para.slice(0, 60)} className="mb-3 whitespace-pre-wrap">
+                        .map((para, i) => (
+                          <p key={i} className="mb-3 whitespace-pre-wrap">
                             {para.trim()}
                           </p>
                         ))}
@@ -412,8 +412,8 @@ export function JobDetailPanel({
                     This position requires or prefers the following skills and technologies:
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {job.skills.map((skill) => (
-                      <Badge key={skill} variant="secondary" className="px-3 py-1 text-xs">
+                    {job.skills.map((skill, i) => (
+                      <Badge key={`${skill}-${i}`} variant="secondary" className="px-3 py-1 text-xs">
                         {skill}
                       </Badge>
                     ))}

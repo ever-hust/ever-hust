@@ -60,14 +60,13 @@ test.describe("Stripe API Endpoints", () => {
     expect(response.status()).toBe(401);
   });
 
-  test("webhook endpoint accepts POST requests", async ({ request }) => {
-    // Webhook should accept POST but will fail signature verification
+  test("webhook endpoint rejects invalid signature", async ({ request }) => {
+    // Webhook should accept POST but fail signature verification with 400
     const response = await request.post("/api/stripe/webhook", {
       data: {},
       headers: { "stripe-signature": "invalid" },
     });
-    // 400 (bad signature) is expected, not 404
-    expect([400, 500]).toContain(response.status());
+    expect(response.status()).toBe(400);
   });
 
   test("webhook endpoint rejects GET requests", async ({ request }) => {

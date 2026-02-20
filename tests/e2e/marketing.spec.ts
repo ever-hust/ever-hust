@@ -42,13 +42,8 @@ test.describe("Landing Page", () => {
 
   test("renders how-it-works section", async ({ page }) => {
     const howItWorks = page.locator("#how-it-works");
-    // Section may use a different ID; check for heading text instead
-    const heading = page.getByText(/how it works/i).first();
-    if (await howItWorks.isVisible()) {
-      await expect(howItWorks).toBeVisible();
-    } else {
-      await expect(heading).toBeVisible();
-    }
+    await expect(howItWorks).toBeVisible();
+    await expect(howItWorks.getByText(/how it works/i).first()).toBeVisible();
   });
 
   test("renders pricing section with plans", async ({ page }) => {

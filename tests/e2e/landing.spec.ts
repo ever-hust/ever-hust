@@ -46,15 +46,13 @@ test.describe("Landing Page", () => {
   });
 
   test("has dark mode toggle", async ({ page }) => {
-    // Look for theme toggle button
     const themeToggle = page.getByRole("button", { name: /toggle theme/i });
-    if (await themeToggle.isVisible()) {
-      await themeToggle.click();
-      // Should toggle the class on html element
-      const html = page.locator("html");
-      const classAttr = await html.getAttribute("class");
-      expect(classAttr).toBeTruthy();
-    }
+    await expect(themeToggle).toBeVisible();
+    await themeToggle.click();
+    // Should toggle the class on html element
+    const html = page.locator("html");
+    const classAttr = await html.getAttribute("class");
+    expect(classAttr).toBeTruthy();
   });
 
   test("has structured data (JSON-LD) for SEO", async ({ page }) => {

@@ -68,30 +68,28 @@ test.describe("Applications Page - Auth Redirect", () => {
 });
 
 test.describe("Jobs API", () => {
-  test("search endpoint returns JSON", async ({ request }) => {
+  test("search endpoint returns JSON response", async ({ request }) => {
     const response = await request.get("/api/jobs/search?page=1&limit=5");
-    // May return 200 (with empty jobs) or 500 (no DB) depending on environment
-    expect([200, 500]).toContain(response.status());
+    const status = response.status();
+    // API should return 200 (possibly with empty results) — 500 indicates a real failure
+    expect(status).toBe(200);
+    const contentType = response.headers()["content-type"];
+    expect(contentType).toContain("application/json");
   });
 
   test("search endpoint accepts filter params", async ({ request }) => {
     const response = await request.get(
       "/api/jobs/search?keywords=react&location=remote&page=1&limit=5"
     );
-    expect([200, 500]).toContain(response.status());
+    expect(response.status()).toBe(200);
   });
 
   test("job detail endpoint returns JSON for valid id", async ({ request }) => {
     const response = await request.get("/api/jobs/1");
-    expect([200, 404, 500]).toContain(response.status());
-  });
-
-  test("search endpoint returns proper content type", async ({ request }) => {
-    const response = await request.get("/api/jobs/search?page=1&limit=5");
+    // 200 if job exists, 404 if not — both are valid; 500 is a failure
+    expect([200, 404]).toContain(response.status());
     const contentType = response.headers()["content-type"];
-    if (response.status() === 200) {
-      expect(contentType).toContain("application/json");
-    }
+    expect(contentType).toContain("application/json");
   });
 });
 

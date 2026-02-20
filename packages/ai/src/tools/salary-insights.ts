@@ -230,13 +230,14 @@ export const salaryInsightsTool = tool({
       const onsiteMidpoints: number[] = [];
 
       for (const j of normalised) {
-        if (j.isRemote) {
+        if (j.isRemote === true) {
           remoteCount++;
           remoteMidpoints.push(j.annualMid);
-        } else {
+        } else if (j.isRemote === false) {
           onsiteCount++;
           onsiteMidpoints.push(j.annualMid);
         }
+        // Skip jobs with null isRemote — unknown work mode
       }
 
       remoteMidpoints.sort((a, b) => a - b);

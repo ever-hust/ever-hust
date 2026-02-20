@@ -157,7 +157,7 @@ export function AlertsCard({
                           <>
                             {" "}
                             &middot;{" "}
-                            {alert.criteria.keywords?.join(", ") ?? "All jobs"}
+                            {alert.criteria.keywords?.length ? alert.criteria.keywords.join(", ") : "All jobs"}
                           </>
                         )}
                     </p>

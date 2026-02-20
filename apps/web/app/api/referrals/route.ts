@@ -26,7 +26,8 @@ export async function GET(req: Request) {
     const userReferrals = await db
       .select()
       .from(referrals)
-      .where(eq(referrals.referrerId, userId));
+      .where(eq(referrals.referrerId, userId))
+      .limit(500);
 
     // Get or create referral credits row
     let credits = await db

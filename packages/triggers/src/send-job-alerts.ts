@@ -50,9 +50,8 @@ async function processAlerts(
             ilike(jobs.description, `%${escapeIlike(kw)}%`)
           )
         );
-        if (keywordConditions.length > 0) {
-          conditions.push(or(...keywordConditions)!);
-        }
+        const kwOr = or(...keywordConditions);
+        if (kwOr) conditions.push(kwOr);
       }
 
       // Location matching
@@ -64,9 +63,8 @@ async function processAlerts(
             ilike(jobs.locationCountry, `%${escapeIlike(loc)}%`)
           )
         );
-        if (locConditions.length > 0) {
-          conditions.push(or(...locConditions)!);
-        }
+        const locOr = or(...locConditions);
+        if (locOr) conditions.push(locOr);
       }
 
       // Remote filter

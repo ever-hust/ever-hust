@@ -37,7 +37,8 @@ export async function GET() {
       .select()
       .from(userAlerts)
       .where(eq(userAlerts.userId, user.id))
-      .orderBy(userAlerts.createdAt);
+      .orderBy(userAlerts.createdAt)
+      .limit(100);
 
     return apiSuccess({ alerts }, { cacheSeconds: 0, isPrivate: true });
   } catch (err) {

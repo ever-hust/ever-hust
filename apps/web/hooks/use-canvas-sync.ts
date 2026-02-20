@@ -104,13 +104,14 @@ export function useCanvasSync() {
               companyName: string;
             };
           };
-          if (clResult.generated && clResult.context) {
+          const ctx = clResult.context;
+          if (clResult.generated && ctx) {
             setState((prev) => ({
               ...prev,
               coverLetterContext: {
                 jobId: clResult.jobId,
-                jobTitle: clResult.context!.jobTitle,
-                companyName: clResult.context!.companyName,
+                jobTitle: ctx.jobTitle,
+                companyName: ctx.companyName,
               },
             }));
           }

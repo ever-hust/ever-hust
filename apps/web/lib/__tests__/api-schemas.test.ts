@@ -946,6 +946,48 @@ describe("jobsApiQuerySchema", () => {
       expect(result.data.remote).toBe(true);
     }
   });
+
+  it("rejects q exceeding 500 chars", () => {
+    expect(jobsApiQuerySchema.safeParse({ q: "x".repeat(501) }).success).toBe(false);
+  });
+
+  it("accepts q at boundary (500 chars)", () => {
+    expect(jobsApiQuerySchema.safeParse({ q: "x".repeat(500) }).success).toBe(true);
+  });
+
+  it("rejects location exceeding 200 chars", () => {
+    expect(jobsApiQuerySchema.safeParse({ location: "x".repeat(201) }).success).toBe(false);
+  });
+
+  it("accepts location at boundary (200 chars)", () => {
+    expect(jobsApiQuerySchema.safeParse({ location: "x".repeat(200) }).success).toBe(true);
+  });
+
+  it("rejects salaryMin exceeding 10,000,000", () => {
+    expect(jobsApiQuerySchema.safeParse({ salaryMin: "10000001" }).success).toBe(false);
+  });
+
+  it("rejects salaryMax exceeding 10,000,000", () => {
+    expect(jobsApiQuerySchema.safeParse({ salaryMax: "10000001" }).success).toBe(false);
+  });
+
+  it("accepts salary values at boundary (0 and 10,000,000)", () => {
+    const r1 = jobsApiQuerySchema.safeParse({ salaryMin: "0", salaryMax: "10000000" });
+    expect(r1.success).toBe(true);
+  });
+
+  it("rejects negative salary values", () => {
+    expect(jobsApiQuerySchema.safeParse({ salaryMin: "-1" }).success).toBe(false);
+    expect(jobsApiQuerySchema.safeParse({ salaryMax: "-1" }).success).toBe(false);
+  });
+
+  it("rejects skills exceeding 500 chars", () => {
+    expect(jobsApiQuerySchema.safeParse({ skills: "x".repeat(501) }).success).toBe(false);
+  });
+
+  it("accepts skills at boundary (500 chars)", () => {
+    expect(jobsApiQuerySchema.safeParse({ skills: "x".repeat(500) }).success).toBe(true);
+  });
 });
 
 describe("companiesApiQuerySchema", () => {
@@ -977,6 +1019,14 @@ describe("companiesApiQuerySchema", () => {
       expect(result.data.limit).toBe(50);
     }
   });
+
+  it("rejects q exceeding 200 chars", () => {
+    expect(companiesApiQuerySchema.safeParse({ q: "x".repeat(201) }).success).toBe(false);
+  });
+
+  it("accepts q at boundary (200 chars)", () => {
+    expect(companiesApiQuerySchema.safeParse({ q: "x".repeat(200) }).success).toBe(true);
+  });
 });
 
 describe("salaryApiQuerySchema", () => {
@@ -1000,6 +1050,38 @@ describe("salaryApiQuerySchema", () => {
 
   it("rejects empty title", () => {
     expect(salaryApiQuerySchema.safeParse({ title: "" }).success).toBe(false);
+  });
+
+  it("rejects title exceeding 200 chars", () => {
+    expect(salaryApiQuerySchema.safeParse({ title: "x".repeat(201) }).success).toBe(false);
+  });
+
+  it("accepts title at boundary (200 chars)", () => {
+    expect(salaryApiQuerySchema.safeParse({ title: "x".repeat(200) }).success).toBe(true);
+  });
+
+  it("rejects location exceeding 200 chars", () => {
+    expect(
+      salaryApiQuerySchema.safeParse({ title: "Engineer", location: "x".repeat(201) }).success
+    ).toBe(false);
+  });
+
+  it("accepts location at boundary (200 chars)", () => {
+    expect(
+      salaryApiQuerySchema.safeParse({ title: "Engineer", location: "x".repeat(200) }).success
+    ).toBe(true);
+  });
+
+  it("rejects level exceeding 100 chars", () => {
+    expect(
+      salaryApiQuerySchema.safeParse({ title: "Engineer", level: "x".repeat(101) }).success
+    ).toBe(false);
+  });
+
+  it("accepts level at boundary (100 chars)", () => {
+    expect(
+      salaryApiQuerySchema.safeParse({ title: "Engineer", level: "x".repeat(100) }).success
+    ).toBe(true);
   });
 });
 

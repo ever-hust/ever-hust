@@ -227,4 +227,51 @@ describe("getModelForUser", () => {
     // BYOK with invalid model preference → should use opus default
     expect((model as { modelId: string }).modelId).toBe("claude-opus-4-6");
   });
+
+  // ===========================================================================
+  // BYOK ciphertext fallback (when BYOK_ENCRYPTION_KEY is missing)
+  // ===========================================================================
+
+  describe("BYOK ciphertext fallback", () => {
+    it("should fall back to platform model when encrypted key has colons and decryption returns null", () => {
+      // Simulate encrypted ciphertext format: iv:authTag:ciphertext
+      // When BYOK_ENCRYPTION_KEY is missing, decryptApiKey() throws → returns null
+      // The model router should detect this and fall through to platform model
+      const model = getModelForUser({
+        subscriptionStatus: "active",
+        preferences: {
+          apiKeys: { anthropic: "dGVzdA==:dGVzdA==:Y2lwaGVy" },
+        },
+      });
+      // Should get paid model (active subscription) instead of trying BYOK
+      expect((model as { modelId: string }).modelId).toBe(
+        "claude-sonnet-4-5-20250929"
+      );
+    });
+
+    it("should fall back to free model for non-active user with encrypted ciphertext", () => {
+      const model = getModelForUser({
+        subscriptionStatus: "free",
+        preferences: {
+          apiKeys: { anthropic: "dGVzdA==:dGVzdA==:Y2lwaGVy" },
+        },
+      });
+      // Free user + ciphertext fallback → free model
+      expect((model as { modelId: string }).modelId).toBe(
+        "claude-haiku-4-5-20251001"
+      );
+    });
+
+    it("should use plaintext BYOK key when it has no colons (backwards compat)", () => {
+      const model = getModelForUser({
+        subscriptionStatus: "free",
+        preferences: {
+          apiKeys: { anthropic: "sk-ant-plain-text-key-123" },
+        },
+      });
+      // Plaintext key (no colons) → decryptApiKey returns it as-is → use BYOK
+      expect((model as { modelId: string }).modelId).toBe("claude-opus-4-6");
+      expect((model as { provider: string }).provider).toBe("anthropic-byok");
+    });
+  });
 });

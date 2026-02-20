@@ -1,6 +1,6 @@
 import { db } from "@repo/db";
 import { apiKeys } from "@repo/db";
-import { eq } from "drizzle-orm";
+import { eq, and, count } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { randomBytes, createHash } from "crypto";
 import { requireSessionUser } from "../../../../lib/get-session-user";
@@ -73,6 +73,16 @@ export async function POST(req: Request) {
   const body = validation.data;
 
   try {
+    // Enforce max 10 active keys per user to prevent rate limit bypass
+    const [keyCount] = await db
+      .select({ value: count() })
+      .from(apiKeys)
+      .where(and(eq(apiKeys.userId, user.id), eq(apiKeys.isActive, true)));
+
+    if ((keyCount?.value ?? 0) >= 10) {
+      return apiBadRequest("Maximum of 10 active API keys reached. Revoke unused keys first.");
+    }
+
     // Generate a random API key: ej_live_ + 32 random hex chars
     const rawKey = `ej_live_${randomBytes(16).toString("hex")}`;
     const keyHash = createHash("sha256").update(rawKey).digest("hex");

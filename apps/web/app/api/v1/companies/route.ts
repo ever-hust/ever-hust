@@ -113,8 +113,8 @@ export async function GET(req: NextRequest) {
             : (row.companyDescription as string))
         : null,
       jobCount: row.jobCount as number,
-      salaryMin: (row.salaryMin as string | null) ?? null,
-      salaryMax: (row.salaryMax as string | null) ?? null,
+      salaryMin: row.salaryMin ? Number(row.salaryMin) : null,
+      salaryMax: row.salaryMax ? Number(row.salaryMax) : null,
     }));
 
     return apiSuccess(

@@ -6,6 +6,12 @@ import { applyRateLimit } from "../../../../../../lib/rate-limit";
 import { apiSuccess, apiBadRequest, apiNotFound, apiError, safeJsonParse } from "../../../../../../lib/api-response";
 import { z } from "zod";
 
+// Cap JSONB fields to prevent DoS via oversized payloads
+const boundedJson = z.unknown().nullable().optional().refine(
+  (val) => val == null || JSON.stringify(val).length <= 100_000,
+  { message: "JSON payload too large (max 100KB)" },
+);
+
 const saveMessagesSchema = z.object({
   messages: z
     .array(
@@ -13,9 +19,9 @@ const saveMessagesSchema = z.object({
         id: z.string().max(100),
         role: z.enum(["user", "assistant", "system", "tool"]),
         content: z.string().max(50_000).nullable().optional(),
-        toolCalls: z.unknown().nullable().optional(),
-        toolResults: z.unknown().nullable().optional(),
-        metadata: z.unknown().nullable().optional(),
+        toolCalls: boundedJson,
+        toolResults: boundedJson,
+        metadata: boundedJson,
       })
     )
     .min(1)

@@ -25,7 +25,7 @@ export default function JobsError({
         There was an error loading the jobs page. Please try again.
       </p>
       {error.digest && (
-        <p className="mt-1 text-xs text-muted-foreground/60">
+        <p className="mt-1 font-mono text-xs text-muted-foreground/60">
           Error ID: {error.digest}
         </p>
       )}

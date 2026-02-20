@@ -2,7 +2,8 @@ import { Skeleton } from "@repo/ui/skeleton";
 
 export default function JobsLoading() {
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col" aria-busy="true" role="status" aria-label="Loading jobs">
+      <span className="sr-only">Loading jobs...</span>
       <div className="border-b p-3">
         <Skeleton className="h-8 w-full rounded-lg" />
       </div>

@@ -25,7 +25,7 @@ export default function FavoritesError({
         There was an error loading your saved jobs. Please try again.
       </p>
       {error.digest && (
-        <p className="mt-1 text-xs text-muted-foreground/60">
+        <p className="mt-1 font-mono text-xs text-muted-foreground/60">
           Error ID: {error.digest}
         </p>
       )}

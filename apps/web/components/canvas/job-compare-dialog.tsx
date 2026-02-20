@@ -113,9 +113,9 @@ export const JobCompareDialog = memo(function JobCompareDialog({
         render: (job) =>
           job.jobType && job.jobType.length > 0 ? (
             <div className="flex flex-wrap gap-1">
-              {job.jobType.map((type) => (
+              {job.jobType.map((type, i) => (
                 <Badge
-                  key={type}
+                  key={`${type}-${i}`}
                   variant="outline"
                   className="text-[10px] px-1.5 py-0"
                 >
@@ -156,9 +156,9 @@ export const JobCompareDialog = memo(function JobCompareDialog({
         render: (job) =>
           job.skills && job.skills.length > 0 ? (
             <div className="flex flex-wrap gap-1">
-              {job.skills.slice(0, 6).map((skill) => (
+              {job.skills.slice(0, 6).map((skill, i) => (
                 <Badge
-                  key={skill}
+                  key={`${skill}-${i}`}
                   variant="secondary"
                   className="text-[10px] px-1.5 py-0"
                 >

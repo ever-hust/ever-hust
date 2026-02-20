@@ -99,6 +99,9 @@ export const applyJobTool = tool({
         .returning({ id: agentInstances.id });
 
       const newAgentId = agentResult[0]?.id;
+      if (!newAgentId) {
+        throw new Error("Failed to create application agent instance");
+      }
 
       // Create application record
       const appResult = await tx
@@ -113,6 +116,9 @@ export const applyJobTool = tool({
         .returning({ id: applications.id });
 
       const newApplicationId = appResult[0]?.id;
+      if (!newApplicationId) {
+        throw new Error("Failed to create application record");
+      }
 
       // Track in userJobs as "applied" (upsert: change existing favorited → applied)
       const existingUserJob = await tx

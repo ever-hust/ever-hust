@@ -265,8 +265,8 @@ export const JobCard = memo(function JobCard({
           {/* Skills */}
           {job.skills && job.skills.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1">
-              {job.skills.slice(0, 5).map((skill) => (
-                <Badge key={skill} variant="secondary" className="text-[10px] px-1.5 py-0">
+              {job.skills.slice(0, 5).map((skill, i) => (
+                <Badge key={`${skill}-${i}`} variant="secondary" className="text-[10px] px-1.5 py-0">
                   {skill}
                 </Badge>
               ))}
@@ -293,8 +293,8 @@ export const JobCard = memo(function JobCard({
                   Remote
                 </Badge>
               )}
-              {job.jobType?.map((type) => (
-                <Badge key={type} variant="outline" className="text-[10px] px-1.5 py-0">
+              {job.jobType?.map((type, i) => (
+                <Badge key={`${type}-${i}`} variant="outline" className="text-[10px] px-1.5 py-0">
                   {type}
                 </Badge>
               ))}

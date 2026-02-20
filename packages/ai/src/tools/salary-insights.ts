@@ -107,9 +107,9 @@ export const salaryInsightsTool = tool({
         const rawMin = job.salaryMin ? Number(job.salaryMin) : null;
         const rawMax = job.salaryMax ? Number(job.salaryMax) : null;
 
-        // Skip if both are null/NaN (shouldn't happen due to query filter, but be safe)
+        // Skip if both are null/NaN/Infinity (shouldn't happen due to query filter, but be safe)
         if (rawMin == null && rawMax == null) continue;
-        if ((rawMin != null && isNaN(rawMin)) || (rawMax != null && isNaN(rawMax))) continue;
+        if ((rawMin != null && !Number.isFinite(rawMin)) || (rawMax != null && !Number.isFinite(rawMax))) continue;
 
         const annMin = rawMin != null ? annualise(rawMin, job.salaryInterval) : null;
         const annMax = rawMax != null ? annualise(rawMax, job.salaryInterval) : null;

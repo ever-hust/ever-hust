@@ -78,7 +78,7 @@ export const resumeBuilderTool = tool({
 
         if (jobResult.length > 0) {
           const job = jobResult[0]!;
-          jobSkills = (job.skills as string[]) ?? [];
+          jobSkills = Array.isArray(job.skills) ? job.skills.filter((s): s is string => typeof s === "string") : [];
 
           targetJob = {
             title: job.title,

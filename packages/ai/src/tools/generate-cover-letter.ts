@@ -75,10 +75,10 @@ export const generateCoverLetterTool = tool({
 
     const user = userResult[0]!;
     const job = jobResult[0]!;
-    const userSkills = (user.skills as string[]) ?? [];
+    const userSkills = Array.isArray(user.skills) ? user.skills.filter((s): s is string => typeof s === "string") : [];
 
     // Find overlapping skills between user and job
-    const jobSkills = (job.skills as string[]) ?? [];
+    const jobSkills = Array.isArray(job.skills) ? job.skills.filter((s): s is string => typeof s === "string") : [];
     const matchingSkills = userSkills.filter((skill) =>
       jobSkills.some(
         (js) => js.toLowerCase() === skill.toLowerCase()

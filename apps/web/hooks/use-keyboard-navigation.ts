@@ -2,6 +2,7 @@
 
 import { useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { isInputElement } from "../lib/hook-utils";
 
 /** Time window (ms) for the second key after pressing "g". */
 const GO_TO_MODE_TIMEOUT_MS = 1_000;
@@ -44,13 +45,7 @@ export function useKeyboardNavigation() {
     (e: KeyboardEvent) => {
       // Don't trigger when typing in inputs
       const target = e.target as HTMLElement;
-      if (
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.isContentEditable
-      ) {
-        return;
-      }
+      if (isInputElement(target)) return;
 
       // Don't trigger when a dialog/modal is open
       if (target.closest("[role='dialog']")) return;
@@ -68,13 +63,7 @@ export function useKeyboardNavigation() {
 
           // Check the target again
           const nextTarget = next.target as HTMLElement;
-          if (
-            nextTarget.tagName === "INPUT" ||
-            nextTarget.tagName === "TEXTAREA" ||
-            nextTarget.isContentEditable
-          ) {
-            return;
-          }
+          if (isInputElement(nextTarget)) return;
 
           switch (next.key) {
             case "c":

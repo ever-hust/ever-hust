@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
+import { isValidReferralCode } from "../lib/hook-utils";
 
 const STORAGE_KEY = "ej_referral_code";
 
@@ -41,7 +42,7 @@ export function useReferralRedeem() {
     }
 
     // Validate format before sending
-    if (!/^[A-Z0-9]+$/.test(code) || code.length > 20) return;
+    if (!isValidReferralCode(code)) return;
 
     async function redeemReferral(referralCode: string) {
       try {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { isInputElement, isInsideDialog, matchesShortcut } from "../lib/hook-utils";
 
 interface KeyboardShortcut {
   /** Keyboard shortcut key (e.g., "k", "Escape", "/") */
@@ -34,45 +35,26 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcut[]) {
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      // Ignore shortcuts when typing in inputs/textareas (except Escape)
       const target = event.target as HTMLElement;
-      const isInputFocused =
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.isContentEditable;
-
-      // Ignore shortcuts (except Escape) when a dialog/modal is open
-      const isDialogOpen =
-        event.key !== "Escape" && !!target.closest("[role='dialog']");
+      const inputFocused = isInputElement(target);
+      const dialogOpen = isInsideDialog(target, event.key);
 
       for (const shortcut of shortcutsRef.current) {
+        if (!matchesShortcut(event, shortcut)) continue;
+
         const ctrlOrMeta = shortcut.ctrl || shortcut.meta;
-        const modifierMatch = ctrlOrMeta
-          ? event.ctrlKey || event.metaKey
-          : true;
 
-        const shiftMatch = shortcut.shift ? event.shiftKey : !event.shiftKey;
-        const altMatch = shortcut.alt ? event.altKey : !event.altKey;
-
-        if (
-          event.key.toLowerCase() === shortcut.key.toLowerCase() &&
-          modifierMatch &&
-          shiftMatch &&
-          altMatch
-        ) {
-          // Allow Escape even when in inputs
-          if (isInputFocused && event.key !== "Escape") {
-            // Only allow Ctrl/Cmd shortcuts when in inputs
-            if (!ctrlOrMeta) continue;
-          }
-
-          // Skip non-Escape shortcuts when a dialog is open
-          if (isDialogOpen) continue;
-
-          event.preventDefault();
-          shortcut.handler();
-          break;
+        // Allow Escape even when in inputs; otherwise only Ctrl/Cmd shortcuts
+        if (inputFocused && event.key !== "Escape") {
+          if (!ctrlOrMeta) continue;
         }
+
+        // Skip non-Escape shortcuts when a dialog is open
+        if (dialogOpen) continue;
+
+        event.preventDefault();
+        shortcut.handler();
+        break;
       }
     }
 

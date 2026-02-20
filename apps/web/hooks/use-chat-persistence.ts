@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { extractMessageText } from "../lib/hook-utils";
 
 const LOG_PREFIX = "[chat-persistence]";
 
@@ -181,27 +182,11 @@ export function useChatPersistence() {
         if (!currentSessionId || currentSessionId !== capturedSessionId) return;
         const sessionId = currentSessionId;
 
-        const payload = unsaved.map((m) => {
-          // Extract text content from parts if available
-          const textContent =
-            m.content ??
-            (m.parts
-              ?.filter(
-                (p) =>
-                  typeof p === "object" &&
-                  p !== null &&
-                  (p as { type?: string }).type === "text"
-              )
-              .map((p) => (p as { text: string }).text)
-              .join("\n") ||
-              null);
-
-          return {
-            id: m.id,
-            role: m.role as "user" | "assistant" | "system" | "tool",
-            content: textContent,
-          };
-        });
+        const payload = unsaved.map((m) => ({
+          id: m.id,
+          role: m.role as "user" | "assistant" | "system" | "tool",
+          content: extractMessageText(m),
+        }));
 
         try {
           const res = await fetch(

@@ -2,17 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
-
-/** Toggle a job ID in a Set — returns a new Set with the item added or removed. */
-function toggleInSet(set: Set<number>, id: number): Set<number> {
-  const next = new Set(set);
-  if (next.has(id)) {
-    next.delete(id);
-  } else {
-    next.add(id);
-  }
-  return next;
-}
+import { toggleSetMember } from "../lib/hook-utils";
 
 /**
  * Hook for managing the user's favorited jobs.
@@ -64,7 +54,7 @@ export function useFavorites() {
     inFlightRef.current.add(jobId);
 
     // Optimistic update
-    setFavoritedJobIds((prev) => toggleInSet(prev, jobId));
+    setFavoritedJobIds((prev) => toggleSetMember(prev, jobId));
 
     try {
       const res = await fetch("/api/user/favorites", {
@@ -95,12 +85,12 @@ export function useFavorites() {
         );
       } else {
         // Revert on failure
-        setFavoritedJobIds((prev) => toggleInSet(prev, jobId));
+        setFavoritedJobIds((prev) => toggleSetMember(prev, jobId));
         toast.error("Failed to update favorite");
       }
     } catch (err) {
       // Revert on error
-      setFavoritedJobIds((prev) => toggleInSet(prev, jobId));
+      setFavoritedJobIds((prev) => toggleSetMember(prev, jobId));
       toast.error("Failed to update favorite");
       console.warn(
         "[useFavorites] Failed to toggle favorite:",

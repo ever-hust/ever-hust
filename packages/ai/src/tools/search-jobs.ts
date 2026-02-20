@@ -96,11 +96,13 @@ export const searchJobsTool = tool({
     }
 
     if (params.salaryMin !== undefined) {
-      conditions.push(sql`${jobs.salaryMin}::numeric >= ${params.salaryMin}`);
+      // Overlap: job's max salary must be at or above the user's minimum
+      conditions.push(sql`${jobs.salaryMax}::numeric >= ${params.salaryMin}`);
     }
 
     if (params.salaryMax !== undefined) {
-      conditions.push(sql`${jobs.salaryMax}::numeric <= ${params.salaryMax}`);
+      // Overlap: job's min salary must be at or below the user's maximum
+      conditions.push(sql`${jobs.salaryMin}::numeric <= ${params.salaryMax}`);
     }
 
     if (params.skills && params.skills.length > 0) {

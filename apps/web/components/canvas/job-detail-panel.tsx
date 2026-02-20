@@ -81,6 +81,12 @@ export function JobDetailPanel({
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<DetailTab>("overview");
   const tabPanelRef = useRef<HTMLDivElement>(null);
+
+  // Reset scroll position when switching tabs
+  useEffect(() => {
+    tabPanelRef.current?.scrollTo({ top: 0 });
+  }, [activeTab]);
+
   const { copied, copy } = useCopyToClipboard();
 
   const handleShare = useCallback(async () => {
@@ -332,7 +338,6 @@ export function JobDetailPanel({
               ))}
             </div>
 
-            {/* Scrollable content — reset scroll position when switching tabs */}
             <div
               ref={tabPanelRef}
               id="job-detail-tabpanel"

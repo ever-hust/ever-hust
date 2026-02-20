@@ -76,7 +76,16 @@ export const profilePatchSchema = z.object({
   name: z.string().max(200).optional(),
   headline: z.string().max(500).optional(),
   location: z.string().max(200).optional(),
-  skills: z.array(z.string().max(100)).max(50).optional(),
+  skills: z
+    .array(
+      z
+        .string()
+        .max(100)
+        // Strip HTML tags server-side to prevent stored XSS (mirrors client-side sanitization)
+        .transform((s) => s.replace(/<[^>]*>/g, "").trim())
+    )
+    .max(50)
+    .optional(),
   experience: z
     .array(
       z.object({

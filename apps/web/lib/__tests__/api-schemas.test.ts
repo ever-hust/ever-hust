@@ -261,6 +261,36 @@ describe("profilePatchSchema", () => {
     const result = profilePatchSchema.safeParse({ skills: [] });
     expect(result.success).toBe(true);
   });
+
+  it("strips HTML tags from skills (XSS prevention)", () => {
+    const result = profilePatchSchema.safeParse({
+      skills: ['<script>alert("xss")</script>', "React", '<img src=x onerror="steal()">'],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.skills).toEqual(['alert("xss")', "React", ""]);
+    }
+  });
+
+  it("trims whitespace from skills after HTML stripping", () => {
+    const result = profilePatchSchema.safeParse({
+      skills: ["  React  ", " <b>TypeScript</b> "],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.skills).toEqual(["React", "TypeScript"]);
+    }
+  });
+
+  it("preserves normal skills unchanged", () => {
+    const result = profilePatchSchema.safeParse({
+      skills: ["C++", "C#", "CI/CD", "Node.js", "Machine Learning"],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.skills).toEqual(["C++", "C#", "CI/CD", "Node.js", "Machine Learning"]);
+    }
+  });
 });
 
 describe("userPreferencesSchema", () => {

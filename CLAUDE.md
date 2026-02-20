@@ -133,8 +133,8 @@ All marketing pages include JSON-LD structured data: `Organization` (landing), `
 
 ### Security Hardening
 
-- **XSS sanitization**: Custom skill input on the profile/onboarding flow is sanitized to prevent stored XSS attacks
-- **CV upload validation**: Rejects zero-byte files in addition to enforcing the 10MB max size and PDF/DOCX type checks
+- **XSS sanitization**: Custom skill input is sanitized both client-side (onboarding dialog) and server-side (profile PATCH API schema strips HTML tags) to prevent stored XSS attacks
+- **CV upload validation**: Rejects zero-byte files in addition to enforcing the 10MB max size and PDF type checks
 - **BYOK key safety**: When `BYOK_ENCRYPTION_KEY` is absent, the model router detects encrypted ciphertext and falls through to the platform model instead of sending it as an API key
 - **LLM context hygiene**: `getUserProfile` tool strips encrypted API keys from preferences before returning data to LLM context
 - **AI tool input bounds**: All AI tool Zod schemas enforce `.max()` constraints on string/array inputs to limit LLM-generated payload sizes
@@ -153,7 +153,7 @@ Located in `apps/web/hooks/`. Key hooks:
 
 ### Testing
 
-- **Jest**: 1099 unit tests across 35 suites, living alongside source files as `*.test.ts`. Projects configured for: `ai`, `stripe`, `cv-parser`, `jobs-api`, `db`, `utils`, `email`, `triggers`, `web-lib`. Uses `ts-jest` with `isolatedModules: true` to avoid OOM from complex AI SDK/Zod generics. Key test files include `model-router.test.ts`, `prompts.test.ts`, `rate-limit.test.ts`, `tool-schemas.test.ts`, `crypto.test.ts`, `api-client.test.ts`, `api-response.test.ts`, `api-schemas.test.ts`, `subscription-gate.test.ts`, `referral-utils.test.ts`, `format-date.test.ts`, `org-config.test.ts`, `webhook-idempotency.test.ts`, `orchestrator.test.ts`, `constants.test.ts`, `env.test.ts`, `startup-checks.test.ts`, `safe-url.test.ts`, `salary-insights.test.ts`, `resume-builder.test.ts`, `resume-helpers.test.ts`, `webhook.test.ts`, `checkout.test.ts`, `portal.test.ts`, `plans.test.ts`, `client.test.ts`, `types.test.ts`, `guidance-topics.test.ts`, `db-helpers.test.ts`, `map-job.test.ts`, `helpers.test.ts`.
+- **Jest**: 1102 unit tests across 35 suites, living alongside source files as `*.test.ts`. Projects configured for: `ai`, `stripe`, `cv-parser`, `jobs-api`, `db`, `utils`, `email`, `triggers`, `web-lib`. Uses `ts-jest` with `isolatedModules: true` to avoid OOM from complex AI SDK/Zod generics. Key test files include `model-router.test.ts`, `prompts.test.ts`, `rate-limit.test.ts`, `tool-schemas.test.ts`, `crypto.test.ts`, `api-client.test.ts`, `api-response.test.ts`, `api-schemas.test.ts`, `subscription-gate.test.ts`, `referral-utils.test.ts`, `format-date.test.ts`, `org-config.test.ts`, `webhook-idempotency.test.ts`, `orchestrator.test.ts`, `constants.test.ts`, `env.test.ts`, `startup-checks.test.ts`, `safe-url.test.ts`, `salary-insights.test.ts`, `resume-builder.test.ts`, `resume-helpers.test.ts`, `webhook.test.ts`, `checkout.test.ts`, `portal.test.ts`, `plans.test.ts`, `client.test.ts`, `types.test.ts`, `guidance-topics.test.ts`, `db-helpers.test.ts`, `map-job.test.ts`, `helpers.test.ts`.
 - **Playwright**: 175 E2E tests across 8 spec files in `tests/e2e/`. Specs for: auth, landing, chat, jobs, profile, subscription. Runs against `http://localhost:3000`.
 
 ### UI Package Pattern

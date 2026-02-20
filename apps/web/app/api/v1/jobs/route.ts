@@ -83,11 +83,13 @@ export async function GET(req: NextRequest) {
     }
 
     if (salaryMin !== undefined) {
-      conditions.push(sql`${jobs.salaryMin}::numeric >= ${salaryMin}`);
+      // Overlap: job's max salary must be at or above the user's minimum
+      conditions.push(sql`${jobs.salaryMax}::numeric >= ${salaryMin}`);
     }
 
     if (salaryMax !== undefined) {
-      conditions.push(sql`${jobs.salaryMax}::numeric <= ${salaryMax}`);
+      // Overlap: job's min salary must be at or below the user's maximum
+      conditions.push(sql`${jobs.salaryMin}::numeric <= ${salaryMax}`);
     }
 
     if (skills) {
@@ -156,7 +158,7 @@ export async function GET(req: NextRequest) {
         total,
         limit,
         offset,
-        hasMore: offset + limit < total,
+        hasMore: offset + results.length < total,
       },
       {
         cacheSeconds: 60,

@@ -170,13 +170,14 @@ export const salaryInsightsTool = tool({
           ? allMaxes[allMaxes.length - 1]!
           : midpoints[midpoints.length - 1]!;
 
-      // Percentiles (25th / 75th) for a richer picture
-      const p25Index = Math.floor(midpoints.length * 0.25);
-      const p75Index = Math.floor(midpoints.length * 0.75);
-      const p25 = Math.round(midpoints[p25Index]!);
-      const p75 = Math.round(
-        midpoints[Math.min(p75Index, midpoints.length - 1)]!
+      // Percentiles (25th / 75th) using standard nearest-rank on (N-1) scale
+      const p25Index = Math.floor((midpoints.length - 1) * 0.25);
+      const p75Index = Math.min(
+        Math.ceil((midpoints.length - 1) * 0.75),
+        midpoints.length - 1
       );
+      const p25 = Math.round(midpoints[p25Index]!);
+      const p75 = Math.round(midpoints[p75Index]!);
 
       // Determine the dominant currency
       const currencyCounts = new Map<string, number>();

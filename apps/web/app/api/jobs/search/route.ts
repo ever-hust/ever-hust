@@ -59,12 +59,13 @@ export async function GET(req: Request) {
     }
 
     if (safeSalaryMin !== undefined) {
-      // Use numeric comparison (salary columns are numeric type in DB)
-      conditions.push(sql`${jobs.salaryMin}::numeric >= ${safeSalaryMin}`);
+      // Overlap: job's max salary must be at or above the user's minimum
+      conditions.push(sql`${jobs.salaryMax}::numeric >= ${safeSalaryMin}`);
     }
 
     if (safeSalaryMax !== undefined) {
-      conditions.push(sql`${jobs.salaryMax}::numeric <= ${safeSalaryMax}`);
+      // Overlap: job's min salary must be at or below the user's maximum
+      conditions.push(sql`${jobs.salaryMin}::numeric <= ${safeSalaryMax}`);
     }
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;

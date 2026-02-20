@@ -41,6 +41,12 @@ export function CVDropzone({ onUploadComplete }: CVDropzoneProps) {
         return;
       }
 
+      if (file.size === 0) {
+        const result = { success: false, error: "File is empty" };
+        setUploadResult(result);
+        return;
+      }
+
       if (file.size > MAX_FILE_SIZE_BYTES) {
         const result = { success: false, error: "File must be under 10MB" };
         setUploadResult(result);

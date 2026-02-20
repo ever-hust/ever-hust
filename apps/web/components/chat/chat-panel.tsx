@@ -173,7 +173,10 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
   useEffect(() => {
     if (!coverLetterPending.current || isLoading) return;
     // Find the latest assistant message with text after a generateCoverLetter tool call
-    const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
+    let lastAssistant: (typeof messages)[number] | undefined;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i]!.role === "assistant") { lastAssistant = messages[i]; break; }
+    }
     if (!lastAssistant) {
       coverLetterPending.current = false;
       return;

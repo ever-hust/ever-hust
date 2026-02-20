@@ -37,24 +37,29 @@ export async function POST(req: Request) {
   const body = validation.data;
 
   try {
-    // Upsert: delete any existing subscription for this endpoint, then insert
-    await db
-      .delete(pushSubscriptions)
-      .where(
-        and(
-          eq(pushSubscriptions.userId, user.id),
-          eq(pushSubscriptions.endpoint, body.endpoint),
-        ),
-      );
+    // Upsert: delete any existing subscription for this endpoint, then insert.
+    // Wrapped in a transaction to prevent duplicate records from concurrent requests.
+    const subscription = await db.transaction(async (tx) => {
+      await tx
+        .delete(pushSubscriptions)
+        .where(
+          and(
+            eq(pushSubscriptions.userId, user.id),
+            eq(pushSubscriptions.endpoint, body.endpoint),
+          ),
+        );
 
-    const [subscription] = await db
-      .insert(pushSubscriptions)
-      .values({
-        userId: user.id,
-        endpoint: body.endpoint,
-        keys: body.keys,
-      })
-      .returning();
+      const [sub] = await tx
+        .insert(pushSubscriptions)
+        .values({
+          userId: user.id,
+          endpoint: body.endpoint,
+          keys: body.keys,
+        })
+        .returning();
+
+      return sub;
+    });
 
     if (!subscription) {
       return apiError("Failed to save push subscription");

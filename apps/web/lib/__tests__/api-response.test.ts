@@ -64,6 +64,31 @@ describe("apiSuccess", () => {
     const res = apiSuccess({ data: 1 }, { headers: { "X-Custom": "test" } });
     expect(res.headers.get("X-Custom")).toBe("test");
   });
+
+  it("defaults to private no-cache for negative cacheSeconds", () => {
+    const res = apiSuccess({ data: 1 }, { cacheSeconds: -1 });
+    expect(res.headers.get("Cache-Control")).toBe(
+      "private, no-cache, no-store, must-revalidate",
+    );
+  });
+
+  it("always includes X-Request-Id even with extra headers", () => {
+    const res = apiSuccess({ data: 1 }, { headers: { "X-Custom": "v" } });
+    expect(res.headers.get("X-Request-Id")).toBeTruthy();
+    expect(res.headers.get("X-Custom")).toBe("v");
+  });
+
+  it("handles null data", async () => {
+    const res = apiSuccess(null);
+    expect(res.status).toBe(200);
+    expect(await jsonBody(res)).toBeNull();
+  });
+
+  it("handles array data", async () => {
+    const res = apiSuccess([1, 2, 3]);
+    expect(res.status).toBe(200);
+    expect(await jsonBody(res)).toEqual([1, 2, 3]);
+  });
 });
 
 describe("apiError", () => {
@@ -143,6 +168,18 @@ describe("apiRateLimited", () => {
     const body = await jsonBody(res);
     expect(body.retryAfter).toBe(60);
     expect(body.error).toContain("Too many requests");
+  });
+
+  it("includes Cache-Control no-cache header", () => {
+    const res = apiRateLimited(30);
+    expect(res.headers.get("Cache-Control")).toBe(
+      "private, no-cache, no-store, must-revalidate",
+    );
+  });
+
+  it("includes X-Request-Id header", () => {
+    const res = apiRateLimited(10);
+    expect(res.headers.get("X-Request-Id")).toBeTruthy();
   });
 });
 
@@ -258,5 +295,41 @@ describe("safeJsonParse", () => {
     if (result.ok) {
       expect(result.data).toEqual(data);
     }
+  });
+
+  it("parses JSON string literal", async () => {
+    const req = new Request("http://localhost/api/test", {
+      method: "POST",
+      body: JSON.stringify("hello"),
+      headers: { "Content-Type": "application/json" },
+    });
+    const result = await safeJsonParse(req);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toBe("hello");
+    }
+  });
+
+  it("parses JSON null literal", async () => {
+    const req = new Request("http://localhost/api/test", {
+      method: "POST",
+      body: "null",
+      headers: { "Content-Type": "application/json" },
+    });
+    const result = await safeJsonParse(req);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toBeNull();
+    }
+  });
+
+  it("returns ok:false for empty string body", async () => {
+    const req = new Request("http://localhost/api/test", {
+      method: "POST",
+      body: "",
+      headers: { "Content-Type": "application/json" },
+    });
+    const result = await safeJsonParse(req);
+    expect(result.ok).toBe(false);
   });
 });

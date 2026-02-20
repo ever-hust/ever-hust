@@ -420,6 +420,101 @@ describe("parseWebhookEvent", () => {
   });
 
   // -----------------------------------------------------------------------
+  // subscription.updated edge cases
+  // -----------------------------------------------------------------------
+  describe("customer.subscription.updated edge cases", () => {
+    it("handles empty items.data array (returns planId null)", () => {
+      const result = parseWebhookEvent(
+        subscriptionEvent("customer.subscription.updated", {
+          items: { data: [] },
+        })
+      );
+
+      expect(result).not.toBeNull();
+      const data = result!.data as { planId: string | null };
+      // items.data[0] is undefined → priceId is undefined → no plan match
+      expect(data.planId).toBeNull();
+    });
+
+    it("converts Unix timestamps to Date objects", () => {
+      const start = 1700000000;
+      const end = 1702592000;
+      const result = parseWebhookEvent(
+        subscriptionEvent("customer.subscription.updated", {
+          current_period_start: start,
+          current_period_end: end,
+        })
+      );
+
+      expect(result).not.toBeNull();
+      const data = result!.data as {
+        currentPeriodStart: Date;
+        currentPeriodEnd: Date;
+      };
+      expect(data.currentPeriodStart).toBeInstanceOf(Date);
+      expect(data.currentPeriodEnd).toBeInstanceOf(Date);
+      expect(data.currentPeriodStart.getTime()).toBe(start * 1000);
+      expect(data.currentPeriodEnd.getTime()).toBe(end * 1000);
+    });
+
+    it("handles zero Unix timestamps", () => {
+      const result = parseWebhookEvent(
+        subscriptionEvent("customer.subscription.updated", {
+          current_period_start: 0,
+          current_period_end: 0,
+        })
+      );
+
+      expect(result).not.toBeNull();
+      const data = result!.data as {
+        currentPeriodStart: Date;
+        currentPeriodEnd: Date;
+      };
+      expect(data.currentPeriodStart.getTime()).toBe(0);
+      expect(data.currentPeriodEnd.getTime()).toBe(0);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // checkout edge cases
+  // -----------------------------------------------------------------------
+  describe("checkout.session.completed edge cases", () => {
+    it("returns null when metadata is null (no planId)", () => {
+      const result = parseWebhookEvent(
+        checkoutEvent({
+          metadata: null,
+          client_reference_id: "user_fallback",
+        })
+      );
+
+      // planId is required — null metadata means planId is falsy → returns null
+      expect(result).toBeNull();
+    });
+
+    it("returns null when metadata is empty (no userId or planId)", () => {
+      const result = parseWebhookEvent(
+        checkoutEvent({
+          metadata: {},
+          client_reference_id: null,
+        })
+      );
+
+      // Both userId and planId are undefined → returns null
+      expect(result).toBeNull();
+    });
+
+    it("returns null when customer is an expanded object", () => {
+      const result = parseWebhookEvent(
+        checkoutEvent({
+          customer: { id: "cus_abc", object: "customer" },
+        })
+      );
+
+      expect(result).toBeNull();
+    });
+  });
+
+  // -----------------------------------------------------------------------
   // Unknown event types
   // -----------------------------------------------------------------------
   describe("unknown event type", () => {

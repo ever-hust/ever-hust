@@ -170,4 +170,45 @@ describe("applyRateLimit", () => {
     expect(result!.headers.get("X-RateLimit-Limit")).toBe("5");
     expect(result!.headers.get("X-RateLimit-Remaining")).toBe("0");
   });
+
+  it("includes X-RateLimit-Reset header on 429", () => {
+    const key = "apply-reset-header-" + Date.now();
+    for (let i = 0; i < 5; i++) {
+      applyRateLimit(key, "export");
+    }
+    const result = applyRateLimit(key, "export");
+    expect(result).not.toBeNull();
+    const resetHeader = result!.headers.get("X-RateLimit-Reset");
+    expect(resetHeader).toBeTruthy();
+    // Should be a Unix timestamp in seconds (current epoch range)
+    const resetTs = Number(resetHeader);
+    expect(resetTs).toBeGreaterThan(1_000_000_000);
+  });
+
+  it("isolates same key across different tiers", () => {
+    const key = "apply-tier-isolate-" + Date.now();
+    // Exhaust export tier (limit 5)
+    for (let i = 0; i < 5; i++) {
+      applyRateLimit(key, "export");
+    }
+    const exportBlocked = applyRateLimit(key, "export");
+    expect(exportBlocked).not.toBeNull();
+
+    // Same base key but different tier should still be allowed
+    const chatAllowed = applyRateLimit(key, "chat");
+    expect(chatAllowed).toBeNull();
+  });
+
+  it("returns 429 response body with retryAfter and error message", async () => {
+    const key = "apply-body-check-" + Date.now();
+    for (let i = 0; i < 5; i++) {
+      applyRateLimit(key, "export");
+    }
+    const result = applyRateLimit(key, "export");
+    expect(result).not.toBeNull();
+    const body = await result!.json();
+    expect(body.error).toContain("Too many requests");
+    expect(typeof body.retryAfter).toBe("number");
+    expect(body.retryAfter).toBeGreaterThan(0);
+  });
 });

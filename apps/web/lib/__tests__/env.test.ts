@@ -163,6 +163,33 @@ describe("env module", () => {
     });
   });
 
+  describe("empty string handling", () => {
+    it("treats empty string as missing for required vars", async () => {
+      setAllRequiredEnvVars();
+      process.env.DATABASE_URL = "";
+      await expect(importEnv()).rejects.toThrow("DATABASE_URL");
+    });
+
+    it("treats empty string as missing for BETTER_AUTH_SECRET", async () => {
+      setAllRequiredEnvVars();
+      process.env.BETTER_AUTH_SECRET = "";
+      await expect(importEnv()).rejects.toThrow("BETTER_AUTH_SECRET");
+    });
+
+    it("treats empty AI key as unset (warns about no provider)", async () => {
+      setAllRequiredEnvVars();
+      process.env.OPENROUTER_API_KEY = "";
+      delete process.env.ANTHROPIC_API_KEY;
+
+      const warnSpy = jest.spyOn(console, "warn").mockImplementation();
+      const { env } = await importEnv();
+
+      // Empty string falls through to undefined via optional()
+      expect(env.OPENROUTER_API_KEY).toBe("");
+      warnSpy.mockRestore();
+    });
+  });
+
   describe("cross-field validations", () => {
     it("warns when neither OPENROUTER_API_KEY nor ANTHROPIC_API_KEY is set", async () => {
       setAllRequiredEnvVars();

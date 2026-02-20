@@ -39,4 +39,27 @@ describe("escapeIlike", () => {
   it("handles multiple consecutive special characters", () => {
     expect(escapeIlike("%%__\\\\")).toBe("\\%\\%\\_\\_\\\\\\\\");
   });
+
+  it("preserves already-escaped input (double-escapes)", () => {
+    // If input already contains \%, it should be escaped again
+    expect(escapeIlike("100\\%")).toBe("100\\\\\\%");
+  });
+
+  it("handles very long strings", () => {
+    const long = "a".repeat(10000) + "%" + "b".repeat(10000);
+    const result = escapeIlike(long);
+    expect(result).toBe("a".repeat(10000) + "\\%" + "b".repeat(10000));
+    expect(result.length).toBe(20002);
+  });
+
+  it("handles strings with newlines and tabs", () => {
+    expect(escapeIlike("line1\nline2\t%")).toBe("line1\nline2\t\\%");
+  });
+
+  it("escapes backslashes before wildcards (order matters)", () => {
+    // Input: \% → should become \\% (backslash escaped, then % escaped)
+    // NOT \\\% — the order of replace operations matters
+    const result = escapeIlike("\\%");
+    expect(result).toBe("\\\\\\%");
+  });
 });

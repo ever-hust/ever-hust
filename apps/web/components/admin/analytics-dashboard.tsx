@@ -291,7 +291,7 @@ export default function AnalyticsDashboard() {
                 No subscription data available.
               </p>
             ) : (
-              <div className="flex flex-col items-center">
+              <div className="flex flex-col items-center" role="img" aria-label="Subscription distribution pie chart">
                 <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
                     <Pie
@@ -330,6 +330,7 @@ export default function AnalyticsDashboard() {
                     >
                       <div
                         className="h-3 w-3 rounded-full"
+                        aria-hidden="true"
                         style={{
                           backgroundColor:
                             CHART_COLORS[index % CHART_COLORS.length],

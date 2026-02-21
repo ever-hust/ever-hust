@@ -73,11 +73,9 @@ describe("timeAgo", () => {
     expect(timeAgo("")).toBeNull();
   });
 
-  it("handles an invalid date string", () => {
-    // new Date("garbage") gives NaN for getTime(), so diff will be NaN
-    // The function should still return something without crashing
-    const result = timeAgo("not-a-real-date");
-    expect(typeof result === "string" || result === null).toBe(true);
+  it("returns null for an invalid date string", () => {
+    expect(timeAgo("not-a-real-date")).toBeNull();
+    expect(timeAgo("0000-00-00")).toBeNull();
   });
 
   it("handles a future date (negative diff)", () => {
@@ -126,12 +124,9 @@ describe("formatDate", () => {
     expect(result).toContain("2025");
   });
 
-  it("handles an invalid date string gracefully", () => {
-    // new Date("not-a-date") returns Invalid Date; toLocaleDateString returns "Invalid Date"
-    const result = formatDate("not-a-date");
-    expect(typeof result).toBe("string");
-    // The output will be "Invalid Date" on most engines
-    expect(result).toBeTruthy();
+  it("returns em-dash for an invalid date string", () => {
+    expect(formatDate("not-a-date")).toBe("—");
+    expect(formatDate("0000-00-00")).toBe("—");
   });
 
   it("formats a very old date (year 1900)", () => {
@@ -292,9 +287,8 @@ describe("formatShortDate", () => {
     expect(result).not.toContain("1999");
   });
 
-  it("handles an invalid date string without crashing", () => {
-    const result = formatShortDate("invalid-date");
-    expect(typeof result).toBe("string");
+  it("returns em-dash for an invalid date string", () => {
+    expect(formatShortDate("invalid-date")).toBe("—");
   });
 });
 

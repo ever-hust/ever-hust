@@ -24,7 +24,9 @@ export async function checkSubscription(
     .limit(1);
 
   if (result.length === 0) {
-    return { userId, isActive: false, limits: FREE_LIMITS };
+    // User row not found (ghost session or deleted account) — fail closed
+    // rather than silently granting free-tier access.
+    throw new Error(`User not found: ${userId}`);
   }
 
   const isActive = result[0]!.subscriptionStatus === "active" || result[0]!.subscriptionStatus === "past_due";

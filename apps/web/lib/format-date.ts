@@ -23,6 +23,7 @@ export function timeAgo(dateInput: string | Date | null | undefined): string | n
   if (!dateInput) return null;
 
   const d = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+  if (isNaN(d.getTime())) return null;
   const diff = Date.now() - d.getTime();
   const mins = Math.floor(diff / 60_000);
 
@@ -53,6 +54,7 @@ export function timeAgo(dateInput: string | Date | null | undefined): string | n
  */
 export function formatDate(dateInput: string | Date): string {
   const d = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+  if (isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
@@ -72,6 +74,7 @@ export function formatDate(dateInput: string | Date): string {
  */
 export function formatShortDate(dateInput: string | Date): string {
   const d = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+  if (isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
@@ -92,6 +95,7 @@ export function formatShortDate(dateInput: string | Date): string {
  */
 export function formatSessionDate(dateInput: string | Date): string {
   const date = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+  if (isNaN(date.getTime())) return "—";
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));

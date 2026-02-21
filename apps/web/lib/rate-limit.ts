@@ -34,6 +34,9 @@ interface RateLimitEntry {
 
 const store = new Map<string, RateLimitEntry>();
 
+/** Maximum entries before forcing a cleanup to prevent unbounded memory growth. */
+const MAX_STORE_ENTRIES = 50_000;
+
 // Clean up stale entries every 5 minutes
 const CLEANUP_INTERVAL = 5 * 60 * 1000;
 let lastCleanup = Date.now();
@@ -43,9 +46,9 @@ const MAX_WINDOW_MS = Math.max(
   ...Object.values(API_RATE_LIMITS).map((c) => c.windowMs)
 );
 
-function cleanup() {
+function cleanup(force = false) {
   const now = Date.now();
-  if (now - lastCleanup < CLEANUP_INTERVAL) return;
+  if (!force && now - lastCleanup < CLEANUP_INTERVAL) return;
   lastCleanup = now;
 
   const cutoff = now - MAX_WINDOW_MS;
@@ -75,7 +78,12 @@ export function checkApiRateLimit(
   const now = Date.now();
   const cutoff = now - windowMs;
 
-  cleanup();
+  // Force cleanup if store grows too large
+  if (store.size > MAX_STORE_ENTRIES) {
+    cleanup(true);
+  } else {
+    cleanup();
+  }
 
   let entry = store.get(key);
   if (!entry) {

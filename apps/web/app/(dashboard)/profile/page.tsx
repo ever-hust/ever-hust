@@ -392,7 +392,7 @@ export default function ProfilePage() {
                 <div className="flex items-center gap-2 ml-2 shrink-0">
                   <Link
                     href={`/jobs/${fav.jobId}`}
-                    className="text-muted-foreground transition-colors hover:text-foreground"
+                    className="rounded text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     aria-label={`View ${fav.jobTitle ?? "job"} details`}
                   >
                     <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -458,7 +458,7 @@ export default function ProfilePage() {
                   </Badge>
                   <Link
                     href={`/jobs/${app.jobId}`}
-                    className="text-muted-foreground transition-colors hover:text-foreground"
+                    className="rounded text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     aria-label={`View ${app.jobTitle ?? "job"} details`}
                   >
                     <ExternalLink className="h-4 w-4" aria-hidden="true" />

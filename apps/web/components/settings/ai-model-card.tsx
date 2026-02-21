@@ -76,7 +76,7 @@ export function AIModelCard({ subscriptionStatus, initialModel }: AIModelCardPro
                 type="button"
                 disabled={isLocked || modelSaving}
                 onClick={() => handleModelSelect(model.id)}
-                className={`flex w-full items-center justify-between rounded-md border p-3 text-left transition-colors ${
+                className={`flex w-full items-center justify-between rounded-md border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                   isSelected
                     ? "border-primary bg-primary/5"
                     : "hover:bg-accent/50"

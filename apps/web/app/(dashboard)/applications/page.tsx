@@ -281,7 +281,7 @@ export default function ApplicationsPage() {
               aria-checked={statusFilter === opt.value}
               onClick={() => setStatusFilter(opt.value)}
               className={cn(
-                "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                "rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 statusFilter === opt.value
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-accent hover:text-foreground"

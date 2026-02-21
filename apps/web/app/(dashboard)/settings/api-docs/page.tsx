@@ -168,7 +168,7 @@ function EndpointSection({
           <button
             type="button"
             onClick={() => setActiveTab("curl")}
-            className={`rounded-t-md px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`rounded-t-md px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
               activeTab === "curl"
                 ? "bg-muted text-foreground"
                 : "text-muted-foreground hover:text-foreground"
@@ -179,7 +179,7 @@ function EndpointSection({
           <button
             type="button"
             onClick={() => setActiveTab("javascript")}
-            className={`rounded-t-md px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`rounded-t-md px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
               activeTab === "javascript"
                 ? "bg-muted text-foreground"
                 : "text-muted-foreground hover:text-foreground"

@@ -96,7 +96,7 @@ function FAQItem({ q, a, id }: { q: string; a: string; id: string }) {
       <button
         type="button"
         id={`faq-q-${id}`}
-        className="flex w-full items-center justify-between py-4 text-left text-sm font-medium transition-colors hover:text-primary"
+        className="flex w-full items-center justify-between rounded-md py-4 text-left text-sm font-medium transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         aria-controls={answerId}

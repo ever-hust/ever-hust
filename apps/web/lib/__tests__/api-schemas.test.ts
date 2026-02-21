@@ -548,11 +548,16 @@ describe("settingsPatchSchema", () => {
     expect(settingsPatchSchema.safeParse({ headline: "x".repeat(501) }).success).toBe(false);
   });
 
-  it("rejects unknown keys in preferences (strict)", () => {
+  it("strips unknown keys in preferences (passthrough to userPreferencesSchema)", () => {
     const result = settingsPatchSchema.safeParse({
       preferences: { aiModel: "test", unknownKey: "nope" },
     });
-    expect(result.success).toBe(false);
+    // Unknown keys are stripped (not rejected), aiModel is preserved
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.preferences?.aiModel).toBe("test");
+      expect((result.data.preferences as Record<string, unknown>)?.unknownKey).toBeUndefined();
+    }
   });
 
   it("strips HTML tags from name (XSS prevention)", () => {

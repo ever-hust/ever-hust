@@ -14,7 +14,9 @@ interface SubscriptionCardProps {
 
 export function SubscriptionCard({ subscriptionStatus }: SubscriptionCardProps) {
   const [stripeLoading, setStripeLoading] = useState(false);
-  const isPro = subscriptionStatus === "active";
+  const isPro =
+    subscriptionStatus === "active" ||
+    subscriptionStatus === "past_due";
 
   const handleUpgrade = useCallback(async () => {
     setStripeLoading(true);

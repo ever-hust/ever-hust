@@ -68,44 +68,16 @@ export async function POST(req: Request) {
   const body = parsed.data;
 
   try {
-    // Check if a platform default config already exists
-    const [existing] = await db
-      .select({ id: brandingConfigs.id })
-      .from(brandingConfigs)
-      .where(isNull(brandingConfigs.organizationId))
-      .limit(1);
+    // Check-and-upsert in a transaction to prevent duplicate platform defaults
+    // from concurrent POST requests.
+    const result = await db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select({ id: brandingConfigs.id })
+        .from(brandingConfigs)
+        .where(isNull(brandingConfigs.organizationId))
+        .limit(1);
 
-    if (existing) {
-      // Update existing config
-      const [updated] = await db
-        .update(brandingConfigs)
-        .set({
-          name: body.name,
-          logoUrl: body.logoUrl ?? null,
-          faviconUrl: body.faviconUrl ?? null,
-          primaryColor: body.primaryColor ?? null,
-          accentColor: body.accentColor ?? null,
-          tagline: body.tagline ?? null,
-          customFooterHtml: body.customFooterHtml ?? null,
-          hideEverJobsBranding: body.hideEverJobsBranding ?? false,
-          customDomain: body.customDomain ?? null,
-          updatedAt: new Date(),
-        })
-        .where(eq(brandingConfigs.id, existing.id))
-        .returning();
-
-      if (!updated) {
-        return apiError("Failed to update branding config");
-      }
-
-      return apiSuccess({ config: updated });
-    }
-
-    // Create new platform default config
-    const [created] = await db
-      .insert(brandingConfigs)
-      .values({
-        organizationId: null,
+      const values = {
         name: body.name,
         logoUrl: body.logoUrl ?? null,
         faviconUrl: body.faviconUrl ?? null,
@@ -115,14 +87,32 @@ export async function POST(req: Request) {
         customFooterHtml: body.customFooterHtml ?? null,
         hideEverJobsBranding: body.hideEverJobsBranding ?? false,
         customDomain: body.customDomain ?? null,
-      })
-      .returning();
+      };
 
-    if (!created) {
-      return apiError("Failed to create branding config");
+      if (existing) {
+        const [updated] = await tx
+          .update(brandingConfigs)
+          .set({ ...values, updatedAt: new Date() })
+          .where(eq(brandingConfigs.id, existing.id))
+          .returning();
+        return { config: updated, created: false } as const;
+      }
+
+      const [created] = await tx
+        .insert(brandingConfigs)
+        .values({ ...values, organizationId: null })
+        .returning();
+      return { config: created, created: true } as const;
+    });
+
+    if (!result.config) {
+      return apiError("Failed to save branding config");
     }
 
-    return apiSuccess({ config: created }, { status: 201 });
+    return apiSuccess(
+      { config: result.config },
+      result.created ? { status: 201 } : undefined,
+    );
   } catch (err) {
     console.error(
       "[api/admin/branding] POST failed:",

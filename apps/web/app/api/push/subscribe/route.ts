@@ -38,16 +38,13 @@ export async function POST(req: Request) {
 
   try {
     // Upsert: delete any existing subscription for this endpoint, then insert.
-    // Wrapped in a transaction to prevent duplicate records from concurrent requests.
+    // Deletes by endpoint alone (not userId) because push endpoints are globally
+    // unique — if a different user previously subscribed on the same browser,
+    // their stale record must be removed to satisfy the unique constraint.
     const subscription = await db.transaction(async (tx) => {
       await tx
         .delete(pushSubscriptions)
-        .where(
-          and(
-            eq(pushSubscriptions.userId, user.id),
-            eq(pushSubscriptions.endpoint, body.endpoint),
-          ),
-        );
+        .where(eq(pushSubscriptions.endpoint, body.endpoint));
 
       const [sub] = await tx
         .insert(pushSubscriptions)

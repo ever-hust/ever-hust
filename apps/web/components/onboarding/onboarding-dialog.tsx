@@ -119,13 +119,13 @@ export function OnboardingDialog({
       });
       if (!profileRes.ok) throw new Error("Failed to save profile");
 
-      // Save experience level to preferences
+      // Save experience level to user preferences (roleLevel field)
       if (selectedLevel) {
         const settingsRes = await fetch("/api/user/settings", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            preferences: { experienceLevel: selectedLevel },
+            preferences: { roleLevel: [selectedLevel] },
           }),
         });
         if (!settingsRes.ok) throw new Error("Failed to save preferences");
@@ -311,6 +311,7 @@ export function OnboardingDialog({
               variant="ghost"
               size="sm"
               onClick={handleComplete}
+              disabled={isSubmitting}
               className="text-muted-foreground"
             >
               Skip

@@ -51,11 +51,11 @@ export function decryptApiKey(encrypted: string): string | null {
 
   try {
     const key = getDerivedKey();
-    const [ivB64, authTagB64, ciphertext] = encrypted.split(":");
-
-    if (!ivB64 || !authTagB64 || !ciphertext) {
-      return encrypted; // Not in expected format, return as-is
+    const parts = encrypted.split(":");
+    if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) {
+      return null; // Not in expected iv:tag:cipher format
     }
+    const [ivB64, authTagB64, ciphertext] = parts;
 
     const iv = Buffer.from(ivB64, "base64");
     const authTag = Buffer.from(authTagB64, "base64");

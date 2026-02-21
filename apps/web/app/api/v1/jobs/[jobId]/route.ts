@@ -102,8 +102,15 @@ export async function GET(
       return apiNotFound("Job not found");
     }
 
+    // Convert numeric salary fields from strings to numbers for API consumers
+    const job = {
+      ...result[0]!,
+      salaryMin: result[0]!.salaryMin ? Number(result[0]!.salaryMin) : null,
+      salaryMax: result[0]!.salaryMax ? Number(result[0]!.salaryMax) : null,
+    };
+
     return apiSuccess(
-      { job: result[0] },
+      { job },
       {
         cacheSeconds: 300,
         headers: {

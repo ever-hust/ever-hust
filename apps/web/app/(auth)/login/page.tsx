@@ -23,21 +23,32 @@ const VALUE_PROPS = [
  * to prevent open redirect attacks.
  */
 function getSafeCallbackUrl(raw: string | null): string {
-  if (!raw) return "/chat";
+  const SAFE_DEFAULT = "/chat";
+  if (!raw) return SAFE_DEFAULT;
+
+  // Decode percent-encoded sequences to catch bypass attempts like /%2F%2Fevil.com
+  // which would decode to //evil.com (protocol-relative) on redirect.
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(raw);
+  } catch {
+    return SAFE_DEFAULT;
+  }
+
   // Must start with "/" and not "//" (protocol-relative)
-  if (!raw.startsWith("/") || raw.startsWith("//")) return "/chat";
+  if (!decoded.startsWith("/") || decoded.startsWith("//")) return SAFE_DEFAULT;
   // Reject backslash tricks (e.g. "/\evil.com")
-  if (raw.includes("\\")) return "/chat";
+  if (decoded.includes("\\")) return SAFE_DEFAULT;
   // Reject any URL that contains a colon before the first slash (e.g. "/javascript:...")
   // If there's no second slash, indexOf("/") returns -1 which would bypass the check,
   // so we treat "no slash" as Infinity to always reject colons in that case.
-  const withoutLeadingSlash = raw.slice(1);
+  const withoutLeadingSlash = decoded.slice(1);
   const colonIdx = withoutLeadingSlash.indexOf(":");
   const slashIdx = withoutLeadingSlash.indexOf("/");
   if (colonIdx !== -1 && (slashIdx === -1 || colonIdx < slashIdx)) {
-    return "/chat";
+    return SAFE_DEFAULT;
   }
-  return raw;
+  return decoded;
 }
 
 function LoginButton() {

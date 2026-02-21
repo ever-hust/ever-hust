@@ -130,20 +130,20 @@ describe("crypto", () => {
       }
     });
 
-    it("encrypts empty string (decrypt returns raw — known edge case)", () => {
+    it("encrypts empty string (decrypt returns null — empty ciphertext part)", () => {
       // Encrypting an empty string produces "iv:tag:" where the ciphertext
-      // portion is empty. decryptApiKey sees the empty third part and returns
-      // the encrypted string as-is (backwards-compat guard). This documents
-      // the known limitation — callers should avoid encrypting empty strings.
+      // portion is empty. decryptApiKey rejects this because the 3-part format
+      // check requires all parts to be non-empty. Callers should avoid
+      // encrypting empty strings.
       const encrypted = encryptApiKey("");
       expect(encrypted).toContain(":");
       const parts = encrypted.split(":");
       expect(parts).toHaveLength(3);
       // Ciphertext part is empty for an empty plaintext
       expect(parts[2]).toBe("");
-      // decryptApiKey returns encrypted string as-is because ciphertext is falsy
+      // decryptApiKey returns null because the ciphertext part is falsy
       const decrypted = decryptApiKey(encrypted);
-      expect(decrypted).toBe(encrypted);
+      expect(decrypted).toBeNull();
     });
   });
 
@@ -154,12 +154,10 @@ describe("crypto", () => {
     afterEach(() => {
       jest.restoreAllMocks();
     });
-    it("returns value as-is for a string with only one colon (2 parts)", () => {
-      // Format requires exactly 3 parts (iv:tag:cipher). Two parts is not valid.
+    it("returns null for a string with only one colon (2 parts)", () => {
+      // Format requires exactly 3 non-empty parts (iv:tag:cipher). Two parts is invalid.
       const result = decryptApiKey("part1:part2");
-      // Should return the string as-is since it has a colon but not in
-      // the expected 3-part format — or null if decryption is attempted and fails.
-      expect(result === "part1:part2" || result === null).toBe(true);
+      expect(result).toBeNull();
     });
 
     it("returns null for tampered ciphertext", () => {

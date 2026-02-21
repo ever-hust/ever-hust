@@ -52,10 +52,16 @@ export async function POST(req: Request) {
     // Safe: guarded by userResult.length === 0 check above
     const dbUser = userResult[0]!;
 
-    // Prevent creating a duplicate subscription for already-subscribed users
-    if (dbUser.subscriptionStatus === "active") {
-      return apiBadRequest("You already have an active subscription. Use the billing portal to manage it.");
-    };
+    // Prevent creating a duplicate subscription for users who already have one
+    // (active or past_due — they should use the billing portal instead)
+    if (
+      dbUser.subscriptionStatus === "active" ||
+      dbUser.subscriptionStatus === "past_due"
+    ) {
+      return apiBadRequest(
+        "You already have a subscription. Use the billing portal to manage it.",
+      );
+    }
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
     const { url } = await createCheckoutSession({

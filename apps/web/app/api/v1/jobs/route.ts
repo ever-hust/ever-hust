@@ -152,9 +152,16 @@ export async function GET(req: NextRequest) {
 
     const total = Number(countResult[0]?.count ?? 0);
 
+    // Convert numeric salary fields from strings to numbers for API consumers
+    const jobsWithNumericSalary = results.map((j) => ({
+      ...j,
+      salaryMin: j.salaryMin ? Number(j.salaryMin) : null,
+      salaryMax: j.salaryMax ? Number(j.salaryMax) : null,
+    }));
+
     return apiSuccess(
       {
-        jobs: results,
+        jobs: jobsWithNumericSalary,
         total,
         limit,
         offset,

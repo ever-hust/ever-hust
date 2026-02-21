@@ -18,24 +18,18 @@ export const chatRequestSchema = z.object({
 const stripHtml = (s: string) => s.replace(/<[^>]*>/g, "").trim();
 
 // === User Settings Route ===
-export const settingsPatchSchema = z.object({
-  name: z.string().max(200).transform(stripHtml).optional(),
-  headline: z.string().max(500).transform(stripHtml).optional(),
-  location: z.string().max(200).transform(stripHtml).optional(),
-  preferences: z
-    .object({
-      aiModel: z.string().max(100).optional(),
-      apiKeys: z
-        .object({
-          anthropic: z.string().max(500).optional(),
-          openai: z.string().max(500).optional(),
-          google: z.string().max(500).optional(),
-        })
-        .optional(),
-    })
-    .strict()
-    .optional(),
-});
+// Uses the full userPreferencesSchema (defined below) so any preference field
+// can be saved through settings — the old .strict() schema only allowed
+// aiModel/apiKeys, silently rejecting everything else (e.g. onboarding's
+// roleLevel, jobTypes, etc.).
+export const settingsPatchSchema = z.lazy(() =>
+  z.object({
+    name: z.string().max(200).transform(stripHtml).optional(),
+    headline: z.string().max(500).transform(stripHtml).optional(),
+    location: z.string().max(200).transform(stripHtml).optional(),
+    preferences: userPreferencesSchema.partial().optional(),
+  }),
+);
 
 // === User Alerts Route ===
 export const alertCreateSchema = z.object({

@@ -30,9 +30,14 @@ export function OnboardingCheck() {
           };
         };
 
-        if (!controller.signal.aborted && !data.user.onboardingCompleted) {
-          setUserName(data.user.name ?? undefined);
-          setShowOnboarding(true);
+        if (!controller.signal.aborted) {
+          if (!data.user.onboardingCompleted) {
+            setUserName(data.user.name ?? undefined);
+            setShowOnboarding(true);
+          } else {
+            // Cache completed state so future sessions skip the profile fetch
+            sessionStorage.setItem("onboarding_dismissed", "1");
+          }
         }
       } catch {
         // Non-blocking (AbortError, network, etc.)

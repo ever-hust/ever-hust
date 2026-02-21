@@ -97,6 +97,7 @@ export function DangerZoneCard() {
               value={deleteConfirmText}
               onChange={(e) => setDeleteConfirmText(e.target.value)}
               placeholder="DELETE"
+              maxLength={10}
               className="mt-1"
               autoComplete="off"
             />

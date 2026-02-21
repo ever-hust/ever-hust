@@ -305,6 +305,7 @@ export function OnboardingDialog({
               variant="ghost"
               size="sm"
               onClick={() => setStep(step - 1)}
+              disabled={isSubmitting}
             >
               <ArrowLeft className="mr-1 h-4 w-4" aria-hidden="true" />
               Back

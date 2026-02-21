@@ -98,9 +98,10 @@ export function ReferralProgramCard() {
     return () => controller.abort();
   }, [loadReferrals]);
 
-  const referralLink = data
-    ? `${window.location.origin}/signup?ref=${data.referralCode}`
-    : "";
+  const referralLink =
+    typeof window !== "undefined" && data
+      ? `${window.location.origin}/signup?ref=${data.referralCode}`
+      : "";
 
   const handleCopy = useCallback(async () => {
     if (!referralLink) return;

@@ -170,6 +170,7 @@ export function OnboardingDialog({
             placeholder="e.g. Senior Software Engineer"
             value={headline}
             onChange={(e) => setHeadline(e.target.value)}
+            maxLength={500}
             className="mt-1"
           />
         </div>
@@ -182,6 +183,7 @@ export function OnboardingDialog({
               placeholder="e.g. San Francisco, CA or Remote"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
+              maxLength={200}
             />
           </div>
         </div>
@@ -253,6 +255,7 @@ export function OnboardingDialog({
           value={customSkill}
           onChange={(e) => setCustomSkill(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addCustomSkill()}
+          maxLength={100}
           className="flex-1"
         />
         <Button size="sm" variant="outline" onClick={addCustomSkill} disabled={!customSkill.trim()}>

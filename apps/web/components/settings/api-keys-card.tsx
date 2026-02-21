@@ -139,6 +139,7 @@ export function ApiKeysCard({ initialKeys }: ApiKeysCardProps) {
                     }))
                   }
                   placeholder={provider.placeholder}
+                  maxLength={200}
                   className="pr-10"
                   autoComplete="off"
                 />

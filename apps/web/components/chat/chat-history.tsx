@@ -158,6 +158,7 @@ export function ChatHistory({
                   placeholder="Search conversations…"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  maxLength={200}
                   className="h-7 w-full rounded-md border bg-background pl-7 pr-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                   aria-label="Search conversations"
                 />

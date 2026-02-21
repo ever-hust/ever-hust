@@ -133,6 +133,7 @@ export function DeveloperApiCard() {
       await navigator.clipboard.writeText(newlyCreatedKey);
       setCopied(true);
       toast.success("API key copied to clipboard");
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
       copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error("Failed to copy to clipboard");

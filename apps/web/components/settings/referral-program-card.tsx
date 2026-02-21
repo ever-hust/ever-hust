@@ -108,6 +108,7 @@ export function ReferralProgramCard() {
       await navigator.clipboard.writeText(referralLink);
       setCopied(true);
       toast.success("Referral link copied to clipboard");
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
       copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error("Failed to copy link");

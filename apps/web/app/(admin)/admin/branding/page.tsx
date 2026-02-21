@@ -1,5 +1,3 @@
-"use client";
-
 import { BrandingSettingsCard } from "@/components/admin/branding-settings-card";
 
 export default function AdminBrandingPage() {

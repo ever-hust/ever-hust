@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useCallback, useEffect, useRef, useMemo, memo } from "react";
 import type { UIMessage } from "ai";
 import { Bot, User, Copy, Check } from "lucide-react";

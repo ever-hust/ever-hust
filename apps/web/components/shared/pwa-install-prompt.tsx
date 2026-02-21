@@ -34,8 +34,12 @@ export function PWAInstallPrompt() {
     if ("standalone" in window.navigator && (window.navigator as Record<string, unknown>).standalone === true) return;
 
     // Don't show if user previously dismissed
-    const dismissed = localStorage.getItem("pwa-install-dismissed");
-    if (dismissed) return;
+    try {
+      const dismissed = localStorage.getItem("pwa-install-dismissed");
+      if (dismissed) return;
+    } catch {
+      // localStorage unavailable (e.g. privacy mode) — show the prompt
+    }
 
     const handler = (e: Event) => {
       e.preventDefault();
@@ -64,14 +68,14 @@ export function PWAInstallPrompt() {
     setDeferredPrompt(null);
 
     if (outcome === "dismissed") {
-      localStorage.setItem("pwa-install-dismissed", "true");
+      try { localStorage.setItem("pwa-install-dismissed", "true"); } catch { /* unavailable */ }
     }
   }, [deferredPrompt]);
 
   const handleDismiss = useCallback(() => {
     setShowBanner(false);
     setDeferredPrompt(null);
-    localStorage.setItem("pwa-install-dismissed", "true");
+    try { localStorage.setItem("pwa-install-dismissed", "true"); } catch { /* unavailable */ }
   }, []);
 
   if (!showBanner) return null;

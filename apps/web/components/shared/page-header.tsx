@@ -1,8 +1,8 @@
 "use client";
 
 import type { LucideIcon } from "lucide-react";
-import { Badge } from "@repo/ui/badge";
-import { cn } from "@repo/ui/lib/utils";
+import { Badge } from "@ever-hust/ui/badge";
+import { cn } from "@ever-hust/ui/lib/utils";
 
 interface PageHeaderProps {
   /** Icon displayed before the title */

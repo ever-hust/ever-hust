@@ -35,7 +35,7 @@ test.describe("Landing Page", () => {
   });
 
   test("renders footer", async ({ page }) => {
-    await expect(page.getByText(/ever jobs/i).last()).toBeVisible();
+    await expect(page.getByText(/hust/i).last()).toBeVisible();
   });
 
   test("pricing CTA links work", async ({ page }) => {
@@ -130,7 +130,7 @@ test.describe("Navigation", () => {
   test("navigates to about page", async ({ page }) => {
     await page.goto("/about");
     await expect(
-      page.getByRole("heading", { name: /about ever jobs/i })
+      page.getByRole("heading", { name: /about hust/i })
     ).toBeVisible();
   });
 

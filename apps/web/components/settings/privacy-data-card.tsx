@@ -2,8 +2,8 @@
 
 import { useState, useCallback } from "react";
 import { Shield, Loader2, Download, Trash2 } from "lucide-react";
-import { Button } from "@repo/ui/button";
-import { Card } from "@repo/ui/card";
+import { Button } from "@ever-hust/ui/button";
+import { Card } from "@ever-hust/ui/card";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 

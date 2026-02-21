@@ -1,5 +1,5 @@
-import { db } from "@repo/db";
-import { organizations, organizationMembers } from "@repo/db/schema";
+import { db } from "@ever-hust/db";
+import { organizations, organizationMembers } from "@ever-hust/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../lib/get-session-user";

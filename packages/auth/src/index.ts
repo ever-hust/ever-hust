@@ -1,12 +1,19 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { db } from "@repo/db/client";
-import * as schema from "@repo/db/schema";
+import { db } from "@ever-hust/db/client";
+import * as schema from "@ever-hust/db/schema";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
-    schema,
+    schema: {
+      ...schema,
+      // BetterAuth expects singular model names; our Drizzle schema uses plural
+      user: schema.users,
+      session: schema.sessions,
+      account: schema.accounts,
+      verification: schema.verifications,
+    },
   }),
   baseURL: process.env.BETTER_AUTH_URL,
   secret: process.env.BETTER_AUTH_SECRET,
@@ -41,7 +48,7 @@ export const auth = betterAuth({
         after: async (user) => {
           // Send welcome email to newly registered users (non-blocking)
           try {
-            const { sendWelcomeEmail } = await import("@repo/email");
+            const { sendWelcomeEmail } = await import("@ever-hust/email");
             await sendWelcomeEmail({
               to: user.email,
               userName: user.name ?? user.email.split("@")[0],

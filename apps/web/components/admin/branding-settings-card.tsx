@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Palette, Loader2, Save } from "lucide-react";
-import { Button } from "@repo/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@repo/ui/card";
-import { Input } from "@repo/ui/input";
-import { Label } from "@repo/ui/label";
-import { Separator } from "@repo/ui/separator";
+import { Button } from "@ever-hust/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@ever-hust/ui/card";
+import { Input } from "@ever-hust/ui/input";
+import { Label } from "@ever-hust/ui/label";
+import { Separator } from "@ever-hust/ui/separator";
 import { toast } from "sonner";
+import { APP_NAME } from "@ever-hust/utils";
 
 interface BrandingFormData {
   name: string;
@@ -22,7 +23,7 @@ interface BrandingFormData {
 }
 
 const INITIAL_FORM: BrandingFormData = {
-  name: "Ever Jobs",
+  name: APP_NAME,
   logoUrl: "",
   faviconUrl: "",
   primaryColor: "#3b82f6",
@@ -168,7 +169,7 @@ export function BrandingSettingsCard() {
               id="brand-name"
               value={form.name}
               onChange={(e) => updateField("name", e.target.value)}
-              placeholder="Ever Jobs"
+              placeholder={APP_NAME}
               maxLength={100}
             />
           </div>
@@ -293,7 +294,7 @@ export function BrandingSettingsCard() {
 
           <Separator />
 
-          {/* Hide Ever Jobs Branding */}
+          {/* Hide Branding */}
           <div className="flex items-center gap-3">
             <input
               id="hide-branding"
@@ -305,7 +306,7 @@ export function BrandingSettingsCard() {
               className="h-4 w-4 rounded border-input"
             />
             <Label htmlFor="hide-branding" className="cursor-pointer">
-              Hide Ever Jobs branding
+              Hide {APP_NAME} branding
             </Label>
           </div>
 

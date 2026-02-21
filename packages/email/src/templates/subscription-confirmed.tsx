@@ -12,6 +12,7 @@ import {
   Button,
 } from "@react-email/components";
 import * as React from "react";
+import { APP_NAME } from "@ever-hust/utils";
 
 interface SubscriptionConfirmedEmailProps {
   userName: string;
@@ -33,7 +34,7 @@ export function SubscriptionConfirmedEmail({
   return (
     <Html>
       <Head />
-      <Preview>Your Ever Jobs Pro subscription is active</Preview>
+      <Preview>Your {APP_NAME} Pro subscription is active</Preview>
       <Body style={main}>
         <Container style={container}>
           <Heading style={heading}>You&apos;re Now Pro! 🎉</Heading>
@@ -41,7 +42,7 @@ export function SubscriptionConfirmedEmail({
           <Text style={paragraph}>Hi {userName},</Text>
 
           <Text style={paragraph}>
-            Your Ever Jobs Pro subscription is now active. Here&apos;s a summary
+            Your {APP_NAME} Pro subscription is now active. Here&apos;s a summary
             of your plan:
           </Text>
 
@@ -104,7 +105,7 @@ export function SubscriptionConfirmedEmail({
           <Hr style={hr} />
 
           <Text style={footer}>
-            Ever Jobs · Your AI-Powered Job Search Assistant
+            {APP_NAME} · Your AI-Powered Job Search Assistant
           </Text>
         </Container>
       </Body>

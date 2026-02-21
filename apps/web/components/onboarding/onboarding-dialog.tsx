@@ -7,11 +7,11 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@repo/ui/dialog";
-import { Button } from "@repo/ui/button";
-import { Badge } from "@repo/ui/badge";
-import { Input } from "@repo/ui/input";
-import { Label } from "@repo/ui/label";
+} from "@ever-hust/ui/dialog";
+import { Button } from "@ever-hust/ui/button";
+import { Badge } from "@ever-hust/ui/badge";
+import { Input } from "@ever-hust/ui/input";
+import { Label } from "@ever-hust/ui/label";
 import {
   Sparkles,
   MapPin,
@@ -273,12 +273,9 @@ export function OnboardingDialog({
   const isLastStep = step === steps.length - 1;
 
   return (
-    <Dialog open={open}>
+    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onComplete(); }}>
       <DialogContent
         className="sm:max-w-[480px]"
-        hideClose
-        onInteractOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
       >
         <DialogHeader>
           <DialogTitle className="sr-only">Profile Setup</DialogTitle>

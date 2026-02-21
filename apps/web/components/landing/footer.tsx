@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BriefcaseBusiness, Github, Twitter } from "lucide-react";
-import { Separator } from "@repo/ui/separator";
+import { Separator } from "@ever-hust/ui/separator";
+import { APP_NAME } from "@ever-hust/utils";
 
 const PRODUCT_LINKS = [
   { href: "/#features", label: "Features" },
@@ -39,9 +40,9 @@ export function Footer() {
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           {/* Brand */}
           <div>
-            <Link href="/" className="inline-flex items-center gap-2" aria-label="Ever Jobs home">
+            <Link href="/" className="inline-flex items-center gap-2" aria-label={`${APP_NAME} home`}>
               <BriefcaseBusiness className="h-6 w-6 text-primary" aria-hidden="true" />
-              <span className="text-lg font-bold">Ever Jobs</span>
+              <span className="text-lg font-bold">{APP_NAME}</span>
             </Link>
             <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
               AI-powered job search assistant. Find, apply, and land your dream

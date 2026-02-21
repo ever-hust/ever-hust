@@ -2,9 +2,9 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
-import { Button } from "@repo/ui/button";
-import { Card } from "@repo/ui/card";
-import { Input } from "@repo/ui/input";
+import { Button } from "@ever-hust/ui/button";
+import { Card } from "@ever-hust/ui/card";
+import { Input } from "@ever-hust/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@repo/ui/dialog";
+} from "@ever-hust/ui/dialog";
 import { toast } from "sonner";
 
 export function DangerZoneCard() {

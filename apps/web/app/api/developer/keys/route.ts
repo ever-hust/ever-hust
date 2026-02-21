@@ -1,5 +1,5 @@
-import { db } from "@repo/db";
-import { apiKeys } from "@repo/db";
+import { db } from "@ever-hust/db";
+import { apiKeys } from "@ever-hust/db";
 import { eq, and, count } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { randomBytes, createHash } from "crypto";

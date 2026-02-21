@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Bot, Check, Save, Loader2 } from "lucide-react";
-import { Badge } from "@repo/ui/badge";
-import { Button } from "@repo/ui/button";
-import { Card } from "@repo/ui/card";
-import { Input } from "@repo/ui/input";
-import { Label } from "@repo/ui/label";
+import { Badge } from "@ever-hust/ui/badge";
+import { Button } from "@ever-hust/ui/button";
+import { Card } from "@ever-hust/ui/card";
+import { Input } from "@ever-hust/ui/input";
+import { Label } from "@ever-hust/ui/label";
 import { toast } from "sonner";
 import { AI_MODELS } from "./types";
 

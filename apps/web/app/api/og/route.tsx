@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
                 fontWeight: 700,
               }}
             >
-              EJ
+              H
             </div>
             <span
               style={{
@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
                 letterSpacing: "-0.02em",
               }}
             >
-              Ever Jobs
+              Hust
             </span>
           </div>
 

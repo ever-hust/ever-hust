@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Button } from "@repo/ui/button";
-import { Badge } from "@repo/ui/badge";
+import { Button } from "@ever-hust/ui/button";
+import { Badge } from "@ever-hust/ui/badge";
 import {
   ArrowRight,
   Sparkles,
@@ -12,6 +12,7 @@ import {
   MessageSquare,
   Bot,
 } from "lucide-react";
+import { APP_NAME } from "@ever-hust/utils";
 
 const CHAT_LINES = [
   { role: "user" as const, text: "Find me senior React jobs in San Francisco" },
@@ -118,7 +119,7 @@ export function Hero() {
                   <Bot className="h-4 w-4 text-primary" aria-hidden="true" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold">Ever Jobs AI</p>
+                  <p className="text-sm font-semibold">{APP_NAME} AI</p>
                   <p className="text-[11px] text-muted-foreground">
                     Your personal job search assistant
                   </p>

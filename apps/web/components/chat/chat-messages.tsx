@@ -3,8 +3,8 @@
 import { useState, useCallback, useEffect, useRef, useMemo, memo } from "react";
 import type { UIMessage } from "ai";
 import { Bot, User, Copy, Check } from "lucide-react";
-import { Avatar, AvatarFallback } from "@repo/ui/avatar";
-import { cn } from "@repo/ui/lib/utils";
+import { Avatar, AvatarFallback } from "@ever-hust/ui/avatar";
+import { cn } from "@ever-hust/ui/lib/utils";
 import { MarkdownText } from "./markdown-text";
 
 interface ChatMessagesProps {

@@ -1,11 +1,12 @@
 import { Star } from "lucide-react";
-import { Card, CardContent } from "@repo/ui/card";
-import { Avatar, AvatarFallback } from "@repo/ui/avatar";
+import { Card, CardContent } from "@ever-hust/ui/card";
+import { Avatar, AvatarFallback } from "@ever-hust/ui/avatar";
+import { APP_NAME } from "@ever-hust/utils";
 
 const testimonials = [
   {
     quote:
-      "I used to spend hours on LinkedIn and Indeed every day. Now I just chat with Ever Jobs and it finds exactly what I'm looking for.",
+      `I used to spend hours on LinkedIn and Indeed every day. Now I just chat with ${APP_NAME} and it finds exactly what I'm looking for.`,
     name: "Sarah M.",
     role: "Software Engineer",
     initials: "SM",
@@ -52,7 +53,7 @@ export function Testimonials() {
             Loved by job seekers
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            See what our users have to say about Ever Jobs.
+            See what our users have to say about {APP_NAME}.
           </p>
         </div>
 

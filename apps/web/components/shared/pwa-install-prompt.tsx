@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Download, X } from "lucide-react";
-import { Button } from "@repo/ui/button";
+import { Button } from "@ever-hust/ui/button";
+import { APP_NAME } from "@ever-hust/utils";
 
 /** Delay (ms) before showing the install banner after the event fires. */
 const PWA_PROMPT_DELAY_MS = 3_000;
@@ -90,7 +91,7 @@ export function PWAInstallPrompt() {
           <Download className="h-5 w-5 text-primary" aria-hidden="true" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium">Install Ever Jobs</p>
+          <p className="text-sm font-medium">Install {APP_NAME}</p>
           <p className="text-xs text-muted-foreground">
             Get quick access from your home screen
           </p>

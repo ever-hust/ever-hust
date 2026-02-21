@@ -13,10 +13,10 @@ import {
   Clock,
   ArrowLeft,
 } from "lucide-react";
-import { Badge } from "@repo/ui/badge";
-import { Button } from "@repo/ui/button";
-import { Card } from "@repo/ui/card";
-import { Skeleton } from "@repo/ui/skeleton";
+import { Badge } from "@ever-hust/ui/badge";
+import { Button } from "@ever-hust/ui/button";
+import { Card } from "@ever-hust/ui/card";
+import { Skeleton } from "@ever-hust/ui/skeleton";
 import { toast } from "sonner";
 import Link from "next/link";
 

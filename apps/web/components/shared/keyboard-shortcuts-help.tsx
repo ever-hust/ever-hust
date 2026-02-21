@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from "@repo/ui/dialog";
+} from "@ever-hust/ui/dialog";
 
 interface ShortcutEntry {
   keys: string[];

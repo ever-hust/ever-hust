@@ -1,5 +1,5 @@
 {
-  "name": "@repo/cv-parser",
+  "name": "@ever-hust/cv-parser",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -12,13 +12,13 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.44",
-    "@repo/supabase": "workspace:*",
+    "@ever-hust/supabase": "workspace:*",
     "ai": "^6.0.86",
     "pdf-parse": "^2.4.5",
     "zod": "^3.24.0"
   },
   "devDependencies": {
-    "@repo/typescript-config": "workspace:*",
+    "@ever-hust/typescript-config": "workspace:*",
     "@types/node": "^22.15.3",
     "@types/pdf-parse": "^1.1.5",
     "typescript": "5.9.2"

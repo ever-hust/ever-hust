@@ -1,9 +1,9 @@
 "use client";
 
 import { BellRing, Loader2, AlertTriangle, BellOff } from "lucide-react";
-import { Badge } from "@repo/ui/badge";
-import { Button } from "@repo/ui/button";
-import { Card } from "@repo/ui/card";
+import { Badge } from "@ever-hust/ui/badge";
+import { Button } from "@ever-hust/ui/button";
+import { Card } from "@ever-hust/ui/card";
 import { toast } from "sonner";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
 import { useCallback } from "react";

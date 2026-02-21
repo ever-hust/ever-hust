@@ -1,5 +1,5 @@
-import { db, users } from "@repo/db";
-import { createPortalSession } from "@repo/stripe";
+import { db, users } from "@ever-hust/db";
+import { createPortalSession } from "@ever-hust/stripe";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";

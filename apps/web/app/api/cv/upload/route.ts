@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { parseCV } from "@repo/cv-parser";
-import { db } from "@repo/db";
-import { users } from "@repo/db";
+import { parseCV } from "@ever-hust/cv-parser";
+import { db } from "@ever-hust/db";
+import { users } from "@ever-hust/db";
 import { eq } from "drizzle-orm";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { applyRateLimit } from "../../../../lib/rate-limit";

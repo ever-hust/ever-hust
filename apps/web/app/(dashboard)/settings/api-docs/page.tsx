@@ -10,10 +10,10 @@ import {
   Shield,
   Zap,
 } from "lucide-react";
-import { Badge } from "@repo/ui/badge";
-import { Button } from "@repo/ui/button";
-import { Card } from "@repo/ui/card";
-import { Separator } from "@repo/ui/separator";
+import { Badge } from "@ever-hust/ui/badge";
+import { Button } from "@ever-hust/ui/button";
+import { Card } from "@ever-hust/ui/card";
+import { Separator } from "@ever-hust/ui/separator";
 import Link from "next/link";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
@@ -217,7 +217,7 @@ export default function ApiDocsPage() {
       <PageHeader
         icon={Book}
         title="API Documentation"
-        description="Reference for the Ever Jobs developer API."
+        description="Reference for the Hust developer API."
         actions={
           <Button variant="ghost" size="sm" asChild>
             <Link href="/settings#developer-api">

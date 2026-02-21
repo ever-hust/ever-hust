@@ -7,11 +7,11 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from "@repo/ui/dialog";
-import { Button } from "@repo/ui/button";
-import { Badge } from "@repo/ui/badge";
+} from "@ever-hust/ui/dialog";
+import { Button } from "@ever-hust/ui/button";
+import { Badge } from "@ever-hust/ui/badge";
 import { ExternalLink, MapPin, Building2, Clock, DollarSign } from "lucide-react";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "@ever-hust/ui/lib/utils";
 import { formatSalary, formatLocation, timeAgo } from "@/lib/format-date";
 import { safeExternalUrl } from "@/lib/safe-url";
 import type { JobCardData } from "./job-card";

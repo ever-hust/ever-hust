@@ -13,10 +13,10 @@ import {
   Briefcase,
   Clock,
 } from "lucide-react";
-import { Badge } from "@repo/ui/badge";
-import { Button } from "@repo/ui/button";
-import { Skeleton } from "@repo/ui/skeleton";
-import { cn } from "@repo/ui/lib/utils";
+import { Badge } from "@ever-hust/ui/badge";
+import { Button } from "@ever-hust/ui/button";
+import { Skeleton } from "@ever-hust/ui/skeleton";
+import { cn } from "@ever-hust/ui/lib/utils";
 import { toast } from "sonner";
 import Link from "next/link";
 import { ScrollToTop } from "@/components/shared/scroll-to-top";

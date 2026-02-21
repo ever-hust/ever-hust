@@ -3,9 +3,9 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import { Settings, AlertTriangle } from "lucide-react";
-import { Button } from "@repo/ui/button";
-import { Card } from "@repo/ui/card";
-import { Skeleton } from "@repo/ui/skeleton";
+import { Button } from "@ever-hust/ui/button";
+import { Card } from "@ever-hust/ui/card";
+import { Skeleton } from "@ever-hust/ui/skeleton";
 import { toast } from "sonner";
 import { ScrollToTop } from "@/components/shared/scroll-to-top";
 import { PageHeader } from "@/components/shared/page-header";

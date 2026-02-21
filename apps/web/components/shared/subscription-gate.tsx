@@ -3,8 +3,8 @@
 import { type ReactNode } from "react";
 import Link from "next/link";
 import { Lock, Sparkles } from "lucide-react";
-import { Button } from "@repo/ui/button";
-import { Card } from "@repo/ui/card";
+import { Button } from "@ever-hust/ui/button";
+import { Card } from "@ever-hust/ui/card";
 
 interface SubscriptionGateProps {
   /** Whether the user has an active subscription. */

@@ -1,7 +1,8 @@
 "use client";
 
 import { WifiOff } from "lucide-react";
-import { Button } from "@repo/ui/button";
+import { Button } from "@ever-hust/ui/button";
+import { APP_NAME } from "@ever-hust/utils";
 
 export default function OfflinePage() {
   return (
@@ -9,7 +10,7 @@ export default function OfflinePage() {
       <WifiOff className="h-12 w-12 text-muted-foreground" aria-hidden="true" />
       <h1 className="mt-6 text-2xl font-bold">You&apos;re Offline</h1>
       <p className="mt-2 max-w-md text-sm text-muted-foreground">
-        It looks like you&apos;ve lost your internet connection. Ever Jobs
+        It looks like you&apos;ve lost your internet connection. {APP_NAME}
         requires an internet connection to search jobs and chat with AI.
       </p>
       <Button className="mt-6" onClick={() => window.location.reload()}>

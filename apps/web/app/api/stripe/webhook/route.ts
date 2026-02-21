@@ -1,9 +1,9 @@
 // Stripe webhook may need to fetch subscription details — allow up to 30s
 export const maxDuration = 30;
 
-import { db, users, subscriptions, stripeWebhookEvents } from "@repo/db";
-import { getStripe, parseWebhookEvent } from "@repo/stripe";
-import { sendSubscriptionConfirmedEmail } from "@repo/email";
+import { db, users, subscriptions, stripeWebhookEvents } from "@ever-hust/db";
+import { getStripe, parseWebhookEvent } from "@ever-hust/stripe";
+import { sendSubscriptionConfirmedEmail } from "@ever-hust/email";
 import { eq, and, ne } from "drizzle-orm";
 import { apiBadRequest, apiError, apiSuccess } from "../../../../lib/api-response";
 

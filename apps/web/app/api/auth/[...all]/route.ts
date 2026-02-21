@@ -1,4 +1,4 @@
-import { auth } from "@repo/auth";
+import { auth } from "@ever-hust/auth";
 import { toNextJsHandler } from "better-auth/next-js";
 import { applyRateLimit } from "../../../../lib/rate-limit";
 

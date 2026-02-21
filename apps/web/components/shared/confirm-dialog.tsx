@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { Loader2 } from "lucide-react";
-import { Button } from "@repo/ui/button";
+import { Button } from "@ever-hust/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@repo/ui/dialog";
+} from "@ever-hust/ui/dialog";
 
 interface ConfirmDialogProps {
   open: boolean;

@@ -1,9 +1,9 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { db } from "@repo/db";
-import { jobs } from "@repo/db";
+import { db } from "@ever-hust/db";
+import { jobs } from "@ever-hust/db";
 import { and, eq, ilike, or, gte, lte, desc, sql } from "drizzle-orm";
-import { escapeIlike } from "@repo/db";
+import { escapeIlike } from "@ever-hust/db";
 
 export const searchJobsTool = tool({
   description:

@@ -2,20 +2,21 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Button } from "@repo/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@repo/ui/card";
-import { Badge } from "@repo/ui/badge";
-import { Separator } from "@repo/ui/separator";
+import { Button } from "@ever-hust/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@ever-hust/ui/card";
+import { Badge } from "@ever-hust/ui/badge";
+import { Separator } from "@ever-hust/ui/separator";
 import { Check, Loader2, Shield, Zap, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { safeExternalUrl } from "@/lib/safe-url";
+import { APP_NAME } from "@ever-hust/utils";
 
 const plans = [
   {
     name: "Free",
     price: "$0",
     period: "forever",
-    description: "Try Ever Jobs with basic features",
+    description: `Try ${APP_NAME} with basic features`,
     features: [
       "10 AI messages per day",
       "5 job searches per day",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
-import { getSupabaseClient } from "@repo/supabase";
+import { getSupabaseClient } from "@ever-hust/supabase";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 export interface RealtimeJob {

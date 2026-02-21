@@ -2,10 +2,10 @@
 
 import { useState, useCallback } from "react";
 import { CreditCard, Loader2 } from "lucide-react";
-import { Badge } from "@repo/ui/badge";
-import { Button } from "@repo/ui/button";
-import { Card } from "@repo/ui/card";
-import { Separator } from "@repo/ui/separator";
+import { Badge } from "@ever-hust/ui/badge";
+import { Button } from "@ever-hust/ui/button";
+import { Card } from "@ever-hust/ui/card";
+import { Separator } from "@ever-hust/ui/separator";
 import { toast } from "sonner";
 import { safeExternalUrl } from "@/lib/safe-url";
 

@@ -1,8 +1,8 @@
 "use client";
 
 import { AlertCircle, RefreshCw } from "lucide-react";
-import { Button } from "@repo/ui/button";
-import { cn } from "@repo/ui/lib/utils";
+import { Button } from "@ever-hust/ui/button";
+import { cn } from "@ever-hust/ui/lib/utils";
 
 interface ErrorStateProps {
   /** Error message to display */

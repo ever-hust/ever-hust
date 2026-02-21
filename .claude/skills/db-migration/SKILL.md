@@ -31,7 +31,7 @@ Create and apply Drizzle ORM schema changes for the Ever Jobs PostgreSQL databas
 
 6. **Apply to database**: Run `pnpm db:push` to apply schema changes to the database.
 
-7. **Verify**: Run `pnpm --filter @repo/db check-types` to ensure types are correct.
+7. **Verify**: Run `pnpm --filter @ever-hust/db check-types` to ensure types are correct.
 
 ## Schema Conventions
 

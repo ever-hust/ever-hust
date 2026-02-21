@@ -3,13 +3,14 @@
 import { Suspense, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Button } from "@repo/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@repo/ui/card";
-import { Separator } from "@repo/ui/separator";
-import { Skeleton } from "@repo/ui/skeleton";
+import { Button } from "@ever-hust/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@ever-hust/ui/card";
+import { Separator } from "@ever-hust/ui/separator";
+import { Skeleton } from "@ever-hust/ui/skeleton";
 import { BriefcaseBusiness, Linkedin, Shield, Sparkles, Search, FileText } from "lucide-react";
-import { signIn } from "@repo/auth/client";
+import { signIn } from "@ever-hust/auth/client";
 import { toast } from "sonner";
+import { APP_NAME } from "@ever-hust/utils";
 
 const VALUE_PROPS = [
   { icon: Search, text: "Search 2M+ jobs across 25+ platforms" },
@@ -102,9 +103,9 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="mb-8 text-center">
-          <Link href="/" className="inline-flex items-center gap-2" aria-label="Ever Jobs home">
+          <Link href="/" className="inline-flex items-center gap-2" aria-label={`${APP_NAME} home`}>
             <BriefcaseBusiness className="h-8 w-8 text-primary" aria-hidden="true" />
-            <span className="text-2xl font-bold">Ever Jobs</span>
+            <span className="text-2xl font-bold">{APP_NAME}</span>
           </Link>
         </div>
 

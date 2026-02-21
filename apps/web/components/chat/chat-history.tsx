@@ -2,8 +2,8 @@
 
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { History, MessageSquare, ChevronRight, Loader2, X, Trash2, Search } from "lucide-react";
-import { Button } from "@repo/ui/button";
-import { cn } from "@repo/ui/lib/utils";
+import { Button } from "@ever-hust/ui/button";
+import { cn } from "@ever-hust/ui/lib/utils";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { formatSessionDate, timeAgo } from "@/lib/format-date";
 

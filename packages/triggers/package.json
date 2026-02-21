@@ -1,5 +1,5 @@
 {
-  "name": "@repo/triggers",
+  "name": "@ever-hust/triggers",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,13 +11,13 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@repo/db": "workspace:*",
-    "@repo/email": "workspace:*",
-    "@repo/jobs-api": "workspace:*",
+    "@ever-hust/db": "workspace:*",
+    "@ever-hust/email": "workspace:*",
+    "@ever-hust/jobs-api": "workspace:*",
     "@trigger.dev/sdk": "^3.0.0"
   },
   "devDependencies": {
-    "@repo/typescript-config": "workspace:*",
+    "@ever-hust/typescript-config": "workspace:*",
     "@types/node": "^22.15.3",
     "typescript": "5.9.2"
   }

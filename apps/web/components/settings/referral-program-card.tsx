@@ -11,12 +11,13 @@ import {
   Coins,
   Send,
 } from "lucide-react";
-import { Badge } from "@repo/ui/badge";
-import { Button } from "@repo/ui/button";
-import { Card } from "@repo/ui/card";
-import { Input } from "@repo/ui/input";
-import { Separator } from "@repo/ui/separator";
+import { Badge } from "@ever-hust/ui/badge";
+import { Button } from "@ever-hust/ui/button";
+import { Card } from "@ever-hust/ui/card";
+import { Input } from "@ever-hust/ui/input";
+import { Separator } from "@ever-hust/ui/separator";
 import { toast } from "sonner";
+import { APP_NAME } from "@ever-hust/utils";
 
 interface Referral {
   id: number;
@@ -121,8 +122,8 @@ export function ReferralProgramCard() {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: "Join Ever Jobs",
-          text: "Check out Ever Jobs - an AI-powered job search platform! Sign up with my referral link and we both earn credits.",
+          title: `Join ${APP_NAME}`,
+          text: `Check out ${APP_NAME} - an AI-powered job search platform! Sign up with my referral link and we both earn credits.`,
           url: referralLink,
         });
       } catch (err) {
@@ -201,7 +202,7 @@ export function ReferralProgramCard() {
         Referral Program
       </h2>
       <p className="mt-1 text-xs text-muted-foreground">
-        Invite friends to Ever Jobs and earn credits when they sign up.
+        Invite friends to {APP_NAME} and earn credits when they sign up.
       </p>
 
       <div className="mt-4">

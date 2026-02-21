@@ -16,11 +16,11 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
-} from "@repo/ui/card";
-import { Button } from "@repo/ui/button";
-import { Badge } from "@repo/ui/badge";
-import { Input } from "@repo/ui/input";
-import { Skeleton } from "@repo/ui/skeleton";
+} from "@ever-hust/ui/card";
+import { Button } from "@ever-hust/ui/button";
+import { Badge } from "@ever-hust/ui/badge";
+import { Input } from "@ever-hust/ui/input";
+import { Skeleton } from "@ever-hust/ui/skeleton";
 import { apiFetch } from "@/lib/api-client";
 
 interface JobRow {

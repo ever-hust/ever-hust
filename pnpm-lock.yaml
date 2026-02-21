@@ -38,6 +38,33 @@ importers:
       '@ai-sdk/react':
         specifier: ^3.0.88
         version: 3.0.88(react@19.2.4)(zod@3.25.76)
+      '@ever-hust/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
+      '@ever-hust/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
+      '@ever-hust/cv-parser':
+        specifier: workspace:*
+        version: link:../../packages/cv-parser
+      '@ever-hust/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@ever-hust/email':
+        specifier: workspace:^
+        version: link:../../packages/email
+      '@ever-hust/stripe':
+        specifier: workspace:*
+        version: link:../../packages/stripe
+      '@ever-hust/supabase':
+        specifier: workspace:*
+        version: link:../../packages/supabase
+      '@ever-hust/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@ever-hust/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
       '@langfuse/client':
         specifier: ^4.6.1
         version: 4.6.1(@opentelemetry/api@1.9.0)
@@ -83,33 +110,6 @@ importers:
       '@radix-ui/react-slot':
         specifier: ^1.1.0
         version: 1.2.4(@types/react@19.2.2)(react@19.2.4)
-      '@repo/ai':
-        specifier: workspace:*
-        version: link:../../packages/ai
-      '@repo/auth':
-        specifier: workspace:*
-        version: link:../../packages/auth
-      '@repo/cv-parser':
-        specifier: workspace:*
-        version: link:../../packages/cv-parser
-      '@repo/db':
-        specifier: workspace:*
-        version: link:../../packages/db
-      '@repo/email':
-        specifier: workspace:^
-        version: link:../../packages/email
-      '@repo/stripe':
-        specifier: workspace:*
-        version: link:../../packages/stripe
-      '@repo/supabase':
-        specifier: workspace:*
-        version: link:../../packages/supabase
-      '@repo/ui':
-        specifier: workspace:*
-        version: link:../../packages/ui
-      '@repo/utils':
-        specifier: workspace:*
-        version: link:../../packages/utils
       '@upstash/ratelimit':
         specifier: ^2.0.8
         version: 2.0.8(@upstash/redis@1.36.2)
@@ -159,10 +159,10 @@ importers:
         specifier: ^3.24.0
         version: 3.25.76
     devDependencies:
-      '@repo/eslint-config':
+      '@ever-hust/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
-      '@repo/typescript-config':
+      '@ever-hust/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
       '@tailwindcss/postcss':
@@ -195,21 +195,24 @@ importers:
       '@ai-sdk/anthropic':
         specifier: ^3.0.44
         version: 3.0.44(zod@3.25.76)
+      '@ever-hust/db':
+        specifier: workspace:*
+        version: link:../db
+      '@ever-hust/jobs-api':
+        specifier: workspace:*
+        version: link:../jobs-api
+      '@ever-hust/stripe':
+        specifier: workspace:*
+        version: link:../stripe
+      '@ever-hust/utils':
+        specifier: workspace:*
+        version: link:../utils
       '@langfuse/client':
         specifier: ^4.6.1
         version: 4.6.1(@opentelemetry/api@1.9.0)
       '@openrouter/ai-sdk-provider':
         specifier: ^2.2.3
         version: 2.2.3(ai@6.0.86(zod@3.25.76))(zod@3.25.76)
-      '@repo/db':
-        specifier: workspace:*
-        version: link:../db
-      '@repo/jobs-api':
-        specifier: workspace:*
-        version: link:../jobs-api
-      '@repo/stripe':
-        specifier: workspace:*
-        version: link:../stripe
       '@upstash/ratelimit':
         specifier: ^2.0.8
         version: 2.0.8(@upstash/redis@1.36.2)
@@ -226,7 +229,7 @@ importers:
         specifier: ^3.24.0
         version: 3.25.76
     devDependencies:
-      '@repo/typescript-config':
+      '@ever-hust/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       '@types/node':
@@ -238,17 +241,17 @@ importers:
 
   packages/auth:
     dependencies:
-      '@repo/db':
+      '@ever-hust/db':
         specifier: workspace:*
         version: link:../db
-      '@repo/email':
+      '@ever-hust/email':
         specifier: workspace:*
         version: link:../email
       better-auth:
         specifier: ^1.2.0
         version: 1.4.18(drizzle-kit@0.31.9)(drizzle-orm@0.45.1(@opentelemetry/api@1.9.0)(@upstash/redis@1.36.2)(kysely@0.28.11)(postgres@3.4.8))(next@16.1.5(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.58.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
     devDependencies:
-      '@repo/typescript-config':
+      '@ever-hust/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       '@types/node':
@@ -265,7 +268,7 @@ importers:
       '@ai-sdk/anthropic':
         specifier: ^3.0.44
         version: 3.0.44(zod@3.25.76)
-      '@repo/supabase':
+      '@ever-hust/supabase':
         specifier: workspace:*
         version: link:../supabase
       ai:
@@ -278,7 +281,7 @@ importers:
         specifier: ^3.24.0
         version: 3.25.76
     devDependencies:
-      '@repo/typescript-config':
+      '@ever-hust/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       '@types/node':
@@ -300,7 +303,7 @@ importers:
         specifier: ^3.4.5
         version: 3.4.8
     devDependencies:
-      '@repo/typescript-config':
+      '@ever-hust/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       '@types/node':
@@ -318,6 +321,9 @@ importers:
 
   packages/email:
     dependencies:
+      '@ever-hust/utils':
+        specifier: workspace:*
+        version: link:../utils
       '@react-email/components':
         specifier: ^0.0.36
         version: 0.0.36(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -328,7 +334,7 @@ importers:
         specifier: ^4.0.0
         version: 4.8.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
     devDependencies:
-      '@repo/typescript-config':
+      '@ever-hust/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       '@types/node':
@@ -383,7 +389,7 @@ importers:
         specifier: ^3.24.0
         version: 3.25.76
     devDependencies:
-      '@repo/typescript-config':
+      '@ever-hust/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       '@types/node':
@@ -399,7 +405,7 @@ importers:
         specifier: ^17.0.0
         version: 17.7.0
     devDependencies:
-      '@repo/typescript-config':
+      '@ever-hust/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       '@types/node':
@@ -415,7 +421,7 @@ importers:
         specifier: ^2.49.0
         version: 2.95.3
     devDependencies:
-      '@repo/typescript-config':
+      '@ever-hust/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       '@types/node':
@@ -427,20 +433,20 @@ importers:
 
   packages/triggers:
     dependencies:
-      '@repo/db':
+      '@ever-hust/db':
         specifier: workspace:*
         version: link:../db
-      '@repo/email':
+      '@ever-hust/email':
         specifier: workspace:*
         version: link:../email
-      '@repo/jobs-api':
+      '@ever-hust/jobs-api':
         specifier: workspace:*
         version: link:../jobs-api
       '@trigger.dev/sdk':
         specifier: ^3.0.0
         version: 3.3.17(zod@3.23.8)
     devDependencies:
-      '@repo/typescript-config':
+      '@ever-hust/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       '@types/node':
@@ -503,10 +509,10 @@ importers:
         specifier: ^3.0.2
         version: 3.4.1
     devDependencies:
-      '@repo/eslint-config':
+      '@ever-hust/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
-      '@repo/typescript-config':
+      '@ever-hust/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       '@types/node':
@@ -531,7 +537,7 @@ importers:
         specifier: ^3.24.0
         version: 3.25.76
     devDependencies:
-      '@repo/typescript-config':
+      '@ever-hust/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       '@types/node':
@@ -5985,7 +5991,7 @@ snapshots:
 
   '@bcoe/v8-coverage@0.2.3': {}
 
-  '@better-auth/core@1.4.18(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.8(zod@4.3.6))(jose@6.1.3)(kysely@0.28.11)(nanostores@1.1.0)':
+  '@better-auth/core@1.4.18(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.8(zod@3.25.76))(jose@6.1.3)(kysely@0.28.11)(nanostores@1.1.0)':
     dependencies:
       '@better-auth/utils': 0.3.0
       '@better-fetch/fetch': 1.1.21
@@ -5996,9 +6002,9 @@ snapshots:
       nanostores: 1.1.0
       zod: 4.3.6
 
-  '@better-auth/telemetry@1.4.18(@better-auth/core@1.4.18(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.8(zod@4.3.6))(jose@6.1.3)(kysely@0.28.11)(nanostores@1.1.0))':
+  '@better-auth/telemetry@1.4.18(@better-auth/core@1.4.18(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.8(zod@3.25.76))(jose@6.1.3)(kysely@0.28.11)(nanostores@1.1.0))':
     dependencies:
-      '@better-auth/core': 1.4.18(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.8(zod@4.3.6))(jose@6.1.3)(kysely@0.28.11)(nanostores@1.1.0)
+      '@better-auth/core': 1.4.18(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.8(zod@3.25.76))(jose@6.1.3)(kysely@0.28.11)(nanostores@1.1.0)
       '@better-auth/utils': 0.3.0
       '@better-fetch/fetch': 1.1.21
 
@@ -8357,8 +8363,8 @@ snapshots:
 
   better-auth@1.4.18(drizzle-kit@0.31.9)(drizzle-orm@0.45.1(@opentelemetry/api@1.9.0)(@upstash/redis@1.36.2)(kysely@0.28.11)(postgres@3.4.8))(next@16.1.5(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.58.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
     dependencies:
-      '@better-auth/core': 1.4.18(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.8(zod@4.3.6))(jose@6.1.3)(kysely@0.28.11)(nanostores@1.1.0)
-      '@better-auth/telemetry': 1.4.18(@better-auth/core@1.4.18(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.8(zod@4.3.6))(jose@6.1.3)(kysely@0.28.11)(nanostores@1.1.0))
+      '@better-auth/core': 1.4.18(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.8(zod@3.25.76))(jose@6.1.3)(kysely@0.28.11)(nanostores@1.1.0)
+      '@better-auth/telemetry': 1.4.18(@better-auth/core@1.4.18(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.8(zod@3.25.76))(jose@6.1.3)(kysely@0.28.11)(nanostores@1.1.0))
       '@better-auth/utils': 0.3.0
       '@better-fetch/fetch': 1.1.21
       '@noble/ciphers': 2.1.1

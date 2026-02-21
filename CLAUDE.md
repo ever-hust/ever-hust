@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Ever Jobs Platform is an AI-powered job search platform where the primary UX is a conversational AI assistant. Users interact through a split-screen interface: AI chat on the left, dynamic jobs canvas on the right. Authentication is via LinkedIn OAuth.
+Hust Platform is an AI-powered job search platform where the primary UX is a conversational AI assistant. Users interact through a split-screen interface: AI chat on the left, dynamic jobs canvas on the right. Authentication is via LinkedIn OAuth.
 
 **Domain**: everjobs.ai | **License**: Proprietary (Ever Co. LTD)
 
@@ -53,13 +53,13 @@ ANALYZE=true pnpm build   # Generate bundle analysis report
 
 ### Monorepo Structure
 
-Turborepo with `apps/*` and `packages/*` workspaces. All packages use `@repo/` namespace and are referenced via `workspace:*` protocol.
+Turborepo with `apps/*` and `packages/*` workspaces. All packages use `@ever-hust/` namespace and are referenced via `workspace:*` protocol.
 
 - **`apps/web/`** — Next.js application (the only app)
 - **`packages/ai/`** — AI orchestrator agent, tools, model router, prompts, rate limits
 - **`packages/db/`** — Drizzle ORM schemas, database client (lazy singleton via Proxy), and shared DB helpers (e.g. `escapeIlike`)
 - **`packages/auth/`** — BetterAuth configuration with LinkedIn OAuth + welcome email hook
-- **`packages/ui/`** — ShadCN components exported as `@repo/ui/<component-name>`
+- **`packages/ui/`** — ShadCN components exported as `@ever-hust/ui/<component-name>`
 - **`packages/stripe/`** — Stripe checkout, portal, webhook parsing, plan definitions
 - **`packages/jobs-api/`** — Ever Jobs external API client with circuit breaker + retry
 - **`packages/email/`** — React Email templates + Resend sender
@@ -125,7 +125,7 @@ API routes in `apps/web/app/api/` follow a consistent pattern:
 - **`apps/web/components/shared/`** — Reusable components (dialogs, error states, keyboard shortcuts)
 - **`apps/web/components/onboarding/`** — New user onboarding flow
 - **`apps/web/lib/constants.ts`** — Shared application constants (AI limits, free-tier caps, canvas settings)
-- **`packages/ui/src/alert-dialog.tsx`** — ShadCN AlertDialog component (imported as `@repo/ui/alert-dialog`)
+- **`packages/ui/src/alert-dialog.tsx`** — ShadCN AlertDialog component (imported as `@ever-hust/ui/alert-dialog`)
 
 ### Structured Data (JSON-LD)
 
@@ -158,7 +158,7 @@ Located in `apps/web/hooks/`. Key hooks:
 
 ### UI Package Pattern
 
-ShadCN components in `packages/ui/src/` are imported as `@repo/ui/<component-name>` (e.g., `import { Button } from "@repo/ui/button"`). The package uses direct file exports, not a barrel.
+ShadCN components in `packages/ui/src/` are imported as `@ever-hust/ui/<component-name>` (e.g., `import { Button } from "@ever-hust/ui/button"`). The package uses direct file exports, not a barrel.
 
 ### Telemetry
 

@@ -1,4 +1,4 @@
-import { db, users } from "@repo/db";
+import { db, users } from "@ever-hust/db";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
@@ -38,7 +38,7 @@ export async function DELETE() {
     // Best-effort Stripe customer deletion (GDPR right to erasure)
     if (dbUser?.stripeCustomerId) {
       try {
-        const { getStripe } = await import("@repo/stripe");
+        const { getStripe } = await import("@ever-hust/stripe");
         await getStripe().customers.del(dbUser.stripeCustomerId);
       } catch (stripeErr) {
         // Log but don't fail the account deletion — DB record is already gone

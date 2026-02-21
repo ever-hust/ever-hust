@@ -1,12 +1,12 @@
-import { db } from "@repo/db";
-import { users } from "@repo/db";
+import { db } from "@ever-hust/db";
+import { users } from "@ever-hust/db";
 import { eq } from "drizzle-orm";
 import type { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { settingsPatchSchema, parseBody } from "../../../../lib/api-schemas";
 import { applyRateLimit } from "../../../../lib/rate-limit";
 import { apiSuccess, apiBadRequest, apiError, safeJsonParse } from "../../../../lib/api-response";
-import { encryptApiKey } from "@repo/ai/crypto";
+import { encryptApiKey } from "@ever-hust/ai/crypto";
 
 // PATCH /api/user/settings - Update user settings
 export async function PATCH(req: Request) {

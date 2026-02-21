@@ -11,10 +11,10 @@ import {
   ExternalLink,
   Filter,
 } from "lucide-react";
-import { Button } from "@repo/ui/button";
-import { Badge } from "@repo/ui/badge";
-import { Skeleton } from "@repo/ui/skeleton";
-import { cn } from "@repo/ui/lib/utils";
+import { Button } from "@ever-hust/ui/button";
+import { Badge } from "@ever-hust/ui/badge";
+import { Skeleton } from "@ever-hust/ui/skeleton";
+import { cn } from "@ever-hust/ui/lib/utils";
 import { ScrollToTop } from "@/components/shared/scroll-to-top";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";

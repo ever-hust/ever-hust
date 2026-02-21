@@ -1,10 +1,12 @@
+import { APP_NAME } from "@ever-hust/utils";
+
 export function StructuredData() {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://everjobs.ai";
 
   const organization = {
     "@context": "https://schema.org",
     "@type": "Organization",
-    name: "Ever Jobs",
+    name: APP_NAME,
     url: baseUrl,
     logo: `${baseUrl}/logo.png`,
     description:
@@ -23,7 +25,7 @@ export function StructuredData() {
   const webSite = {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    name: "Ever Jobs",
+    name: APP_NAME,
     url: baseUrl,
     description:
       "Chat with AI to find jobs across 50+ boards, generate personalized cover letters, and get interview prep.",
@@ -40,7 +42,7 @@ export function StructuredData() {
   const softwareApp = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    name: "Ever Jobs",
+    name: APP_NAME,
     applicationCategory: "BusinessApplication",
     operatingSystem: "Web",
     offers: [

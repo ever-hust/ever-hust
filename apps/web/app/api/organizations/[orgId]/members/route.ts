@@ -1,10 +1,10 @@
-import { db } from "@repo/db";
+import { db } from "@ever-hust/db";
 import {
   organizationMembers,
   organizationInvitations,
   organizations,
   users,
-} from "@repo/db/schema";
+} from "@ever-hust/db/schema";
 import { eq, and, count } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireOrgMember, requireOrgRole } from "../../../../../lib/auth-org";

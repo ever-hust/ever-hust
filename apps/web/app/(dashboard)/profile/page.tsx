@@ -15,11 +15,11 @@ import {
   Settings,
   Calendar,
 } from "lucide-react";
-import { Badge } from "@repo/ui/badge";
-import { Button } from "@repo/ui/button";
-import { Card } from "@repo/ui/card";
-import { Skeleton } from "@repo/ui/skeleton";
-import { Avatar, AvatarFallback } from "@repo/ui/avatar";
+import { Badge } from "@ever-hust/ui/badge";
+import { Button } from "@ever-hust/ui/button";
+import { Card } from "@ever-hust/ui/card";
+import { Skeleton } from "@ever-hust/ui/skeleton";
+import { Avatar, AvatarFallback } from "@ever-hust/ui/avatar";
 import dynamic from "next/dynamic";
 
 const CVDropzone = dynamic(

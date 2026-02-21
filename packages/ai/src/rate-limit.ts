@@ -1,6 +1,6 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
-import { FREE_LIMITS } from "@repo/stripe";
+import { FREE_LIMITS } from "@ever-hust/stripe";
 
 // ---------------------------------------------------------------------------
 // Upstash Redis rate limiter for distributed, production-safe counting.

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { APP_NAME } from "@ever-hust/utils";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/get-session-user";
 import { getUserRole } from "@/lib/auth-roles";
@@ -7,7 +8,7 @@ import { AdminSidebar } from "@/components/admin/admin-sidebar";
 export const metadata: Metadata = {
   title: {
     default: "Admin",
-    template: "%s | Ever Jobs Admin",
+    template: `%s | ${APP_NAME} Admin`,
   },
   robots: {
     index: false,

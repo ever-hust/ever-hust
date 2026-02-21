@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "crypto";
-import { db } from "@repo/db";
+import { db } from "@ever-hust/db";
 import { sql } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 import { applyRateLimit } from "../../../lib/rate-limit";

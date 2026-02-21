@@ -10,7 +10,7 @@ import { ChatHistory } from "./chat-history";
 import { AgentStatus, type AgentState } from "./agent-status";
 import { useChatPersistence } from "@/hooks/use-chat-persistence";
 import { MessageSquarePlus, RefreshCcw, ArrowDown } from "lucide-react";
-import { Button } from "@repo/ui/button";
+import { Button } from "@ever-hust/ui/button";
 
 // ---------------------------------------------------------------------------
 // Constants

@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertCircle, RefreshCw } from "lucide-react";
-import { Button } from "@repo/ui/button";
+import { Button } from "@ever-hust/ui/button";
 
 interface ErrorFallbackProps {
   /** Short title describing the error context */

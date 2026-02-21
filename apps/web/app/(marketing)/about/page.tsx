@@ -3,27 +3,28 @@ import { Footer } from "@/components/landing/footer";
 import { AboutStructuredData } from "@/components/landing/about-structured-data";
 import { BriefcaseBusiness, Bot, Users, Globe } from "lucide-react";
 import type { Metadata } from "next";
+import { APP_NAME } from "@ever-hust/utils";
 
 export const metadata: Metadata = {
   title: "About",
   description:
-    "Learn about Ever Jobs, the AI-powered job search platform that helps you find, apply, and land your dream job through natural conversation.",
+    `Learn about ${APP_NAME}, the AI-powered job search platform that helps you find, apply, and land your dream job through natural conversation.`,
   alternates: {
     canonical: "/about",
   },
   openGraph: {
-    title: "About — Ever Jobs",
+    title: `About — ${APP_NAME}`,
     description:
-      "Learn about Ever Jobs, the AI-powered job search platform helping job seekers worldwide.",
+      `Learn about ${APP_NAME}, the AI-powered job search platform helping job seekers worldwide.`,
     url: "/about",
-    siteName: "Ever Jobs",
+    siteName: APP_NAME,
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "About — Ever Jobs",
+    title: `About — ${APP_NAME}`,
     description:
-      "Learn about Ever Jobs, the AI-powered job search platform helping job seekers worldwide.",
+      `Learn about ${APP_NAME}, the AI-powered job search platform helping job seekers worldwide.`,
   },
 };
 
@@ -63,10 +64,10 @@ export default function AboutPage() {
         {/* Hero Section */}
         <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
-            About Ever Jobs
+            About {APP_NAME}
           </h1>
           <p className="mt-6 text-lg leading-8 text-muted-foreground">
-            Ever Jobs is an AI-powered job search platform built by{" "}
+            {APP_NAME} is an AI-powered job search platform built by{" "}
             <a
               href="https://ever.co"
               target="_blank"
@@ -90,7 +91,7 @@ export default function AboutPage() {
               stressful. We combine the latest advances in AI with a deep
               understanding of the hiring landscape to connect talented people
               with the right opportunities. Whether you are actively searching
-              or just exploring, Ever Jobs is your intelligent career companion.
+              or just exploring, {APP_NAME} is your intelligent career companion.
             </p>
           </div>
         </div>
@@ -123,7 +124,7 @@ export default function AboutPage() {
           <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
             <h2 className="text-2xl font-bold tracking-tight">Our Team</h2>
             <p className="mt-4 text-lg leading-8 text-muted-foreground">
-              Ever Jobs is built by a distributed team of engineers, designers,
+              {APP_NAME} is built by a distributed team of engineers, designers,
               and AI researchers at Ever Co. LTD. We are passionate about using
               technology to solve real-world problems and are always looking for
               talented people to join us.

@@ -15,9 +15,9 @@ import {
   Menu,
   X,
 } from "lucide-react";
-import { Button } from "@repo/ui/button";
-import { Separator } from "@repo/ui/separator";
-import { cn } from "@repo/ui/lib/utils";
+import { Button } from "@ever-hust/ui/button";
+import { Separator } from "@ever-hust/ui/separator";
+import { cn } from "@ever-hust/ui/lib/utils";
 
 const adminNavItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },

@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { createElement } from "react";
+import { APP_NAME } from "@ever-hust/utils";
 
 interface BrandingData {
   name: string;
@@ -27,7 +28,7 @@ interface BrandingContextValue extends BrandingData {
 }
 
 const DEFAULT_BRANDING: BrandingData = {
-  name: "Ever Jobs",
+  name: APP_NAME,
   logoUrl: null,
   faviconUrl: null,
   primaryColor: "#3b82f6",

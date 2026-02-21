@@ -1,4 +1,4 @@
-import { Badge } from "@repo/ui/badge";
+import { Badge } from "@ever-hust/ui/badge";
 import { Globe } from "lucide-react";
 
 const JOB_SOURCES = [

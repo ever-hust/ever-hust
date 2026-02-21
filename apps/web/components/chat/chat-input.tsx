@@ -2,7 +2,7 @@
 
 import { useRef, useCallback, useEffect } from "react";
 import { Send, StopCircle } from "lucide-react";
-import { Button } from "@repo/ui/button";
+import { Button } from "@ever-hust/ui/button";
 
 interface ChatInputProps {
   input: string;

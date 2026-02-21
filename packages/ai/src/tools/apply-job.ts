@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { db } from "@repo/db";
-import { users, jobs, applications, agentInstances, userJobs } from "@repo/db";
+import { db } from "@ever-hust/db";
+import { users, jobs, applications, agentInstances, userJobs } from "@ever-hust/db";
 import { eq, and } from "drizzle-orm";
 
 export const applyJobTool = tool({

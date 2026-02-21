@@ -14,14 +14,14 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
-} from "@repo/ui/card";
-import { Button } from "@repo/ui/button";
-import { Badge } from "@repo/ui/badge";
-import { Input } from "@repo/ui/input";
-import { Skeleton } from "@repo/ui/skeleton";
+} from "@ever-hust/ui/card";
+import { Button } from "@ever-hust/ui/button";
+import { Badge } from "@ever-hust/ui/badge";
+import { Input } from "@ever-hust/ui/input";
+import { Skeleton } from "@ever-hust/ui/skeleton";
 import { apiFetch, apiMutate } from "@/lib/api-client";
 import { formatDate } from "@/lib/format-date";
-import type { UserRole } from "@repo/db/schema";
+import type { UserRole } from "@ever-hust/db/schema";
 
 interface UserRow {
   id: string;

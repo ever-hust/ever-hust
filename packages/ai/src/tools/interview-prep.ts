@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { db } from "@repo/db";
-import { users, jobs } from "@repo/db";
+import { db } from "@ever-hust/db";
+import { users, jobs } from "@ever-hust/db";
 import { eq } from "drizzle-orm";
 
 export const interviewPrepTool = tool({

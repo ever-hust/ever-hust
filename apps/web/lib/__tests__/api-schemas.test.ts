@@ -1405,7 +1405,7 @@ describe("brandingConfigSchema", () => {
 
   it("accepts full branding config", () => {
     const result = brandingConfigSchema.safeParse({
-      name: "Ever Jobs",
+      name: "Hust",
       logoUrl: "https://example.com/logo.png",
       faviconUrl: "https://example.com/favicon.ico",
       primaryColor: "#3b82f6",

@@ -2,9 +2,9 @@
 
 import { Search, X, SlidersHorizontal } from "lucide-react";
 import { useState, useEffect, useRef, useCallback, memo } from "react";
-import { Input } from "@repo/ui/input";
-import { Button } from "@repo/ui/button";
-import { Badge } from "@repo/ui/badge";
+import { Input } from "@ever-hust/ui/input";
+import { Button } from "@ever-hust/ui/button";
+import { Badge } from "@ever-hust/ui/badge";
 
 export interface JobFilters {
   keywords?: string;

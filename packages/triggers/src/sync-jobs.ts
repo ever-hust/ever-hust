@@ -1,6 +1,6 @@
 import { task, schedules } from "@trigger.dev/sdk/v3";
-import { db, jobs } from "@repo/db";
-import { everJobsClient } from "@repo/jobs-api";
+import { db, jobs } from "@ever-hust/db";
+import { everJobsClient } from "@ever-hust/jobs-api";
 import { mapJobToDb, SEARCH_TERMS } from "./map-job";
 
 async function syncJobs() {

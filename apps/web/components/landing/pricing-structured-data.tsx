@@ -1,10 +1,12 @@
+import { APP_NAME } from "@ever-hust/utils";
+
 export function PricingStructuredData() {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://everjobs.ai";
 
   const product = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    name: "Ever Jobs Pro",
+    name: `${APP_NAME} Pro`,
     applicationCategory: "BusinessApplication",
     operatingSystem: "Web",
     url: `${baseUrl}/pricing`,
@@ -16,7 +18,7 @@ export function PricingStructuredData() {
         name: "Free",
         price: "0",
         priceCurrency: "USD",
-        description: "Try Ever Jobs with basic features",
+        description: `Try ${APP_NAME} with basic features`,
         url: `${baseUrl}/pricing`,
       },
       {

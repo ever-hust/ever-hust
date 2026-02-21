@@ -1,7 +1,7 @@
 // Date-grouped aggregation queries may be slow on large tables — allow up to 30s
 export const maxDuration = 30;
 
-import { db } from "@repo/db";
+import { db } from "@ever-hust/db";
 import { sql } from "drizzle-orm";
 import type { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "../../../../../lib/auth-roles";

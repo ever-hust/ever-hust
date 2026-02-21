@@ -7,10 +7,10 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from "@repo/ui/dialog";
-import { Button } from "@repo/ui/button";
-import { Badge } from "@repo/ui/badge";
-import { Skeleton } from "@repo/ui/skeleton";
+} from "@ever-hust/ui/dialog";
+import { Button } from "@ever-hust/ui/button";
+import { Badge } from "@ever-hust/ui/badge";
+import { Skeleton } from "@ever-hust/ui/skeleton";
 import {
   ExternalLink,
   MapPin,
@@ -22,7 +22,7 @@ import {
   Share2,
   Check,
 } from "lucide-react";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "@ever-hust/ui/lib/utils";
 import Link from "next/link";
 import { timeAgo, formatSalary, formatLocation } from "@/lib/format-date";
 import { safeExternalUrl } from "@/lib/safe-url";

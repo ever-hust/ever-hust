@@ -9,7 +9,7 @@ function createDb() {
   if (!connectionString) {
     throw new Error("DATABASE_URL environment variable is required");
   }
-  const client = postgres(connectionString);
+  const client = postgres(connectionString, { prepare: false });
   return drizzle(client, { schema });
 }
 

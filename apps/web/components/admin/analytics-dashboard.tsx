@@ -19,9 +19,9 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
-} from "@repo/ui/card";
-import { Skeleton } from "@repo/ui/skeleton";
-import { Button } from "@repo/ui/button";
+} from "@ever-hust/ui/card";
+import { Skeleton } from "@ever-hust/ui/skeleton";
+import { Button } from "@ever-hust/ui/button";
 import { apiFetch } from "@/lib/api-client";
 import { formatShortDate } from "@/lib/format-date";
 import { StatCard } from "@/components/admin/stat-card";

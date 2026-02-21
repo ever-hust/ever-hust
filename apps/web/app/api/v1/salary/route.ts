@@ -1,5 +1,5 @@
-import { db, escapeIlike } from "@repo/db";
-import { jobs } from "@repo/db";
+import { db, escapeIlike } from "@ever-hust/db";
+import { jobs } from "@ever-hust/db";
 import { and, ilike, isNotNull, or } from "drizzle-orm";
 import type { NextRequest } from "next/server";
 import { validateApiKey } from "../../../../lib/api-key-auth";
@@ -13,7 +13,7 @@ import {
   apiRateLimited,
   apiError,
 } from "../../../../lib/api-response";
-import { annualise, median } from "@repo/ai/tools/salary-helpers";
+import { annualise, median } from "@ever-hust/ai/tools/salary-helpers";
 
 // GET /api/v1/salary - Salary insights (API key or session auth)
 export async function GET(req: NextRequest) {

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Wifi, WifiOff } from "lucide-react";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "@ever-hust/ui/lib/utils";
 
 /** How long to show the "back online" banner before auto-hiding (ms). */
 const RECONNECTION_BANNER_MS = 3_000;

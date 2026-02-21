@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { MessageSquare, Search, FileText, Sparkles, Loader2 } from "lucide-react";
-import { Button } from "@repo/ui/button";
+import { Button } from "@ever-hust/ui/button";
 import { useUsageStats } from "@/hooks/use-usage-stats";
 
 /**

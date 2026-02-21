@@ -12,6 +12,7 @@ import {
   Button,
 } from "@react-email/components";
 import * as React from "react";
+import { APP_NAME } from "@ever-hust/utils";
 
 interface WelcomeEmailProps {
   userName: string;
@@ -25,15 +26,15 @@ export function WelcomeEmail({
   return (
     <Html>
       <Head />
-      <Preview>Welcome to Ever Jobs — your AI job search assistant</Preview>
+      <Preview>Welcome to {APP_NAME} — your AI job search assistant</Preview>
       <Body style={main}>
         <Container style={container}>
-          <Heading style={heading}>Welcome to Ever Jobs!</Heading>
+          <Heading style={heading}>Welcome to {APP_NAME}!</Heading>
 
           <Text style={paragraph}>Hi {userName},</Text>
 
           <Text style={paragraph}>
-            Thanks for joining Ever Jobs! We&apos;re excited to help you find
+            Thanks for joining {APP_NAME}! We&apos;re excited to help you find
             your next opportunity using the power of AI.
           </Text>
 
@@ -75,7 +76,7 @@ export function WelcomeEmail({
           <Hr style={hr} />
 
           <Text style={footer}>
-            Ever Jobs · Your AI-Powered Job Search Assistant
+            {APP_NAME} · Your AI-Powered Job Search Assistant
           </Text>
         </Container>
       </Body>

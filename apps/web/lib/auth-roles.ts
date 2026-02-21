@@ -1,7 +1,7 @@
 import { requireSessionUser } from "./get-session-user";
-import { db } from "@repo/db";
-import { users } from "@repo/db/schema";
-import type { UserRole } from "@repo/db/schema";
+import { db } from "@ever-hust/db";
+import { users } from "@ever-hust/db/schema";
+import type { UserRole } from "@ever-hust/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 

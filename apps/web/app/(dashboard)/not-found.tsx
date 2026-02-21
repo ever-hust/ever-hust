@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Button } from "@repo/ui/button";
+import { Button } from "@ever-hust/ui/button";
 import { SearchX, MessageSquare, Briefcase, ArrowLeft } from "lucide-react";
 
 export default function DashboardNotFound() {

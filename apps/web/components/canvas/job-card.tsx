@@ -2,9 +2,9 @@
 
 import { useState, useCallback, useRef, useEffect, memo } from "react";
 import { Heart, ExternalLink, MapPin, Building2, Clock, FileText, Share2, Check } from "lucide-react";
-import { Badge } from "@repo/ui/badge";
-import { Button } from "@repo/ui/button";
-import { cn } from "@repo/ui/lib/utils";
+import { Badge } from "@ever-hust/ui/badge";
+import { Button } from "@ever-hust/ui/button";
+import { cn } from "@ever-hust/ui/lib/utils";
 import Link from "next/link";
 import { formatSalary, formatLocation, timeAgo } from "@/lib/format-date";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";

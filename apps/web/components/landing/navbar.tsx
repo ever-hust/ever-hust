@@ -2,9 +2,10 @@
 
 import { useState, useCallback } from "react";
 import Link from "next/link";
-import { Button } from "@repo/ui/button";
+import { Button } from "@ever-hust/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { BriefcaseBusiness, Menu, X } from "lucide-react";
+import { APP_NAME } from "@ever-hust/utils";
 
 const NAV_LINKS = [
   { href: "#features", label: "Features" },
@@ -22,7 +23,7 @@ export function Navbar() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link href="/" className="flex items-center gap-2">
           <BriefcaseBusiness className="h-7 w-7 text-primary" aria-hidden="true" />
-          <span className="text-xl font-bold">Ever Jobs</span>
+          <span className="text-xl font-bold">{APP_NAME}</span>
         </Link>
 
         {/* Desktop nav */}

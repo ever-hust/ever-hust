@@ -11,6 +11,7 @@ import {
   Text,
 } from "@react-email/components";
 import * as React from "react";
+import { APP_NAME } from "@ever-hust/utils";
 
 interface JobAlertJob {
   title: string;
@@ -85,7 +86,7 @@ export function JobAlertEmail({
           </Text>
 
           <Text style={footer}>
-            Ever Jobs · Your AI-Powered Job Search Assistant
+            {APP_NAME} · Your AI-Powered Job Search Assistant
           </Text>
         </Container>
       </Body>

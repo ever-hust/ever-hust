@@ -14,7 +14,7 @@ import {
   pushSubscriptions,
   referrals,
   referralCredits,
-} from "@repo/db";
+} from "@ever-hust/db";
 import { eq, or, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";

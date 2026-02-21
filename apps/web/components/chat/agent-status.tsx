@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "@ever-hust/ui/lib/utils";
 import {
   Search,
   FileText,

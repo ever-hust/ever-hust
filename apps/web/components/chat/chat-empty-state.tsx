@@ -11,6 +11,7 @@ import {
   TrendingUp,
   GraduationCap,
 } from "lucide-react";
+import { APP_NAME } from "@ever-hust/utils";
 
 interface ChatEmptyStateProps {
   onSuggestionClick: (text: string) => void;
@@ -80,7 +81,7 @@ function ChatEmptyStateInner({ onSuggestionClick }: ChatEmptyStateProps) {
         {/* Greeting */}
         <div className="text-center">
           <h2 className="text-2xl font-bold">
-            Welcome to Ever Jobs{" "}
+            Welcome to {APP_NAME}{" "}
             <span role="img" aria-label="wave">
               👋
             </span>

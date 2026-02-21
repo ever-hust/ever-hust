@@ -2,8 +2,8 @@
 
 import { useState, useCallback } from "react";
 import { Bot, Check, Loader2 } from "lucide-react";
-import { Badge } from "@repo/ui/badge";
-import { Card } from "@repo/ui/card";
+import { Badge } from "@ever-hust/ui/badge";
+import { Card } from "@ever-hust/ui/card";
 import { toast } from "sonner";
 import { AI_MODELS } from "./types";
 

@@ -3,8 +3,8 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-} from "@repo/ui/card";
-import { Skeleton } from "@repo/ui/skeleton";
+} from "@ever-hust/ui/card";
+import { Skeleton } from "@ever-hust/ui/skeleton";
 
 interface StatCardProps {
   title: string;

@@ -4,8 +4,8 @@ export const maxDuration = 60;
 
 import { MAX_CHAT_PAYLOAD_CHARS } from "@/lib/constants";
 
-import { createOrchestratorStream, getModelForUser, getOrgAiConfig, mergeOrgConfig } from "@repo/ai";
-import { db, users, organizationMembers } from "@repo/db";
+import { createOrchestratorStream, getModelForUser, getOrgAiConfig, mergeOrgConfig } from "@ever-hust/ai";
+import { db, users, organizationMembers } from "@ever-hust/db";
 import { convertToModelMessages, type UIMessage } from "ai";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";

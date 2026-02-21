@@ -151,7 +151,7 @@ test.describe("About Page", () => {
 
   test("renders about page heading", async ({ page }) => {
     await expect(
-      page.getByRole("heading", { name: /about ever jobs/i })
+      page.getByRole("heading", { name: /about hust/i })
     ).toBeVisible();
   });
 
@@ -429,9 +429,9 @@ test.describe("Footer Links", () => {
     await expect(twitterLink).toHaveAttribute("rel", /noopener/);
   });
 
-  test("Ever Jobs logo links to home page", async ({ page }) => {
+  test("Hust logo links to home page", async ({ page }) => {
     const footer = page.locator('footer[role="contentinfo"]');
-    const logoLink = footer.getByRole("link", { name: /ever jobs home/i });
+    const logoLink = footer.getByRole("link", { name: /hust home/i });
     await expect(logoLink).toHaveAttribute("href", "/");
   });
 });
@@ -466,7 +466,7 @@ test.describe("Marketing Page Navigation", () => {
     await footer.getByRole("link", { name: "About" }).click();
     await expect(page).toHaveURL("/about");
     await expect(
-      page.getByRole("heading", { name: /about ever jobs/i })
+      page.getByRole("heading", { name: /about hust/i })
     ).toBeVisible();
   });
 

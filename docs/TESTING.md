@@ -2,13 +2,13 @@
 
 ## Overview
 
-Ever Jobs uses a multi-layer testing strategy:
+Hust uses a multi-layer testing strategy:
 
-| Layer | Tool | Location | Purpose |
-|-------|------|----------|---------|
-| Unit | Jest + ts-jest | `packages/*/src/**/*.test.ts` | Test business logic, schemas, utilities |
-| Integration | Jest | `packages/*/src/**/*.test.ts` | Test cross-package interactions |
-| E2E | Playwright | `tests/e2e/*.spec.ts` | Test user flows in the browser |
+| Layer       | Tool           | Location                      | Purpose                                 |
+| ----------- | -------------- | ----------------------------- | --------------------------------------- |
+| Unit        | Jest + ts-jest | `packages/*/src/**/*.test.ts` | Test business logic, schemas, utilities |
+| Integration | Jest           | `packages/*/src/**/*.test.ts` | Test cross-package interactions         |
+| E2E         | Playwright     | `tests/e2e/*.spec.ts`         | Test user flows in the browser          |
 
 ## Running Tests
 
@@ -96,12 +96,14 @@ The `jest.config.ts` at the repo root defines 6 test projects:
 > **IMPORTANT:** Tests must be run after every large feature build.
 
 ### Before commits:
+
 ```bash
 pnpm test          # Unit tests
 pnpm run build     # Type-check + build
 ```
 
 ### Before PRs:
+
 ```bash
 pnpm test          # Unit tests
 pnpm run build     # Full build
@@ -175,25 +177,25 @@ E2E tests need a running dev server with env vars set. Copy `.env.example` to `.
 
 **9 suites, 131 tests** — all passing.
 
-| Project | Suite(s) | Tests | What's tested |
-|---------|----------|-------|---------------|
-| ai | model-router, prompts, rate-limit, tool-schemas | 56 | Model routing, prompt management, rate limiting, tool input schemas |
-| stripe | plans | 8 | Pricing plans, plan lookup helpers |
-| utils | helpers | 18 | formatSalary, formatDate, truncate |
-| cv-parser | index | 8 | PDF parsing, data extraction, Zod schemas |
-| email | send | 13 | Retry logic, error handling, all 3 email types |
-| jobs-api | types | 7 | API client types, schema validation |
+| Project   | Suite(s)                                        | Tests | What's tested                                                       |
+| --------- | ----------------------------------------------- | ----- | ------------------------------------------------------------------- |
+| ai        | model-router, prompts, rate-limit, tool-schemas | 56    | Model routing, prompt management, rate limiting, tool input schemas |
+| stripe    | plans                                           | 8     | Pricing plans, plan lookup helpers                                  |
+| utils     | helpers                                         | 18    | formatSalary, formatDate, truncate                                  |
+| cv-parser | index                                           | 8     | PDF parsing, data extraction, Zod schemas                           |
+| email     | send                                            | 13    | Retry logic, error handling, all 3 email types                      |
+| jobs-api  | types                                           | 7     | API client types, schema validation                                 |
 
 ## Test Coverage Goals
 
-| Package | Current | Target |
-|---------|---------|--------|
-| @repo/ai | ~70% | 80%+ |
-| @repo/stripe | ~90% | 90%+ |
-| @repo/utils | ~90% | 90%+ |
-| @repo/cv-parser | ~50% | 70%+ |
-| @repo/email | ~80% | 90%+ |
-| E2E flows | 6 specs | 10+ specs |
+| Package         | Current | Target    |
+| --------------- | ------- | --------- |
+| @ever-hust/ai        | ~70%    | 80%+      |
+| @ever-hust/stripe    | ~90%    | 90%+      |
+| @ever-hust/utils     | ~90%    | 90%+      |
+| @ever-hust/cv-parser | ~50%    | 70%+      |
+| @ever-hust/email     | ~80%    | 90%+      |
+| E2E flows       | 6 specs | 10+ specs |
 
 ## Known Test Notes
 

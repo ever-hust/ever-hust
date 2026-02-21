@@ -1,12 +1,13 @@
-import { db } from "@repo/db";
-import { brandingConfigs } from "@repo/db/schema";
+import { db } from "@ever-hust/db";
+import { brandingConfigs } from "@ever-hust/db/schema";
 import { eq, isNull, and } from "drizzle-orm";
+import { APP_NAME } from "@ever-hust/utils";
 import { apiSuccess, apiError } from "../../../../lib/api-response";
 import { applyRateLimit } from "../../../../lib/rate-limit";
 
 /** Default branding when no config is found in the database. */
 const DEFAULT_BRANDING = {
-  name: "Ever Jobs",
+  name: APP_NAME,
   logoUrl: null,
   faviconUrl: null,
   primaryColor: "#3b82f6",

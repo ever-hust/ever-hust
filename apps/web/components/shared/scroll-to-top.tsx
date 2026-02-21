@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { ArrowUp } from "lucide-react";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "@ever-hust/ui/lib/utils";
 
 interface ScrollToTopProps {
   /** The scrollable container element ref. If not provided, uses window scroll. */

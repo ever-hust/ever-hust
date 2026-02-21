@@ -1,5 +1,5 @@
-import { db, escapeIlike } from "@repo/db";
-import { jobs } from "@repo/db";
+import { db, escapeIlike } from "@ever-hust/db";
+import { jobs } from "@ever-hust/db";
 import { and, eq, ilike, or, desc, sql } from "drizzle-orm";
 import type { NextRequest } from "next/server";
 import { validateApiKey } from "../../../../lib/api-key-auth";

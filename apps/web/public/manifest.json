@@ -1,6 +1,6 @@
 {
-  "name": "Ever Jobs - AI Job Search Assistant",
-  "short_name": "Ever Jobs",
+  "name": "Hust - AI Job Search Assistant",
+  "short_name": "Hust",
   "description": "Chat with AI to find, apply, and land your dream job. Search 50+ job boards, generate cover letters, and get interview prep.",
   "start_url": "/chat",
   "display": "standalone",

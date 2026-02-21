@@ -2,9 +2,9 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { User, Check, Loader2 } from "lucide-react";
-import { Button } from "@repo/ui/button";
-import { Card } from "@repo/ui/card";
-import { Input } from "@repo/ui/input";
+import { Button } from "@ever-hust/ui/button";
+import { Card } from "@ever-hust/ui/card";
+import { Input } from "@ever-hust/ui/input";
 import { toast } from "sonner";
 import type { UserSettings } from "./types";
 

@@ -1,5 +1,5 @@
 {
-  "name": "@repo/email",
+  "name": "@ever-hust/email",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -12,11 +12,12 @@
   },
   "dependencies": {
     "@react-email/components": "^0.0.36",
+    "@ever-hust/utils": "workspace:*",
     "react": "^19.2.0",
     "resend": "^4.0.0"
   },
   "devDependencies": {
-    "@repo/typescript-config": "workspace:*",
+    "@ever-hust/typescript-config": "workspace:*",
     "@types/node": "^22.15.3",
     "@types/react": "19.2.2",
     "typescript": "5.9.2"

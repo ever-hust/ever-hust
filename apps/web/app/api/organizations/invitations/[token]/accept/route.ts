@@ -1,9 +1,9 @@
-import { db } from "@repo/db";
+import { db } from "@ever-hust/db";
 import {
   organizationInvitations,
   organizationMembers,
   organizations,
-} from "@repo/db/schema";
+} from "@ever-hust/db/schema";
 import { eq, and, count } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../../../lib/get-session-user";

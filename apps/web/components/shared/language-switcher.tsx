@@ -4,8 +4,8 @@ import { useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useCallback, useState, useRef, useEffect } from "react";
 import { Globe } from "lucide-react";
-import { Button } from "@repo/ui/button";
-import { cn } from "@repo/ui/lib/utils";
+import { Button } from "@ever-hust/ui/button";
+import { cn } from "@ever-hust/ui/lib/utils";
 import { locales, type Locale } from "@/i18n/config";
 
 /** Display metadata for each supported locale. */

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { MessageSquare, LayoutGrid } from "lucide-react";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "@ever-hust/ui/lib/utils";
 
 interface SplitScreenProps {
   chatPanel: React.ReactNode;

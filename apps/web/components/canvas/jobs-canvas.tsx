@@ -2,8 +2,8 @@
 
 import { useState, useRef, useCallback, useMemo, useEffect, memo } from "react";
 import { Briefcase, Loader2, GitCompareArrows, X, SearchX } from "lucide-react";
-import { Button } from "@repo/ui/button";
-import { Badge } from "@repo/ui/badge";
+import { Button } from "@ever-hust/ui/button";
+import { Badge } from "@ever-hust/ui/badge";
 import { JobCard, type JobCardData } from "./job-card";
 import { JobCardSkeletonList } from "./job-card-skeleton";
 import { FilterBar, type JobFilters } from "./filter-bar";

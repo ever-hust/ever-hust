@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { db } from "@repo/db";
-import { jobs } from "@repo/db";
+import { db } from "@ever-hust/db";
+import { jobs } from "@ever-hust/db";
 import { eq } from "drizzle-orm";
 import {
   extractAtsKeywords,

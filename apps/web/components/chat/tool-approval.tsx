@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@repo/ui/button";
-import { Card } from "@repo/ui/card";
-import { Badge } from "@repo/ui/badge";
+import { Button } from "@ever-hust/ui/button";
+import { Card } from "@ever-hust/ui/card";
+import { Badge } from "@ever-hust/ui/badge";
 import { Check, X, Briefcase, Loader2 } from "lucide-react";
 
 interface ToolApprovalProps {

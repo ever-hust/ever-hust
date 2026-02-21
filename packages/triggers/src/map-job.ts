@@ -1,4 +1,4 @@
-import type { JobPostDto } from "@repo/jobs-api";
+import type { JobPostDto } from "@ever-hust/jobs-api";
 
 /**
  * Map an API JobPostDto to our DB jobs schema.

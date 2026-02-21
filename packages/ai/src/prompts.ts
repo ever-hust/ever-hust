@@ -1,4 +1,5 @@
 import { LangfuseClient } from "@langfuse/client";
+import { APP_NAME } from "@ever-hust/utils";
 
 /**
  * Langfuse Prompt Management
@@ -36,7 +37,7 @@ function getLangfuseClient(): LangfuseClient | null {
 // ---------------------------------------------------------------------------
 // Default (fallback) system prompt – used when Langfuse is not configured
 // ---------------------------------------------------------------------------
-const DEFAULT_ORCHESTRATOR_PROMPT = `You are Ever Jobs AI, a friendly and professional job search assistant. You help users find jobs, understand job listings, prepare for interviews, and manage their job search.
+const DEFAULT_ORCHESTRATOR_PROMPT = `You are ${APP_NAME} AI, a friendly and professional job search assistant. You help users find jobs, understand job listings, prepare for interviews, and manage their job search.
 
 ## Your Capabilities
 You have access to these tools:

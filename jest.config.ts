@@ -15,15 +15,15 @@ const rootDir = __dirname.replace(/\\/g, "/");
 
 // Map workspace packages to their source dirs for ts-jest resolution
 const workspaceModuleMapper: Record<string, string> = {
-  "^@repo/stripe(.*)$": `${rootDir}/packages/stripe/src$1`,
-  "^@repo/db(.*)$": `${rootDir}/packages/db/src$1`,
-  "^@repo/utils(.*)$": `${rootDir}/packages/utils/src$1`,
-  "^@repo/ai(.*)$": `${rootDir}/packages/ai/src$1`,
-  "^@repo/jobs-api(.*)$": `${rootDir}/packages/jobs-api/src$1`,
-  "^@repo/email(.*)$": `${rootDir}/packages/email/src$1`,
-  "^@repo/cv-parser(.*)$": `${rootDir}/packages/cv-parser/src$1`,
-  "^@repo/auth(.*)$": `${rootDir}/packages/auth/src$1`,
-  "^@repo/triggers(.*)$": `${rootDir}/packages/triggers/src$1`,
+  "^@ever-hust/stripe(.*)$": `${rootDir}/packages/stripe/src$1`,
+  "^@ever-hust/db(.*)$": `${rootDir}/packages/db/src$1`,
+  "^@ever-hust/utils(.*)$": `${rootDir}/packages/utils/src$1`,
+  "^@ever-hust/ai(.*)$": `${rootDir}/packages/ai/src$1`,
+  "^@ever-hust/jobs-api(.*)$": `${rootDir}/packages/jobs-api/src$1`,
+  "^@ever-hust/email(.*)$": `${rootDir}/packages/email/src$1`,
+  "^@ever-hust/cv-parser(.*)$": `${rootDir}/packages/cv-parser/src$1`,
+  "^@ever-hust/auth(.*)$": `${rootDir}/packages/auth/src$1`,
+  "^@ever-hust/triggers(.*)$": `${rootDir}/packages/triggers/src$1`,
   // ESM .js → .ts resolution
   "^(\\.{1,2}/.*)\\.js$": "$1",
 };

@@ -1,5 +1,5 @@
-import { db } from "@repo/db";
-import { brandingConfigs } from "@repo/db/schema";
+import { db } from "@ever-hust/db";
+import { brandingConfigs } from "@ever-hust/db/schema";
 import { eq, isNull } from "drizzle-orm";
 import type { NextResponse } from "next/server";
 import { requireRole } from "../../../../lib/auth-roles";

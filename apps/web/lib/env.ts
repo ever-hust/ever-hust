@@ -63,7 +63,7 @@ export const env = {
 
   // App
   NEXT_PUBLIC_APP_URL: optional("NEXT_PUBLIC_APP_URL", "https://everjobs.ai"),
-  NEXT_PUBLIC_APP_NAME: optional("NEXT_PUBLIC_APP_NAME", "Ever Jobs"),
+  NEXT_PUBLIC_APP_NAME: optional("NEXT_PUBLIC_APP_NAME", "Hust"),
 
   // Langfuse (optional — falls back to hardcoded prompts)
   LANGFUSE_PUBLIC_KEY: optional("LANGFUSE_PUBLIC_KEY"),

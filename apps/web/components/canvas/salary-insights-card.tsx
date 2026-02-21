@@ -17,9 +17,9 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@repo/ui/card";
-import { Badge } from "@repo/ui/badge";
-import { cn } from "@repo/ui/lib/utils";
+} from "@ever-hust/ui/card";
+import { Badge } from "@ever-hust/ui/badge";
+import { cn } from "@ever-hust/ui/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Types – matches the return shape of the salaryInsightsTool

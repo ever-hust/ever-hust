@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { APP_NAME } from "@ever-hust/utils";
 import { Geist, Geist_Mono } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
@@ -7,7 +8,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ServiceWorkerRegister } from "@/components/sw-register";
 import { ConnectionStatus } from "@/components/shared/connection-status";
-import { Toaster } from "@repo/ui/sonner";
+import { Toaster } from "@ever-hust/ui/sonner";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -31,8 +32,8 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: "Ever Jobs - AI-Powered Job Search Assistant",
-    template: "%s | Ever Jobs",
+    default: `${APP_NAME} - AI-Powered Job Search Assistant`,
+    template: `%s | ${APP_NAME}`,
   },
   description:
     "Chat with AI to find, apply, and land your dream job. Search 50+ job boards, generate cover letters, and get interview prep - all through natural conversation.",
@@ -69,14 +70,14 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Ever Jobs",
+    title: APP_NAME,
   },
   openGraph: {
-    title: "Ever Jobs - AI-Powered Job Search Assistant",
+    title: `${APP_NAME} - AI-Powered Job Search Assistant`,
     description:
       "Chat with AI to find, apply, and land your dream job. Search 50+ job boards at once.",
     url: "/",
-    siteName: "Ever Jobs",
+    siteName: APP_NAME,
     type: "website",
     locale: "en_US",
     images: [
@@ -84,13 +85,13 @@ export const metadata: Metadata = {
         url: "/api/og",
         width: 1200,
         height: 630,
-        alt: "Ever Jobs - AI-Powered Job Search Assistant",
+        alt: `${APP_NAME} - AI-Powered Job Search Assistant`,
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Ever Jobs - AI-Powered Job Search Assistant",
+    title: `${APP_NAME} - AI-Powered Job Search Assistant`,
     description:
       "Chat with AI to find, apply, and land your dream job. Search 50+ job boards at once.",
     images: ["/api/og"],

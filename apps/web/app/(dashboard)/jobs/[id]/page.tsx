@@ -2,12 +2,12 @@ import { cache } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { db, jobs } from "@repo/db";
+import { db, jobs } from "@ever-hust/db";
 import { eq } from "drizzle-orm";
-import { Badge } from "@repo/ui/badge";
-import { Button } from "@repo/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@repo/ui/card";
-import { Separator } from "@repo/ui/separator";
+import { Badge } from "@ever-hust/ui/badge";
+import { Button } from "@ever-hust/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@ever-hust/ui/card";
+import { Separator } from "@ever-hust/ui/separator";
 import {
   ExternalLink,
   MapPin,
@@ -137,7 +137,7 @@ export async function generateMetadata({
   const company = job.companyName ?? "Unknown Company";
   return {
     title: `${job.title} at ${company}`,
-    description: `View the job listing for ${job.title} at ${company} on Ever Jobs.`,
+    description: `View the job listing for ${job.title} at ${company} on Hust.`,
   };
 }
 

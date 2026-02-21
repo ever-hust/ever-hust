@@ -1,5 +1,5 @@
-import { db, users } from "@repo/db";
-import { FREE_LIMITS } from "@repo/stripe";
+import { db, users } from "@ever-hust/db";
+import { FREE_LIMITS } from "@ever-hust/stripe";
 import { eq } from "drizzle-orm";
 import { ONE_DAY_MS, ONE_WEEK_MS } from "./constants";
 

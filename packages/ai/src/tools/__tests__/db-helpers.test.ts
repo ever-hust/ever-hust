@@ -1,5 +1,5 @@
 import { describe, it, expect } from "@jest/globals";
-import { escapeIlike } from "@repo/db";
+import { escapeIlike } from "@ever-hust/db";
 
 describe("escapeIlike", () => {
   it("returns plain strings unchanged", () => {

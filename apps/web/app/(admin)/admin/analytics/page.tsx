@@ -1,5 +1,5 @@
 import dynamic from "next/dynamic";
-import { Skeleton } from "@repo/ui/skeleton";
+import { Skeleton } from "@ever-hust/ui/skeleton";
 
 /**
  * Dynamically import the analytics dashboard to keep the heavy recharts

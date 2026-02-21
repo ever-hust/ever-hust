@@ -2,8 +2,8 @@
 
 import { useState, useCallback, useRef } from "react";
 import { Upload, FileText, Check, Loader2, X } from "lucide-react";
-import { Button } from "@repo/ui/button";
-import { cn } from "@repo/ui/lib/utils";
+import { Button } from "@ever-hust/ui/button";
+import { cn } from "@ever-hust/ui/lib/utils";
 
 interface CVDropzoneProps {
   onUploadComplete?: (result: CVUploadResult) => void;

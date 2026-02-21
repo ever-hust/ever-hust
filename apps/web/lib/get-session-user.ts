@@ -1,4 +1,4 @@
-import { auth } from "@repo/auth";
+import { auth } from "@ever-hust/auth";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 

@@ -1,5 +1,5 @@
 {
-  "name": "@repo/supabase",
+  "name": "@ever-hust/supabase",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -16,7 +16,7 @@
     "@supabase/supabase-js": "^2.49.0"
   },
   "devDependencies": {
-    "@repo/typescript-config": "workspace:*",
+    "@ever-hust/typescript-config": "workspace:*",
     "@types/node": "^22.15.3",
     "typescript": "5.9.2"
   }

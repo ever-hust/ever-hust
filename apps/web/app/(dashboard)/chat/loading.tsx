@@ -1,4 +1,4 @@
-import { Skeleton } from "@repo/ui/skeleton";
+import { Skeleton } from "@ever-hust/ui/skeleton";
 
 export default function ChatLoading() {
   return (

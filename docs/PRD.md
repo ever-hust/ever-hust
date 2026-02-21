@@ -1722,7 +1722,7 @@ Focus: Route hardening, new user flows, admin polish, and code cleanup.
 - **Organization invitation acceptance page** — New `/organizations/invitations/[token]` page with GET handler that validates invitation tokens, shows org details, and allows users to accept invitations with a single click.
 - **Referral code capture in login** — Login page captures `?ref=CODE` query parameter from referral links. Referral codes are stored in session and automatically redeemed when users reach the dashboard, crediting both referrer and referee.
 - **API documentation page** — New `/developers` page for enterprise API consumers with endpoint documentation, authentication guide, code examples, rate limit details, and interactive "Try It" sections.
-- **Mobile-responsive admin sidebar** — Admin layout sidebar now collapses to a hamburger menu on mobile viewports. Uses Sheet component from `@repo/ui` for slide-out navigation with proper focus management.
+- **Mobile-responsive admin sidebar** — Admin layout sidebar now collapses to a hamburger menu on mobile viewports. Uses Sheet component from `@ever-hust/ui` for slide-out navigation with proper focus management.
 - **Admin error states with retry** — All admin pages now display user-friendly error states with retry buttons when data fetching fails, replacing silent failures with actionable UI.
 - **AI tool export fixes** — `companyResearch` and `resumeBuilder` tools were defined but not exported from `packages/ai/src/tools/index.ts`. Both are now properly exported and available to the orchestrator.
 - **Unused function cleanup** — Removed dead utility functions across packages. Consolidated triggers package by removing redundant task definitions and unifying shared helpers.

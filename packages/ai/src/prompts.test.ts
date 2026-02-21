@@ -20,7 +20,7 @@ describe("getOrchestratorPrompt", () => {
     const result = await getOrchestratorPrompt();
 
     // Check for essential prompt sections
-    expect(result.text).toContain("Ever Jobs AI");
+    expect(result.text).toContain("Hust AI");
     expect(result.text).toContain("searchJobs");
     expect(result.text).toContain("Onboarding Flow");
     expect(result.text).toContain("Behavior Guidelines");

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { APP_NAME } from "@ever-hust/utils";
 import { Sidebar } from "@/components/layout/sidebar";
 import { OnboardingCheck } from "@/components/onboarding/onboarding-check";
 import { PWAInstallPrompt } from "@/components/shared/pwa-install-prompt";
@@ -9,7 +10,7 @@ import { ReferralRedeemTrigger } from "@/components/shared/referral-redeem-trigg
 export const metadata: Metadata = {
   title: {
     default: "Dashboard",
-    template: "%s | Ever Jobs",
+    template: `%s | ${APP_NAME}`,
   },
   robots: {
     index: false, // Dashboard pages should not be indexed

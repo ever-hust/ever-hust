@@ -2,27 +2,28 @@ import { Navbar } from "@/components/landing/navbar";
 import { Footer } from "@/components/landing/footer";
 import { Mail, MessageSquare, Building } from "lucide-react";
 import type { Metadata } from "next";
+import { APP_NAME } from "@ever-hust/utils";
 
 export const metadata: Metadata = {
   title: "Contact",
   description:
-    "Get in touch with the Ever Jobs team. We are here to help with support, partnerships, and general inquiries.",
+    `Get in touch with the ${APP_NAME} team. We are here to help with support, partnerships, and general inquiries.`,
   alternates: {
     canonical: "/contact",
   },
   openGraph: {
-    title: "Contact — Ever Jobs",
+    title: `Contact — ${APP_NAME}`,
     description:
-      "Get in touch with the Ever Jobs team for support, partnerships, or general inquiries.",
+      `Get in touch with the ${APP_NAME} team for support, partnerships, or general inquiries.`,
     url: "/contact",
-    siteName: "Ever Jobs",
+    siteName: APP_NAME,
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Contact — Ever Jobs",
+    title: `Contact — ${APP_NAME}`,
     description:
-      "Get in touch with the Ever Jobs team for support, partnerships, or general inquiries.",
+      `Get in touch with the ${APP_NAME} team for support, partnerships, or general inquiries.`,
   },
 };
 
@@ -31,7 +32,7 @@ const CONTACT_CHANNELS = [
     icon: Mail,
     title: "General Inquiries",
     description:
-      "For general questions about Ever Jobs, our platform, or how to get started.",
+      `For general questions about ${APP_NAME}, our platform, or how to get started.`,
     email: "hello@everjobs.ai",
   },
   {
@@ -45,7 +46,7 @@ const CONTACT_CHANNELS = [
     icon: Building,
     title: "Partnerships & Enterprise",
     description:
-      "Interested in integrating Ever Jobs into your organization, or exploring a partnership?",
+      `Interested in integrating ${APP_NAME} into your organization, or exploring a partnership?`,
     email: "partnerships@everjobs.ai",
   },
 ];

@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Button } from "@repo/ui/button";
+import { Button } from "@ever-hust/ui/button";
 import { Heart } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "@ever-hust/ui/lib/utils";
 
 interface FavoriteButtonProps {
   jobId: number;

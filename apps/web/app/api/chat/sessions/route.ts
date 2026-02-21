@@ -1,4 +1,4 @@
-import { db, chatSessions, chatMessages } from "@repo/db";
+import { db, chatSessions, chatMessages } from "@ever-hust/db";
 import { eq, desc, inArray, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";

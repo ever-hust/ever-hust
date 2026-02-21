@@ -1,5 +1,5 @@
 {
-  "name": "@repo/ai",
+  "name": "@ever-hust/ai",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -20,9 +20,10 @@
     "@ai-sdk/anthropic": "^3.0.44",
     "@langfuse/client": "^4.6.1",
     "@openrouter/ai-sdk-provider": "^2.2.3",
-    "@repo/db": "workspace:*",
-    "@repo/jobs-api": "workspace:*",
-    "@repo/stripe": "workspace:*",
+    "@ever-hust/db": "workspace:*",
+    "@ever-hust/jobs-api": "workspace:*",
+    "@ever-hust/stripe": "workspace:*",
+    "@ever-hust/utils": "workspace:*",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.36.2",
     "ai": "^6.0.86",
@@ -30,7 +31,7 @@
     "zod": "^3.24.0"
   },
   "devDependencies": {
-    "@repo/typescript-config": "workspace:*",
+    "@ever-hust/typescript-config": "workspace:*",
     "@types/node": "^22.15.3",
     "typescript": "5.9.2"
   }

@@ -1,10 +1,10 @@
-# Ever Jobs
+# Hust
 
 AI-powered job search platform. Chat with AI to find, apply, and land your dream job.
 
 ## Overview
 
-Ever Jobs is an AI-first job search platform where the primary UX is a conversational AI assistant. After LinkedIn login, users interact through a split-screen interface: AI chat on the left and a dynamic data canvas on the right.
+Hust is an AI-first job search platform where the primary UX is a conversational AI assistant. After LinkedIn login, users interact through a split-screen interface: AI chat on the left and a dynamic data canvas on the right.
 
 **Domain**: everjobs.ai
 
@@ -32,7 +32,7 @@ ever-jobs-website/
 │   ├── db/            # Drizzle ORM schemas + migrations
 │   ├── auth/          # BetterAuth configuration
 │   ├── ai/            # AI agents, tools, prompts
-│   ├── jobs-api/      # Ever Jobs API client
+│   ├── jobs-api/      # Hust API client
 │   ├── stripe/        # Stripe integration
 │   ├── email/         # Email templates + sending
 │   ├── triggers/      # Trigger.dev tasks

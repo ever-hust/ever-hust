@@ -15,8 +15,8 @@ import {
   Menu,
   X,
 } from "lucide-react";
-import { Button } from "@repo/ui/button";
-import { Separator } from "@repo/ui/separator";
+import { Button } from "@ever-hust/ui/button";
+import { Separator } from "@ever-hust/ui/separator";
 import {
   Dialog,
   DialogContent,
@@ -24,12 +24,13 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@repo/ui/dialog";
+} from "@ever-hust/ui/dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSwitcher } from "@/components/shared/language-switcher";
 import { UsageQuota } from "@/components/shared/usage-quota";
-import { signOut } from "@repo/auth/client";
-import { cn } from "@repo/ui/lib/utils";
+import { signOut } from "@ever-hust/auth/client";
+import { cn } from "@ever-hust/ui/lib/utils";
+import { APP_NAME } from "@ever-hust/utils";
 
 const navItems = [
   { href: "/chat", label: "Chat", icon: MessageSquare },
@@ -147,7 +148,7 @@ export function Sidebar() {
             {/* Logo */}
             <Link href="/chat" className="mb-6 flex items-center gap-2 px-4">
               <BriefcaseBusiness className="h-7 w-7 shrink-0 text-primary" aria-hidden="true" />
-              <span className="text-lg font-bold">Ever Jobs</span>
+              <span className="text-lg font-bold">{APP_NAME}</span>
             </Link>
 
             {/* Navigation */}
@@ -214,7 +215,7 @@ export function Sidebar() {
         {/* Logo */}
         <Link href="/chat" className="mb-6 flex items-center gap-2 px-3">
           <BriefcaseBusiness className="h-7 w-7 shrink-0 text-primary" aria-hidden="true" />
-          <span className="hidden text-lg font-bold lg:inline">Ever Jobs</span>
+          <span className="hidden text-lg font-bold lg:inline">{APP_NAME}</span>
         </Link>
 
         {/* Navigation */}

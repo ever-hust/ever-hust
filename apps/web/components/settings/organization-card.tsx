@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Building2, Users, Crown, Shield, User, Loader2 } from "lucide-react";
-import { Badge } from "@repo/ui/badge";
-import { Button } from "@repo/ui/button";
-import { Card } from "@repo/ui/card";
-import { Input } from "@repo/ui/input";
-import { Separator } from "@repo/ui/separator";
+import { Badge } from "@ever-hust/ui/badge";
+import { Button } from "@ever-hust/ui/button";
+import { Card } from "@ever-hust/ui/card";
+import { Input } from "@ever-hust/ui/input";
+import { Separator } from "@ever-hust/ui/separator";
 import { toast } from "sonner";
 import Link from "next/link";
 

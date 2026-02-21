@@ -1,27 +1,28 @@
 import { Navbar } from "@/components/landing/navbar";
 import { Footer } from "@/components/landing/footer";
 import type { Metadata } from "next";
+import { APP_NAME } from "@ever-hust/utils";
 
 export const metadata: Metadata = {
   title: "Terms of Service",
   description:
-    "Read the Terms of Service for Ever Jobs, the AI-powered job search platform.",
+    `Read the Terms of Service for ${APP_NAME}, the AI-powered job search platform.`,
   alternates: {
     canonical: "/terms",
   },
   openGraph: {
-    title: "Terms of Service — Ever Jobs",
+    title: `Terms of Service — ${APP_NAME}`,
     description:
-      "Read the Terms of Service for Ever Jobs, the AI-powered job search platform.",
+      `Read the Terms of Service for ${APP_NAME}, the AI-powered job search platform.`,
     url: "/terms",
-    siteName: "Ever Jobs",
+    siteName: APP_NAME,
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Terms of Service — Ever Jobs",
+    title: `Terms of Service — ${APP_NAME}`,
     description:
-      "Read the Terms of Service for Ever Jobs, the AI-powered job search platform.",
+      `Read the Terms of Service for ${APP_NAME}, the AI-powered job search platform.`,
   },
 };
 
@@ -45,7 +46,7 @@ export default function TermsPage() {
                 1. Acceptance of Terms
               </h2>
               <p className="mt-3">
-                By accessing or using the Ever Jobs platform
+                By accessing or using the {APP_NAME} platform
                 (&quot;Service&quot;), operated by Ever Co. LTD
                 (&quot;Company,&quot; &quot;we,&quot; &quot;us,&quot; or
                 &quot;our&quot;), you agree to be bound by these Terms of
@@ -63,7 +64,7 @@ export default function TermsPage() {
                 2. Use of Service
               </h2>
               <p className="mt-3">
-                Ever Jobs provides an AI-powered conversational job search
+                {APP_NAME} provides an AI-powered conversational job search
                 assistant. You may use the Service to search for job listings,
                 receive personalized job recommendations, generate cover
                 letters, prepare for interviews, and manage your job
@@ -108,7 +109,7 @@ export default function TermsPage() {
                 4. Subscription Plans &amp; Payments
               </h2>
               <p className="mt-3">
-                Ever Jobs offers a free tier with limited features and paid
+                {APP_NAME} offers a free tier with limited features and paid
                 subscription plans (&quot;Pro&quot;) with enhanced capabilities.
                 Paid subscriptions are billed through Stripe on a recurring
                 basis (monthly, quarterly, or annual). By subscribing to a paid

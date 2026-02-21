@@ -6,7 +6,7 @@ const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
 const nextConfig: NextConfig = {
   // Instrumentation (apps/web/instrumentation.ts) is auto-detected by Next.js 16+
-  transpilePackages: ["@repo/ui", "@repo/auth", "@repo/db", "@repo/utils", "@repo/cv-parser", "@repo/supabase"],
+  transpilePackages: ["@ever-hust/ui", "@ever-hust/auth", "@ever-hust/db", "@ever-hust/utils", "@ever-hust/cv-parser", "@ever-hust/supabase"],
 
   // Enable response compression (gzip/brotli)
   compress: true,

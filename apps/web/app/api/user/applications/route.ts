@@ -1,4 +1,4 @@
-import { db, applications, jobs } from "@repo/db";
+import { db, applications, jobs } from "@ever-hust/db";
 import { eq, and, desc, sql } from "drizzle-orm";
 import type { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";

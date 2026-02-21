@@ -1,3 +1,5 @@
+import { APP_NAME } from "@ever-hust/utils";
+
 export function AboutStructuredData() {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://everjobs.ai";
 
@@ -8,7 +10,7 @@ export function AboutStructuredData() {
     url: baseUrl,
     logo: `${baseUrl}/logo.png`,
     description:
-      "Ever Co. LTD builds Ever Jobs, an AI-powered job search platform that helps users find, apply, and land their dream job through natural conversation.",
+      `Ever Co. LTD builds ${APP_NAME}, an AI-powered job search platform that helps users find, apply, and land their dream job through natural conversation.`,
     foundingDate: "2024",
     sameAs: [
       "https://ever.co",
@@ -28,7 +30,7 @@ export function AboutStructuredData() {
     ],
     brand: {
       "@type": "Brand",
-      name: "Ever Jobs",
+      name: APP_NAME,
       url: baseUrl,
     },
   };

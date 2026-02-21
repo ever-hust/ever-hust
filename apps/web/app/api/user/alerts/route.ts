@@ -1,5 +1,5 @@
-import { db } from "@repo/db";
-import { userAlerts } from "@repo/db";
+import { db } from "@ever-hust/db";
+import { userAlerts } from "@ever-hust/db";
 import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";

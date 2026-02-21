@@ -202,7 +202,7 @@ describe("sendWelcomeEmail", () => {
     expect(mockSend).toHaveBeenCalledWith(
       expect.objectContaining({
         to: "newuser@example.com",
-        subject: expect.stringContaining("Welcome to Ever Jobs"),
+        subject: expect.stringContaining("Welcome to Hust"),
       }),
     );
   });
@@ -261,7 +261,7 @@ describe("sendSubscriptionConfirmedEmail", () => {
     expect(mockSend).toHaveBeenCalledWith(
       expect.objectContaining({
         to: "subscriber@example.com",
-        subject: "Your Ever Jobs Pro subscription is active — Quarterly plan",
+        subject: "Your Hust Pro subscription is active — Quarterly plan",
       }),
     );
   });

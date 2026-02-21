@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { db } from "@repo/db";
-import { userJobs } from "@repo/db";
+import { db } from "@ever-hust/db";
+import { userJobs } from "@ever-hust/db";
 import { and, eq } from "drizzle-orm";
 
 export const favoriteJobTool = tool({

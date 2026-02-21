@@ -1,5 +1,5 @@
-import { db } from "@repo/db";
-import { organizationAiConfigs } from "@repo/db/schema";
+import { db } from "@ever-hust/db";
+import { organizationAiConfigs } from "@ever-hust/db/schema";
 import { eq } from "drizzle-orm";
 import type { NextResponse } from "next/server";
 import { requireOrgMember, requireOrgRole } from "../../../../../lib/auth-org";

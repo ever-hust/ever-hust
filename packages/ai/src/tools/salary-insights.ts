@@ -1,10 +1,10 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { db } from "@repo/db";
-import { jobs } from "@repo/db";
+import { db } from "@ever-hust/db";
+import { jobs } from "@ever-hust/db";
 import { and, ilike, isNotNull, sql, eq, or } from "drizzle-orm";
 import { annualise, median } from "./salary-helpers";
-import { escapeIlike } from "@repo/db";
+import { escapeIlike } from "@ever-hust/db";
 
 export const salaryInsightsTool = tool({
   description:

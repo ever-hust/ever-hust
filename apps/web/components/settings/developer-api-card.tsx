@@ -2,10 +2,10 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Key, Copy, Trash2, Loader2, Shield, Plus, AlertTriangle, Book } from "lucide-react";
-import { Button } from "@repo/ui/button";
-import { Card } from "@repo/ui/card";
-import { Badge } from "@repo/ui/badge";
-import { Input } from "@repo/ui/input";
+import { Button } from "@ever-hust/ui/button";
+import { Card } from "@ever-hust/ui/card";
+import { Badge } from "@ever-hust/ui/badge";
+import { Input } from "@ever-hust/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -13,7 +13,7 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@repo/ui/dialog";
+} from "@ever-hust/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,9 +23,10 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@repo/ui/alert-dialog";
+} from "@ever-hust/ui/alert-dialog";
 import { toast } from "sonner";
 import Link from "next/link";
+import { APP_NAME } from "@ever-hust/utils";
 
 interface ApiKeyRecord {
   id: number;
@@ -175,7 +176,7 @@ export function DeveloperApiCard() {
       </h2>
       <div className="mt-4 space-y-4">
         <p className="text-sm text-muted-foreground">
-          Create API keys to access the Ever Jobs API programmatically. Use
+          Create API keys to access the {APP_NAME} API programmatically. Use
           these keys to search jobs, retrieve company data, and get salary
           insights from your own applications.
         </p>

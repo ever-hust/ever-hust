@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { Button } from "@repo/ui/button";
+import { Button } from "@ever-hust/ui/button";
 import { AlertCircle, RefreshCw } from "lucide-react";
 
 export default function ApplicationsError({

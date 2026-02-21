@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { db } from "@repo/db";
-import { applications, agentInstances, users } from "@repo/db";
+import { db } from "@ever-hust/db";
+import { applications, agentInstances, users } from "@ever-hust/db";
 import { eq, and } from "drizzle-orm";
 
 export const submitAnswersTool = tool({

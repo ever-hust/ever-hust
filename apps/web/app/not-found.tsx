@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Button } from "@repo/ui/button";
+import { Button } from "@ever-hust/ui/button";
 import { BriefcaseBusiness, Home, MessageSquare, Search } from "lucide-react";
 
 export default function NotFound() {

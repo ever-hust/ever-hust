@@ -4,6 +4,7 @@ import { JobAlertEmail } from "./templates/job-alert";
 import { WelcomeEmail } from "./templates/welcome";
 import { SubscriptionConfirmedEmail } from "./templates/subscription-confirmed";
 import type React from "react";
+import { APP_NAME } from "@ever-hust/utils";
 
 // ── Retry Utility ─────────────────────────────────────────────────────────────
 
@@ -158,7 +159,7 @@ export async function sendWelcomeEmail({
     const { data, error } = await getResend().emails.send({
       from: EMAIL_FROM,
       to,
-      subject: "Welcome to Ever Jobs — your AI job search assistant",
+      subject: `Welcome to ${APP_NAME} — your AI job search assistant`,
       html,
     });
 
@@ -212,7 +213,7 @@ export async function sendSubscriptionConfirmedEmail({
     const { data, error } = await getResend().emails.send({
       from: EMAIL_FROM,
       to,
-      subject: `Your Ever Jobs Pro subscription is active — ${planName} plan`,
+      subject: `Your ${APP_NAME} Pro subscription is active — ${planName} plan`,
       html,
     });
 

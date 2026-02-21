@@ -1,5 +1,5 @@
 {
-  "name": "ever-jobs",
+  "name": "ever-hust",
   "private": true,
   "scripts": {
     "build": "turbo run build",
@@ -9,11 +9,11 @@
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
     "test": "node --max-old-space-size=4096 --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.config.ts",
     "test:e2e": "playwright test",
-    "db:push": "pnpm --filter @repo/db db:push",
-    "db:migrate": "pnpm --filter @repo/db db:migrate",
-    "db:seed": "pnpm --filter @repo/db db:seed",
-    "db:studio": "pnpm --filter @repo/db db:studio",
-    "db:generate": "pnpm --filter @repo/db db:generate"
+    "db:push": "pnpm --filter @ever-hust/db db:push",
+    "db:migrate": "pnpm --filter @ever-hust/db db:migrate",
+    "db:seed": "pnpm --filter @ever-hust/db db:seed",
+    "db:studio": "pnpm --filter @ever-hust/db db:studio",
+    "db:generate": "pnpm --filter @ever-hust/db db:generate"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

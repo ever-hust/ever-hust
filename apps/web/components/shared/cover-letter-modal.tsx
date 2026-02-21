@@ -9,8 +9,8 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@repo/ui/dialog";
-import { Button } from "@repo/ui/button";
+} from "@ever-hust/ui/dialog";
+import { Button } from "@ever-hust/ui/button";
 
 /** Duration to show the "Copied!" feedback (ms). */
 const COPY_FEEDBACK_MS = 2_000;

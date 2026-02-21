@@ -1,5 +1,5 @@
 import { Linkedin, MessageCircle, Briefcase, ArrowRight } from "lucide-react";
-import { Card } from "@repo/ui/card";
+import { Card } from "@ever-hust/ui/card";
 
 const steps = [
   {

@@ -34,7 +34,7 @@ export const MAX_COMPARE_JOBS = 3;
 
 // ---------------------------------------------------------------------------
 // Free-Tier Limits
-// (Canonical numeric values live in @repo/stripe — FREE_LIMITS.
+// (Canonical numeric values live in @ever-hust/stripe — FREE_LIMITS.
 //  These re-exports exist for files that only need the numbers without
 //  pulling in the full Stripe package, e.g. client-side code.)
 // ---------------------------------------------------------------------------

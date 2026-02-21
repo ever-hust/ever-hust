@@ -1,8 +1,8 @@
 // ILIKE search on the users table may be slow on large datasets — allow up to 30s
 export const maxDuration = 30;
 
-import { db, escapeIlike } from "@repo/db";
-import { users } from "@repo/db/schema";
+import { db, escapeIlike } from "@ever-hust/db";
+import { users } from "@ever-hust/db/schema";
 import { count, desc, ilike, or } from "drizzle-orm";
 import type { NextResponse } from "next/server";
 import { requireRole } from "../../../../lib/auth-roles";

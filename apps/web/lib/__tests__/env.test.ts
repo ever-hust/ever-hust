@@ -107,11 +107,11 @@ describe("env module", () => {
       expect(env.NEXT_PUBLIC_APP_URL).toBe("https://custom.example.com");
     });
 
-    it("NEXT_PUBLIC_APP_NAME falls back to 'Ever Jobs'", async () => {
+    it("NEXT_PUBLIC_APP_NAME falls back to 'Hust'", async () => {
       setAllRequiredEnvVars();
       delete process.env.NEXT_PUBLIC_APP_NAME;
       const { env } = await importEnv();
-      expect(env.NEXT_PUBLIC_APP_NAME).toBe("Ever Jobs");
+      expect(env.NEXT_PUBLIC_APP_NAME).toBe("Hust");
     });
 
     it("EMAIL_FROM falls back to alerts@everjobs.ai", async () => {

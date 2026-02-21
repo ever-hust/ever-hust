@@ -1,4 +1,4 @@
-import type { JobPostDto } from "@repo/jobs-api";
+import type { JobPostDto } from "@ever-hust/jobs-api";
 import { mapJobToDb, SEARCH_TERMS } from "./map-job";
 
 // ---------------------------------------------------------------------------

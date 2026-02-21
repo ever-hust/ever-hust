@@ -71,7 +71,10 @@ export function DangerZoneCard() {
         </div>
       </Card>
 
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <Dialog open={deleteDialogOpen} onOpenChange={(open) => {
+        setDeleteDialogOpen(open);
+        if (!open) setDeleteConfirmText("");
+      }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-destructive">

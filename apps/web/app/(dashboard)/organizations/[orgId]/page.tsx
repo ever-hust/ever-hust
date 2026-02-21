@@ -35,6 +35,7 @@ import Link from "next/link";
 import { ScrollToTop } from "@/components/shared/scroll-to-top";
 import { ErrorState } from "@/components/shared/error-state";
 import { PageHeader } from "@/components/shared/page-header";
+import { safeExternalUrl } from "@/lib/safe-url";
 
 interface Organization {
   id: number;
@@ -312,11 +313,11 @@ export default function OrgDetailPage() {
                 <p className="mt-1 text-[10px] text-muted-foreground">Your Role</p>
               </div>
             </div>
-            {org.website && (
+            {safeExternalUrl(org.website) && (
               <p className="mt-3 text-xs text-muted-foreground">
                 Website:{" "}
                 <a
-                  href={org.website}
+                  href={safeExternalUrl(org.website)!}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary hover:underline"
@@ -349,9 +350,9 @@ export default function OrgDetailPage() {
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border bg-background">
-                        {member.userImage ? (
+                        {safeExternalUrl(member.userImage) ? (
                           <img
-                            src={member.userImage}
+                            src={safeExternalUrl(member.userImage)!}
                             alt={member.userName}
                             className="h-8 w-8 rounded-full object-cover"
                           />
@@ -456,6 +457,7 @@ export default function OrgDetailPage() {
                     }
                   }}
                   disabled={inviting}
+                  maxLength={320}
                   className="flex-1"
                   aria-label="Invitee email address"
                 />

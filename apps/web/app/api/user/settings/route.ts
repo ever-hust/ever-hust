@@ -71,7 +71,10 @@ export async function PATCH(req: Request) {
                   "[api/user/settings] Failed to encrypt API key:",
                   encErr instanceof Error ? encErr.message : encErr
                 );
-                return apiError("API key encryption is not configured. Please contact support.");
+                // Throw to roll back the transaction — the outer catch handles this.
+                // Previously this returned apiError() which silently swallowed the
+                // error (return from the tx callback ≠ return from the route handler).
+                throw new Error("ENCRYPTION_NOT_CONFIGURED");
               }
             } else {
               encryptedKeys[provider] = ""; // Clearing a key
@@ -107,6 +110,9 @@ export async function PATCH(req: Request) {
 
     return apiSuccess({ updated: true });
   } catch (err) {
+    if (err instanceof Error && err.message === "ENCRYPTION_NOT_CONFIGURED") {
+      return apiError("API key encryption is not configured. Please contact support.");
+    }
     console.error("[api/user/settings] PATCH failed:", err instanceof Error ? err.message : err);
     return apiError("Failed to update settings");
   }

@@ -114,7 +114,7 @@ export const JobCard = memo(function JobCard({
       try {
         if (navigator.share) {
           await navigator.share({
-            title: `${job.title} at ${job.companyName ?? ""}`,
+            title: `${job.title} at ${job.companyName ?? "Unknown Company"}`,
             url,
           });
           return;

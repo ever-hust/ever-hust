@@ -1,6 +1,6 @@
 import { db, escapeIlike } from "@repo/db";
 import { jobs } from "@repo/db";
-import { ilike, sql, isNotNull } from "drizzle-orm";
+import { and, ilike, sql, isNotNull } from "drizzle-orm";
 import type { NextRequest } from "next/server";
 import { validateApiKey } from "../../../../lib/api-key-auth";
 import { getSessionUser } from "../../../../lib/get-session-user";
@@ -67,10 +67,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Aggregate company data from the jobs table
-    const whereClause = sql.join(
-      conditions.map((c, i) => (i === 0 ? c : sql` AND ${c}`)),
-      sql``
-    );
+    const whereClause = and(...conditions);
 
     const companiesResult = await db.execute(sql`
       SELECT

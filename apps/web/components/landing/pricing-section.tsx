@@ -8,6 +8,7 @@ import { Badge } from "@repo/ui/badge";
 import { Separator } from "@repo/ui/separator";
 import { Check, Loader2, Shield, Zap, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
+import { safeExternalUrl } from "@/lib/safe-url";
 
 const plans = [
   {
@@ -132,8 +133,9 @@ export function PricingSection() {
       });
       if (res.ok) {
         const data = (await res.json()) as { url: string };
-        if (data.url) {
-          window.location.href = data.url;
+        const safeUrl = safeExternalUrl(data.url);
+        if (safeUrl) {
+          window.location.href = safeUrl;
           return;
         }
       }

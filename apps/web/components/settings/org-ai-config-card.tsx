@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Bot, Check, Save, Loader2 } from "lucide-react";
 import { Badge } from "@repo/ui/badge";
 import { Button } from "@repo/ui/button";
@@ -34,14 +34,21 @@ export function OrgAiConfigCard({ orgId }: OrgAiConfigCardProps) {
   const [maxTokens, setMaxTokens] = useState<string>("");
   const [temperature, setTemperature] = useState<string>("0.7");
 
+  // Track whether a config was previously saved (to allow clearing fields)
+  const hadExistingConfig = useRef(false);
+
   // Fetch current config on mount
   useEffect(() => {
+    const controller = new AbortController();
     async function fetchConfig() {
       try {
-        const res = await fetch(`/api/organizations/${orgId}/ai-config`);
-        if (res.ok) {
+        const res = await fetch(`/api/organizations/${orgId}/ai-config`, {
+          signal: controller.signal,
+        });
+        if (res.ok && !controller.signal.aborted) {
           const data = (await res.json()) as { config: OrgAiConfigData | null };
           if (data.config) {
+            hadExistingConfig.current = true;
             setPreferredModel(data.config.preferredModel ?? "");
             setCustomSystemPrompt(data.config.customSystemPrompt ?? "");
             setMaxTokens(
@@ -56,38 +63,43 @@ export function OrgAiConfigCard({ orgId }: OrgAiConfigCardProps) {
             );
           }
         }
-      } catch {
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
         toast.error("Failed to load AI configuration");
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
     fetchConfig();
+    return () => controller.abort();
   }, [orgId]);
 
   const handleSave = useCallback(async () => {
+    // Validate maxTokens before submitting
+    if (maxTokens) {
+      const parsed = parseInt(maxTokens, 10);
+      if (isNaN(parsed) || parsed < 100 || parsed > 200_000) {
+        toast.error("Max tokens must be between 100 and 200,000");
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const body: Record<string, unknown> = {};
 
-      if (preferredModel) {
-        body.preferredModel = preferredModel;
-      }
-      if (customSystemPrompt.trim()) {
-        body.customSystemPrompt = customSystemPrompt.trim();
-      }
-      if (maxTokens) {
-        const parsed = parseInt(maxTokens, 10);
-        if (!isNaN(parsed) && parsed >= 100 && parsed <= 200_000) {
-          body.maxTokens = parsed;
-        }
-      }
-      if (temperature) {
-        const parsed = parseFloat(temperature);
-        if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) {
-          body.temperature = parsed;
-        }
-      }
+      // Send the value or null to allow clearing previously set fields
+      body.preferredModel = preferredModel || null;
+      body.customSystemPrompt = customSystemPrompt.trim() || null;
+      body.maxTokens = maxTokens
+        ? parseInt(maxTokens, 10)
+        : null;
+
+      const parsedTemp = parseFloat(temperature);
+      body.temperature =
+        !isNaN(parsedTemp) && parsedTemp >= 0 && parsedTemp <= 1
+          ? parsedTemp
+          : 0.7;
 
       const res = await fetch(`/api/organizations/${orgId}/ai-config`, {
         method: "PUT",
@@ -96,6 +108,7 @@ export function OrgAiConfigCard({ orgId }: OrgAiConfigCardProps) {
       });
 
       if (res.ok) {
+        hadExistingConfig.current = true;
         toast.success("AI configuration saved");
       } else {
         const err = (await res.json()) as { error?: string };

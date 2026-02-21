@@ -314,11 +314,11 @@ export type BrandingConfig = z.infer<typeof brandingConfigSchema>;
 
 // === Organization AI Config Route ===
 export const orgAiConfigSchema = z.object({
-  preferredModel: z.string().max(100).optional(),
-  customSystemPrompt: z.string().max(5000).optional(),
-  maxTokens: z.number().int().min(100).max(200_000).optional(),
-  temperature: z.number().min(0).max(1).optional(),
-  enabledTools: z.array(z.string().max(100)).max(50).optional(),
+  preferredModel: z.string().max(100).nullable().optional(),
+  customSystemPrompt: z.string().max(5000).nullable().optional(),
+  maxTokens: z.number().int().min(100).max(200_000).nullable().optional(),
+  temperature: z.number().min(0).max(1).nullable().optional(),
+  enabledTools: z.array(z.string().max(100)).max(50).nullable().optional(),
 });
 
 export type OrgAiConfig = z.infer<typeof orgAiConfigSchema>;

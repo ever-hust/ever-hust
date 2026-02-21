@@ -21,14 +21,17 @@ export function PrivacyDataCard() {
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `ever-jobs-data-${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success("Data exported successfully");
+      try {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `ever-jobs-data-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        toast.success("Data exported successfully");
+      } finally {
+        URL.revokeObjectURL(url);
+      }
     } catch {
       toast.error("Failed to export data");
     } finally {

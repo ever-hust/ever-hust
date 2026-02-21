@@ -15,7 +15,11 @@ export function OnboardingCheck() {
 
   useEffect(() => {
     // Don't show onboarding if user already dismissed in this session
-    if (sessionStorage.getItem("onboarding_dismissed")) return;
+    try {
+      if (sessionStorage.getItem("onboarding_dismissed")) return;
+    } catch {
+      // sessionStorage unavailable (e.g. sandboxed iframe) — check the server
+    }
 
     const controller = new AbortController();
 
@@ -36,7 +40,7 @@ export function OnboardingCheck() {
             setShowOnboarding(true);
           } else {
             // Cache completed state so future sessions skip the profile fetch
-            sessionStorage.setItem("onboarding_dismissed", "1");
+            try { sessionStorage.setItem("onboarding_dismissed", "1"); } catch { /* unavailable */ }
           }
         }
       } catch {
@@ -50,7 +54,7 @@ export function OnboardingCheck() {
 
   const handleComplete = () => {
     setShowOnboarding(false);
-    sessionStorage.setItem("onboarding_dismissed", "1");
+    try { sessionStorage.setItem("onboarding_dismissed", "1"); } catch { /* unavailable */ }
   };
 
   if (!showOnboarding) return null;

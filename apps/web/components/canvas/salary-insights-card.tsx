@@ -222,7 +222,7 @@ function Section({
     <div className="border-t pt-3">
       <button
         type="button"
-        className="flex w-full items-center justify-between text-sm font-medium text-foreground hover:text-foreground/80 transition-colors"
+        className="flex w-full items-center justify-between text-sm font-medium text-foreground hover:text-foreground/80 transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
         aria-label={`Toggle ${title} section`}

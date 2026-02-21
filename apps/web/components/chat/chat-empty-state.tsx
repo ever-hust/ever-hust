@@ -97,7 +97,7 @@ function ChatEmptyStateInner({ onSuggestionClick }: ChatEmptyStateProps) {
             <button
               key={prompt.text}
               type="button"
-              className="flex items-center gap-1.5 rounded-full border bg-card px-3 py-1.5 text-xs transition-colors hover:bg-accent hover:border-accent-foreground/20"
+              className="flex items-center gap-1.5 rounded-full border bg-card px-3 py-1.5 text-xs transition-colors hover:bg-accent hover:border-accent-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => onSuggestionClick(prompt.text)}
             >
               {prompt.icon}
@@ -126,7 +126,7 @@ function ChatEmptyStateInner({ onSuggestionClick }: ChatEmptyStateProps) {
                   <button
                     key={suggestion}
                     type="button"
-                    className="w-full rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    className="w-full rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     onClick={() => onSuggestionClick(suggestion)}
                   >
                     {suggestion}

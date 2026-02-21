@@ -25,7 +25,7 @@ function CopyButton({ text }: { text: string }) {
     <button
       type="button"
       onClick={() => copy(text)}
-      className="absolute right-2 top-2 rounded p-1 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-muted-foreground"
+      className="absolute right-2 top-2 rounded p-1 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       aria-label={copied ? "Copied!" : "Copy code"}
       title={copied ? "Copied!" : "Copy code"}
     >

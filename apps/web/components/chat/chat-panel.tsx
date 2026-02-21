@@ -371,7 +371,7 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
           <button
             type="button"
             onClick={scrollToBottom}
-            className="flex items-center gap-1 rounded-full border bg-card px-3 py-1 text-xs text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground"
+            className="flex items-center gap-1 rounded-full border bg-card px-3 py-1 text-xs text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label="Scroll to latest messages"
           >
             <ArrowDown className="h-3 w-3" aria-hidden="true" />

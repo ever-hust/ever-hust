@@ -144,7 +144,7 @@ export const JobCard = memo(function JobCard({
             type="button"
             onClick={handleCompareToggle}
             className={cn(
-              "flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors",
+              "flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               isSelected
                 ? "border-primary bg-primary text-primary-foreground"
                 : "border-muted-foreground/30 bg-background hover:border-primary"

@@ -140,7 +140,7 @@ export function ChatHistory({
             <button
               type="button"
               onClick={() => setIsOpen(false)}
-              className="rounded p-1 text-muted-foreground hover:text-foreground"
+              className="rounded p-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-label="Close history"
             >
               <X className="h-3.5 w-3.5" aria-hidden="true" />
@@ -192,7 +192,7 @@ export function ChatHistory({
                         tabIndex={isSessionLoading || isDeleting ? -1 : 0}
                         aria-disabled={isSessionLoading || isDeleting || undefined}
                         className={cn(
-                          "group/item flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-accent/50 cursor-pointer",
+                          "group/item flex w-full items-center gap-3 rounded-md px-4 py-2.5 text-left transition-colors hover:bg-accent/50 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                           isActive && "bg-accent/30",
                           isDeleting && "pointer-events-none opacity-50"
                         )}

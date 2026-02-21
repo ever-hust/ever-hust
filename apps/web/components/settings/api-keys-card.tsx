@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Key, Eye, EyeOff, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@repo/ui/button";
 import { Card } from "@repo/ui/card";
@@ -34,8 +34,11 @@ export function ApiKeysCard({ initialKeys }: ApiKeysCardProps) {
     google: boolean;
   }>({ anthropic: false, openai: false, google: false });
   const [keySaving, setKeySaving] = useState(false);
+  const savingRef = useRef(false);
 
   const handleSaveApiKeys = useCallback(async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
     setKeySaving(true);
     try {
       const keysToSave: Record<string, string> = {};
@@ -71,11 +74,14 @@ export function ApiKeysCard({ initialKeys }: ApiKeysCardProps) {
       toast.error("Failed to save API keys");
     } finally {
       setKeySaving(false);
+      savingRef.current = false;
     }
   }, [apiKeys]);
 
   const handleClearApiKey = useCallback(
     async (provider: "anthropic" | "openai" | "google") => {
+      if (savingRef.current) return;
+      savingRef.current = true;
       setKeySaving(true);
       try {
         const res = await fetch("/api/user/settings", {
@@ -95,6 +101,7 @@ export function ApiKeysCard({ initialKeys }: ApiKeysCardProps) {
         toast.error("Failed to remove API key");
       } finally {
         setKeySaving(false);
+        savingRef.current = false;
       }
     },
     []

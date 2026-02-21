@@ -128,13 +128,22 @@ export function runStartupChecks(): void {
     throw new Error(message);
   }
 
-  // 2. AI provider cross-check
+  // 2. Validate BETTER_AUTH_SECRET strength
+  const authSecret = process.env.BETTER_AUTH_SECRET ?? "";
+  if (authSecret.length < 32) {
+    console.warn(
+      `${LOG_PREFIX} WARNING: BETTER_AUTH_SECRET is only ${authSecret.length} characters. ` +
+        "A minimum of 32 characters is strongly recommended for production security.",
+    );
+  }
+
+  // 3. AI provider cross-check
   validateAiProvider();
 
-  // 3. Recommended env vars — warn but continue
+  // 4. Recommended env vars — warn but continue
   warnRecommendedEnvVars();
 
-  // 4. Optional env vars — informational
+  // 5. Optional env vars — informational
   logOptionalEnvVars();
 
   console.log(`${LOG_PREFIX} Startup checks passed.`);

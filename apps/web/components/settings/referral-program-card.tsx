@@ -281,6 +281,7 @@ export function ReferralProgramCard() {
               placeholder="friend@example.com"
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
+              maxLength={320}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();

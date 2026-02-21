@@ -33,10 +33,13 @@ export async function requireOrgMember(orgId: number) {
   }
 
   const validRoles: OrgRole[] = ["owner", "admin", "member"];
-  const role = validRoles.includes(membership.role as OrgRole)
-    ? (membership.role as OrgRole)
-    : "member";
-  return { user, orgRole: role };
+  if (!validRoles.includes(membership.role as OrgRole)) {
+    throw NextResponse.json(
+      { error: "Invalid organization role" },
+      { status: 403 }
+    );
+  }
+  return { user, orgRole: membership.role as OrgRole };
 }
 
 /**

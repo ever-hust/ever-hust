@@ -29,7 +29,8 @@ export async function checkSubscription(
     throw new Error(`User not found: ${userId}`);
   }
 
-  const isActive = result[0]!.subscriptionStatus === "active" || result[0]!.subscriptionStatus === "past_due";
+  const status = result[0]!.subscriptionStatus;
+  const isActive = status === "active" || status === "past_due";
   return {
     userId,
     isActive,

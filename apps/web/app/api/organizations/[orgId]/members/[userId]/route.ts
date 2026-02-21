@@ -206,7 +206,10 @@ export async function DELETE(
       .delete(organizationMembers)
       .where(eq(organizationMembers.id, targetMember.id));
 
-    return new NextResponse(null, { status: 204 });
+    return new NextResponse(null, {
+      status: 204,
+      headers: { "Cache-Control": "private, no-cache, no-store, must-revalidate" },
+    });
   } catch (err) {
     console.error(
       "[api/organizations/[orgId]/members/[userId]] DELETE failed:",

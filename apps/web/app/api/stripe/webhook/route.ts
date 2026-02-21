@@ -306,9 +306,11 @@ async function handleSubscriptionUpdated(data: {
 
   const status = normalizeSubscriptionStatus(rawStatus);
 
-  // Map Stripe status to our user status
+  // Map Stripe subscription status to our user-level status.
+  // The user row only supports: free, active, past_due, canceled.
+  // Trialing users should get full access, so map trialing → active.
   const userStatus =
-    status === "active"
+    status === "active" || status === "trialing"
       ? "active"
       : status === "past_due"
         ? "past_due"

@@ -24,7 +24,8 @@ export async function DELETE(_req: Request, context: RouteContext) {
 
   const { id } = await context.params;
 
-  if (!id || typeof id !== "string" || id.length > 100) {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!id || !uuidRegex.test(id)) {
     return apiBadRequest("Invalid session ID");
   }
 
@@ -48,7 +49,12 @@ export async function DELETE(_req: Request, context: RouteContext) {
         .where(and(eq(chatSessions.id, id), eq(chatSessions.userId, user.id)));
     });
 
-    return new NextResponse(null, { status: 204 });
+    return new NextResponse(null, {
+      status: 204,
+      headers: {
+        "Cache-Control": "private, no-cache, no-store, must-revalidate",
+      },
+    });
   } catch (error) {
     console.error("[api/chat/sessions/DELETE]", error instanceof Error ? error.message : error);
     return apiError("Failed to delete session");

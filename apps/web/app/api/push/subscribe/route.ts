@@ -105,10 +105,16 @@ export async function DELETE(req: Request) {
 
     if (result.length === 0) {
       // No subscription found — still return success (idempotent)
-      return new NextResponse(null, { status: 204 });
+      return new NextResponse(null, {
+        status: 204,
+        headers: { "Cache-Control": "private, no-cache, no-store, must-revalidate" },
+      });
     }
 
-    return new NextResponse(null, { status: 204 });
+    return new NextResponse(null, {
+      status: 204,
+      headers: { "Cache-Control": "private, no-cache, no-store, must-revalidate" },
+    });
   } catch (err) {
     console.error(
       "[api/push/subscribe] DELETE failed:",

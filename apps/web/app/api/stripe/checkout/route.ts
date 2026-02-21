@@ -53,7 +53,8 @@ export async function POST(req: Request) {
     const dbUser = userResult[0]!;
 
     // Prevent creating a duplicate subscription for users who already have one
-    // (active or past_due — they should use the billing portal instead)
+    // (active or past_due — they should use the billing portal instead).
+    // Note: trialing maps to "active" on the user row via the webhook handler.
     if (
       dbUser.subscriptionStatus === "active" ||
       dbUser.subscriptionStatus === "past_due"

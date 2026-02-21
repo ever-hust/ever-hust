@@ -42,7 +42,10 @@ export async function DELETE(
       return apiNotFound("API key not found");
     }
 
-    return new NextResponse(null, { status: 204 });
+    return new NextResponse(null, {
+      status: 204,
+      headers: { "Cache-Control": "private, no-cache, no-store, must-revalidate" },
+    });
   } catch (err) {
     console.error(
       "[api/developer/keys/keyId] DELETE failed:",

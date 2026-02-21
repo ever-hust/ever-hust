@@ -170,7 +170,10 @@ export async function DELETE(req: Request) {
       return apiNotFound("Alert not found");
     }
 
-    return new NextResponse(null, { status: 204 });
+    return new NextResponse(null, {
+      status: 204,
+      headers: { "Cache-Control": "private, no-cache, no-store, must-revalidate" },
+    });
   } catch (err) {
     console.error("[api/user/alerts] DELETE failed:", err instanceof Error ? err.message : err);
     return apiError("Failed to delete alert");

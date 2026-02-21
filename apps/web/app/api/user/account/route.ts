@@ -49,7 +49,10 @@ export async function DELETE() {
       }
     }
 
-    return new NextResponse(null, { status: 204 });
+    return new NextResponse(null, {
+      status: 204,
+      headers: { "Cache-Control": "private, no-cache, no-store, must-revalidate" },
+    });
   } catch (error) {
     console.error("[api/user/account] DELETE failed:", error instanceof Error ? error.message : error);
     return apiError("Failed to delete account");

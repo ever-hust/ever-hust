@@ -1,5 +1,5 @@
 import { db, chatSessions, chatMessages } from "@repo/db";
-import { eq, desc, inArray, asc, and } from "drizzle-orm";
+import { eq, desc, inArray, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { applyRateLimit } from "../../../../lib/rate-limit";
@@ -40,26 +40,30 @@ export async function GET() {
     const previews: Map<string, string> = new Map();
 
     if (sessionIds.length > 0) {
-      const firstMessages = await db
-        .select({
-          sessionId: chatMessages.sessionId,
-          content: chatMessages.content,
-        })
-        .from(chatMessages)
-        .where(
-          and(
-            inArray(chatMessages.sessionId, sessionIds),
-            eq(chatMessages.role, "user")
-          )
-        )
-        .orderBy(asc(chatMessages.createdAt))
-        .limit(500);
+      // Use DISTINCT ON to get exactly the first user message per session.
+      // The previous global LIMIT 500 could drop previews for later sessions
+      // when earlier sessions had many user messages.
+      const idList = sql.join(
+        sessionIds.map((id) => sql`${id}`),
+        sql`, `,
+      );
+      const previewResult = await db.execute(sql`
+        SELECT DISTINCT ON (${chatMessages.sessionId})
+          ${chatMessages.sessionId} AS "sessionId",
+          ${chatMessages.content} AS "content"
+        FROM ${chatMessages}
+        WHERE ${chatMessages.sessionId} IN (${idList})
+          AND ${chatMessages.role} = 'user'
+          AND ${chatMessages.content} IS NOT NULL
+        ORDER BY ${chatMessages.sessionId}, ${chatMessages.createdAt} ASC
+      `);
 
-      // Keep only the first user message per session
-      for (const msg of firstMessages) {
-        if (msg.content && !previews.has(msg.sessionId)) {
-          previews.set(msg.sessionId, msg.content.slice(0, 100));
-        }
+      const previewRows = previewResult as unknown as Array<{
+        sessionId: string;
+        content: string;
+      }>;
+      for (const row of previewRows) {
+        previews.set(row.sessionId, row.content.slice(0, 100));
       }
     }
 

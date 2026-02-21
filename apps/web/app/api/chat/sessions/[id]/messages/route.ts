@@ -146,19 +146,25 @@ export async function POST(
       metadata: m.metadata ?? null,
     }));
 
-    const inserted = await db
-      .insert(chatMessages)
-      .values(rows)
-      .onConflictDoNothing()
-      .returning({ id: chatMessages.id });
+    // Wrap insert + session timestamp bump in a transaction so they
+    // stay consistent if the server crashes mid-operation.
+    const inserted = await db.transaction(async (tx) => {
+      const ins = await tx
+        .insert(chatMessages)
+        .values(rows)
+        .onConflictDoNothing()
+        .returning({ id: chatMessages.id });
 
-    // Only bump session timestamp when new messages were actually inserted
-    if (inserted.length > 0) {
-      await db
-        .update(chatSessions)
-        .set({ updatedAt: new Date() })
-        .where(eq(chatSessions.id, sessionId));
-    }
+      // Only bump session timestamp when new messages were actually inserted
+      if (ins.length > 0) {
+        await tx
+          .update(chatSessions)
+          .set({ updatedAt: new Date() })
+          .where(eq(chatSessions.id, sessionId));
+      }
+
+      return ins;
+    });
 
     return apiSuccess({ saved: inserted.length });
   } catch (error) {

@@ -26,6 +26,7 @@ export function AIModelCard({ subscriptionStatus, initialModel }: AIModelCardPro
         return;
       }
 
+      const previousModel = selectedModel;
       setSelectedModel(modelId);
       setModelSaving(true);
       setSavingModelId(modelId);
@@ -40,9 +41,11 @@ export function AIModelCard({ subscriptionStatus, initialModel }: AIModelCardPro
         if (res.ok) {
           toast.success("AI model updated");
         } else {
+          setSelectedModel(previousModel);
           toast.error("Failed to update AI model");
         }
       } catch {
+        setSelectedModel(previousModel);
         toast.error("Failed to update AI model");
       } finally {
         setModelSaving(false);

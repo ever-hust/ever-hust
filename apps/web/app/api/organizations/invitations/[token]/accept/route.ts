@@ -138,36 +138,14 @@ export async function POST(
       return apiBadRequest("This invitation has expired");
     }
 
-    // Verify the invitation email matches the user's email
+    // Verify the invitation email matches the user's email.
+    // Return the same "not found" response as the GET handler to avoid
+    // leaking that a valid invitation exists for a different email address.
     if (user.email !== invitation.email) {
-      return apiBadRequest(
-        "This invitation was sent to a different email address"
-      );
+      return apiNotFound("Invitation not found");
     }
 
-    // Check if already a member
-    const [existingMember] = await db
-      .select({ id: organizationMembers.id })
-      .from(organizationMembers)
-      .where(
-        and(
-          eq(organizationMembers.organizationId, invitation.organizationId),
-          eq(organizationMembers.userId, user.id)
-        )
-      )
-      .limit(1);
-
-    if (existingMember) {
-      // Mark invitation as accepted even if already a member
-      await db
-        .update(organizationInvitations)
-        .set({ status: "accepted" })
-        .where(eq(organizationInvitations.id, invitation.id));
-
-      return apiBadRequest("You are already a member of this organization");
-    }
-
-    // Check member limit
+    // Check member limit (read outside txn — rechecked inside for safety)
     const [org] = await db
       .select({ maxMembers: organizations.maxMembers, name: organizations.name })
       .from(organizations)
@@ -178,20 +156,41 @@ export async function POST(
       return apiError("Organization not found");
     }
 
-    const [memberCount] = await db
-      .select({ value: count() })
-      .from(organizationMembers)
-      .where(eq(organizationMembers.organizationId, invitation.organizationId));
+    // All membership checks and insertion happen inside a single transaction
+    // to prevent race conditions (e.g. two concurrent accept requests both
+    // passing the "already a member" check and inserting duplicate rows).
+    const txResult = await db.transaction(async (tx) => {
+      // Check if already a member (inside txn to prevent TOCTOU race)
+      const [existingMember] = await tx
+        .select({ id: organizationMembers.id })
+        .from(organizationMembers)
+        .where(
+          and(
+            eq(organizationMembers.organizationId, invitation.organizationId),
+            eq(organizationMembers.userId, user.id)
+          )
+        )
+        .limit(1);
 
-    if ((memberCount?.value ?? 0) >= org.maxMembers) {
-      return apiBadRequest(
-        "This organization has reached its member limit"
-      );
-    }
+      if (existingMember) {
+        await tx
+          .update(organizationInvitations)
+          .set({ status: "accepted" })
+          .where(eq(organizationInvitations.id, invitation.id));
 
-    // Create membership and mark invitation as accepted atomically to
-    // prevent the invitation being accepted twice.
-    await db.transaction(async (tx) => {
+        return { alreadyMember: true as const };
+      }
+
+      // Recheck member limit inside txn
+      const [memberCount] = await tx
+        .select({ value: count() })
+        .from(organizationMembers)
+        .where(eq(organizationMembers.organizationId, invitation.organizationId));
+
+      if ((memberCount?.value ?? 0) >= org.maxMembers) {
+        return { limitReached: true as const };
+      }
+
       await tx.insert(organizationMembers).values({
         organizationId: invitation.organizationId,
         userId: user.id,
@@ -202,7 +201,16 @@ export async function POST(
         .update(organizationInvitations)
         .set({ status: "accepted" })
         .where(eq(organizationInvitations.id, invitation.id));
+
+      return { joined: true as const };
     });
+
+    if ("alreadyMember" in txResult) {
+      return apiBadRequest("You are already a member of this organization");
+    }
+    if ("limitReached" in txResult) {
+      return apiBadRequest("This organization has reached its member limit");
+    }
 
     return apiSuccess({
       message: `You have joined ${org.name}`,

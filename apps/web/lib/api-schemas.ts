@@ -11,6 +11,7 @@ export const chatRequestSchema = z.object({
         parts: z.array(z.object({ type: z.string().max(100) }).passthrough()).max(200).optional(),
       })
     )
+    .min(1)
     .max(100),
 });
 

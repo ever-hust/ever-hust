@@ -49,10 +49,21 @@ export async function DELETE() {
       }
     }
 
-    return new NextResponse(null, {
+    // Clear the session cookie so the browser doesn't hold a stale token
+    // after the user row (and cascaded session rows) are deleted.
+    const response = new NextResponse(null, {
       status: 204,
       headers: { "Cache-Control": "private, no-cache, no-store, must-revalidate" },
     });
+    response.headers.append(
+      "Set-Cookie",
+      "better-auth.session_token=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"
+    );
+    response.headers.append(
+      "Set-Cookie",
+      "__Secure-better-auth.session_token=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax"
+    );
+    return response;
   } catch (error) {
     console.error("[api/user/account] DELETE failed:", error instanceof Error ? error.message : error);
     return apiError("Failed to delete account");

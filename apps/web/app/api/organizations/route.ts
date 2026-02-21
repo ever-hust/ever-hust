@@ -31,11 +31,13 @@ function generateSlug(name: string): string {
 /**
  * Ensure slug is unique by appending a numeric suffix if needed.
  */
+const MAX_SLUG_ATTEMPTS = 20;
+
 async function ensureUniqueSlug(baseSlug: string): Promise<string> {
   let slug = baseSlug;
   let suffix = 0;
 
-  while (true) {
+  while (suffix <= MAX_SLUG_ATTEMPTS) {
     const [existing] = await db
       .select({ id: organizations.id })
       .from(organizations)
@@ -47,6 +49,8 @@ async function ensureUniqueSlug(baseSlug: string): Promise<string> {
     suffix++;
     slug = `${baseSlug}-${suffix}`;
   }
+
+  throw new Error(`Could not generate unique slug after ${MAX_SLUG_ATTEMPTS} attempts`);
 }
 
 // GET /api/organizations - List organizations the current user belongs to

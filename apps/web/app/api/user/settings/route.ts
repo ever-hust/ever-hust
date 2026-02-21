@@ -66,12 +66,12 @@ export async function PATCH(req: Request) {
             if (key && key.trim()) {
               try {
                 encryptedKeys[provider] = encryptApiKey(key);
-              } catch {
-                // If BYOK_ENCRYPTION_KEY is missing, store as-is (development only)
-                console.warn(
-                  "[api/user/settings] BYOK_ENCRYPTION_KEY not configured — storing API key unencrypted. Set this env var in production."
+              } catch (encErr) {
+                console.error(
+                  "[api/user/settings] Failed to encrypt API key:",
+                  encErr instanceof Error ? encErr.message : encErr
                 );
-                encryptedKeys[provider] = key;
+                return apiError("API key encryption is not configured. Please contact support.");
               }
             } else {
               encryptedKeys[provider] = ""; // Clearing a key

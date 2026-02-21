@@ -76,9 +76,15 @@ export const FilterBar = memo(function FilterBar({ filters, onFiltersChange }: F
     };
   }, []);
 
-  const activeFilterCount = Object.values(filters).filter(
-    (v) => v !== undefined && v !== "" && v !== false && !(Array.isArray(v) && v.length === 0)
-  ).length;
+  const activeFilterCount = [
+    !!filters.keywords,
+    !!filters.location,
+    !!filters.isRemote,
+    !!filters.jobType,
+    filters.salaryMin != null && filters.salaryMin > 0,
+    filters.salaryMax != null && filters.salaryMax > 0,
+    (filters.skills?.length ?? 0) > 0,
+  ].filter(Boolean).length;
 
   const clearFilters = () => {
     setLocalKeywords("");

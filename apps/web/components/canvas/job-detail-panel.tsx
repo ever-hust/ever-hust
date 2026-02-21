@@ -460,20 +460,23 @@ export function JobDetailPanel({
                         <p className="mt-0.5 text-sm font-medium">{job.companyNumEmployees} employees</p>
                       </div>
                     )}
-                    {safeExternalUrl(job.companyUrl) && (
-                      <div className="rounded-lg border p-3 col-span-2">
-                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Website</p>
-                        <a
-                          href={safeExternalUrl(job.companyUrl)!}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-0.5 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-                        >
-                          {safeExternalUrl(job.companyUrl)!.replace(/^https?:\/\//, "").replace(/\/$/, "")}
-                          <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                        </a>
-                      </div>
-                    )}
+                    {(() => {
+                      const safeCompanyUrl = safeExternalUrl(job.companyUrl);
+                      return safeCompanyUrl ? (
+                        <div className="rounded-lg border p-3 col-span-2">
+                          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Website</p>
+                          <a
+                            href={safeCompanyUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-0.5 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                          >
+                            {safeCompanyUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+                            <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                          </a>
+                        </div>
+                      ) : null;
+                    })()}
                   </div>
 
                   {/* Company description */}

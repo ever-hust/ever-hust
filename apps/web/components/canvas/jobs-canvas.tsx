@@ -108,6 +108,13 @@ export const JobsCanvas = memo(function JobsCanvas({
   );
 
   const observerRef = useRef<IntersectionObserver | null>(null);
+  // Guard ref to prevent duplicate onLoadMore calls before React re-renders
+  const loadMoreFiredRef = useRef(false);
+
+  // Reset the guard when loading finishes so the next intersection can fire
+  useEffect(() => {
+    if (!isLoading) loadMoreFiredRef.current = false;
+  }, [isLoading]);
 
   // Disconnect the IntersectionObserver when the component unmounts to prevent
   // leaked callbacks that could fire after the component is gone.
@@ -131,7 +138,8 @@ export const JobsCanvas = memo(function JobsCanvas({
       if (isLoading || !node) return;
 
       observerRef.current = new IntersectionObserver((entries) => {
-        if (entries[0]?.isIntersecting && hasMore) {
+        if (entries[0]?.isIntersecting && hasMore && !loadMoreFiredRef.current) {
+          loadMoreFiredRef.current = true;
           onLoadMore();
         }
       });

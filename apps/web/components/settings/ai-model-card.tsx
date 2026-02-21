@@ -52,7 +52,7 @@ export function AIModelCard({ subscriptionStatus, initialModel }: AIModelCardPro
         setSavingModelId(null);
       }
     },
-    [isPro]
+    [isPro, selectedModel]
   );
 
   return (

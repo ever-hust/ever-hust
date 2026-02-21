@@ -278,7 +278,9 @@ export const SalaryInsightsCard = memo(function SalaryInsightsCard({
 
   // Find highest median among companies for bar chart scaling
   const topCompanyMax =
-    topCompanies.length > 0 ? topCompanies[0]!.medianSalary : 0;
+    topCompanies.length > 0
+      ? Math.max(...topCompanies.map((c) => c.medianSalary))
+      : 0;
 
   // Build subtitle
   const subtitleParts: string[] = [];

@@ -137,7 +137,12 @@ export function ReferralProgramCard() {
   }, [referralLink, handleCopy]);
 
   const handleInvite = useCallback(async () => {
-    if (!inviteEmail.trim()) return;
+    const trimmed = inviteEmail.trim();
+    if (!trimmed) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
     setInviting(true);
     try {
       const res = await fetch("/api/referrals/invite", {

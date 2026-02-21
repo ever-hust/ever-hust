@@ -40,58 +40,70 @@ export async function PATCH(req: Request) {
   try {
     // Handle preferences merge (deep merge with existing preferences)
     if (body.preferences) {
-      const existing = await db
-        .select({ preferences: users.preferences })
-        .from(users)
-        .where(eq(users.id, userId))
-        .limit(1);
+      const prefs = body.preferences;
+      // Use transaction to prevent concurrent preference updates from overwriting each other
+      const mergedPrefs = await db.transaction(async (tx) => {
+        const existing = await tx
+          .select({ preferences: users.preferences })
+          .from(users)
+          .where(eq(users.id, userId))
+          .limit(1);
 
-      const existingPrefs =
-        (existing[0]?.preferences as Record<string, unknown>) ?? {};
+        const existingPrefs =
+          (existing[0]?.preferences as Record<string, unknown>) ?? {};
 
-      // Deep-merge apiKeys to prevent erasing sibling keys when only one key is updated
-      // e.g. sending { apiKeys: { anthropic: "sk-new" } } should NOT erase openai/google keys
-      const mergedPrefs = { ...existingPrefs, ...body.preferences };
-      if (body.preferences.apiKeys !== undefined) {
-        const existingApiKeys =
-          (existingPrefs.apiKeys as Record<string, unknown>) ?? {};
-        const incomingKeys = body.preferences.apiKeys as Record<string, string>;
+        // Deep-merge apiKeys to prevent erasing sibling keys when only one key is updated
+        // e.g. sending { apiKeys: { anthropic: "sk-new" } } should NOT erase openai/google keys
+        const merged = { ...existingPrefs, ...prefs };
+        if (prefs.apiKeys !== undefined) {
+          const existingApiKeys =
+            (existingPrefs.apiKeys as Record<string, unknown>) ?? {};
+          const incomingKeys = prefs.apiKeys as Record<string, string>;
 
-        // Encrypt non-empty API keys before storing
-        const encryptedKeys: Record<string, string> = {};
-        for (const [provider, key] of Object.entries(incomingKeys)) {
-          if (key && key.trim()) {
-            try {
-              encryptedKeys[provider] = encryptApiKey(key);
-            } catch {
-              // If BYOK_ENCRYPTION_KEY is missing, store as-is (development only)
-              console.warn(
-                "[api/user/settings] BYOK_ENCRYPTION_KEY not configured — storing API key unencrypted. Set this env var in production."
-              );
-              encryptedKeys[provider] = key;
+          // Encrypt non-empty API keys before storing
+          const encryptedKeys: Record<string, string> = {};
+          for (const [provider, key] of Object.entries(incomingKeys)) {
+            if (key && key.trim()) {
+              try {
+                encryptedKeys[provider] = encryptApiKey(key);
+              } catch {
+                // If BYOK_ENCRYPTION_KEY is missing, store as-is (development only)
+                console.warn(
+                  "[api/user/settings] BYOK_ENCRYPTION_KEY not configured — storing API key unencrypted. Set this env var in production."
+                );
+                encryptedKeys[provider] = key;
+              }
+            } else {
+              encryptedKeys[provider] = ""; // Clearing a key
             }
-          } else {
-            encryptedKeys[provider] = ""; // Clearing a key
           }
+
+          merged.apiKeys = {
+            ...existingApiKeys,
+            ...encryptedKeys,
+          };
         }
 
-        mergedPrefs.apiKeys = {
-          ...existingApiKeys,
-          ...encryptedKeys,
-        };
-      }
+        await tx
+          .update(users)
+          .set({ ...allowedFields, preferences: merged, updatedAt: new Date() })
+          .where(eq(users.id, userId));
+
+        return merged;
+      });
 
       allowedFields.preferences = mergedPrefs;
-    }
+    } else {
+      // No preferences to merge — just update the other fields
+      if (Object.keys(allowedFields).length === 0) {
+        return apiBadRequest("No valid fields to update");
+      }
 
-    if (Object.keys(allowedFields).length === 0) {
-      return apiBadRequest("No valid fields to update");
+      await db
+        .update(users)
+        .set({ ...allowedFields, updatedAt: new Date() })
+        .where(eq(users.id, userId));
     }
-
-    await db
-      .update(users)
-      .set({ ...allowedFields, updatedAt: new Date() })
-      .where(eq(users.id, userId));
 
     return apiSuccess({ updated: true });
   } catch (err) {

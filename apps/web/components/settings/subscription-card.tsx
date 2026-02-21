@@ -38,8 +38,9 @@ export function SubscriptionCard({ subscriptionStatus }: SubscriptionCardProps) 
       toast.error("Failed to start checkout. Please try again.");
     } catch {
       toast.error("Failed to start checkout. Please try again.");
+    } finally {
+      setStripeLoading(false);
     }
-    setStripeLoading(false);
   }, []);
 
   const handleManageSubscription = useCallback(async () => {
@@ -57,8 +58,9 @@ export function SubscriptionCard({ subscriptionStatus }: SubscriptionCardProps) 
       toast.error("Failed to open subscription portal. Please try again.");
     } catch {
       toast.error("Failed to open subscription portal. Please try again.");
+    } finally {
+      setStripeLoading(false);
     }
-    setStripeLoading(false);
   }, []);
 
   return (

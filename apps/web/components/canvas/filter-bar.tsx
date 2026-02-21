@@ -41,8 +41,14 @@ export const FilterBar = memo(function FilterBar({ filters, onFiltersChange }: F
   filtersRef.current = filters;
   const pendingPatchRef = useRef<Partial<JobFilters>>({});
 
-  // Sync local state when filters change externally (e.g. clear)
+  // Sync local state when filters change externally (e.g. clear).
+  // Cancel any pending debounce to prevent stale values from being restored.
   useEffect(() => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+      pendingPatchRef.current = {};
+    }
     setLocalKeywords(filters.keywords ?? "");
     setLocalLocation(filters.location ?? "");
     setLocalSalaryMin(filters.salaryMin != null ? String(filters.salaryMin) : "");
@@ -192,7 +198,8 @@ export const FilterBar = memo(function FilterBar({ filters, onFiltersChange }: F
             onChange={(e) => {
               const value = e.target.value;
               setLocalSalaryMin(value);
-              debouncedUpdate({ salaryMin: value ? Number(value) : undefined });
+              const num = Number(value);
+              debouncedUpdate({ salaryMin: value && Number.isFinite(num) ? num : undefined });
             }}
             className="h-8 w-28 text-xs"
           />
@@ -205,7 +212,8 @@ export const FilterBar = memo(function FilterBar({ filters, onFiltersChange }: F
             onChange={(e) => {
               const value = e.target.value;
               setLocalSalaryMax(value);
-              debouncedUpdate({ salaryMax: value ? Number(value) : undefined });
+              const num = Number(value);
+              debouncedUpdate({ salaryMax: value && Number.isFinite(num) ? num : undefined });
             }}
             className="h-8 w-28 text-xs"
           />

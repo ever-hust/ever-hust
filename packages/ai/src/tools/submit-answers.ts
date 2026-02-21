@@ -39,7 +39,7 @@ export const submitAnswersTool = tool({
       return { submitted: false, error: "User not found" };
     }
 
-    if (userResult[0]!.subscriptionStatus !== "active") {
+    if (userResult[0]!.subscriptionStatus !== "active" && userResult[0]!.subscriptionStatus !== "past_due") {
       return {
         submitted: false,
         error: "Submitting application answers requires a Pro subscription.",

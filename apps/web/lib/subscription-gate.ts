@@ -27,7 +27,7 @@ export async function checkSubscription(
     return { userId, isActive: false, limits: FREE_LIMITS };
   }
 
-  const isActive = result[0]!.subscriptionStatus === "active";
+  const isActive = result[0]!.subscriptionStatus === "active" || result[0]!.subscriptionStatus === "past_due";
   return {
     userId,
     isActive,

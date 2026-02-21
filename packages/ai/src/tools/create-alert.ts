@@ -72,7 +72,7 @@ export const createAlertTool = tool({
 
     const user = userResult[0]!;
 
-    if (user.subscriptionStatus !== "active") {
+    if (user.subscriptionStatus !== "active" && user.subscriptionStatus !== "past_due") {
       return {
         created: false,
         error: "Job alerts require a Pro subscription. Upgrade to get alerts.",

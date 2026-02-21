@@ -228,8 +228,8 @@ export default async function JobDetailPage({ params }: PageProps) {
             currency: job.salaryCurrency ?? "USD",
             value: {
               "@type": "QuantitativeValue",
-              ...(job.salaryMin ? { minValue: Number(job.salaryMin) } : {}),
-              ...(job.salaryMax ? { maxValue: Number(job.salaryMax) } : {}),
+              ...(job.salaryMin && Number.isFinite(Number(job.salaryMin)) ? { minValue: Number(job.salaryMin) } : {}),
+              ...(job.salaryMax && Number.isFinite(Number(job.salaryMax)) ? { maxValue: Number(job.salaryMax) } : {}),
               unitText:
                 job.salaryInterval === "yearly"
                   ? "YEAR"
@@ -326,8 +326,8 @@ export default async function JobDetailPage({ params }: PageProps) {
                 {job.isRemote && (
                   <Badge variant="default">Remote</Badge>
                 )}
-                {job.jobType?.map((type) => (
-                  <Badge key={type} variant="secondary">
+                {job.jobType?.map((type, i) => (
+                  <Badge key={`${type}-${i}`} variant="secondary">
                     {type}
                   </Badge>
                 ))}
@@ -402,8 +402,8 @@ export default async function JobDetailPage({ params }: PageProps) {
                 </CardHeader>
                 <CardContent>
                   <div className="flex flex-wrap gap-2">
-                    {job.skills.map((skill) => (
-                      <Badge key={skill} variant="secondary" className="px-3 py-1 text-sm">
+                    {job.skills.map((skill, i) => (
+                      <Badge key={`${skill}-${i}`} variant="secondary" className="px-3 py-1 text-sm">
                         {skill}
                       </Badge>
                     ))}

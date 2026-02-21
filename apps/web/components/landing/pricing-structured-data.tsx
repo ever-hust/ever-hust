@@ -21,25 +21,6 @@ export function PricingStructuredData() {
       },
       {
         "@type": "Offer",
-        name: "Monthly",
-        price: "20.00",
-        priceCurrency: "USD",
-        priceSpecification: {
-          "@type": "UnitPriceSpecification",
-          price: "20.00",
-          priceCurrency: "USD",
-          unitCode: "MON",
-          referenceQuantity: {
-            "@type": "QuantitativeValue",
-            value: "1",
-            unitCode: "MON",
-          },
-        },
-        description: "Billed $20 every month",
-        url: `${baseUrl}/pricing`,
-      },
-      {
-        "@type": "Offer",
         name: "Quarterly",
         price: "36.00",
         priceCurrency: "USD",

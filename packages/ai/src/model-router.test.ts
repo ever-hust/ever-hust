@@ -159,14 +159,14 @@ describe("getModelForUser", () => {
     );
   });
 
-  it("should treat past_due users as free tier", () => {
+  it("should treat past_due users as paid tier (grace period)", () => {
     const model = getModelForUser({
       subscriptionStatus: "past_due",
       preferences: { aiModel: "claude-sonnet-4-5-20250929" },
     });
-    // Non-active users get the free model
+    // past_due users retain Pro access during Stripe's grace period
     expect((model as { modelId: string }).modelId).toBe(
-      "claude-haiku-4-5-20251001"
+      "claude-sonnet-4-5-20250929"
     );
   });
 

@@ -94,6 +94,7 @@ function FAQItem({ q, a, id }: { q: string; a: string; id: string }) {
     <div className="border-b last:border-b-0">
       <button
         type="button"
+        id={`faq-q-${id}`}
         className="flex w-full items-center justify-between py-4 text-left text-sm font-medium transition-colors hover:text-primary"
         onClick={() => setOpen(!open)}
         aria-expanded={open}
@@ -105,11 +106,15 @@ function FAQItem({ q, a, id }: { q: string; a: string; id: string }) {
           aria-hidden="true"
         />
       </button>
-      {open && (
-        <p id={answerId} className="pb-4 text-sm text-muted-foreground leading-relaxed">
-          {a}
-        </p>
-      )}
+      <p
+        id={answerId}
+        role="region"
+        aria-labelledby={`faq-q-${id}`}
+        hidden={!open}
+        className="pb-4 text-sm text-muted-foreground leading-relaxed"
+      >
+        {a}
+      </p>
     </div>
   );
 }

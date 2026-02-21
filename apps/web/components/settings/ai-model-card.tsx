@@ -16,7 +16,7 @@ export function AIModelCard({ subscriptionStatus, initialModel }: AIModelCardPro
   const [selectedModel, setSelectedModel] = useState(initialModel);
   const [modelSaving, setModelSaving] = useState(false);
   const [savingModelId, setSavingModelId] = useState<string | null>(null);
-  const isPro = subscriptionStatus === "active";
+  const isPro = subscriptionStatus === "active" || subscriptionStatus === "past_due";
 
   const handleModelSelect = useCallback(
     async (modelId: string) => {

@@ -31,6 +31,7 @@ import { ScrollToTop } from "@/components/shared/scroll-to-top";
 import { ErrorState } from "@/components/shared/error-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { timeAgo } from "@/lib/format-date";
+import { safeExternalUrl } from "@/lib/safe-url";
 import type { UserPreferences } from "@/lib/api-schemas";
 
 interface UserProfile {
@@ -168,9 +169,9 @@ export default function ProfilePage() {
       <Card className="p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <Avatar className="h-16 w-16 shrink-0">
-            {user.photoUrl ? (
+            {safeExternalUrl(user.photoUrl) ? (
               <img
-                src={user.photoUrl}
+                src={safeExternalUrl(user.photoUrl)!}
                 alt={user.name || "User profile photo"}
                 className="h-16 w-16 rounded-full object-cover"
               />
@@ -189,10 +190,10 @@ export default function ProfilePage() {
                 )}
               </div>
               <Badge
-                variant={user.subscriptionStatus === "active" ? "default" : "secondary"}
+                variant={user.subscriptionStatus === "active" || user.subscriptionStatus === "past_due" ? "default" : "secondary"}
                 className="capitalize shrink-0"
               >
-                {user.subscriptionStatus === "active" ? (
+                {user.subscriptionStatus === "active" || user.subscriptionStatus === "past_due" ? (
                   <>
                     <Star className="mr-1 h-3 w-3" aria-hidden="true" />
                     Pro

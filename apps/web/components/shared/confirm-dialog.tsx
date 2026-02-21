@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@repo/ui/button";
 import {
@@ -58,6 +58,11 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Reset stale error when dialog re-opens
+  useEffect(() => {
+    if (open) setErrorMsg(null);
+  }, [open]);
 
   const handleConfirm = useCallback(async () => {
     setLoading(true);

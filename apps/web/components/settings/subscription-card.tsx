@@ -7,6 +7,7 @@ import { Button } from "@repo/ui/button";
 import { Card } from "@repo/ui/card";
 import { Separator } from "@repo/ui/separator";
 import { toast } from "sonner";
+import { safeExternalUrl } from "@/lib/safe-url";
 
 interface SubscriptionCardProps {
   subscriptionStatus: string;
@@ -28,8 +29,9 @@ export function SubscriptionCard({ subscriptionStatus }: SubscriptionCardProps) 
       });
       if (res.ok) {
         const data = (await res.json()) as { url: string };
-        if (data.url) {
-          window.location.href = data.url;
+        const safeUrl = safeExternalUrl(data.url);
+        if (safeUrl) {
+          window.location.href = safeUrl;
           return;
         }
       }
@@ -46,8 +48,9 @@ export function SubscriptionCard({ subscriptionStatus }: SubscriptionCardProps) 
       const res = await fetch("/api/stripe/portal", { method: "POST" });
       if (res.ok) {
         const data = (await res.json()) as { url: string };
-        if (data.url) {
-          window.location.href = data.url;
+        const safeUrl = safeExternalUrl(data.url);
+        if (safeUrl) {
+          window.location.href = safeUrl;
           return;
         }
       }

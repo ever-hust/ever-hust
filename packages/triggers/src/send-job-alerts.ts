@@ -31,8 +31,8 @@ async function processAlerts(
       if (userResult.length === 0) continue;
       const user = userResult[0]!;
 
-      // Only send to active subscribers
-      if (user.subscriptionStatus !== "active") continue;
+      // Only send to active subscribers (past_due retains access during grace period)
+      if (user.subscriptionStatus !== "active" && user.subscriptionStatus !== "past_due") continue;
 
       // Build query conditions based on alert criteria
       const criteria = alert.criteria;
@@ -155,7 +155,7 @@ async function processAlerts(
 
       await sendJobAlertEmail({
         to: alert.email,
-        userName: user.name,
+        userName: user.name ?? "Job Seeker",
         alertCriteria: criteriaDesc,
         jobs: safeJobs,
       });

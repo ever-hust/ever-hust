@@ -86,7 +86,7 @@ export function useSubscription(): SubscriptionInfo {
     return () => { controller.abort(); };
   }, []);
 
-  const isSubscribed = useMemo(() => status === "active", [status]);
+  const isSubscribed = useMemo(() => status === "active" || status === "past_due", [status]);
 
   const upgrade = useCallback(async (planId = "quarterly") => {
     try {

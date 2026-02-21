@@ -26,7 +26,7 @@ export function AlertsCard({
   const [alerts, setAlerts] = useState<Alert[]>(initialAlerts);
   const [deleteAlertId, setDeleteAlertId] = useState<number | null>(null);
   const [togglingAlertId, setTogglingAlertId] = useState<number | null>(null);
-  const isPro = subscriptionStatus === "active";
+  const isPro = subscriptionStatus === "active" || subscriptionStatus === "past_due";
 
   // Sync with parent when initial alerts resolve
   useEffect(() => {

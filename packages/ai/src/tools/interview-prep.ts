@@ -44,7 +44,7 @@ export const interviewPrepTool = tool({
     }
 
     const user = userResult[0]!;
-    if (user.subscriptionStatus !== "active") {
+    if (user.subscriptionStatus !== "active" && user.subscriptionStatus !== "past_due") {
       return {
         prepared: false,
         error: "Interview prep requires a Pro subscription.",

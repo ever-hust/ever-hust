@@ -302,13 +302,13 @@ export default function FavoritesPage() {
                             {job.jobLevel}
                           </Badge>
                         )}
-                        {job.jobType?.map((type) => (
-                          <Badge key={type} variant="secondary" className="text-[10px]">
+                        {job.jobType?.map((type, i) => (
+                          <Badge key={`type-${i}`} variant="secondary" className="text-[10px]">
                             {type}
                           </Badge>
                         ))}
-                        {job.skills?.slice(0, 5).map((skill) => (
-                          <Badge key={skill} variant="outline" className="text-[10px]">
+                        {job.skills?.slice(0, 5).map((skill, i) => (
+                          <Badge key={`skill-${i}`} variant="outline" className="text-[10px]">
                             {skill}
                           </Badge>
                         ))}

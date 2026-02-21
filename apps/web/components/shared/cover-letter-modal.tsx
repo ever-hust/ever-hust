@@ -58,7 +58,8 @@ export function CoverLetterModal({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `cover-letter-${companyName?.toLowerCase().replace(/\s+/g, "-") ?? "job"}.txt`;
+    const safeName = companyName?.toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-") || "job";
+    a.download = `cover-letter-${safeName}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

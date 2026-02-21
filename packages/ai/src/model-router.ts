@@ -99,7 +99,7 @@ export function getModelForUser(user: UserForModel): LanguageModel {
     // of sending ciphertext as an API key (which would cause a 401).
     if (decrypted === null && rawKey.includes(":")) {
       return getPlatformModel(
-        user.subscriptionStatus === "active" ? PAID_MODEL_ID : FREE_MODEL_ID
+        user.subscriptionStatus === "active" || user.subscriptionStatus === "past_due" ? PAID_MODEL_ID : FREE_MODEL_ID
       );
     }
     const apiKey = decrypted ?? rawKey;
@@ -121,7 +121,7 @@ export function getModelForUser(user: UserForModel): LanguageModel {
   // 2. Free-tier users always get the free model — no model preference override.
   //    This prevents free users from setting aiModel to an expensive model
   //    and having the platform pay for it through OpenRouter.
-  if (user.subscriptionStatus !== "active") {
+  if (user.subscriptionStatus !== "active" && user.subscriptionStatus !== "past_due") {
     return getPlatformModel(FREE_MODEL_ID);
   }
 

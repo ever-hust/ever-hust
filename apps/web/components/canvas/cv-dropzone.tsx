@@ -186,6 +186,7 @@ export function CVDropzone({ onUploadComplete }: CVDropzoneProps) {
             className="mt-2"
             onClick={() => {
               setUploadResult(null);
+              if (fileInputRef.current) fileInputRef.current.value = "";
               fileInputRef.current?.click();
             }}
           >
@@ -202,6 +203,7 @@ export function CVDropzone({ onUploadComplete }: CVDropzoneProps) {
             className="mt-2"
             onClick={() => {
               setUploadResult(null);
+              if (fileInputRef.current) fileInputRef.current.value = "";
               fileInputRef.current?.click();
             }}
           >

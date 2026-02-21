@@ -52,17 +52,17 @@ export function StructuredData() {
       },
       {
         "@type": "Offer",
-        price: "12",
+        price: "36",
         priceCurrency: "USD",
         name: "Quarterly",
-        billingIncrement: "P1M",
+        description: "Billed $36 every 3 months ($12/mo)",
       },
       {
         "@type": "Offer",
-        price: "7",
+        price: "84",
         priceCurrency: "USD",
         name: "Annual",
-        billingIncrement: "P1M",
+        description: "Billed $84 per year ($7/mo)",
       },
     ],
   };

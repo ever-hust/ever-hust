@@ -84,10 +84,12 @@ export function KeyboardShortcutsHelp() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
-  // Detect OS for modifier key display
+  // Detect OS for modifier key display.
+  // navigator.platform is deprecated — prefer userAgentData when available.
   const isMac =
     typeof navigator !== "undefined" &&
-    navigator.platform?.toLowerCase().includes("mac");
+    ((navigator as { userAgentData?: { platform?: string } }).userAgentData?.platform === "macOS" ||
+      navigator.platform?.toLowerCase().includes("mac"));
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>

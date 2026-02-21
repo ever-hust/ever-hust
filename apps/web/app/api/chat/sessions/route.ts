@@ -149,7 +149,12 @@ export async function DELETE() {
         .where(eq(chatSessions.userId, user.id));
     });
 
-    return new NextResponse(null, { status: 204 });
+    return new NextResponse(null, {
+      status: 204,
+      headers: {
+        "Cache-Control": "private, no-cache, no-store, must-revalidate",
+      },
+    });
   } catch (err) {
     console.error("[api/chat/sessions] DELETE failed:", err instanceof Error ? err.message : err);
     return apiError("Failed to delete chat sessions");

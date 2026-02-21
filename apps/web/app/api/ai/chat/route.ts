@@ -51,7 +51,13 @@ export async function POST(req: Request) {
     );
   }
 
-  const uiMessages = parsed.data.messages as UIMessage[];
+  // Ensure every message has `parts` — the AI SDK's convertToModelMessages
+  // accesses `message.parts.filter(...)` directly, so messages with only
+  // `content` (no `parts`) would crash at runtime despite the `as UIMessage[]` cast.
+  const uiMessages = parsed.data.messages.map((m) => ({
+    ...m,
+    parts: m.parts ?? [{ type: "text" as const, text: m.content }],
+  })) as UIMessage[];
 
   try {
     const messages = await convertToModelMessages(uiMessages);

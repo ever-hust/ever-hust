@@ -6,6 +6,8 @@ import { applyRateLimit } from "../../../../../../lib/rate-limit";
 import { apiSuccess, apiBadRequest, apiNotFound, apiError, safeJsonParse } from "../../../../../../lib/api-response";
 import { z } from "zod";
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // Cap JSONB fields to prevent DoS via oversized payloads
 const boundedJson = z.unknown().nullable().optional().refine(
   (val) => val == null || JSON.stringify(val).length <= 100_000,
@@ -16,7 +18,7 @@ const saveMessagesSchema = z.object({
   messages: z
     .array(
       z.object({
-        id: z.string().max(100),
+        id: z.string().uuid(),
         role: z.enum(["user", "assistant", "system", "tool"]),
         content: z.string().max(50_000).nullable().optional(),
         toolCalls: boundedJson,
@@ -48,7 +50,7 @@ export async function GET(
 
   const { id: sessionId } = await params;
 
-  if (!sessionId || typeof sessionId !== "string" || sessionId.length > 100) {
+  if (!sessionId || !UUID_REGEX.test(sessionId)) {
     return apiBadRequest("Invalid session ID");
   }
 
@@ -108,7 +110,7 @@ export async function POST(
 
   const { id: sessionId } = await params;
 
-  if (!sessionId || typeof sessionId !== "string" || sessionId.length > 100) {
+  if (!sessionId || !UUID_REGEX.test(sessionId)) {
     return apiBadRequest("Invalid session ID");
   }
 

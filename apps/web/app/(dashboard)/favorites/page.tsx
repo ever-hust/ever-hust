@@ -72,7 +72,7 @@ export default function FavoritesPage() {
   const [favorites, setFavorites] = useState<FavoriteJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [removingId, setRemovingId] = useState<number | null>(null);
+  const [removingIds, setRemovingIds] = useState<Set<number>>(new Set());
   const [retryKey, setRetryKey] = useState(0);
 
   const reloadPage = useCallback(() => {
@@ -102,7 +102,7 @@ export default function FavoritesPage() {
   }, [retryKey]);
 
   const handleRemoveFavorite = useCallback(async (jobId: number) => {
-    setRemovingId(jobId);
+    setRemovingIds((prev) => new Set(prev).add(jobId));
     try {
       const res = await fetch("/api/user/favorites", {
         method: "POST",
@@ -124,7 +124,11 @@ export default function FavoritesPage() {
     } catch {
       toast.error("Failed to remove favorite");
     } finally {
-      setRemovingId(null);
+      setRemovingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(jobId);
+        return next;
+      });
     }
   }, []);
 
@@ -177,7 +181,7 @@ export default function FavoritesPage() {
               const saved = timeAgo(job.savedAt);
               const safeLogo = safeExternalUrl(job.companyLogo);
               const applyLink = safeExternalUrl(job.applyUrl) ?? safeExternalUrl(job.jobUrl) ?? null;
-              const isRemoving = removingId === job.id;
+              const isRemoving = removingIds.has(job.id);
 
               return (
                 <li

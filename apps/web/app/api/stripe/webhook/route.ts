@@ -122,11 +122,19 @@ export async function POST(req: Request) {
       }
 
       case "invoice.payment_failed": {
+        // Only set "past_due" if not already canceled — same rationale as
+        // invoice.paid: Stripe event ordering isn't guaranteed, so a late
+        // payment_failed must not revive a canceled subscription.
         const { stripeCustomerId } = parsed.data;
         await db
           .update(users)
           .set({ subscriptionStatus: "past_due", updatedAt: new Date() })
-          .where(eq(users.stripeCustomerId, stripeCustomerId));
+          .where(
+            and(
+              eq(users.stripeCustomerId, stripeCustomerId),
+              ne(users.subscriptionStatus, "canceled"),
+            )
+          );
         break;
       }
 

@@ -69,7 +69,7 @@ export async function POST(req: Request) {
       email: dbUser.email,
       planId: body.planId,
       stripeCustomerId: dbUser.stripeCustomerId,
-      successUrl: `${appUrl}/settings?session_id={CHECKOUT_SESSION_ID}&success=true`,
+      successUrl: `${appUrl}/settings?success=true`,
       cancelUrl: `${appUrl}/settings?canceled=true`,
     });
 

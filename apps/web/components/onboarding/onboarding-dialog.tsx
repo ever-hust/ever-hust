@@ -274,7 +274,12 @@ export function OnboardingDialog({
 
   return (
     <Dialog open={open}>
-      <DialogContent className="sm:max-w-[480px]" hideClose>
+      <DialogContent
+        className="sm:max-w-[480px]"
+        hideClose
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle className="sr-only">Profile Setup</DialogTitle>
           <DialogDescription className="sr-only">

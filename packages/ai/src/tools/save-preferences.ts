@@ -81,27 +81,30 @@ export const savePreferencesTool = tool({
     if (!userId) return { saved: false, error: "Not authenticated" };
 
     try {
-    // Get existing preferences
-    const existing = await db
-      .select({ preferences: users.preferences })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
+    // Use a transaction to prevent concurrent preference updates from overwriting each other
+    const merged = await db.transaction(async (tx) => {
+      const existing = await tx
+        .select({ preferences: users.preferences })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
 
-    const existingPrefs =
-      (existing[0]?.preferences as Record<string, unknown>) ?? {};
+      const existingPrefs =
+        (existing[0]?.preferences as Record<string, unknown>) ?? {};
 
-    // Merge preferences
-    const merged = { ...existingPrefs, ...preferences };
+      const result = { ...existingPrefs, ...preferences };
 
-    await db
-      .update(users)
-      .set({
-        preferences: merged,
-        updatedAt: new Date(),
-        ...(markOnboardingComplete ? { onboardingCompleted: true } : {}),
-      })
-      .where(eq(users.id, userId));
+      await tx
+        .update(users)
+        .set({
+          preferences: result,
+          updatedAt: new Date(),
+          ...(markOnboardingComplete ? { onboardingCompleted: true } : {}),
+        })
+        .where(eq(users.id, userId));
+
+      return result;
+    });
 
     return {
       saved: true,

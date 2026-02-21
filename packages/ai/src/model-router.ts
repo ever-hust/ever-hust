@@ -79,6 +79,12 @@ const FREE_MODEL_ID = "claude-haiku-4-5-20251001";
 const PAID_MODEL_ID =
   process.env.DEFAULT_AI_MODEL ?? "claude-sonnet-4-5-20250929";
 
+if (process.env.DEFAULT_AI_MODEL && !ALLOWED_MODELS.has(process.env.DEFAULT_AI_MODEL)) {
+  console.warn(
+    `[model-router] DEFAULT_AI_MODEL="${process.env.DEFAULT_AI_MODEL}" is not in ALLOWED_MODELS, will fall back to "claude-opus-4-6"`,
+  );
+}
+
 /**
  * Resolve the correct LanguageModel for a given user.
  *

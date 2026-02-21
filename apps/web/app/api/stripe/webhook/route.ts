@@ -321,7 +321,7 @@ async function handleSubscriptionUpdated(data: {
         currentPeriodEnd,
         cancelAtPeriodEnd,
         updatedAt: now,
-        ...(planId ? { planType: planId as "monthly" | "quarterly" | "annual" } : {}),
+        ...(planId ? { planType: validPlanId(planId) } : {}),
       })
       .where(eq(subscriptions.stripeSubscriptionId, stripeSubscriptionId));
   });

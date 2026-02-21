@@ -37,8 +37,17 @@ export const favoriteJobTool = tool({
         return { favorited: false, message: "Job removed from favorites." };
       }
 
+      if (existing.length > 0 && existing[0]!.status === "applied") {
+        // Don't overwrite "applied" status — it would lose application tracking
+        return {
+          favorited: true,
+          message:
+            "This job is already tracked as an application. It's in your favorites.",
+        };
+      }
+
       if (existing.length > 0) {
-        // Existing record with different status (e.g. "applied") — update to favorited
+        // Existing record with a different status — update to favorited
         await tx
           .update(userJobs)
           .set({ status: "favorited", updatedAt: new Date() })

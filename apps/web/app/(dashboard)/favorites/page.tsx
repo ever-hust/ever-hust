@@ -110,8 +110,14 @@ export default function FavoritesPage() {
         body: JSON.stringify({ jobId }),
       });
       if (res.ok) {
-        setFavorites((prev) => prev.filter((f) => f.id !== jobId));
-        toast.success("Removed from favorites");
+        const data = (await res.json()) as { favorited: boolean };
+        if (!data.favorited) {
+          setFavorites((prev) => prev.filter((f) => f.id !== jobId));
+          toast.success("Removed from favorites");
+        } else {
+          // Toggle re-added it unexpectedly — keep UI in sync
+          toast.info("Favorite status updated");
+        }
       } else {
         toast.error("Failed to remove favorite");
       }

@@ -33,6 +33,8 @@ interface UseRealtimeJobsOptions {
   enabled?: boolean;
 }
 
+const MAX_RECONNECT_ATTEMPTS = 3;
+
 /**
  * React hook that subscribes to Supabase Realtime changes on the `jobs` table.
  * Automatically cleans up the subscription on unmount.
@@ -62,8 +64,6 @@ export function useRealtimeJobs({
   onInsertRef.current = onInsert;
   onUpdateRef.current = onUpdate;
   onDeleteRef.current = onDelete;
-
-  const MAX_RECONNECT_ATTEMPTS = 3;
 
   const clearReconnectTimer = useCallback(() => {
     if (reconnectTimerRef.current) {

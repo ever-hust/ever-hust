@@ -248,8 +248,8 @@ export default function ApplicationsPage() {
           className="border-b-0 px-0 py-0"
         />
 
-        {/* Stats row */}
-        {!isLoading && applications.length > 0 && (
+        {/* Stats row — only show when viewing all applications to avoid misleading counts */}
+        {!isLoading && applications.length > 0 && statusFilter === "all" && (
           <div className="mt-4 flex flex-wrap gap-3">
             <div className="rounded-md border px-3 py-1.5 text-center">
               <p className="text-lg font-semibold">{applications.length}</p>

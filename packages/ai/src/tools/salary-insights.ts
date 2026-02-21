@@ -246,7 +246,10 @@ export const salaryInsightsTool = tool({
       const byWorkMode = {
         remote: {
           count: remoteCount,
-          median: Math.round(median(remoteMidpoints)),
+          median:
+            remoteMidpoints.length > 0
+              ? Math.round(median(remoteMidpoints))
+              : null,
           min:
             remoteMidpoints.length > 0
               ? Math.round(remoteMidpoints[0]!)
@@ -258,7 +261,10 @@ export const salaryInsightsTool = tool({
         },
         onSite: {
           count: onsiteCount,
-          median: Math.round(median(onsiteMidpoints)),
+          median:
+            onsiteMidpoints.length > 0
+              ? Math.round(median(onsiteMidpoints))
+              : null,
           min:
             onsiteMidpoints.length > 0
               ? Math.round(onsiteMidpoints[0]!)

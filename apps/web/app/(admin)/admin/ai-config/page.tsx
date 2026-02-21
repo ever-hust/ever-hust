@@ -18,6 +18,7 @@ interface OrgListResponse {
 export default function AdminAiConfigPage() {
   const [orgId, setOrgId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
 
   useEffect(() => {
     async function loadOrg() {
@@ -26,9 +27,13 @@ export default function AdminAiConfigPage() {
         showToast: false,
       });
 
-      const firstOrg = data?.organizations?.[0];
-      if (firstOrg?.organization?.id) {
-        setOrgId(firstOrg.organization.id);
+      if (data === null) {
+        setFetchError(true);
+      } else {
+        const firstOrg = data.organizations?.[0];
+        if (firstOrg?.organization?.id) {
+          setOrgId(firstOrg.organization.id);
+        }
       }
       setLoading(false);
     }
@@ -51,6 +56,12 @@ export default function AdminAiConfigPage() {
         <div className="flex items-center gap-2 py-12">
           <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
           <span className="text-sm text-muted-foreground">Loading...</span>
+        </div>
+      ) : fetchError ? (
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 p-8 text-center">
+          <p className="text-sm text-destructive">
+            Failed to load organization data. Please try refreshing the page.
+          </p>
         </div>
       ) : orgId ? (
         <OrgAiConfigCard orgId={orgId} />

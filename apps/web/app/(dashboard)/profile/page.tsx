@@ -142,6 +142,7 @@ export default function ProfilePage() {
   const { user, favorites, applications } = data;
   const skills = user.skills ?? [];
   const prefs: UserPreferences = user.preferences ?? {};
+  const safePhoto = safeExternalUrl(user.photoUrl);
   const memberSince = user.createdAt
     ? new Date(user.createdAt).toLocaleDateString(undefined, {
         month: "long",
@@ -169,9 +170,9 @@ export default function ProfilePage() {
       <Card className="p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <Avatar className="h-16 w-16 shrink-0">
-            {safeExternalUrl(user.photoUrl) ? (
+            {safePhoto ? (
               <img
-                src={safeExternalUrl(user.photoUrl)!}
+                src={safePhoto}
                 alt={user.name || "User profile photo"}
                 className="h-16 w-16 rounded-full object-cover"
               />

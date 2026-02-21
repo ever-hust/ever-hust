@@ -46,6 +46,7 @@ export function useChatPersistence() {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
   const activeSessionIdRef = useRef<string | null>(null);
+  const loadRequestIdRef = useRef(0);
 
   // Keep ref in sync with state so debounced callbacks see the latest value
   useEffect(() => {
@@ -116,15 +117,20 @@ export function useChatPersistence() {
 
   const loadMessages = useCallback(
     async (sessionId: string): Promise<PersistedMessage[]> => {
+      // Increment request counter to detect stale responses from rapid session switches
+      const requestId = ++loadRequestIdRef.current;
       try {
         const res = await fetch(
           `/api/chat/sessions/${sessionId}/messages`
         );
+        // Discard stale response if a newer loadMessages was called
+        if (loadRequestIdRef.current !== requestId) return [];
         if (res.ok) {
           const data = (await res.json()) as {
             messages: PersistedMessage[];
           };
           // Track which messages are already saved
+          savedMessageIds.current = new Set();
           for (const m of data.messages) {
             savedMessageIds.current.add(m.id);
           }

@@ -166,11 +166,15 @@ export function usePushNotifications(): UsePushNotificationsReturn {
 
       if (subscription) {
         // Remove from server first
-        await fetch("/api/push/subscribe", {
+        const res = await fetch("/api/push/subscribe", {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ endpoint: subscription.endpoint }),
         });
+
+        if (!res.ok) {
+          throw new Error("Failed to remove subscription on server");
+        }
 
         // Then unsubscribe locally
         await subscription.unsubscribe();

@@ -289,18 +289,21 @@ export default async function JobDetailPage({ params }: PageProps) {
                 <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
                   <Building2 className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                   {job.companyName ? (
-                    safeExternalUrl(job.companyUrl) ? (
-                      <a
-                        href={safeExternalUrl(job.companyUrl)!}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:underline"
-                      >
-                        {job.companyName}
-                      </a>
-                    ) : (
-                      job.companyName
-                    )
+                    (() => {
+                      const companyLink = safeExternalUrl(job.companyUrl);
+                      return companyLink ? (
+                        <a
+                          href={companyLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline"
+                        >
+                          {job.companyName}
+                        </a>
+                      ) : (
+                        job.companyName
+                      );
+                    })()
                   ) : (
                     <span className="text-muted-foreground font-normal">Company not specified</span>
                   )}
@@ -592,18 +595,21 @@ export default async function JobDetailPage({ params }: PageProps) {
                         </div>
                         <div>
                           <p className="text-sm font-medium">
-                            {safeExternalUrl(job.companyUrl) ? (
-                              <a
-                                href={safeExternalUrl(job.companyUrl)!}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="hover:underline"
-                              >
-                                {job.companyName}
-                              </a>
-                            ) : (
-                              job.companyName
-                            )}
+                            {(() => {
+                              const companyLink = safeExternalUrl(job.companyUrl);
+                              return companyLink ? (
+                                <a
+                                  href={companyLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="hover:underline"
+                                >
+                                  {job.companyName}
+                                </a>
+                              ) : (
+                                job.companyName
+                              );
+                            })()}
                           </p>
                           {job.companyIndustry && (
                             <p className="text-xs text-muted-foreground">

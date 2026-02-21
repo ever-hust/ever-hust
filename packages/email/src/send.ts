@@ -10,9 +10,39 @@ import type React from "react";
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 500;
 
+/** HTTP status codes that are safe to retry. */
+const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
+
+/** Error subclass that preserves the HTTP status code from the Resend API. */
+class EmailSendError extends Error {
+  readonly statusCode?: number;
+  constructor(message: string, statusCode?: number) {
+    super(message);
+    this.name = "EmailSendError";
+    this.statusCode = statusCode;
+  }
+}
+
+/** Check whether an error is retryable (network issue or server error). */
+function isRetryableError(err: Error): boolean {
+  // Structured status code from EmailSendError
+  if (err instanceof EmailSendError && err.statusCode != null) {
+    return RETRYABLE_STATUS_CODES.has(err.statusCode);
+  }
+  // Network-level errors that don't have a status code
+  const msg = err.message.toLowerCase();
+  return (
+    msg.includes("timeout") ||
+    msg.includes("econnreset") ||
+    msg.includes("econnrefused") ||
+    msg.includes("network") ||
+    msg.includes("fetch failed")
+  );
+}
+
 /**
  * Retry wrapper with exponential backoff + jitter for transient email failures.
- * Only retries on rate-limit (429) or server errors (5xx).
+ * Only retries on rate-limit (429), server errors (5xx), or network failures.
  */
 async function withRetry<T>(
   fn: () => Promise<T>,
@@ -27,20 +57,7 @@ async function withRetry<T>(
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
 
-      // Don't retry on validation / 4xx errors (except 429 rate limit)
-      const message = lastError.message.toLowerCase();
-      const isRetryable =
-        message.includes("429") ||
-        message.includes("rate") ||
-        message.includes("500") ||
-        message.includes("502") ||
-        message.includes("503") ||
-        message.includes("504") ||
-        message.includes("timeout") ||
-        message.includes("econnreset") ||
-        message.includes("network");
-
-      if (!isRetryable || attempt === retries) {
+      if (!isRetryableError(lastError) || attempt === retries) {
         throw lastError;
       }
 
@@ -106,7 +123,10 @@ export async function sendJobAlertEmail({
     });
 
     if (error) {
-      throw new Error(`Failed to send job alert email: ${error.message}`);
+      throw new EmailSendError(
+        `Failed to send job alert email: ${error.message ?? "Unknown error"}`,
+        (error as { statusCode?: number }).statusCode,
+      );
     }
 
     return data;
@@ -143,7 +163,10 @@ export async function sendWelcomeEmail({
     });
 
     if (error) {
-      throw new Error(`Failed to send welcome email: ${error.message}`);
+      throw new EmailSendError(
+        `Failed to send welcome email: ${error.message ?? "Unknown error"}`,
+        (error as { statusCode?: number }).statusCode,
+      );
     }
 
     return data;
@@ -194,7 +217,10 @@ export async function sendSubscriptionConfirmedEmail({
     });
 
     if (error) {
-      throw new Error(`Failed to send subscription email: ${error.message}`);
+      throw new EmailSendError(
+        `Failed to send subscription email: ${error.message ?? "Unknown error"}`,
+        (error as { statusCode?: number }).statusCode,
+      );
     }
 
     return data;

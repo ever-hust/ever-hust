@@ -89,6 +89,7 @@ export function JobDetailPanel({
 
   const { copied, copy } = useCopyToClipboard();
   const tabListRef = useRef<HTMLDivElement>(null);
+  const lastFetchedJobIdRef = useRef<number | null>(null);
 
   const handleShare = useCallback(async () => {
     if (!job) return;
@@ -114,6 +115,9 @@ export function JobDetailPanel({
     // the close animation.  Only fetch when a new jobId opens.
     if (!open || jobId === null) return;
 
+    // Skip re-fetch when re-opening the same job we already have loaded.
+    if (lastFetchedJobIdRef.current === jobId && job !== null) return;
+
     const controller = new AbortController();
     setLoading(true);
     setError(null);
@@ -124,7 +128,10 @@ export function JobDetailPanel({
         if (!res.ok) throw new Error("Failed to load job details");
         const data = (await res.json()) as { job?: JobDetail };
         if (!data.job) throw new Error("Job not found");
-        if (!controller.signal.aborted) setJob(data.job);
+        if (!controller.signal.aborted) {
+          setJob(data.job);
+          lastFetchedJobIdRef.current = jobId;
+        }
       })
       .catch((err) => {
         // Don't report abort errors — they're expected on cleanup
@@ -140,6 +147,7 @@ export function JobDetailPanel({
     return () => {
       controller.abort();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `job` is used as a guard, not a trigger
   }, [open, jobId]);
 
   const salary = job ? formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency, job.salaryInterval, "full") : null;

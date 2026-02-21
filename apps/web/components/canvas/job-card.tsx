@@ -133,22 +133,9 @@ export const JobCard = memo(function JobCard({
       className={cn(
         "group rounded-lg border bg-card p-4 transition-all hover:bg-accent/50 hover:shadow-sm",
         isCompareMode && "cursor-pointer",
-        isCompareMode && "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         isSelected && "ring-2 ring-primary"
       )}
       onClick={isCompareMode ? handleCompareToggle : undefined}
-      onKeyDown={
-        isCompareMode
-          ? (e: React.KeyboardEvent) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onToggleCompare?.(job.id);
-              }
-            }
-          : undefined
-      }
-      tabIndex={isCompareMode ? 0 : undefined}
-      role={isCompareMode ? "button" : undefined}
     >
       <div className="flex items-start gap-3">
         {/* Compare mode selection indicator */}

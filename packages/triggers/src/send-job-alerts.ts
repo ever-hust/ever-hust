@@ -36,6 +36,15 @@ async function processAlerts(
 
       // Build query conditions based on alert criteria
       const criteria = alert.criteria;
+
+      // Skip alerts with no meaningful criteria — otherwise every recent job matches
+      const hasAnyCriteria =
+        (criteria?.keywords && criteria.keywords.length > 0) ||
+        (criteria?.locations && criteria.locations.length > 0) ||
+        (criteria?.skills && criteria.skills.length > 0) ||
+        criteria?.remoteType === "remote";
+      if (!hasAnyCriteria) continue;
+
       const conditions = [];
 
       // Time filter: jobs posted since last alert

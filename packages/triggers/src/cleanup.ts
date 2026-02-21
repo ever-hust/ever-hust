@@ -1,6 +1,6 @@
 import { task, schedules } from "@trigger.dev/sdk/v3";
 import { db, jobs, stripeWebhookEvents } from "@repo/db";
-import { lt, and, isNotNull, sql } from "drizzle-orm";
+import { lt, and, or, isNotNull, isNull, sql } from "drizzle-orm";
 
 /**
  * Remove expired and stale job listings from the database.
@@ -27,10 +27,17 @@ export async function cleanupExpiredJobs(): Promise<{
 
   totalDeletedJobs += expiredResult.length;
 
-  // 2. Delete stale jobs posted > 90 days ago that haven't been updated recently
+  // 2. Delete stale jobs posted > 90 days ago (or with no posting date) that
+  //    haven't been updated recently.  NULL datePosted is included so orphaned
+  //    records without a date don't accumulate indefinitely.
   const staleResult = await db
     .delete(jobs)
-    .where(and(lt(jobs.datePosted, ninetyDaysAgo), lt(jobs.updatedAt, ninetyDaysAgo)))
+    .where(
+      and(
+        or(isNull(jobs.datePosted), lt(jobs.datePosted, ninetyDaysAgo)),
+        lt(jobs.updatedAt, ninetyDaysAgo),
+      )
+    )
     .returning({ id: jobs.id });
 
   totalDeletedJobs += staleResult.length;

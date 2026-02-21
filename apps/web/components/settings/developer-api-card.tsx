@@ -14,6 +14,16 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@repo/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@repo/ui/alert-dialog";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -38,6 +48,7 @@ export function DeveloperApiCard() {
   const [newKeyName, setNewKeyName] = useState("");
   const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [revokeConfirm, setRevokeConfirm] = useState<ApiKeyRecord | null>(null);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   useEffect(() => {
@@ -228,7 +239,7 @@ export function DeveloperApiCard() {
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 flex-shrink-0 text-destructive hover:text-destructive"
-                  onClick={() => handleRevoke(apiKey.id)}
+                  onClick={() => setRevokeConfirm(apiKey)}
                   disabled={revoking === apiKey.id}
                   aria-label={`Revoke ${apiKey.name}`}
                 >
@@ -284,6 +295,32 @@ export function DeveloperApiCard() {
           </div>
         </div>
       </div>
+
+      {/* Revoke Confirmation Dialog */}
+      <AlertDialog open={revokeConfirm !== null} onOpenChange={(open) => { if (!open) setRevokeConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revoke API Key</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to revoke <strong>{revokeConfirm?.name}</strong> ({revokeConfirm?.keyPrefix}...)? This action cannot be undone and any applications using this key will immediately lose access.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (revokeConfirm) {
+                  handleRevoke(revokeConfirm.id);
+                  setRevokeConfirm(null);
+                }
+              }}
+            >
+              Revoke Key
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Create Key Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={handleCloseCreateDialog}>

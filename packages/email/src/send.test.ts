@@ -112,7 +112,7 @@ describe("sendJobAlertEmail", () => {
     mockSend
       .mockResolvedValueOnce({
         data: null,
-        error: { message: "rate limited" },
+        error: { message: "rate limited", statusCode: 429 },
       })
       .mockResolvedValueOnce({ data: { id: "email_789" }, error: null });
 
@@ -141,19 +141,19 @@ describe("sendJobAlertEmail", () => {
     mockSend
       .mockResolvedValueOnce({
         data: null,
-        error: { message: "503 service unavailable" },
+        error: { message: "503 service unavailable", statusCode: 503 },
       })
       .mockResolvedValueOnce({
         data: null,
-        error: { message: "503 service unavailable" },
+        error: { message: "503 service unavailable", statusCode: 503 },
       })
       .mockResolvedValueOnce({
         data: null,
-        error: { message: "503 service unavailable" },
+        error: { message: "503 service unavailable", statusCode: 503 },
       })
       .mockResolvedValueOnce({
         data: null,
-        error: { message: "503 service unavailable" },
+        error: { message: "503 service unavailable", statusCode: 503 },
       });
 
     // Start the send — it will retry with setTimeout-based backoff.
@@ -320,7 +320,7 @@ describe("retry logic", () => {
     mockSend
       .mockResolvedValueOnce({
         data: null,
-        error: { message: "validation error: invalid email" },
+        error: { message: "validation error: invalid email", statusCode: 422 },
       });
 
     const assertion = expect(

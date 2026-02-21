@@ -208,30 +208,16 @@ export const JobCompareDialog = memo(function JobCompareDialog({
     const map = new Map<string, boolean>();
     for (const row of rows) {
       if (!row.highlightDiff) continue;
-      const values = jobs.map((job) => {
+      const values = jobs.map((_job, i) => {
         switch (row.label) {
           case "Location":
-            return (
-              formatLocation(
-                job.locationCity,
-                job.locationState,
-                job.locationCountry,
-                job.isRemote
-              ) ?? ""
-            );
+            return formatted[i]?.location ?? "";
           case "Salary":
-            return (
-              formatSalary(
-                job.salaryMin,
-                job.salaryMax,
-                job.salaryCurrency,
-                job.salaryInterval
-              ) ?? ""
-            );
+            return formatted[i]?.salary ?? "";
           case "Remote":
-            return job.isRemote ? "remote" : "on-site";
+            return jobs[i]?.isRemote ? "remote" : "on-site";
           case "Level":
-            return job.jobLevel ?? "";
+            return jobs[i]?.jobLevel ?? "";
           default:
             return "";
         }
@@ -239,7 +225,7 @@ export const JobCompareDialog = memo(function JobCompareDialog({
       map.set(row.label, valuesDiffer(values));
     }
     return map;
-  }, [rows, jobs]);
+  }, [rows, jobs, formatted]);
 
   const renderCell = (row: AttributeRow, job: JobCardData, index: number) => {
     return row.render(job, index);
@@ -410,27 +396,30 @@ export const JobCompareDialog = memo(function JobCompareDialog({
                       </a>
                     </Button>
                   )}
-                  {safeExternalUrl(job.jobUrl) && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs"
-                      asChild
-                    >
-                      <a
-                        href={safeExternalUrl(job.jobUrl)!}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={`View ${job.title} details (opens in new tab)`}
+                  {(() => {
+                    const jobLink = safeExternalUrl(job.jobUrl);
+                    return jobLink ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        asChild
                       >
-                        View Details
-                        <ExternalLink
-                          className="ml-1 h-3 w-3"
-                          aria-hidden="true"
-                        />
-                      </a>
-                    </Button>
-                  )}
+                        <a
+                          href={jobLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={`View ${job.title} details (opens in new tab)`}
+                        >
+                          View Details
+                          <ExternalLink
+                            className="ml-1 h-3 w-3"
+                            aria-hidden="true"
+                          />
+                        </a>
+                      </Button>
+                    ) : null;
+                  })()}
                 </div>
               );
             })}

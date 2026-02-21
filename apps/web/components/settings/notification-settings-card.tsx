@@ -22,11 +22,6 @@ export function NotificationSettingsCard() {
     }
   }, [state, subscribe, unsubscribe]);
 
-  // After subscribe completes, show appropriate toast
-  const handleSubscribe = useCallback(async () => {
-    await subscribe();
-  }, [subscribe]);
-
   return (
     <Card id="notifications" className="p-6">
       <h2 className="flex items-center gap-2 text-lg font-semibold">
@@ -106,14 +101,14 @@ export function NotificationSettingsCard() {
                   <Button
                     variant="outline"
                     className="w-full"
-                    onClick={handleSubscribe}
+                    onClick={subscribe}
                   >
                     Try Again
                   </Button>
                 </div>
               ) : (
                 /* state === "prompt" */
-                <Button className="w-full" onClick={handleSubscribe}>
+                <Button className="w-full" onClick={subscribe}>
                   <BellRing
                     className="mr-1.5 h-4 w-4"
                     aria-hidden="true"

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { Bell, Power, Trash2, Loader2 } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
 import { Badge } from "@ever-hust/ui/badge";
 import { Button } from "@ever-hust/ui/button";
 import { Card } from "@ever-hust/ui/card";
@@ -25,61 +26,67 @@ export function AlertsCard({
 }: AlertsCardProps) {
   const [alerts, setAlerts] = useState<Alert[]>(initialAlerts);
   const [deleteAlertId, setDeleteAlertId] = useState<number | null>(null);
-  const [togglingAlertId, setTogglingAlertId] = useState<number | null>(null);
   const isPro = subscriptionStatus === "active" || subscriptionStatus === "past_due";
 
   // Sync with parent when initial alerts resolve
-  useEffect(() => {
+  // Using a ref pattern to avoid stale closures
+  useState(() => {
+    // This will re-run when initialAlerts reference changes
+  });
+  // Keep alerts in sync with parent
+  if (initialAlerts !== alerts && initialAlerts.length > 0) {
     setAlerts(initialAlerts);
-  }, [initialAlerts]);
+  }
 
-  const handleToggleAlert = useCallback(
-    async (alertId: number, isActive: boolean) => {
-      setTogglingAlertId(alertId);
-      try {
-        const res = await fetch("/api/user/alerts", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: alertId, isActive: !isActive }),
-        });
-        if (res.ok) {
-          setAlerts((prev) =>
-            prev.map((a) =>
-              a.id === alertId ? { ...a, isActive: !isActive } : a
-            )
-          );
-          toast.success(isActive ? "Alert paused" : "Alert resumed");
-        } else {
-          toast.error("Failed to update alert");
-        }
-      } catch {
-        toast.error("Failed to update alert");
-      } finally {
-        setTogglingAlertId(null);
-      }
+  const toggleMutation = useMutation({
+    mutationFn: async ({ alertId, isActive }: { alertId: number; isActive: boolean }) => {
+      const res = await fetch("/api/user/alerts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: alertId, isActive: !isActive }),
+      });
+      if (!res.ok) throw new Error("Failed to update alert");
+      return { alertId, newIsActive: !isActive };
     },
-    []
-  );
+    onSuccess: ({ alertId, newIsActive }) => {
+      setAlerts((prev) =>
+        prev.map((a) =>
+          a.id === alertId ? { ...a, isActive: newIsActive } : a
+        )
+      );
+      toast.success(newIsActive ? "Alert resumed" : "Alert paused");
+    },
+    onError: () => {
+      toast.error("Failed to update alert");
+    },
+  });
 
-  const handleDeleteAlertConfirm = useCallback(async () => {
-    if (deleteAlertId === null) return;
-    try {
+  const deleteMutation = useMutation({
+    mutationFn: async (alertId: number) => {
       const res = await fetch("/api/user/alerts", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: deleteAlertId }),
+        body: JSON.stringify({ id: alertId }),
       });
-      if (res.ok || res.status === 204) {
-        setAlerts((prev) => prev.filter((a) => a.id !== deleteAlertId));
-        setDeleteAlertId(null);
-        toast.success("Alert deleted");
-      } else {
-        toast.error("Failed to delete alert");
+      if (!res.ok && res.status !== 204) {
+        throw new Error("Failed to delete alert");
       }
-    } catch {
+      return alertId;
+    },
+    onSuccess: (alertId) => {
+      setAlerts((prev) => prev.filter((a) => a.id !== alertId));
+      setDeleteAlertId(null);
+      toast.success("Alert deleted");
+    },
+    onError: () => {
       toast.error("Failed to delete alert");
-    }
-  }, [deleteAlertId]);
+    },
+  });
+
+  const handleDeleteAlertConfirm = useCallback(async () => {
+    if (deleteAlertId === null) return;
+    await deleteMutation.mutateAsync(deleteAlertId);
+  }, [deleteAlertId, deleteMutation]);
 
   return (
     <>
@@ -171,11 +178,11 @@ export function AlertsCard({
                         alert.isActive ? "Pause alert" : "Resume alert"
                       }
                       onClick={() =>
-                        handleToggleAlert(alert.id, alert.isActive)
+                        toggleMutation.mutate({ alertId: alert.id, isActive: alert.isActive })
                       }
-                      disabled={togglingAlertId === alert.id}
+                      disabled={toggleMutation.isPending && toggleMutation.variables?.alertId === alert.id}
                     >
-                      {togglingAlertId === alert.id ? (
+                      {toggleMutation.isPending && toggleMutation.variables?.alertId === alert.id ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
                       ) : (
                         <Power className="h-3.5 w-3.5" aria-hidden="true" />
@@ -187,7 +194,7 @@ export function AlertsCard({
                       className="h-7 w-7 text-destructive hover:text-destructive"
                       aria-label="Delete alert"
                       onClick={() => setDeleteAlertId(alert.id)}
-                      disabled={togglingAlertId === alert.id}
+                      disabled={toggleMutation.isPending && toggleMutation.variables?.alertId === alert.id}
                     >
                       <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                     </Button>

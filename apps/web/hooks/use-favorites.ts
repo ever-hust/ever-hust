@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { toggleSetMember } from "../lib/hook-utils";
 
@@ -12,98 +13,93 @@ import { toggleSetMember } from "../lib/hook-utils";
  * - Exposes a `Set<number>` of favorited job IDs for O(1) lookup
  */
 export function useFavorites() {
-  const [favoritedJobIds, setFavoritedJobIds] = useState<Set<number>>(
-    new Set()
-  );
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  // Load favorites on mount
-  useEffect(() => {
-    const controller = new AbortController();
-
-    async function load() {
-      try {
-        const res = await fetch("/api/user/favorites", { signal: controller.signal });
-        if (res.ok && !controller.signal.aborted) {
-          const data = (await res.json()) as { favoriteJobIds: number[] };
-          setFavoritedJobIds(new Set(data.favoriteJobIds));
-        }
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        console.warn(
-          "[useFavorites] Failed to load favorites:",
-          error instanceof Error ? error.message : error
-        );
-      } finally {
-        if (!controller.signal.aborted) setIsLoading(false);
-      }
-    }
-
-    load();
-    return () => { controller.abort(); };
-  }, []);
+  const { data: favoritedJobIds = new Set<number>(), isLoading } = useQuery({
+    queryKey: ["favorites"],
+    queryFn: async ({ signal }) => {
+      const res = await fetch("/api/user/favorites", { signal });
+      if (!res.ok) throw new Error("Failed to load favorites");
+      const data = (await res.json()) as { favoriteJobIds: number[] };
+      return new Set(data.favoriteJobIds);
+    },
+  });
 
   // Track in-flight toggles to prevent race conditions from rapid clicks
   const inFlightRef = useRef<Set<number>>(new Set());
 
-  // Optimistic toggle with API persist
-  const toggleFavorite = useCallback(async (jobId: number) => {
-    // Prevent concurrent toggles for the same job — avoids out-of-order
-    // response reconciliation that would desync UI and server state.
-    if (inFlightRef.current.has(jobId)) return;
-    inFlightRef.current.add(jobId);
-
-    // Optimistic update
-    setFavoritedJobIds((prev) => toggleSetMember(prev, jobId));
-
-    try {
+  const { mutate: doToggle } = useMutation({
+    mutationFn: async (jobId: number) => {
       const res = await fetch("/api/user/favorites", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jobId }),
       });
-
-      if (res.ok) {
-        const data = (await res.json()) as {
-          jobId: number;
-          favorited: boolean;
-        };
-        // Reconcile with server truth
-        setFavoritedJobIds((prev) => {
-          const next = new Set(prev);
-          if (data.favorited) {
-            next.add(data.jobId);
-          } else {
-            next.delete(data.jobId);
-          }
-          return next;
-        });
-        toast.success(
-          data.favorited
-            ? "Job added to favorites"
-            : "Job removed from favorites"
-        );
-      } else {
-        // Revert on failure
-        setFavoritedJobIds((prev) => toggleSetMember(prev, jobId));
-        toast.error("Failed to update favorite");
-      }
-    } catch (err) {
-      // Revert on error
-      setFavoritedJobIds((prev) => toggleSetMember(prev, jobId));
-      toast.error("Failed to update favorite");
-      console.warn(
-        "[useFavorites] Failed to toggle favorite:",
-        err instanceof Error ? err.message : err
+      if (!res.ok) throw new Error("Failed to update favorite");
+      return (await res.json()) as { jobId: number; favorited: boolean };
+    },
+    onMutate: async (jobId: number) => {
+      // Cancel any outgoing refetches so they don't overwrite our optimistic update
+      await queryClient.cancelQueries({ queryKey: ["favorites"] });
+      const prev = queryClient.getQueryData<Set<number>>(["favorites"]);
+      queryClient.setQueryData<Set<number>>(["favorites"], (old) =>
+        old ? toggleSetMember(old, jobId) : old,
       );
-    } finally {
+      return { prev };
+    },
+    onError: (_err, _jobId, context) => {
+      // Rollback optimistic update
+      if (context?.prev) {
+        queryClient.setQueryData(["favorites"], context.prev);
+      }
+      toast.error("Failed to update favorite");
+    },
+    onSuccess: (data) => {
+      // Reconcile with server truth
+      queryClient.setQueryData<Set<number>>(["favorites"], (old) => {
+        if (!old) return old;
+        const next = new Set(old);
+        if (data.favorited) {
+          next.add(data.jobId);
+        } else {
+          next.delete(data.jobId);
+        }
+        return next;
+      });
+      toast.success(
+        data.favorited
+          ? "Job added to favorites"
+          : "Job removed from favorites",
+      );
+    },
+    onSettled: (_data, _error, jobId) => {
       inFlightRef.current.delete(jobId);
-    }
-  }, []);
+    },
+  });
+
+  // Optimistic toggle with in-flight guard
+  const toggleFavorite = useCallback(
+    (jobId: number) => {
+      if (inFlightRef.current.has(jobId)) return;
+      inFlightRef.current.add(jobId);
+      doToggle(jobId);
+    },
+    [doToggle],
+  );
 
   const isFavorited = useCallback(
     (jobId: number) => favoritedJobIds.has(jobId),
-    [favoritedJobIds]
+    [favoritedJobIds],
+  );
+
+  const setFavoritedJobIds = useCallback(
+    (updater: Set<number> | ((prev: Set<number>) => Set<number>)) => {
+      queryClient.setQueryData<Set<number>>(["favorites"], (old) => {
+        const current = old ?? new Set<number>();
+        return typeof updater === "function" ? updater(current) : updater;
+      });
+    },
+    [queryClient],
   );
 
   return {

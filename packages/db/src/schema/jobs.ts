@@ -38,6 +38,8 @@ export const jobs = pgTable(
     locationState: text("location_state"),
     locationCountry: text("location_country"),
     isRemote: boolean("is_remote").default(false),
+    latitude: numeric("latitude"),
+    longitude: numeric("longitude"),
 
     // Job details
     jobType: jsonb("job_type").$type<string[]>().default([]),
@@ -75,6 +77,7 @@ export const jobs = pgTable(
     index("jobs_company_name_idx").on(table.companyName),
     index("jobs_job_level_idx").on(table.jobLevel),
     index("jobs_salary_min_idx").on(table.salaryMin),
+    index("jobs_lat_lng_idx").on(table.latitude, table.longitude),
 
     // GIN index on skills jsonb for array containment queries (@>, ?)
     index("jobs_skills_gin_idx").using(

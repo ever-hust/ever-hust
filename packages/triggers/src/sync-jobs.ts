@@ -1,7 +1,7 @@
 import { task, schedules } from "@trigger.dev/sdk/v3";
 import { db, jobs } from "@ever-hust/db";
 import { everJobsClient } from "@ever-hust/jobs-api";
-import { mapJobToDb, SEARCH_TERMS } from "./map-job";
+import { mapJobToDb, geocodeLocation, SEARCH_TERMS } from "./map-job";
 
 async function syncJobs() {
   // Rotate through search terms
@@ -34,14 +34,25 @@ async function syncJobs() {
 
         const mapped = mapJobToDb(dto);
 
+        // Geocode job location → lat/lng (non-fatal if it fails)
+        const coords = await geocodeLocation({
+          city: mapped.locationCity,
+          state: mapped.locationState,
+          country: mapped.locationCountry,
+        });
+
         // Atomic upsert: insert new job or update existing by externalId.
         // Eliminates the race condition from a separate SELECT + INSERT/UPDATE.
         await db
           .insert(jobs)
-          .values({ ...mapped, createdAt: new Date() })
+          .values({
+            ...mapped,
+            ...(coords ?? {}),
+            createdAt: new Date(),
+          })
           .onConflictDoUpdate({
             target: jobs.externalId,
-            set: mapped,
+            set: { ...mapped, ...(coords ?? {}) },
           });
 
         totalUpserted++;

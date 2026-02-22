@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useMemo, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { safeExternalUrl } from "@/lib/safe-url";
 
 type SubscriptionStatus = "free" | "active" | "canceled" | "past_due";
@@ -36,6 +37,11 @@ export const PRO_LIMITS = {
   alerts: true,
 } as const;
 
+function parseStatus(raw: string): SubscriptionStatus {
+  if (raw === "active" || raw === "canceled" || raw === "past_due") return raw;
+  return "free";
+}
+
 /**
  * Hook for managing the user's subscription status.
  *
@@ -44,48 +50,19 @@ export const PRO_LIMITS = {
  * - Includes `upgrade()` and `manageSubscription()` helpers
  */
 export function useSubscription(): SubscriptionInfo {
-  const [status, setStatus] = useState<SubscriptionStatus>("free");
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["subscription"],
+    queryFn: async ({ signal }) => {
+      const res = await fetch("/api/user/profile", { signal });
+      if (!res.ok) throw new Error("Failed to load subscription status");
+      const json = (await res.json()) as {
+        user: { subscriptionStatus: string };
+      };
+      return parseStatus(json.user.subscriptionStatus);
+    },
+  });
 
-  useEffect(() => {
-    const controller = new AbortController();
-
-    async function loadSubscription() {
-      try {
-        const res = await fetch("/api/user/profile", { signal: controller.signal });
-        if (res.ok && !controller.signal.aborted) {
-          const data = (await res.json()) as {
-            user: { subscriptionStatus: string };
-          };
-          const s = data.user.subscriptionStatus;
-          if (
-            s === "active" ||
-            s === "canceled" ||
-            s === "past_due"
-          ) {
-            setStatus(s);
-          } else {
-            setStatus("free");
-          }
-          setError(null);
-        }
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        console.warn(
-          "[useSubscription] Failed to load subscription status:",
-          error instanceof Error ? error.message : error
-        );
-        setError("Failed to load subscription status");
-      } finally {
-        if (!controller.signal.aborted) setIsLoading(false);
-      }
-    }
-
-    loadSubscription();
-    return () => { controller.abort(); };
-  }, []);
-
+  const status = data ?? "free";
   const isSubscribed = useMemo(() => status === "active" || status === "past_due", [status]);
 
   const upgrade = useCallback(async (planId = "quarterly") => {
@@ -141,7 +118,7 @@ export function useSubscription(): SubscriptionInfo {
     status,
     isSubscribed,
     isLoading,
-    error,
+    error: error?.message ?? null,
     upgrade,
     manageSubscription,
   };

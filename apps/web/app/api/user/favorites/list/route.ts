@@ -46,6 +46,8 @@ export async function GET() {
         skills: jobs.skills,
         datePosted: jobs.datePosted,
         jobLevel: jobs.jobLevel,
+        latitude: jobs.latitude,
+        longitude: jobs.longitude,
       })
       .from(userJobs)
       .innerJoin(jobs, eq(userJobs.jobId, jobs.id))

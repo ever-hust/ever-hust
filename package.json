@@ -6,9 +6,9 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "check-types": "turbo run check-types",
-    "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
+    "format": "pnpm prettier --write \"**/*.{ts,tsx,md,json}\"",
     "test": "node --max-old-space-size=4096 --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.config.ts",
-    "test:e2e": "playwright test",
+    "test:e2e": "pnpm playwright test",
     "db:push": "pnpm --filter @ever-hust/db db:push",
     "db:migrate": "pnpm --filter @ever-hust/db db:migrate",
     "db:seed": "pnpm --filter @ever-hust/db db:seed",
@@ -24,7 +24,7 @@
     "turbo": "^2.7.1",
     "typescript": "5.9.2"
   },
-  "packageManager": "pnpm@9.15.0",
+  "packageManager": "pnpm@10.26.2",
   "engines": {
     "node": ">=22"
   }

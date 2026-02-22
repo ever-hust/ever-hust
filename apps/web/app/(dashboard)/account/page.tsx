@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useRef } from "react";
 import { User, AlertTriangle } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@ever-hust/ui/button";
 import { Card } from "@ever-hust/ui/card";
 import { Skeleton } from "@ever-hust/ui/skeleton";
@@ -12,38 +13,21 @@ import type { UserSettings } from "@/components/settings/types";
 
 export default function AccountPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [user, setUser] = useState<UserSettings | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [retryKey, setRetryKey] = useState(0);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-    setError(null);
-
-    async function loadUser() {
-      try {
-        const res = await fetch("/api/user/profile", { signal: controller.signal });
-        if (!res.ok) {
-          if (res.status === 401) throw new Error("Please sign in to access account settings.");
-          throw new Error("Failed to load account settings");
-        }
-        const data = await res.json();
-        if (!controller.signal.aborted) setUser(data.user);
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setError(err instanceof Error ? err.message : "Failed to load");
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
+  const { data: user, isLoading, error, refetch } = useQuery<UserSettings>({
+    queryKey: ["user-profile"],
+    queryFn: async ({ signal }) => {
+      const res = await fetch("/api/user/profile", { signal });
+      if (!res.ok) {
+        if (res.status === 401) throw new Error("Please sign in to access account settings.");
+        throw new Error("Failed to load account settings");
       }
-    }
+      const data = await res.json();
+      return data.user as UserSettings;
+    },
+  });
 
-    loadUser();
-    return () => controller.abort();
-  }, [retryKey]);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex flex-1 flex-col overflow-hidden">
         <PageHeader icon={User} title="Account" />
@@ -64,8 +48,10 @@ export default function AccountPage() {
           <Card className="p-6">
             <div className="flex flex-col items-center gap-3 py-6 text-center">
               <AlertTriangle className="h-8 w-8 text-destructive" aria-hidden="true" />
-              <p className="text-sm text-muted-foreground">{error ?? "Failed to load"}</p>
-              <Button variant="outline" size="sm" onClick={() => setRetryKey((k) => k + 1)}>
+              <p className="text-sm text-muted-foreground">
+                {error instanceof Error ? error.message : "Failed to load"}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => refetch()}>
                 Try Again
               </Button>
             </div>

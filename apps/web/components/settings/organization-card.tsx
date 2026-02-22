@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { Building2, Users, Crown, Shield, User, Loader2 } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@ever-hust/ui/badge";
 import { Button } from "@ever-hust/ui/button";
 import { Card } from "@ever-hust/ui/card";
@@ -46,57 +47,47 @@ function getRoleBadgeVariant(
 }
 
 export function OrganizationCard() {
-  const [orgs, setOrgs] = useState<OrgMembership[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
+  const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [newOrgName, setNewOrgName] = useState("");
 
-  const loadOrgs = useCallback(async (signal?: AbortSignal) => {
-    try {
+  const { data: orgs = [], isLoading: loading } = useQuery<OrgMembership[]>({
+    queryKey: ["organizations"],
+    queryFn: async ({ signal }) => {
       const res = await fetch("/api/organizations", { signal });
-      if (res.ok && !signal?.aborted) {
-        const data = (await res.json()) as { organizations: OrgMembership[] };
-        setOrgs(data.organizations);
-      }
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
-      console.error("Failed to load organizations:", err);
-    } finally {
-      if (!signal?.aborted) setLoading(false);
-    }
-  }, []);
+      if (!res.ok) throw new Error("Failed to load organizations");
+      const data = (await res.json()) as { organizations: OrgMembership[] };
+      return data.organizations;
+    },
+  });
 
-  useEffect(() => {
-    const controller = new AbortController();
-    loadOrgs(controller.signal);
-    return () => controller.abort();
-  }, [loadOrgs]);
-
-  const handleCreate = useCallback(async () => {
-    if (!newOrgName.trim()) return;
-    setCreating(true);
-    try {
+  const createMutation = useMutation({
+    mutationFn: async (name: string) => {
       const res = await fetch("/api/organizations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newOrgName.trim() }),
+        body: JSON.stringify({ name }),
       });
-      if (res.ok) {
-        toast.success("Organization created");
-        setNewOrgName("");
-        setShowCreate(false);
-        await loadOrgs();
-      } else {
+      if (!res.ok) {
         const errorData = (await res.json()) as { error?: string };
-        toast.error(errorData.error ?? "Failed to create organization");
+        throw new Error(errorData.error ?? "Failed to create organization");
       }
-    } catch {
-      toast.error("Failed to create organization");
-    } finally {
-      setCreating(false);
-    }
-  }, [newOrgName, loadOrgs]);
+    },
+    onSuccess: () => {
+      toast.success("Organization created");
+      setNewOrgName("");
+      setShowCreate(false);
+      queryClient.invalidateQueries({ queryKey: ["organizations"] });
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Failed to create organization");
+    },
+  });
+
+  const handleCreate = useCallback(() => {
+    if (!newOrgName.trim()) return;
+    createMutation.mutate(newOrgName.trim());
+  }, [newOrgName, createMutation]);
 
   if (loading) {
     return (
@@ -220,16 +211,16 @@ export function OrganizationCard() {
                       handleCreate();
                     }
                   }}
-                  disabled={creating}
+                  disabled={createMutation.isPending}
                   maxLength={100}
                   aria-label="Organization name"
                 />
                 <Button
                   onClick={handleCreate}
-                  disabled={creating || !newOrgName.trim()}
+                  disabled={createMutation.isPending || !newOrgName.trim()}
                   className="shrink-0"
                 >
-                  {creating ? (
+                  {createMutation.isPending ? (
                     <Loader2
                       className="mr-1.5 h-4 w-4 animate-spin"
                       aria-hidden="true"
@@ -246,7 +237,7 @@ export function OrganizationCard() {
                     setShowCreate(false);
                     setNewOrgName("");
                   }}
-                  disabled={creating}
+                  disabled={createMutation.isPending}
                 >
                   Cancel
                 </Button>

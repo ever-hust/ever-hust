@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { CreditCard, Loader2 } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
 import { Badge } from "@ever-hust/ui/badge";
 import { Button } from "@ever-hust/ui/button";
 import { Card } from "@ever-hust/ui/card";
@@ -19,49 +20,51 @@ export function SubscriptionCard({ subscriptionStatus }: SubscriptionCardProps) 
     subscriptionStatus === "active" ||
     subscriptionStatus === "past_due";
 
-  const handleUpgrade = useCallback(async () => {
-    setStripeLoading(true);
-    try {
+  const upgradeMutation = useMutation({
+    mutationFn: async () => {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ planId: "quarterly" }),
       });
-      if (res.ok) {
-        const data = (await res.json()) as { url: string };
-        const safeUrl = safeExternalUrl(data.url);
-        if (safeUrl) {
-          window.location.href = safeUrl;
-          return;
-        }
+      if (!res.ok) throw new Error("Failed to start checkout");
+      return (await res.json()) as { url: string };
+    },
+    onMutate: () => setStripeLoading(true),
+    onSuccess: (data) => {
+      const safeUrl = safeExternalUrl(data.url);
+      if (safeUrl) {
+        window.location.href = safeUrl;
+        return;
       }
       toast.error("Failed to start checkout. Please try again.");
-    } catch {
+    },
+    onError: () => {
       toast.error("Failed to start checkout. Please try again.");
-    } finally {
-      setStripeLoading(false);
-    }
-  }, []);
+    },
+    onSettled: () => setStripeLoading(false),
+  });
 
-  const handleManageSubscription = useCallback(async () => {
-    setStripeLoading(true);
-    try {
+  const portalMutation = useMutation({
+    mutationFn: async () => {
       const res = await fetch("/api/stripe/portal", { method: "POST" });
-      if (res.ok) {
-        const data = (await res.json()) as { url: string };
-        const safeUrl = safeExternalUrl(data.url);
-        if (safeUrl) {
-          window.location.href = safeUrl;
-          return;
-        }
+      if (!res.ok) throw new Error("Failed to open portal");
+      return (await res.json()) as { url: string };
+    },
+    onMutate: () => setStripeLoading(true),
+    onSuccess: (data) => {
+      const safeUrl = safeExternalUrl(data.url);
+      if (safeUrl) {
+        window.location.href = safeUrl;
+        return;
       }
       toast.error("Failed to open subscription portal. Please try again.");
-    } catch {
+    },
+    onError: () => {
       toast.error("Failed to open subscription portal. Please try again.");
-    } finally {
-      setStripeLoading(false);
-    }
-  }, []);
+    },
+    onSettled: () => setStripeLoading(false),
+  });
 
   return (
     <Card id="subscription" className="p-6">
@@ -109,7 +112,7 @@ export function SubscriptionCard({ subscriptionStatus }: SubscriptionCardProps) 
           {!isPro ? (
             <Button
               className="w-full"
-              onClick={handleUpgrade}
+              onClick={() => upgradeMutation.mutate()}
               disabled={stripeLoading}
             >
               {stripeLoading ? (
@@ -121,7 +124,7 @@ export function SubscriptionCard({ subscriptionStatus }: SubscriptionCardProps) 
             <Button
               variant="outline"
               className="w-full"
-              onClick={handleManageSubscription}
+              onClick={() => portalMutation.mutate()}
               disabled={stripeLoading}
             >
               {stripeLoading ? (

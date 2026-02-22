@@ -34,6 +34,8 @@ export interface JobCardData {
   datePosted: string | Date | null;
   jobLevel: string | null;
   companyIndustry: string | null;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 interface JobCardProps {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useMemo, useEffect, memo } from "react";
-import { Briefcase, Loader2, GitCompareArrows, X, SearchX } from "lucide-react";
+import { Briefcase, Loader2, GitCompareArrows, X, SearchX, List, Map } from "lucide-react";
 import { Button } from "@ever-hust/ui/button";
 import { Badge } from "@ever-hust/ui/badge";
 import { JobCard, type JobCardData } from "./job-card";
@@ -9,6 +9,7 @@ import { JobCardSkeletonList } from "./job-card-skeleton";
 import { FilterBar, type JobFilters } from "./filter-bar";
 import { JobCompareDialog } from "./job-compare-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
+import { GoogleMapView } from "./google-map-view";
 import { MAX_COMPARE_JOBS } from "@/lib/constants";
 
 /** Returns true if any filter field has a non-empty value. */
@@ -61,6 +62,7 @@ export const JobsCanvas = memo(function JobsCanvas({
   const [internalCompareMode, setInternalCompareMode] = useState(false);
   const [internalSelectedIds, setInternalSelectedIds] = useState<Set<number>>(new Set());
   const [compareDialogOpen, setCompareDialogOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "map">("list");
 
   const isCompareMode = controlledCompareMode ?? internalCompareMode;
   const selectedJobIds = controlledSelectedIds ?? internalSelectedIds;
@@ -188,6 +190,38 @@ export const JobsCanvas = memo(function JobsCanvas({
             )}
           </Button>
         )}
+
+        {/* List / Map toggle */}
+        <div className="flex items-center rounded-md border" role="tablist" aria-label="View mode">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={viewMode === "list"}
+            className={`inline-flex items-center gap-1 rounded-l-md px-2.5 py-1 text-xs font-medium transition-colors ${
+              viewMode === "list"
+                ? "bg-primary text-primary-foreground"
+                : "bg-transparent text-muted-foreground hover:bg-accent"
+            }`}
+            onClick={() => setViewMode("list")}
+          >
+            <List className="h-3 w-3" aria-hidden="true" />
+            List
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={viewMode === "map"}
+            className={`inline-flex items-center gap-1 rounded-r-md px-2.5 py-1 text-xs font-medium transition-colors ${
+              viewMode === "map"
+                ? "bg-primary text-primary-foreground"
+                : "bg-transparent text-muted-foreground hover:bg-accent"
+            }`}
+            onClick={() => setViewMode("map")}
+          >
+            <Map className="h-3 w-3" aria-hidden="true" />
+            Map
+          </button>
+        </div>
       </div>
 
       {/* Compare action bar */}
@@ -213,7 +247,16 @@ export const JobsCanvas = memo(function JobsCanvas({
         </div>
       )}
 
-      {/* Job cards */}
+      {/* Job cards (list) or map view */}
+      {viewMode === "map" ? (
+        <div className="flex-1 px-3 pb-3">
+          <GoogleMapView
+            jobs={jobs}
+            favoritedJobIds={favoritedJobIds}
+            onViewDetails={onViewDetails}
+          />
+        </div>
+      ) : (
       <div className="flex-1 overflow-y-auto px-3 pb-3" role="feed" aria-busy={isLoading}>
         {jobs.length === 0 && isLoading ? (
           <JobCardSkeletonList count={5} />
@@ -269,6 +312,7 @@ export const JobsCanvas = memo(function JobsCanvas({
           </ul>
         )}
       </div>
+      )}
 
       {/* Compare dialog */}
       <JobCompareDialog

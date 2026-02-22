@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
 import { Button } from "@ever-hust/ui/button";
 import { Card } from "@ever-hust/ui/card";
 import { Input } from "@ever-hust/ui/input";
@@ -18,7 +19,6 @@ import { toast } from "sonner";
 export function DangerZoneCard() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
-  const [deleting, setDeleting] = useState(false);
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Clean up redirect timer on unmount
@@ -28,25 +28,28 @@ export function DangerZoneCard() {
     };
   }, []);
 
-  const handleDeleteAccount = useCallback(async () => {
-    if (deleteConfirmText !== "DELETE") return;
-    setDeleting(true);
-    try {
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
       const res = await fetch("/api/user/account", { method: "DELETE" });
-      if (res.ok || res.status === 204) {
-        toast.success("Account deleted. Redirecting...");
-        redirectTimerRef.current = setTimeout(() => {
-          window.location.href = "/";
-        }, 1500);
-      } else {
-        toast.error("Failed to delete account");
+      if (!res.ok && res.status !== 204) {
+        throw new Error("Failed to delete account");
       }
-    } catch {
+    },
+    onSuccess: () => {
+      toast.success("Account deleted. Redirecting...");
+      redirectTimerRef.current = setTimeout(() => {
+        window.location.href = "/";
+      }, 1500);
+    },
+    onError: () => {
       toast.error("Failed to delete account");
-    } finally {
-      setDeleting(false);
-    }
-  }, [deleteConfirmText]);
+    },
+  });
+
+  const handleDeleteAccount = useCallback(() => {
+    if (deleteConfirmText !== "DELETE") return;
+    deleteMutation.mutate();
+  }, [deleteConfirmText, deleteMutation]);
 
   return (
     <>
@@ -109,16 +112,16 @@ export function DangerZoneCard() {
                 setDeleteDialogOpen(false);
                 setDeleteConfirmText("");
               }}
-              disabled={deleting}
+              disabled={deleteMutation.isPending}
             >
               Cancel
             </Button>
             <Button
               variant="destructive"
               onClick={handleDeleteAccount}
-              disabled={deleteConfirmText !== "DELETE" || deleting}
+              disabled={deleteConfirmText !== "DELETE" || deleteMutation.isPending}
             >
-              {deleting ? (
+              {deleteMutation.isPending ? (
                 <>
                   <Loader2
                     className="mr-1.5 h-4 w-4 animate-spin"

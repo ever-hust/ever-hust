@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { Bot, Check, Loader2 } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
 import { Badge } from "@ever-hust/ui/badge";
 import { Card } from "@ever-hust/ui/card";
 import { toast } from "sonner";
@@ -14,45 +15,46 @@ interface AIModelCardProps {
 
 export function AIModelCard({ subscriptionStatus, initialModel }: AIModelCardProps) {
   const [selectedModel, setSelectedModel] = useState(initialModel);
-  const [modelSaving, setModelSaving] = useState(false);
-  const [savingModelId, setSavingModelId] = useState<string | null>(null);
   const isPro = subscriptionStatus === "active" || subscriptionStatus === "past_due";
 
+  const modelMutation = useMutation({
+    mutationFn: async (modelId: string) => {
+      const res = await fetch("/api/user/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          preferences: { aiModel: modelId },
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to update AI model");
+      return modelId;
+    },
+    onMutate: (modelId: string) => {
+      const previousModel = selectedModel;
+      setSelectedModel(modelId);
+      return { previousModel };
+    },
+    onSuccess: () => {
+      toast.success("AI model updated");
+    },
+    onError: (_err, _modelId, context) => {
+      if (context?.previousModel) {
+        setSelectedModel(context.previousModel);
+      }
+      toast.error("Failed to update AI model");
+    },
+  });
+
   const handleModelSelect = useCallback(
-    async (modelId: string) => {
+    (modelId: string) => {
       const model = AI_MODELS.find((m) => m.id === modelId);
       if (model && !model.free && !isPro) {
         toast.error("Upgrade to Pro to use this model");
         return;
       }
-
-      const previousModel = selectedModel;
-      setSelectedModel(modelId);
-      setModelSaving(true);
-      setSavingModelId(modelId);
-      try {
-        const res = await fetch("/api/user/settings", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            preferences: { aiModel: modelId },
-          }),
-        });
-        if (res.ok) {
-          toast.success("AI model updated");
-        } else {
-          setSelectedModel(previousModel);
-          toast.error("Failed to update AI model");
-        }
-      } catch {
-        setSelectedModel(previousModel);
-        toast.error("Failed to update AI model");
-      } finally {
-        setModelSaving(false);
-        setSavingModelId(null);
-      }
+      modelMutation.mutate(modelId);
     },
-    [isPro, selectedModel]
+    [isPro, modelMutation],
   );
 
   return (
@@ -74,7 +76,7 @@ export function AIModelCard({ subscriptionStatus, initialModel }: AIModelCardPro
               <button
                 key={model.id}
                 type="button"
-                disabled={isLocked || modelSaving}
+                disabled={isLocked || modelMutation.isPending}
                 onClick={() => handleModelSelect(model.id)}
                 className={`flex w-full items-center justify-between rounded-md border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                   isSelected
@@ -88,7 +90,7 @@ export function AIModelCard({ subscriptionStatus, initialModel }: AIModelCardPro
                 </div>
                 {isLocked ? (
                   <Badge variant="secondary">Pro only</Badge>
-                ) : savingModelId === model.id ? (
+                ) : modelMutation.isPending && modelMutation.variables === model.id ? (
                   <Badge variant="default">
                     <Loader2 className="mr-1 h-3 w-3 animate-spin" aria-hidden="true" />
                     Saving...

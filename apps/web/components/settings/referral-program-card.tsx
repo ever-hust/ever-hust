@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import {
   Gift,
   Copy,
@@ -11,6 +11,7 @@ import {
   Coins,
   Send,
 } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@ever-hust/ui/badge";
 import { Button } from "@ever-hust/ui/button";
 import { Card } from "@ever-hust/ui/card";
@@ -65,10 +66,8 @@ function getStatusLabel(status: string): string {
 }
 
 export function ReferralProgramCard() {
-  const [data, setData] = useState<ReferralData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviting, setInviting] = useState(false);
   const [copied, setCopied] = useState(false);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
 
@@ -78,26 +77,36 @@ export function ReferralProgramCard() {
     };
   }, []);
 
-  const loadReferrals = useCallback(async (signal?: AbortSignal) => {
-    try {
+  const { data, isLoading: loading } = useQuery<ReferralData>({
+    queryKey: ["referrals"],
+    queryFn: async ({ signal }) => {
       const res = await fetch("/api/referrals", { signal });
-      if (res.ok && !signal?.aborted) {
-        const json = (await res.json()) as ReferralData;
-        setData(json);
-      }
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
-      console.error("Failed to load referral data:", err);
-    } finally {
-      if (!signal?.aborted) setLoading(false);
-    }
-  }, []);
+      if (!res.ok) throw new Error("Failed to load referral data");
+      return res.json() as Promise<ReferralData>;
+    },
+  });
 
-  useEffect(() => {
-    const controller = new AbortController();
-    loadReferrals(controller.signal);
-    return () => controller.abort();
-  }, [loadReferrals]);
+  const inviteMutation = useMutation({
+    mutationFn: async (email: string) => {
+      const res = await fetch("/api/referrals/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) {
+        const errorData = (await res.json()) as { error?: string };
+        throw new Error(errorData.error ?? "Failed to create invite");
+      }
+    },
+    onSuccess: (_data, email) => {
+      toast.success(`Referral invite created for ${email}`);
+      setInviteEmail("");
+      queryClient.invalidateQueries({ queryKey: ["referrals"] });
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Failed to create invite");
+    },
+  });
 
   const referralLink =
     typeof window !== "undefined" && data
@@ -137,35 +146,15 @@ export function ReferralProgramCard() {
     }
   }, [referralLink, handleCopy]);
 
-  const handleInvite = useCallback(async () => {
+  const handleInvite = useCallback(() => {
     const trimmed = inviteEmail.trim();
     if (!trimmed) return;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
       toast.error("Please enter a valid email address");
       return;
     }
-    setInviting(true);
-    try {
-      const res = await fetch("/api/referrals/invite", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: inviteEmail.trim() }),
-      });
-      if (res.ok) {
-        toast.success(`Referral invite created for ${inviteEmail.trim()}`);
-        setInviteEmail("");
-        // Reload referral data to show the new invite
-        await loadReferrals();
-      } else {
-        const errorData = (await res.json()) as { error?: string };
-        toast.error(errorData.error ?? "Failed to create invite");
-      }
-    } catch {
-      toast.error("Failed to create invite");
-    } finally {
-      setInviting(false);
-    }
-  }, [inviteEmail, loadReferrals]);
+    inviteMutation.mutate(trimmed);
+  }, [inviteEmail, inviteMutation]);
 
   // Compute stats from referrals (exclude the placeholder entry without an email)
   const sentInvites = data
@@ -294,15 +283,15 @@ export function ReferralProgramCard() {
                   handleInvite();
                 }
               }}
-              disabled={inviting}
+              disabled={inviteMutation.isPending}
               aria-label="Friend's email address"
             />
             <Button
               onClick={handleInvite}
-              disabled={inviting || !inviteEmail.trim()}
+              disabled={inviteMutation.isPending || !inviteEmail.trim()}
               className="shrink-0"
             >
-              {inviting ? (
+              {inviteMutation.isPending ? (
                 <Loader2
                   className="mr-1.5 h-4 w-4 animate-spin"
                   aria-hidden="true"

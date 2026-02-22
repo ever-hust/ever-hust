@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { Key, Eye, EyeOff, Trash2, Loader2 } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
 import { Button } from "@ever-hust/ui/button";
 import { Card } from "@ever-hust/ui/card";
 import { Input } from "@ever-hust/ui/input";
@@ -33,25 +34,10 @@ export function ApiKeysCard({ initialKeys }: ApiKeysCardProps) {
     openai: boolean;
     google: boolean;
   }>({ anthropic: false, openai: false, google: false });
-  const [keySaving, setKeySaving] = useState(false);
   const savingRef = useRef(false);
 
-  const handleSaveApiKeys = useCallback(async () => {
-    if (savingRef.current) return;
-    savingRef.current = true;
-    setKeySaving(true);
-    try {
-      const keysToSave: Record<string, string> = {};
-      if (apiKeys.anthropic && apiKeys.anthropic !== MASKED_KEY) {
-        keysToSave.anthropic = apiKeys.anthropic;
-      }
-      if (apiKeys.openai && apiKeys.openai !== MASKED_KEY) {
-        keysToSave.openai = apiKeys.openai;
-      }
-      if (apiKeys.google && apiKeys.google !== MASKED_KEY) {
-        keysToSave.google = apiKeys.google;
-      }
-
+  const saveMutation = useMutation({
+    mutationFn: async (keysToSave: Record<string, string>) => {
       const res = await fetch("/api/user/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -59,53 +45,71 @@ export function ApiKeysCard({ initialKeys }: ApiKeysCardProps) {
           preferences: { apiKeys: keysToSave },
         }),
       });
-      if (res.ok) {
-        toast.success("API keys saved securely");
-        setApiKeys((prev) => ({
-          anthropic: prev.anthropic ? MASKED_KEY : "",
-          openai: prev.openai ? MASKED_KEY : "",
-          google: prev.google ? MASKED_KEY : "",
-        }));
-        setKeyVisibility({ anthropic: false, openai: false, google: false });
-      } else {
-        toast.error("Failed to save API keys");
-      }
-    } catch {
+      if (!res.ok) throw new Error("Failed to save API keys");
+    },
+    onMutate: () => { savingRef.current = true; },
+    onSuccess: () => {
+      toast.success("API keys saved securely");
+      setApiKeys((prev) => ({
+        anthropic: prev.anthropic ? MASKED_KEY : "",
+        openai: prev.openai ? MASKED_KEY : "",
+        google: prev.google ? MASKED_KEY : "",
+      }));
+      setKeyVisibility({ anthropic: false, openai: false, google: false });
+    },
+    onError: () => {
       toast.error("Failed to save API keys");
-    } finally {
-      setKeySaving(false);
-      savingRef.current = false;
+    },
+    onSettled: () => { savingRef.current = false; },
+  });
+
+  const clearMutation = useMutation({
+    mutationFn: async (provider: "anthropic" | "openai" | "google") => {
+      const res = await fetch("/api/user/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          preferences: { apiKeys: { [provider]: "" } },
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to remove API key");
+      return provider;
+    },
+    onMutate: () => { savingRef.current = true; },
+    onSuccess: (provider) => {
+      setApiKeys((prev) => ({ ...prev, [provider]: "" }));
+      toast.success(`${provider.charAt(0).toUpperCase() + provider.slice(1)} API key removed`);
+    },
+    onError: () => {
+      toast.error("Failed to remove API key");
+    },
+    onSettled: () => { savingRef.current = false; },
+  });
+
+  const handleSaveApiKeys = useCallback(() => {
+    if (savingRef.current) return;
+    const keysToSave: Record<string, string> = {};
+    if (apiKeys.anthropic && apiKeys.anthropic !== MASKED_KEY) {
+      keysToSave.anthropic = apiKeys.anthropic;
     }
-  }, [apiKeys]);
+    if (apiKeys.openai && apiKeys.openai !== MASKED_KEY) {
+      keysToSave.openai = apiKeys.openai;
+    }
+    if (apiKeys.google && apiKeys.google !== MASKED_KEY) {
+      keysToSave.google = apiKeys.google;
+    }
+    saveMutation.mutate(keysToSave);
+  }, [apiKeys, saveMutation]);
 
   const handleClearApiKey = useCallback(
-    async (provider: "anthropic" | "openai" | "google") => {
+    (provider: "anthropic" | "openai" | "google") => {
       if (savingRef.current) return;
-      savingRef.current = true;
-      setKeySaving(true);
-      try {
-        const res = await fetch("/api/user/settings", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            preferences: { apiKeys: { [provider]: "" } },
-          }),
-        });
-        if (res.ok) {
-          setApiKeys((prev) => ({ ...prev, [provider]: "" }));
-          toast.success(`${provider.charAt(0).toUpperCase() + provider.slice(1)} API key removed`);
-        } else {
-          toast.error("Failed to remove API key");
-        }
-      } catch {
-        toast.error("Failed to remove API key");
-      } finally {
-        setKeySaving(false);
-        savingRef.current = false;
-      }
+      clearMutation.mutate(provider);
     },
-    []
+    [clearMutation],
   );
+
+  const keySaving = saveMutation.isPending || clearMutation.isPending;
 
   const providers = [
     { key: "anthropic" as const, label: "Anthropic", placeholder: "sk-ant-api03-..." },

@@ -45,7 +45,7 @@ export default function DashboardPage() {
   const [coverLetterOpen, setCoverLetterOpen] = useState(false);
   const [detailJobId, setDetailJobId] = useState<number | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [initialPrompt, setInitialPrompt] = useState<string | undefined>();
+  const [, setInitialPrompt] = useState<string | undefined>();
   const deepLinkHandled = useRef(false);
 
   // Keyboard shortcuts
@@ -100,6 +100,8 @@ export default function DashboardPage() {
           site: job.site,
           jobLevel: null,
           companyIndustry: null,
+          latitude: null,
+          longitude: null,
         });
       },
       // eslint-disable-next-line react-hooks/exhaustive-deps

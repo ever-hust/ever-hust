@@ -57,6 +57,55 @@ function safeDate(value: string | undefined | null): Date | null {
 }
 
 /**
+ * Geocode city / state / country to lat/lng via Google Maps Geocoding REST API.
+ *
+ * Returns `{ latitude, longitude }` as strings (for Postgres numeric columns)
+ * or `null` if the API key is not set, the address is empty, or geocoding fails.
+ *
+ * Failures are non-fatal — the caller should merge the result only when non-null.
+ */
+export async function geocodeLocation(parts: {
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+}): Promise<{ latitude: string; longitude: string } | null> {
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  if (!apiKey) return null;
+
+  const addressParts = [parts.city, parts.state, parts.country].filter(Boolean);
+  if (addressParts.length === 0) return null;
+
+  const address = addressParts.join(", ");
+
+  try {
+    const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
+    url.searchParams.set("address", address);
+    url.searchParams.set("key", apiKey);
+
+    const res = await fetch(url.toString(), { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return null;
+
+    const data = (await res.json()) as {
+      status: string;
+      results?: Array<{
+        geometry: { location: { lat: number; lng: number } };
+      }>;
+    };
+
+    if (data.status !== "OK" || !data.results?.length) return null;
+
+    const { lat, lng } = data.results[0]!.geometry.location;
+    return { latitude: String(lat), longitude: String(lng) };
+  } catch (err) {
+    console.warn(
+      `[geocode] Failed to geocode "${address}":`,
+      err instanceof Error ? err.message : err
+    );
+    return null;
+  }
+}
+
+/**
  * Search terms used for job sync rotation.
  * Exported for validation testing.
  */

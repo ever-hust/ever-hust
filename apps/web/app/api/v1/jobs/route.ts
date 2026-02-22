@@ -138,6 +138,8 @@ export async function GET(req: NextRequest) {
           salaryInterval: jobs.salaryInterval,
           datePosted: jobs.datePosted,
           createdAt: jobs.createdAt,
+          latitude: jobs.latitude,
+          longitude: jobs.longitude,
         })
         .from(jobs)
         .where(where)

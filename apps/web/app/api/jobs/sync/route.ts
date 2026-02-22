@@ -1,6 +1,6 @@
 import { db, jobs } from "@ever-hust/db";
 import { everJobsClient } from "@ever-hust/jobs-api";
-import { mapJobToDb, SEARCH_TERMS } from "@ever-hust/triggers";
+import { mapJobToDb, geocodeLocation, SEARCH_TERMS } from "@ever-hust/triggers";
 import { apiSuccess, apiError } from "../../../../lib/api-response";
 
 /**
@@ -65,12 +65,23 @@ export async function POST(req: Request) {
 
             const mapped = mapJobToDb(dto);
 
+            // Geocode job location → lat/lng (non-fatal if it fails)
+            const coords = await geocodeLocation({
+              city: mapped.locationCity,
+              state: mapped.locationState,
+              country: mapped.locationCountry,
+            });
+
             await db
               .insert(jobs)
-              .values({ ...mapped, createdAt: new Date() })
+              .values({
+                ...mapped,
+                ...(coords ?? {}),
+                createdAt: new Date(),
+              })
               .onConflictDoUpdate({
                 target: jobs.externalId,
-                set: mapped,
+                set: { ...mapped, ...(coords ?? {}) },
               });
 
             totalUpserted++;

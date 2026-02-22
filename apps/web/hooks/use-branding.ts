@@ -3,12 +3,10 @@
 import {
   createContext,
   useContext,
-  useState,
-  useEffect,
-  useCallback,
   type ReactNode,
 } from "react";
 import { createElement } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { APP_NAME } from "@ever-hust/utils";
 
 interface BrandingData {
@@ -45,32 +43,17 @@ const BrandingContext = createContext<BrandingContextValue>({
 });
 
 export function BrandingProvider({ children }: { children: ReactNode }) {
-  const [branding, setBranding] = useState<BrandingData>(DEFAULT_BRANDING);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const fetchBranding = useCallback(async (signal: AbortSignal) => {
-    try {
+  const { data, isLoading } = useQuery<BrandingData>({
+    queryKey: ["branding"],
+    queryFn: async ({ signal }) => {
       const res = await fetch("/api/branding/resolve", { signal });
-      if (res.ok) {
-        const json = (await res.json()) as BrandingData;
-        setBranding(json);
-      }
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
-      console.error("Failed to fetch branding config:", err);
-      // Keep defaults on error
-    } finally {
-      if (!signal.aborted) {
-        setIsLoading(false);
-      }
-    }
-  }, []);
+      if (!res.ok) throw new Error("Failed to fetch branding config");
+      return res.json() as Promise<BrandingData>;
+    },
+    staleTime: Infinity, // Branding rarely changes within a session
+  });
 
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchBranding(controller.signal);
-    return () => controller.abort();
-  }, [fetchBranding]);
+  const branding = data ?? DEFAULT_BRANDING;
 
   return createElement(
     BrandingContext.Provider,

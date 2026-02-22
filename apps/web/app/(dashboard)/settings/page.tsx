@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useRef } from "react";
 import { Settings, AlertTriangle } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@ever-hust/ui/button";
 import { Card } from "@ever-hust/ui/card";
 import { Skeleton } from "@ever-hust/ui/skeleton";
@@ -17,44 +18,24 @@ import type { UserPreferences } from "@/lib/api-schemas";
 
 export default function SettingsPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [user, setUser] = useState<UserSettings | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [retryKey, setRetryKey] = useState(0);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-
-    async function loadUser() {
-      setLoadError(null);
-      try {
-        const res = await fetch("/api/user/profile", {
-          signal: controller.signal,
-        });
-        if (!res.ok) {
-          if (res.status === 401) {
-            throw new Error("Please sign in to access settings.");
-          }
-          throw new Error("Failed to load settings");
+  const { data: user, isLoading, error, refetch } = useQuery<UserSettings>({
+    queryKey: ["user-profile"],
+    queryFn: async ({ signal }) => {
+      const res = await fetch("/api/user/profile", { signal });
+      if (!res.ok) {
+        if (res.status === 401) {
+          throw new Error("Please sign in to access settings.");
         }
-        const data = await res.json();
-        if (controller.signal.aborted) return;
-        setUser(data.user);
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        const message =
-          err instanceof Error ? err.message : "Failed to load settings";
-        setLoadError(message);
-        toast.error(message);
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        throw new Error("Failed to load settings");
       }
-    }
-
-    loadUser();
-    return () => controller.abort();
-  }, [retryKey]);
+      const data = await res.json();
+      return data.user as UserSettings;
+    },
+    meta: {
+      onError: (err: Error) => toast.error(err.message),
+    },
+  });
 
   const subscriptionStatus = user?.subscriptionStatus ?? "free";
   const prefs = user?.preferences as UserPreferences | null;
@@ -71,7 +52,7 @@ export default function SettingsPage() {
     google: !!prefs?.apiKeys?.google,
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex flex-1 flex-col overflow-hidden">
         <PageHeader icon={Settings} title="Settings" />
@@ -86,7 +67,7 @@ export default function SettingsPage() {
     );
   }
 
-  if (loadError || !user) {
+  if (error || !user) {
     return (
       <div className="flex flex-1 flex-col overflow-hidden">
         <PageHeader icon={Settings} title="Settings" />
@@ -95,9 +76,9 @@ export default function SettingsPage() {
             <div className="flex flex-col items-center gap-3 py-6 text-center">
               <AlertTriangle className="h-8 w-8 text-destructive" aria-hidden="true" />
               <p className="text-sm text-muted-foreground">
-                {loadError ?? "Failed to load settings"}
+                {error instanceof Error ? error.message : "Failed to load settings"}
               </p>
-              <Button variant="outline" size="sm" onClick={() => setRetryKey((k) => k + 1)}>
+              <Button variant="outline" size="sm" onClick={() => refetch()}>
                 Try Again
               </Button>
             </div>

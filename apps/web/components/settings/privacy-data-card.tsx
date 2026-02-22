@@ -2,24 +2,22 @@
 
 import { useState, useCallback } from "react";
 import { Shield, Loader2, Download, Trash2 } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
 import { Button } from "@ever-hust/ui/button";
 import { Card } from "@ever-hust/ui/card";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 
 export function PrivacyDataCard() {
-  const [exportLoading, setExportLoading] = useState(false);
   const [clearChatDialogOpen, setClearChatDialogOpen] = useState(false);
 
-  const handleExportData = useCallback(async () => {
-    setExportLoading(true);
-    try {
+  const exportMutation = useMutation({
+    mutationFn: async () => {
       const res = await fetch("/api/user/export");
-      if (!res.ok) {
-        toast.error("Failed to export data");
-        return;
-      }
-      const blob = await res.blob();
+      if (!res.ok) throw new Error("Failed to export data");
+      return res.blob();
+    },
+    onSuccess: (blob) => {
       const url = URL.createObjectURL(blob);
       try {
         const a = document.createElement("a");
@@ -32,31 +30,30 @@ export function PrivacyDataCard() {
       } finally {
         URL.revokeObjectURL(url);
       }
-    } catch {
+    },
+    onError: () => {
       toast.error("Failed to export data");
-    } finally {
-      setExportLoading(false);
-    }
-  }, []);
+    },
+  });
 
-  const handleClearChatHistory = useCallback(async () => {
-    try {
+  const clearChatMutation = useMutation({
+    mutationFn: async () => {
       const res = await fetch("/api/chat/sessions", { method: "DELETE" });
-      if (res.ok || res.status === 204) {
-        toast.success("Chat history cleared");
-      } else {
-        toast.error("Failed to clear chat history");
+      if (!res.ok && res.status !== 204) {
         throw new Error("Failed to clear chat history");
       }
-    } catch (err) {
-      if (
-        !(err instanceof Error && err.message === "Failed to clear chat history")
-      ) {
-        toast.error("Failed to clear chat history");
-      }
-      throw err;
-    }
-  }, []);
+    },
+    onSuccess: () => {
+      toast.success("Chat history cleared");
+    },
+    onError: () => {
+      toast.error("Failed to clear chat history");
+    },
+  });
+
+  const handleClearChatHistory = useCallback(async () => {
+    await clearChatMutation.mutateAsync();
+  }, [clearChatMutation]);
 
   return (
     <>
@@ -73,10 +70,10 @@ export function PrivacyDataCard() {
           <div className="flex flex-wrap gap-3">
             <Button
               variant="outline"
-              onClick={handleExportData}
-              disabled={exportLoading}
+              onClick={() => exportMutation.mutate()}
+              disabled={exportMutation.isPending}
             >
-              {exportLoading ? (
+              {exportMutation.isPending ? (
                 <Loader2
                   className="mr-1.5 h-4 w-4 animate-spin"
                   aria-hidden="true"

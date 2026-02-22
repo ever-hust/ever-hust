@@ -98,6 +98,8 @@ export async function GET(req: Request) {
           datePosted: jobs.datePosted,
           jobLevel: jobs.jobLevel,
           companyIndustry: jobs.companyIndustry,
+          latitude: jobs.latitude,
+          longitude: jobs.longitude,
         })
         .from(jobs)
         .where(where)

@@ -93,6 +93,8 @@ export async function GET(
         expiresAt: jobs.expiresAt,
         createdAt: jobs.createdAt,
         updatedAt: jobs.updatedAt,
+        latitude: jobs.latitude,
+        longitude: jobs.longitude,
       })
       .from(jobs)
       .where(eq(jobs.id, jobIdNum))

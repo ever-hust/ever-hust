@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Bell, AlertTriangle } from "lucide-react";
 import { Button } from "@ever-hust/ui/button";
 import { Card } from "@ever-hust/ui/card";
 import { Skeleton } from "@ever-hust/ui/skeleton";
-import { toast } from "sonner";
 import { ScrollToTop } from "@/components/shared/scroll-to-top";
 import { PageHeader } from "@/components/shared/page-header";
 import { AlertsCard } from "@/components/settings/alerts-card";

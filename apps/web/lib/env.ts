@@ -80,6 +80,9 @@ export const env = {
   // Ever Jobs external API (optional in dev)
   EVER_JOBS_API_URL: optional("EVER_JOBS_API_URL"),
   EVER_JOBS_API_KEY: optional("EVER_JOBS_API_KEY"),
+
+  // Google Maps (optional — map view disabled when not set)
+  NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: optional("NEXT_PUBLIC_GOOGLE_MAPS_API_KEY"),
 } as const;
 
 // ---------------------------------------------------------------------------

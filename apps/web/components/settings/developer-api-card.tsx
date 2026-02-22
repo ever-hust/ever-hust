@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Key, Copy, Trash2, Loader2, Shield, Plus, AlertTriangle, Book } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@ever-hust/ui/button";
 import { Card } from "@ever-hust/ui/card";
 import { Badge } from "@ever-hust/ui/badge";
@@ -41,10 +42,7 @@ interface ApiKeyRecord {
 }
 
 export function DeveloperApiCard() {
-  const [keys, setKeys] = useState<ApiKeyRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
-  const [revoking, setRevoking] = useState<number | null>(null);
+  const queryClient = useQueryClient();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newKeyName, setNewKeyName] = useState("");
   const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null);
@@ -58,86 +56,86 @@ export function DeveloperApiCard() {
     };
   }, []);
 
-  const loadKeys = useCallback(async () => {
-    try {
-      const res = await fetch("/api/developer/keys");
-      if (res.ok) {
-        const data = await res.json();
-        setKeys(
-          (data.keys as ApiKeyRecord[]).filter((k: ApiKeyRecord) => k.isActive)
-        );
-      }
-    } catch {
-      // Non-critical on load
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { data: keys = [], isLoading: loading } = useQuery<ApiKeyRecord[]>({
+    queryKey: ["developer-keys"],
+    queryFn: async ({ signal }) => {
+      const res = await fetch("/api/developer/keys", { signal });
+      if (!res.ok) throw new Error("Failed to load API keys");
+      const data = await res.json();
+      return (data.keys as ApiKeyRecord[]).filter((k: ApiKeyRecord) => k.isActive);
+    },
+  });
 
-  useEffect(() => {
-    loadKeys();
-  }, [loadKeys]);
-
-  const handleCreate = useCallback(async () => {
-    if (!newKeyName.trim()) {
-      toast.error("Please provide a name for the API key");
-      return;
-    }
-
-    setCreating(true);
-    try {
+  const createMutation = useMutation({
+    mutationFn: async (name: string) => {
       const res = await fetch("/api/developer/keys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: newKeyName.trim(),
+          name,
           scopes: ["read"],
           rateLimit: 1000,
         }),
       });
-
-      if (res.ok) {
-        const data = await res.json();
-        setNewlyCreatedKey(data.key as string);
-        setNewKeyName("");
-        // Reload keys list
-        await loadKeys();
-        toast.success("API key created successfully");
-      } else {
+      if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        toast.error(
+        throw new Error(
           (errData as { error?: string }).error ?? "Failed to create API key"
         );
       }
-    } catch {
-      toast.error("Failed to create API key");
-    } finally {
-      setCreating(false);
-    }
-  }, [newKeyName, loadKeys]);
-
-  const handleRevoke = useCallback(
-    async (keyId: number) => {
-      setRevoking(keyId);
-      try {
-        const res = await fetch(`/api/developer/keys/${keyId}`, {
-          method: "DELETE",
-        });
-
-        if (res.ok || res.status === 204) {
-          setKeys((prev) => prev.filter((k) => k.id !== keyId));
-          toast.success("API key revoked");
-        } else {
-          toast.error("Failed to revoke API key");
-        }
-      } catch {
-        toast.error("Failed to revoke API key");
-      } finally {
-        setRevoking(null);
-      }
+      const data = await res.json();
+      return data.key as string;
     },
-    []
-  );
+    onSuccess: (key) => {
+      setNewlyCreatedKey(key);
+      setNewKeyName("");
+      queryClient.invalidateQueries({ queryKey: ["developer-keys"] });
+      toast.success("API key created successfully");
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Failed to create API key");
+    },
+  });
+
+  const revokeMutation = useMutation({
+    mutationFn: async (keyId: number) => {
+      const res = await fetch(`/api/developer/keys/${keyId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok && res.status !== 204) {
+        throw new Error("Failed to revoke API key");
+      }
+      return keyId;
+    },
+    onMutate: async (keyId: number) => {
+      await queryClient.cancelQueries({ queryKey: ["developer-keys"] });
+      const prev = queryClient.getQueryData<ApiKeyRecord[]>(["developer-keys"]);
+      queryClient.setQueryData<ApiKeyRecord[]>(["developer-keys"], (old) =>
+        old ? old.filter((k) => k.id !== keyId) : old,
+      );
+      return { prev };
+    },
+    onError: (_err, _keyId, context) => {
+      if (context?.prev) {
+        queryClient.setQueryData(["developer-keys"], context.prev);
+      }
+      toast.error("Failed to revoke API key");
+    },
+    onSuccess: () => {
+      toast.success("API key revoked");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["developer-keys"] });
+    },
+  });
+
+  const handleCreate = useCallback(() => {
+    if (!newKeyName.trim()) {
+      toast.error("Please provide a name for the API key");
+      return;
+    }
+    createMutation.mutate(newKeyName.trim());
+  }, [newKeyName, createMutation]);
 
   const handleCopy = useCallback(async () => {
     if (!newlyCreatedKey) return;
@@ -241,10 +239,10 @@ export function DeveloperApiCard() {
                   size="icon"
                   className="h-8 w-8 flex-shrink-0 text-destructive hover:text-destructive"
                   onClick={() => setRevokeConfirm(apiKey)}
-                  disabled={revoking === apiKey.id}
+                  disabled={revokeMutation.isPending}
                   aria-label={`Revoke ${apiKey.name}`}
                 >
-                  {revoking === apiKey.id ? (
+                  {revokeMutation.isPending && revokeMutation.variables === apiKey.id ? (
                     <Loader2
                       className="h-4 w-4 animate-spin"
                       aria-hidden="true"
@@ -312,7 +310,7 @@ export function DeveloperApiCard() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
                 if (revokeConfirm) {
-                  handleRevoke(revokeConfirm.id);
+                  revokeMutation.mutate(revokeConfirm.id);
                   setRevokeConfirm(null);
                 }
               }}
@@ -402,9 +400,9 @@ export function DeveloperApiCard() {
                 </Button>
                 <Button
                   onClick={handleCreate}
-                  disabled={creating || !newKeyName.trim()}
+                  disabled={createMutation.isPending || !newKeyName.trim()}
                 >
-                  {creating ? (
+                  {createMutation.isPending ? (
                     <Loader2
                       className="mr-1.5 h-4 w-4 animate-spin"
                       aria-hidden="true"

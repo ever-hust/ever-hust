@@ -34,15 +34,15 @@ function applySecurityHeaders(response: NextResponse): NextResponse {
     "default-src 'self'",
     // Scripts: self + Next.js inline scripts (nonce not feasible with App Router streaming)
     // Stripe.js is loaded inside the Stripe checkout iframe (frame-src allows it)
-    `script-src 'self' 'unsafe-inline' https://js.stripe.com https://va.vercel-scripts.com${isProd ? "" : " 'unsafe-eval'"}`,
+    `script-src 'self' 'unsafe-inline' https://js.stripe.com https://va.vercel-scripts.com https://maps.googleapis.com${isProd ? "" : " 'unsafe-eval'"}`,
     // Styles: self + inline for Next.js CSS-in-JS / Tailwind
-    "style-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     // Images: self + company logos from external sources + data URIs for placeholders
-    `img-src 'self' data: blob: https:${isProd ? "" : " http:"}`,
+    `img-src 'self' data: blob: https: https://maps.gstatic.com https://maps.googleapis.com${isProd ? "" : " http:"}`,
     // Fonts: self + Google Fonts CDN (fallback; next/font/google self-hosts)
     "font-src 'self' https://fonts.gstatic.com",
     // Connect: self + Stripe + Supabase Realtime (browser-initiated connections only)
-    `connect-src 'self' https://api.stripe.com https://*.supabase.co wss://*.supabase.co https://va.vercel-scripts.com${isProd ? "" : " ws://localhost:* http://localhost:*"}`,
+    `connect-src 'self' https://api.stripe.com https://*.supabase.co wss://*.supabase.co https://va.vercel-scripts.com https://maps.googleapis.com${isProd ? "" : " ws://localhost:* http://localhost:*"}`,
     // Frames: Stripe checkout + portal
     "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
     // Block all plugins (Flash, Java applets, etc.)

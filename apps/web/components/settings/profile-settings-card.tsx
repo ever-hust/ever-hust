@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { User, Check, Loader2 } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@ever-hust/ui/button";
 import { Card } from "@ever-hust/ui/card";
 import { Input } from "@ever-hust/ui/input";
@@ -16,7 +17,7 @@ interface ProfileSettingsCardProps {
 }
 
 export function ProfileSettingsCard({ user }: ProfileSettingsCardProps) {
-  const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
   const [saved, setSaved] = useState(false);
   const [formName, setFormName] = useState(user.name ?? "");
   const [formHeadline, setFormHeadline] = useState(user.headline ?? "");
@@ -29,32 +30,34 @@ export function ProfileSettingsCard({ user }: ProfileSettingsCardProps) {
     };
   }, []);
 
-  const handleSave = useCallback(async () => {
-    setSaving(true);
-    try {
+  const saveMutation = useMutation({
+    mutationFn: async (payload: { name: string; headline: string; location: string }) => {
       const res = await fetch("/api/user/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: formName.trim(),
-          headline: formHeadline.trim(),
-          location: formLocation.trim(),
-        }),
+        body: JSON.stringify(payload),
       });
-      if (res.ok) {
-        setSaved(true);
-        toast.success("Settings saved successfully");
-        if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
-        savedTimerRef.current = setTimeout(() => setSaved(false), SAVED_FEEDBACK_MS);
-      } else {
-        toast.error("Failed to save settings");
-      }
-    } catch {
+      if (!res.ok) throw new Error("Failed to save settings");
+    },
+    onSuccess: () => {
+      setSaved(true);
+      toast.success("Settings saved successfully");
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => setSaved(false), SAVED_FEEDBACK_MS);
+      queryClient.invalidateQueries({ queryKey: ["user-profile"] });
+    },
+    onError: () => {
       toast.error("Failed to save settings");
-    } finally {
-      setSaving(false);
-    }
-  }, [formName, formHeadline, formLocation]);
+    },
+  });
+
+  const handleSave = useCallback(() => {
+    saveMutation.mutate({
+      name: formName.trim(),
+      headline: formHeadline.trim(),
+      location: formLocation.trim(),
+    });
+  }, [formName, formHeadline, formLocation, saveMutation]);
 
   return (
     <Card id="profile" className="p-6">
@@ -110,8 +113,8 @@ export function ProfileSettingsCard({ user }: ProfileSettingsCardProps) {
           />
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? (
+          <Button onClick={handleSave} disabled={saveMutation.isPending}>
+            {saveMutation.isPending ? (
               <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
             ) : saved ? (
               <Check className="mr-1.5 h-4 w-4" aria-hidden="true" />

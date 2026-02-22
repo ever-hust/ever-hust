@@ -13,7 +13,7 @@ const REQUIRED_ENV_VARS: Record<string, string> = {
   NEXT_PUBLIC_SUPABASE_URL: "https://test.supabase.co",
   NEXT_PUBLIC_SUPABASE_ANON_KEY: "test-anon-key",
   BETTER_AUTH_SECRET: "test-secret",
-  BETTER_AUTH_URL: "http://localhost:3000",
+  BETTER_AUTH_URL: "http://localhost:8443",
   LINKEDIN_CLIENT_ID: "test-client-id",
   LINKEDIN_CLIENT_SECRET: "test-client-secret",
   STRIPE_SECRET_KEY: "sk_test_123",

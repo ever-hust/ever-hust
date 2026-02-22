@@ -26,7 +26,7 @@ describe("safeExternalUrl", () => {
     });
 
     it("handles HTTP URLs with port numbers", () => {
-      const url = "http://localhost:3000/test";
+      const url = "http://localhost:8443/test";
       expect(safeExternalUrl(url)).toBe(url);
     });
 
@@ -161,7 +161,7 @@ describe("safeExternalUrl", () => {
     });
 
     it("handles IPv6 URLs", () => {
-      const url = "http://[::1]:3000/test";
+      const url = "http://[::1]:8443/test";
       expect(safeExternalUrl(url)).toBe(url);
     });
 

@@ -39,7 +39,7 @@ export async function POST() {
       return apiBadRequest("No active subscription");
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:8443";
 
     const { url } = await createPortalSession({
       stripeCustomerId: dbUser.stripeCustomerId,

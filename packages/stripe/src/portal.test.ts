@@ -31,7 +31,7 @@ describe("createPortalSession", () => {
   it("creates a portal session and returns the URL", async () => {
     const result = await createPortalSession({
       stripeCustomerId: "cus_abc123",
-      returnUrl: "https://everjobs.ai/settings",
+      returnUrl: "https://hust.so/settings",
     });
 
     expect(result).toEqual({
@@ -42,20 +42,20 @@ describe("createPortalSession", () => {
   it("passes correct parameters to Stripe", async () => {
     await createPortalSession({
       stripeCustomerId: "cus_abc123",
-      returnUrl: "https://everjobs.ai/settings",
+      returnUrl: "https://hust.so/settings",
     });
 
     expect(mockCreate).toHaveBeenCalledTimes(1);
     expect(mockCreate).toHaveBeenCalledWith({
       customer: "cus_abc123",
-      return_url: "https://everjobs.ai/settings",
+      return_url: "https://hust.so/settings",
     });
   });
 
   it("passes different customer IDs correctly", async () => {
     await createPortalSession({
       stripeCustomerId: "cus_different_456",
-      returnUrl: "https://everjobs.ai/settings",
+      returnUrl: "https://hust.so/settings",
     });
 
     const args = mockCreate.mock.calls[0][0];
@@ -65,11 +65,11 @@ describe("createPortalSession", () => {
   it("passes different return URLs correctly", async () => {
     await createPortalSession({
       stripeCustomerId: "cus_abc123",
-      returnUrl: "http://localhost:3000/settings",
+      returnUrl: "http://localhost:8443/settings",
     });
 
     const args = mockCreate.mock.calls[0][0];
-    expect(args.return_url).toBe("http://localhost:3000/settings");
+    expect(args.return_url).toBe("http://localhost:8443/settings");
   });
 
   it("propagates Stripe API errors", async () => {
@@ -80,7 +80,7 @@ describe("createPortalSession", () => {
     await expect(
       createPortalSession({
         stripeCustomerId: "cus_invalid",
-        returnUrl: "https://everjobs.ai/settings",
+        returnUrl: "https://hust.so/settings",
       })
     ).rejects.toThrow("No such customer: cus_invalid");
   });
@@ -90,7 +90,7 @@ describe("createPortalSession", () => {
 
     const result = await createPortalSession({
       stripeCustomerId: "cus_abc123",
-      returnUrl: "https://everjobs.ai/settings",
+      returnUrl: "https://hust.so/settings",
     });
 
     expect(result).toEqual({ url: null });

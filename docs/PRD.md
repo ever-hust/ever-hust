@@ -1,12 +1,12 @@
-# Ever Jobs - Product Requirements Document (PRD)
+# Hust - Product Requirements Document (PRD)
 
 **Version**: 1.9
 **Date**: 2026-02-19
 **Status**: MVP Implemented + Production Hardening + Growth Features + Enterprise Features + Audit Fixes + Post-MVP Polish (Phase 9 Complete + Post-Audit + Batches 2-7)
 **Previous Versions**: 1.8 (2026-02-19), 1.7 (2026-02-19), 1.6 (2026-02-18), 1.5 (2026-02-18), 1.4 (2026-02-18), 1.3 (2026-02-18), 1.2 (2026-02-18), 1.1 (2026-02-15), 1.0 (2026-02-14, Approved)
-**Domain**: everjobs.ai
+**Domain**: hust.so
 **License**: Proprietary (All Rights Reserved)
-**Repository**: github.com/ever-co/ever-jobs-website
+**Repository**: github.com/ever-co/ever-hust
 
 ---
 
@@ -43,6 +43,7 @@
 18. [API Contracts](#18-api-contracts)
 19. [Non-Functional Requirements](#19-non-functional-requirements)
 20. [Success Metrics](#20-success-metrics)
+
 - [Appendix A: Implementation Status](#appendix-a-implementation-status-v19)
 - [Appendix B: License](#appendix-b-license)
 
@@ -50,7 +51,7 @@
 
 ## 1. Executive Summary
 
-Ever Jobs is an AI-first job search platform where the primary user experience is conversational. After authenticating via LinkedIn OAuth, users interact with an AI assistant through a split-screen interface: an AI chat panel on the left and a dynamic data canvas on the right. The AI guides users through job discovery, application preparation, and career management.
+Hust is an AI-first job search platform where the primary user experience is conversational. After authenticating via LinkedIn OAuth, users interact with an AI assistant through a split-screen interface: an AI chat panel on the left and a dynamic data canvas on the right. The AI guides users through job discovery, application preparation, and career management.
 
 The platform consumes job data from an external Ever Jobs API (github.com/ever-co/ever-jobs, deployed separately in Kubernetes), which aggregates listings from 25 sources including LinkedIn, Indeed, Glassdoor, ZipRecruiter, and multiple ATS platforms. Jobs are stored locally in a shared PostgreSQL database (Supabase) and presented through an intelligent, agent-driven interface.
 
@@ -73,7 +74,7 @@ Eliminate the friction of job searching by making an AI assistant the primary in
 - Build an extensible agent platform that can automate end-to-end application workflows
 - Allow users to apply to jobs entirely within the chat interface (future phases)
 
-### What Makes Ever Jobs Different
+### What Makes Hust Different
 
 1. **AI Chat as Primary UX**: Not a search box with filters, but a conversation that understands career goals
 2. **Agent-First Architecture**: Built from day 1 as a unified orchestrator agent platform with tool-based capabilities, not a traditional web app with AI bolted on
@@ -86,18 +87,21 @@ Eliminate the friction of job searching by making an AI assistant the primary in
 ## 3. Target Users
 
 ### Primary: Active Job Seekers
+
 - Currently unemployed or actively looking for new roles
 - Applying to multiple positions weekly
 - Frustrated with the manual process of searching across multiple boards
 - Value speed (being first to apply) and personalization
 
 ### Secondary: Passive Job Seekers
+
 - Employed but open to opportunities
 - Want alerts for specific criteria without actively searching
 - Will only apply if something compelling appears
 - Value low-effort, high-signal notifications
 
 ### Tertiary: Career Changers
+
 - Exploring new industries or role types
 - Need guidance on skills matching and positioning
 - Benefit most from AI-guided conversation about career direction
@@ -107,26 +111,26 @@ Eliminate the friction of job searching by making an AI assistant the primary in
 
 ## 4. Technology Stack
 
-| Layer | Technology | Version | Rationale |
-|-------|-----------|---------|-----------|
-| Framework | Next.js | 16.1 | App Router, Server Components, Turbopack (stable default bundler), React 19 |
-| Styling | Tailwind CSS | 4.1 | CSS-first config via `@theme`, 5x faster builds, zero-config content detection |
-| Components | ShadCN UI | latest | Monorepo-compatible (`packages/ui`), copy-paste, accessible, Tailwind v4 native |
-| Build System | Turborepo + pnpm | latest | Parallel builds, remote caching on Vercel, workspace protocol |
-| Auth | BetterAuth | v1 | LinkedIn OAuth, TypeScript-first, database adapter, session management |
-| ORM | Drizzle ORM | 0.45.1 | Type-safe, PostgreSQL identity columns, lightweight, push/migrate workflows |
-| Database | PostgreSQL (Supabase) | 16+ | Vercel integration, Realtime subscriptions, Storage, Row Level Security |
-| Realtime | Supabase Realtime | latest | Live job updates, chat message sync, agent status broadcasting |
-| File Storage | Supabase Storage | latest | CV uploads, company logos, user assets with CDN |
-| AI SDK | Vercel AI SDK | v6 | ToolLoopAgent, Agent interface, needsApproval HITL, useChat hook, streaming |
-| AI Model (default) | Claude Opus 4.6 | latest | Configurable via env var; per-user by tier; BYOK support |
-| AI Routing | Vercel AI Gateway | latest | Multi-provider routing, fallback, per-user model configuration |
-| Background Jobs | Trigger.dev | v3 | Declarative cron, imperative schedules, Next.js integration |
-| Payments | Stripe | latest | Checkout, Customer Portal, webhook-driven subscription lifecycle |
-| Email | React Email + Resend | latest | Type-safe templates, reliable delivery, analytics |
-| E2E Tests | Playwright | latest | Cross-browser, reliable selectors, fixtures, Turborepo integration |
-| Unit Tests | Jest | latest | Component/utility testing, mocking, snapshot tests |
-| Deployment | Vercel | - | Edge functions, ISR, image optimization, Turbopack, analytics |
+| Layer              | Technology            | Version | Rationale                                                                       |
+| ------------------ | --------------------- | ------- | ------------------------------------------------------------------------------- |
+| Framework          | Next.js               | 16.1    | App Router, Server Components, Turbopack (stable default bundler), React 19     |
+| Styling            | Tailwind CSS          | 4.1     | CSS-first config via `@theme`, 5x faster builds, zero-config content detection  |
+| Components         | ShadCN UI             | latest  | Monorepo-compatible (`packages/ui`), copy-paste, accessible, Tailwind v4 native |
+| Build System       | Turborepo + pnpm      | latest  | Parallel builds, remote caching on Vercel, workspace protocol                   |
+| Auth               | BetterAuth            | v1      | LinkedIn OAuth, TypeScript-first, database adapter, session management          |
+| ORM                | Drizzle ORM           | 0.45.1  | Type-safe, PostgreSQL identity columns, lightweight, push/migrate workflows     |
+| Database           | PostgreSQL (Supabase) | 16+     | Vercel integration, Realtime subscriptions, Storage, Row Level Security         |
+| Realtime           | Supabase Realtime     | latest  | Live job updates, chat message sync, agent status broadcasting                  |
+| File Storage       | Supabase Storage      | latest  | CV uploads, company logos, user assets with CDN                                 |
+| AI SDK             | Vercel AI SDK         | v6      | ToolLoopAgent, Agent interface, needsApproval HITL, useChat hook, streaming     |
+| AI Model (default) | Claude Opus 4.6       | latest  | Configurable via env var; per-user by tier; BYOK support                        |
+| AI Routing         | Vercel AI Gateway     | latest  | Multi-provider routing, fallback, per-user model configuration                  |
+| Background Jobs    | Trigger.dev           | v3      | Declarative cron, imperative schedules, Next.js integration                     |
+| Payments           | Stripe                | latest  | Checkout, Customer Portal, webhook-driven subscription lifecycle                |
+| Email              | React Email + Resend  | latest  | Type-safe templates, reliable delivery, analytics                               |
+| E2E Tests          | Playwright            | latest  | Cross-browser, reliable selectors, fixtures, Turborepo integration              |
+| Unit Tests         | Jest                  | latest  | Component/utility testing, mocking, snapshot tests                              |
+| Deployment         | Vercel                | -       | Edge functions, ISR, image optimization, Turbopack, analytics                   |
 
 ---
 
@@ -433,6 +437,7 @@ ever-jobs-website/
 ### Workspace Configuration
 
 **pnpm-workspace.yaml**:
+
 ```yaml
 packages:
   - "apps/*"
@@ -441,6 +446,7 @@ packages:
 ```
 
 **Turborepo Pipeline** (turbo.json key tasks):
+
 - `build` - depends on `^build` (topological)
 - `dev` - persistent, parallel
 - `lint` - parallel
@@ -464,17 +470,17 @@ BetterAuth v1 requires `user`, `session`, and `account` tables, defined in `pack
 
 ```typescript
 export const users = pgTable("users", {
-  id: text("id").primaryKey(),                     // BetterAuth generates this
+  id: text("id").primaryKey(), // BetterAuth generates this
   email: text("email").notNull().unique(),
   name: text("name").notNull(),
   linkedinId: text("linkedin_id").unique(),
-  linkedinData: jsonb("linkedin_data"),             // Full LinkedIn profile JSON
+  linkedinData: jsonb("linkedin_data"), // Full LinkedIn profile JSON
   location: text("location"),
   skills: jsonb("skills").$type<string[]>(),
-  experience: jsonb("experience"),                  // Parsed experience entries
+  experience: jsonb("experience"), // Parsed experience entries
   headline: text("headline"),
   photoUrl: text("photo_url"),
-  cvUrl: text("cv_url"),                            // Supabase Storage URL
+  cvUrl: text("cv_url"), // Supabase Storage URL
   cvParsedData: jsonb("cv_parsed_data"),
   preferences: jsonb("preferences").$type<{
     jobType: ("remote" | "hybrid" | "onsite")[];
@@ -486,8 +492,8 @@ export const users = pgTable("users", {
     skillsFocus: string[];
     locationPreferences: string[];
     companySize: string[];
-    aiModel: string | null;                         // User's preferred AI model
-    apiKeys: Record<string, string> | null;         // Encrypted BYOK keys
+    aiModel: string | null; // User's preferred AI model
+    apiKeys: Record<string, string> | null; // Encrypted BYOK keys
     other: Record<string, unknown>;
   }>(),
   subscriptionStatus: text("subscription_status").default("free"),
@@ -506,7 +512,7 @@ Maps from Ever Jobs API `JobPostDto`:
 export const jobs = pgTable("jobs", {
   id: integer("id").generatedAlwaysAsIdentity().primaryKey(),
   externalId: text("external_id").notNull().unique(), // JobPostDto.id e.g. "li-3693012711"
-  site: text("site").notNull(),                       // linkedin, indeed, glassdoor, etc.
+  site: text("site").notNull(), // linkedin, indeed, glassdoor, etc.
   title: text("title").notNull(),
   companyName: text("company_name").notNull(),
   companyUrl: text("company_url"),
@@ -518,11 +524,11 @@ export const jobs = pgTable("jobs", {
   locationState: text("location_state"),
   locationCountry: text("location_country"),
   isRemote: boolean("is_remote").default(false),
-  jobType: jsonb("job_type").$type<string[]>(),       // fulltime, parttime, etc.
+  jobType: jsonb("job_type").$type<string[]>(), // fulltime, parttime, etc.
   salaryMin: integer("salary_min"),
   salaryMax: integer("salary_max"),
   salaryCurrency: text("salary_currency").default("USD"),
-  salaryInterval: text("salary_interval"),             // yearly, monthly, hourly
+  salaryInterval: text("salary_interval"), // yearly, monthly, hourly
   salarySource: text("salary_source"),
   description: text("description"),
   skills: jsonb("skills").$type<string[]>(),
@@ -536,7 +542,7 @@ export const jobs = pgTable("jobs", {
   companyDescription: text("company_description"),
   datePosted: timestamp("date_posted"),
   expiresAt: timestamp("expires_at"),
-  rawData: jsonb("raw_data"),                          // Full API response
+  rawData: jsonb("raw_data"), // Full API response
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -552,18 +558,26 @@ export const jobs = pgTable("jobs", {
 ### 7.4 User-Jobs Junction Table
 
 ```typescript
-export const userJobs = pgTable("user_jobs", {
-  id: integer("id").generatedAlwaysAsIdentity().primaryKey(),
-  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  jobId: integer("job_id").notNull().references(() => jobs.id, { onDelete: "cascade" }),
-  status: text("status").notNull().default("viewed"),  // viewed | applied | favorited | rejected
-  appliedAt: timestamp("applied_at"),
-  coverLetter: text("cover_letter"),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-}, (table) => ({
-  uniqueUserJob: unique().on(table.userId, table.jobId),
-}));
+export const userJobs = pgTable(
+  "user_jobs",
+  {
+    id: integer("id").generatedAlwaysAsIdentity().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    jobId: integer("job_id")
+      .notNull()
+      .references(() => jobs.id, { onDelete: "cascade" }),
+    status: text("status").notNull().default("viewed"), // viewed | applied | favorited | rejected
+    appliedAt: timestamp("applied_at"),
+    coverLetter: text("cover_letter"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    uniqueUserJob: unique().on(table.userId, table.jobId),
+  }),
+);
 ```
 
 ### 7.5 User Alerts Table
@@ -571,19 +585,23 @@ export const userJobs = pgTable("user_jobs", {
 ```typescript
 export const userAlerts = pgTable("user_alerts", {
   id: integer("id").generatedAlwaysAsIdentity().primaryKey(),
-  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
   frequency: text("frequency").notNull().default("daily"),
   email: text("email").notNull(),
-  criteria: jsonb("criteria").$type<{
-    keywords: string[];
-    locations: string[];
-    remoteType: string[];
-    salaryMin: number | null;
-    salaryMax: number | null;
-    skills: string[];
-    roleLevel: string[];
-    industries: string[];
-  }>().notNull(),
+  criteria: jsonb("criteria")
+    .$type<{
+      keywords: string[];
+      locations: string[];
+      remoteType: string[];
+      salaryMin: number | null;
+      salaryMax: number | null;
+      skills: string[];
+      roleLevel: string[];
+      industries: string[];
+    }>()
+    .notNull(),
   isActive: integer("is_active").default(1),
   lastSentAt: timestamp("last_sent_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -594,8 +612,10 @@ export const userAlerts = pgTable("user_alerts", {
 
 ```typescript
 export const chatSessions = pgTable("chat_sessions", {
-  id: text("id").primaryKey(),                        // UUID
-  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  id: text("id").primaryKey(), // UUID
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
   agentType: text("agent_type").notNull().default("orchestrator"),
   context: jsonb("context").$type<{
     currentFilters: Record<string, unknown>;
@@ -613,8 +633,10 @@ export const chatSessions = pgTable("chat_sessions", {
 ```typescript
 export const chatMessages = pgTable("chat_messages", {
   id: integer("id").generatedAlwaysAsIdentity().primaryKey(),
-  sessionId: text("session_id").notNull().references(() => chatSessions.id, { onDelete: "cascade" }),
-  role: text("role").notNull(),                       // user | assistant | system | tool
+  sessionId: text("session_id")
+    .notNull()
+    .references(() => chatSessions.id, { onDelete: "cascade" }),
+  role: text("role").notNull(), // user | assistant | system | tool
   content: text("content"),
   toolCalls: jsonb("tool_calls"),
   toolResults: jsonb("tool_results"),
@@ -627,12 +649,14 @@ export const chatMessages = pgTable("chat_messages", {
 
 ```typescript
 export const agentInstances = pgTable("agent_instances", {
-  id: text("id").primaryKey(),                        // UUID
-  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  id: text("id").primaryKey(), // UUID
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
   agentType: text("agent_type").notNull(),
   jobId: integer("job_id").references(() => jobs.id),
   sessionId: text("session_id").references(() => chatSessions.id),
-  status: text("status").notNull().default("idle"),   // idle | running | waiting_input | completed | failed
+  status: text("status").notNull().default("idle"), // idle | running | waiting_input | completed | failed
   state: jsonb("state"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -644,10 +668,12 @@ export const agentInstances = pgTable("agent_instances", {
 ```typescript
 export const subscriptions = pgTable("subscriptions", {
   id: integer("id").generatedAlwaysAsIdentity().primaryKey(),
-  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
   stripeSubscriptionId: text("stripe_subscription_id").notNull().unique(),
-  planType: text("plan_type").notNull(),               // monthly | quarterly | annual
-  status: text("status").notNull(),                    // active | past_due | canceled | trialing
+  planType: text("plan_type").notNull(), // monthly | quarterly | annual
+  status: text("status").notNull(), // active | past_due | canceled | trialing
   currentPeriodStart: timestamp("current_period_start"),
   currentPeriodEnd: timestamp("current_period_end"),
   cancelAtPeriodEnd: integer("cancel_at_period_end").default(0),
@@ -660,21 +686,31 @@ export const subscriptions = pgTable("subscriptions", {
 ```typescript
 export const applications = pgTable("applications", {
   id: integer("id").generatedAlwaysAsIdentity().primaryKey(),
-  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  jobId: integer("job_id").notNull().references(() => jobs.id),
-  agentInstanceId: text("agent_instance_id").references(() => agentInstances.id),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  jobId: integer("job_id")
+    .notNull()
+    .references(() => jobs.id),
+  agentInstanceId: text("agent_instance_id").references(
+    () => agentInstances.id,
+  ),
   status: text("status").notNull().default("pending"),
   externalApiResponse: jsonb("external_api_response"),
-  questionsAsked: jsonb("questions_asked").$type<{
-    question: string;
-    fieldType: string;
-    required: boolean;
-    options: string[] | null;
-  }[]>(),
-  answersProvided: jsonb("answers_provided").$type<{
-    questionId: string;
-    answer: string;
-  }[]>(),
+  questionsAsked: jsonb("questions_asked").$type<
+    {
+      question: string;
+      fieldType: string;
+      required: boolean;
+      options: string[] | null;
+    }[]
+  >(),
+  answersProvided: jsonb("answers_provided").$type<
+    {
+      questionId: string;
+      answer: string;
+    }[]
+  >(),
   coverLetter: text("cover_letter"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -698,15 +734,18 @@ chat_sessions (1) ----< (N) agent_instances
 ## 8. AI Model Configuration
 
 ### Default Model
+
 - **Claude Opus 4.6** (`claude-opus-4-6`) via Vercel AI SDK v6
 - Configurable via `DEFAULT_AI_MODEL` environment variable
 
 ### Per-User Model Selection (Subscription Tier)
+
 - **Free tier**: Claude Haiku 4.5 (fast, cost-efficient for basic chat)
 - **Paid tiers**: Claude Opus 4.6 (default), option to switch to GPT-4o, Gemini, etc. in settings
 - Model selection stored in `users.preferences.aiModel`
 
 ### BYOK (Bring Your Own Key)
+
 - Users can provide their own API keys (OpenAI, Anthropic, Google, etc.) in settings
 - Keys stored encrypted in `users.preferences.apiKeys` (JSONB, encrypted at rest)
 - When BYOK key is present, routes to that provider instead of platform key
@@ -720,7 +759,7 @@ export function getModelForUser(user: User): LanguageModel {
   // 1. BYOK: user has own API key
   if (user.preferences?.apiKeys?.anthropic) {
     return createAnthropic({
-      apiKey: decrypt(user.preferences.apiKeys.anthropic)
+      apiKey: decrypt(user.preferences.apiKeys.anthropic),
     })("claude-opus-4-6");
   }
   // 2. User preference: user selected a specific model
@@ -775,6 +814,7 @@ Built on Vercel AI SDK v6 with a **unified orchestrator agent** architecture. Al
 **File**: `packages/ai/src/agents/orchestrator.ts`
 
 **Capabilities**:
+
 - All 11 tools registered directly on a single agent instance
 - System prompt (`orchestrator-system.ts`) contains behavioral guidance for each workflow domain
 - Intent detection is implicit via LLM reasoning, not explicit code routing
@@ -782,6 +822,7 @@ Built on Vercel AI SDK v6 with a **unified orchestrator agent** architecture. Al
 - Human-in-the-loop approval for sensitive actions (apply, submit answers)
 
 **Behavioral Domains** (driven by system prompt, not separate agents):
+
 - **Onboarding**: Guides new users through preference collection using LinkedIn data; AI-guided with topic list from `guidance-topics.ts`, not hardcoded questions
 - **Job Search**: Translates natural language to structured filter parameters, queries jobs table, returns results with commentary
 - **Cover Letters**: Generates personalized cover letters using user profile + job description
@@ -793,6 +834,7 @@ Built on Vercel AI SDK v6 with a **unified orchestrator agent** architecture. Al
 **Driven by**: System prompt guidance + `guidance-topics.ts`
 
 **Key Design**: NOT hardcoded questions. AI-guided with a topic list:
+
 - Job type preference (remote/hybrid/on-site)
 - Salary expectations and currency
 - Industry/sector preferences
@@ -811,6 +853,7 @@ The AI weaves these topics into natural conversation, not an interrogation.
 **Purpose**: Handles end-to-end job application. Uses `needsApproval: true` on sensitive tools.
 
 **Flow**:
+
 1. User says "Apply to Senior React Developer at TechCorp"
 2. Orchestrator identifies application intent from conversation context
 3. Agent calls applyJob tool (needsApproval) -> client shows approval UI
@@ -828,19 +871,19 @@ The AI weaves these topics into natural conversation, not an interrogation.
 
 All tools in `packages/ai/src/tools/`:
 
-| Tool | Description | HITL |
-|------|-------------|------|
-| `search-jobs` | Query jobs table with filters | No |
-| `update-filters` | Push filter state to canvas UI | No |
-| `favorite-job` | Toggle favorite status | No |
-| `get-job-details` | Fetch single job details | No |
-| `get-user-profile` | Read user profile data | No |
-| `save-preferences` | Save user preferences and settings | No |
-| `generate-cover-letter` | AI cover letter generation | No |
-| `create-alert` | Create job alert | No |
-| `apply-job` | Initiate application | **Yes** |
-| `submit-answers` | Submit application answers | **Yes** |
-| `interview-prep` | Interview preparation and coaching | No |
+| Tool                    | Description                        | HITL    |
+| ----------------------- | ---------------------------------- | ------- |
+| `search-jobs`           | Query jobs table with filters      | No      |
+| `update-filters`        | Push filter state to canvas UI     | No      |
+| `favorite-job`          | Toggle favorite status             | No      |
+| `get-job-details`       | Fetch single job details           | No      |
+| `get-user-profile`      | Read user profile data             | No      |
+| `save-preferences`      | Save user preferences and settings | No      |
+| `generate-cover-letter` | AI cover letter generation         | No      |
+| `create-alert`          | Create job alert                   | No      |
+| `apply-job`             | Initiate application               | **Yes** |
+| `submit-answers`        | Submit application answers         | **Yes** |
+| `interview-prep`        | Interview preparation and coaching | No      |
 
 ### 9.5 Canvas Sync (Critical Bridge)
 
@@ -863,11 +906,11 @@ This means the chat and canvas are synchronized through the AI tool result strea
 
 **Sections** (top to bottom):
 
-1. **Navigation Header**: Logo ("Ever Jobs"), nav links (Features, Pricing), "Login" and "Get Started" CTAs. Sticky on scroll.
+1. **Navigation Header**: Logo ("Hust"), nav links (Features, Pricing), "Login" and "Get Started" CTAs. Sticky on scroll.
 
 2. **Hero Section**:
    - Headline: "Your AI-Powered Job Search Assistant"
-   - Subheadline: "Stop scrolling job boards. Start talking to AI. Ever Jobs finds, filters, and helps you apply -- all through conversation."
+   - Subheadline: "Stop scrolling job boards. Start talking to AI. Hust finds, filters, and helps you apply -- all through conversation."
    - Primary CTA: "Start Free with LinkedIn" (LinkedIn branded button)
    - Secondary CTA: "See How It Works"
    - Hero visual: Split-screen mockup showing chat + job cards
@@ -910,6 +953,7 @@ This means the chat and canvas are synchronized through the AI tool result strea
 **Provider**: BetterAuth v1 with LinkedIn OAuth (OpenID Connect)
 
 **Flow**:
+
 1. User clicks "Start with LinkedIn"
 2. BetterAuth redirects to LinkedIn OAuth
 3. User authorizes on LinkedIn
@@ -929,6 +973,7 @@ This means the chat and canvas are synchronized through the AI tool result strea
 **Route**: `(dashboard)/layout.tsx`
 
 **Desktop** (>= 1024px):
+
 ```
 +-------+---------------------------+----------------------------+
 | Nav   |      AI Chat Panel        |       Data Canvas          |
@@ -950,6 +995,7 @@ This means the chat and canvas are synchronized through the AI tool result strea
 ### 10.4 AI Chat System (Left Panel)
 
 **Initial Message** (personalized using LinkedIn data):
+
 ```
 "Hey [Name]! I'm your AI job assistant. I can see from your LinkedIn
 profile that you're a [headline] based in [location]. Let's find your
@@ -960,6 +1006,7 @@ to get started."
 ```
 
 **System Prompt** (`packages/ai/src/prompts/orchestrator-system.ts`):
+
 - Act as career advisor and job search assistant
 - Use conversational style (not interrogative)
 - Reference user's profile data
@@ -970,11 +1017,13 @@ to get started."
 
 **Guidance Topics** (`packages/ai/src/prompts/guidance-topics.ts`):
 Topics to explore naturally during conversation (NOT hardcoded question sequence):
+
 - Job type, salary, industry, role level, skills, location, company size, culture, timeline, deal-breakers
 
 ### 10.5 Jobs Canvas (Right Panel)
 
 **Job Card Design**:
+
 ```
 +--------------------------------------------------+
 | [Company Logo]  Company Name              [Heart] |
@@ -994,12 +1043,14 @@ Topics to explore naturally during conversation (NOT hardcoded question sequence
 ```
 
 **Interactions**:
+
 - Click card body -> detail panel or `/jobs/[id]`
 - Heart icon -> toggle favorite (optimistic UI)
 - Apply button -> opens `applyUrl` in new tab
 - AI Cover Letter button -> triggers cover letter generation
 
 **Filter Bar** (independent of chat):
+
 - Search text input
 - Location with autocomplete
 - Remote/Hybrid/On-site toggle
@@ -1013,6 +1064,7 @@ Topics to explore naturally during conversation (NOT hardcoded question sequence
 **Entry Point**: Banner in chat sidebar or AI prompt during onboarding.
 
 **Chat Flow**:
+
 1. AI asks: frequency (daily/twice daily/weekly)
 2. AI confirms email (from LinkedIn)
 3. AI summarizes criteria from conversation
@@ -1020,6 +1072,7 @@ Topics to explore naturally during conversation (NOT hardcoded question sequence
 5. AI creates alert via `create-alert` tool
 
 **Trigger.dev Tasks**:
+
 - Daily alerts: `0 8 * * *` (8 AM UTC)
 - Twice daily: `0 8,18 * * *` (8 AM + 6 PM UTC)
 - Weekly: `0 8 * * 1` (Monday 8 AM UTC)
@@ -1033,6 +1086,7 @@ Topics to explore naturally during conversation (NOT hardcoded question sequence
 **Generation**: Cover Letter Agent uses user profile + job description.
 
 **Output Modal**: Generated letter with actions:
+
 - Edit inline (textarea mode)
 - Copy to clipboard
 - Download as PDF
@@ -1048,6 +1102,7 @@ Topics to explore naturally during conversation (NOT hardcoded question sequence
 **Supported**: PDF, DOCX (max 10MB).
 
 **Flow**:
+
 1. File uploaded to Supabase Storage -> `cvUrl`
 2. Text extracted (pdf-parse for PDF, mammoth for DOCX)
 3. AI-powered structured data extraction (skills, experience, education, certifications, summary)
@@ -1059,6 +1114,7 @@ Topics to explore naturally during conversation (NOT hardcoded question sequence
 **Route**: `/profile`
 
 **Sections**:
+
 1. Header card (photo, name, headline, location, LinkedIn link)
 2. Skills (tag chips with add/remove, source indicators)
 3. Experience (timeline of positions)
@@ -1072,13 +1128,14 @@ Topics to explore naturally during conversation (NOT hardcoded question sequence
 
 **Plans** (`packages/stripe/src/plans.ts`):
 
-| Plan | Price | Billing | Badge |
-|------|-------|---------|-------|
-| Monthly | $20/month | Monthly | - |
+| Plan      | Price     | Billing            | Badge        |
+| --------- | --------- | ------------------ | ------------ |
+| Monthly   | $20/month | Monthly            | -            |
 | Quarterly | $12/month | $36 every 3 months | Most Popular |
-| Annual | $7/month | $84 annually | Best Value |
+| Annual    | $7/month  | $84 annually       | Best Value   |
 
 **Free Tier Limitations**:
+
 - 10 AI chat messages per day
 - 5 job searches per day
 - 1 cover letter per week
@@ -1112,6 +1169,7 @@ The architecture supports any external API that returns questions and accepts an
 **POST /api/jobs/search** (Primary)
 
 Request body (`ScraperInputDto`):
+
 ```json
 {
   "searchTerm": "React developer",
@@ -1132,6 +1190,7 @@ Request body (`ScraperInputDto`):
 Query params: `paginate=true`, `page=1`, `page_size=25`
 
 Response:
+
 ```json
 {
   "count": 50,
@@ -1182,6 +1241,7 @@ Response:
 ### Job Sync Strategy
 
 Trigger.dev task (`packages/triggers/src/jobs/sync-jobs.ts`) runs every 15 minutes:
+
 1. Calls `POST /api/jobs/search` with broad, rotating search terms
 2. Maps `JobPostDto` -> DB `jobs` table schema via `packages/jobs-api/src/mappers.ts`
 3. Upserts on `external_id` unique constraint
@@ -1189,6 +1249,7 @@ Trigger.dev task (`packages/triggers/src/jobs/sync-jobs.ts`) runs every 15 minut
 5. Supabase Realtime broadcasts new jobs to connected clients
 
 ### Important Notes
+
 - **API is read-only** - No apply endpoint. Applications go through `jobUrl`/`applyUrl`.
 - Response caching: Optional in-memory TTL (default 3600s)
 - Salary enrichment: Auto-extraction from descriptions for USA jobs
@@ -1199,19 +1260,20 @@ Trigger.dev task (`packages/triggers/src/jobs/sync-jobs.ts`) runs every 15 minut
 
 > **Important**: The `(dashboard)` directory is a Next.js **route group** — parentheses mean it does NOT add a URL segment. The actual URLs are `/chat`, `/jobs`, etc., NOT `/dashboard/chat`.
 
-| Route | Access | Description |
-|-------|--------|-------------|
-| `/` | Public | Landing page |
-| `/pricing` | Public | Pricing page |
-| `/login` | Public | LinkedIn OAuth login |
-| `/chat` | Protected | Main chat + canvas view |
-| `/jobs` | Protected | Jobs browse (canvas only) |
-| `/jobs/[id]` | Protected | Job detail page |
-| `/profile` | Protected | User profile |
-| `/settings` | Protected | Settings + subscription management |
-| `/dashboard` | Legacy | Redirects to `/chat` |
+| Route        | Access    | Description                        |
+| ------------ | --------- | ---------------------------------- |
+| `/`          | Public    | Landing page                       |
+| `/pricing`   | Public    | Pricing page                       |
+| `/login`     | Public    | LinkedIn OAuth login               |
+| `/chat`      | Protected | Main chat + canvas view            |
+| `/jobs`      | Protected | Jobs browse (canvas only)          |
+| `/jobs/[id]` | Protected | Job detail page                    |
+| `/profile`   | Protected | User profile                       |
+| `/settings`  | Protected | Settings + subscription management |
+| `/dashboard` | Legacy    | Redirects to `/chat`               |
 
 **Middleware** (`apps/web/middleware.ts`):
+
 - Routes `/chat`, `/jobs`, `/profile`, `/settings` require valid BetterAuth session
 - Redirect to `/login` if not authenticated
 - Legacy `/dashboard` and `/dashboard/*` redirect to `/chat`
@@ -1223,16 +1285,19 @@ Trigger.dev task (`packages/triggers/src/jobs/sync-jobs.ts`) runs every 15 minut
 ## 13. Security Architecture
 
 ### Authentication & Authorization
+
 - BetterAuth session-based auth with HTTP-only cookies
 - CSRF protection via BetterAuth's built-in CSRF token
 - Session rotation on sensitive operations
 
 ### API Security
+
 - Rate limiting: 100 req/min authenticated, 20/min public (Upstash/similar)
 - Input validation with Zod schemas on every API endpoint
 - All API routes validate session before processing
 
 ### Data Security
+
 - SQL injection: Prevented by Drizzle ORM parameterized queries
 - XSS: React default escaping + Content Security Policy headers
 - BYOK API keys encrypted at rest in database
@@ -1240,6 +1305,7 @@ Trigger.dev task (`packages/triggers/src/jobs/sync-jobs.ts`) runs every 15 minut
 - Stripe webhook signature verification
 
 ### Content Security Policy
+
 ```
 default-src 'self';
 script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.stripe.com;
@@ -1249,6 +1315,7 @@ img-src 'self' https://*.supabase.co data:;
 ```
 
 ### Environment Variables
+
 ```env
 # Supabase
 NEXT_PUBLIC_SUPABASE_URL=
@@ -1293,23 +1360,27 @@ EMAIL_FROM=alerts@everjobs.ai
 ## 14. Deployment & Infrastructure
 
 ### Vercel Configuration
+
 - **Framework**: Next.js 16.1 (auto-detected)
 - **Build System**: Turborepo (native Vercel support with remote caching)
 - **Root Directory**: `apps/web`
 - **Node.js**: 22.x (LTS)
 
 ### Function Configuration
+
 - AI chat endpoint: `maxDuration = 60` (streaming), `runtime = "nodejs"`
 - Auth middleware: Edge runtime
 - Stripe webhook: `maxDuration = 30`, `runtime = "nodejs"`
 
 ### Supabase
+
 - Provisioned via Vercel Supabase integration
 - Connection pooling via Supabase's built-in PgBouncer
 - Database branching for preview deployments (if available)
 - Storage buckets: `cvs` (private), `avatars` (public)
 
 ### Optimizations
+
 - **ISR**: Landing page, pricing page (revalidate every 3600s)
 - **Edge Functions**: Auth middleware, rate limiting
 - **Image Optimization**: Company logos via `next/image`
@@ -1321,26 +1392,27 @@ EMAIL_FROM=alerts@everjobs.ai
 
 ### Playwright E2E Tests (`tests/e2e/`)
 
-| Test File | Scenarios |
-|-----------|-----------|
-| `landing.spec.ts` | All sections render, pricing correct, CTAs work, theme toggle |
-| `auth.spec.ts` | Login redirects to LinkedIn, callback creates user, session, logout |
-| `chat.spec.ts` | Chat panel renders, sends message, receives response, tool results update canvas |
-| `jobs.spec.ts` | Job cards render, pagination, filters work, favorites toggle, apply opens tab |
-| `profile.spec.ts` | Profile data displays, edit works, CV upload works |
-| `subscription.spec.ts` | Pricing page, checkout redirect, feature gating |
+| Test File              | Scenarios                                                                        |
+| ---------------------- | -------------------------------------------------------------------------------- |
+| `landing.spec.ts`      | All sections render, pricing correct, CTAs work, theme toggle                    |
+| `auth.spec.ts`         | Login redirects to LinkedIn, callback creates user, session, logout              |
+| `chat.spec.ts`         | Chat panel renders, sends message, receives response, tool results update canvas |
+| `jobs.spec.ts`         | Job cards render, pagination, filters work, favorites toggle, apply opens tab    |
+| `profile.spec.ts`      | Profile data displays, edit works, CV upload works                               |
+| `subscription.spec.ts` | Pricing page, checkout redirect, feature gating                                  |
 
 ### Jest Unit Tests (co-located `*.test.ts`)
 
-| Package | Test Focus |
-|---------|-----------|
-| `packages/jobs-api` | API response mapping, type validation |
-| `packages/cv-parser` | Text extraction, structured data parsing |
-| `packages/stripe` | Plan config, webhook event handling |
-| `packages/utils` | Zod schema validation |
-| `packages/ai/tools` | Tool input/output validation, filter generation |
+| Package              | Test Focus                                      |
+| -------------------- | ----------------------------------------------- |
+| `packages/jobs-api`  | API response mapping, type validation           |
+| `packages/cv-parser` | Text extraction, structured data parsing        |
+| `packages/stripe`    | Plan config, webhook event handling             |
+| `packages/utils`     | Zod schema validation                           |
+| `packages/ai/tools`  | Tool input/output validation, filter generation |
 
 ### Integration Tests
+
 - Stripe webhook handler with mock events
 - BetterAuth callback handler
 - AI chat route with mock LLM responses
@@ -1350,11 +1422,13 @@ EMAIL_FROM=alerts@everjobs.ai
 ## 16. Implementation Phases
 
 ### Phase 0: Documentation & Setup
+
 - Write PRD document (`docs/PRD.md`)
 - Set proprietary license
 - Create `.gitignore`, `.env.example`, `README.md`
 
 ### Phase 1: Foundation (Weeks 1-2)
+
 - Turborepo monorepo with all packages scaffolded
 - pnpm workspace, turbo.json, shared configs (TS, ESLint, Tailwind)
 - `packages/db`: Full Drizzle schema, migrations, seed
@@ -1371,6 +1445,7 @@ EMAIL_FROM=alerts@everjobs.ai
 **Exit Criteria**: User visits landing page, logs in via LinkedIn, sees blank dashboard, toggles theme.
 
 ### Phase 2: Core Experience (Weeks 3-5)
+
 - Split-screen layout (responsive)
 - `packages/ai`: Orchestrator + onboarding agents, system prompts, model router
 - AI chat with `useChat` integration
@@ -1384,6 +1459,7 @@ EMAIL_FROM=alerts@everjobs.ai
 **Exit Criteria**: User chats with AI, provides preferences, sees matching jobs on canvas in real-time.
 
 ### Phase 3: Enhanced Features (Weeks 6-7)
+
 - Favorites (heart icon, persist to user_jobs, profile section)
 - Cover Letter Agent + modal UI
 - `packages/cv-parser`: Upload to Supabase Storage, extract, parse
@@ -1394,6 +1470,7 @@ EMAIL_FROM=alerts@everjobs.ai
 **Exit Criteria**: User favorites jobs, generates AI cover letters, uploads CV, views/edits profile.
 
 ### Phase 4: Monetization & Alerts (Weeks 8-9)
+
 - `packages/stripe`: Full Stripe integration (checkout, portal, webhooks)
 - Pricing page with 3 plan cards
 - Subscription middleware/feature gating
@@ -1405,6 +1482,7 @@ EMAIL_FROM=alerts@everjobs.ai
 **Exit Criteria**: User subscribes, pays, gets alerts on schedule via email.
 
 ### Phase 5: AI Agents (Weeks 10-12)
+
 - Application Agent with HITL (needsApproval)
 - Tool approval UI in chat (approve/deny buttons)
 - Agent state persistence + resumption from DB
@@ -1417,6 +1495,7 @@ EMAIL_FROM=alerts@everjobs.ai
 **Exit Criteria**: User says "apply to this job" and agent handles full flow with approval gates. Interview prep provides mock questions.
 
 ### Phase 6: Testing & Polish (Weeks 13-14)
+
 - Playwright E2E test suite (all specs)
 - Jest unit test suite (all packages)
 - Performance optimization (lazy loading, bundle analysis, Core Web Vitals)
@@ -1430,6 +1509,7 @@ EMAIL_FROM=alerts@everjobs.ai
 **Exit Criteria**: All E2E tests pass, Lighthouse 90+ all categories, WCAG 2.1 AA compliant.
 
 ### Phase 7: Production Hardening (Week 15)
+
 - Vercel Analytics + Speed Insights integration
 - Bundle analyzer + dynamic imports for heavy components
 - BYOK API key encryption at rest (AES-256-GCM)
@@ -1441,6 +1521,7 @@ EMAIL_FROM=alerts@everjobs.ai
 **Exit Criteria**: Lighthouse 95+ performance, BYOK keys encrypted at rest, live job updates on canvas, analytics dashboard active.
 
 ### Phase 8: Growth & Engagement (Weeks 16-18) — COMPLETE
+
 - ~~Push notifications (web push API)~~ **DONE** — Web Push API with VAPID keys, service worker registration, push subscription management, notification settings card in settings page
 - ~~Salary insights and market data visualization~~ **DONE** — `salaryInsights` AI tool with salary range visualization, by-level breakdown, remote vs on-site comparison, top-paying companies
 - ~~Company research agent (company culture, Glassdoor reviews, funding)~~ **DONE** — `companyResearch` AI tool queries jobs DB by company name, aggregates positions/locations/departments/levels
@@ -1450,6 +1531,7 @@ EMAIL_FROM=alerts@everjobs.ai
 - ~~Referral program (invite friends, earn credits)~~ **DONE** — Referral invite/redeem flow with credit system, referral tracking, settings UI card
 
 ### Phase 9: Enterprise & Scale (Weeks 19-24) — COMPLETE
+
 - ~~Team/organization accounts~~ **DONE** — Organizations DB schema (orgs, members, invitations), CRUD API routes, org auth helpers (requireOrgMember/requireOrgRole), organization list/detail pages, organization settings card, invitation acceptance flow
 - ~~Admin dashboard for recruiters~~ **DONE** — Role-based access control (user/recruiter/admin), admin layout with sidebar, user management, stats dashboard, role change API
 - ~~API access for enterprise customers~~ **DONE** — Enterprise API with SHA-256 hashed API keys, v1 endpoints (jobs search, job detail, companies, salary insights), developer API card in settings
@@ -1610,6 +1692,7 @@ Response: {
 ## 19. Non-Functional Requirements
 
 ### Performance
+
 - Time to Interactive (landing): < 2.5s
 - First Contentful Paint: < 1.5s
 - Chat first token latency: < 500ms
@@ -1617,18 +1700,21 @@ Response: {
 - Canvas update after tool result: < 100ms
 
 ### Scalability
+
 - Supabase connection pooling for serverless
 - Jobs table indexed for 10M+ rows
 - Vercel auto-scales serverless functions
 - Rate limiting prevents LLM abuse
 
 ### Reliability
+
 - Uptime: 99.9% (Vercel SLA)
 - Error boundaries on all route segments
 - Graceful degradation if Ever Jobs API is down (show cached jobs)
 - Stripe webhook retry handling with idempotency
 
 ### Accessibility
+
 - WCAG 2.1 AA compliance
 - Keyboard navigation for all elements
 - Screen reader support (ARIA labels, live regions for chat)
@@ -1636,6 +1722,7 @@ Response: {
 - `prefers-reduced-motion` support
 
 ### Browser Support
+
 - Chrome, Firefox, Safari, Edge (last 2 versions)
 - iOS Safari 16+, Chrome Android 120+
 
@@ -1643,18 +1730,18 @@ Response: {
 
 ## 20. Success Metrics
 
-| Metric | Target | Measurement |
-|--------|--------|-------------|
-| User activation (completes onboarding) | > 60% | % of signups that complete onboarding chat |
-| Jobs viewed per session | > 10 | Average job cards viewed |
-| Applications per user/week | > 3 | Average via apply button or agent |
-| Alert-to-application conversion | > 15% | % of alert clicks leading to application |
-| Free-to-paid conversion | > 5% | % of free users subscribing within 30 days |
-| Chat engagement | > 5 messages/session | Average messages per chat session |
-| Cover letters generated | > 2/user/week | Average for paid users |
-| Net Promoter Score | > 50 | Quarterly survey |
-| Lighthouse Performance | > 90 | All pages |
-| WCAG Compliance | AA | Automated + manual audit |
+| Metric                                 | Target               | Measurement                                |
+| -------------------------------------- | -------------------- | ------------------------------------------ |
+| User activation (completes onboarding) | > 60%                | % of signups that complete onboarding chat |
+| Jobs viewed per session                | > 10                 | Average job cards viewed                   |
+| Applications per user/week             | > 3                  | Average via apply button or agent          |
+| Alert-to-application conversion        | > 15%                | % of alert clicks leading to application   |
+| Free-to-paid conversion                | > 5%                 | % of free users subscribing within 30 days |
+| Chat engagement                        | > 5 messages/session | Average messages per chat session          |
+| Cover letters generated                | > 2/user/week        | Average for paid users                     |
+| Net Promoter Score                     | > 50                 | Quarterly survey                           |
+| Lighthouse Performance                 | > 90                 | All pages                                  |
+| WCAG Compliance                        | AA                   | Automated + manual audit                   |
 
 ---
 
@@ -1664,26 +1751,27 @@ Response: {
 
 ### Phase Completion
 
-| Phase | Status | Notes |
-|-------|--------|-------|
-| Phase 0: Documentation & Setup | ✅ Complete | PRD, LICENSE, .gitignore, .env.example, README |
-| Phase 1: Foundation | ✅ Complete | Monorepo, DB schema, auth, UI, landing, theme, middleware |
-| Phase 2: Core Experience | ✅ Complete | Split-screen, AI chat, job sync, canvas, mobile responsive |
-| Phase 3: Enhanced Features | ✅ Complete | Favorites, cover letters, CV upload, profile, settings |
-| Phase 4: Monetization & Alerts | ✅ Complete | Stripe, pricing, gating, email templates, alert cron tasks |
-| Phase 5: AI Agents | ✅ Complete | Application agent (HITL), interview prep, BYOK, agent status |
-| Phase 6: Testing & Polish | ✅ Complete | E2E + unit tests, error boundaries, loading states, SEO, sitemap |
-| Phase 7: Production Hardening | ✅ Complete | Analytics, Speed Insights, bundle optimization, BYOK encryption, Realtime, a11y |
-| Phase 8: Growth & Engagement | ✅ Complete | Job comparison, social sharing, company research, salary insights, resume builder, push notifications, referral program |
-| Phase 9: Enterprise & Scale | ✅ Complete (7/7) | Team accounts, admin dashboard, enterprise API, org AI config, white-label, analytics, i18n |
-| Post-Audit Fixes (v1.6) | ✅ Complete | Security hardening, broken link fixes, dead code cleanup, feature wiring |
-| Post-MVP Polish (v1.7-1.9) | ✅ Complete | Batches 2-7: rate limiting, DB indexes, Stripe idempotency, SEO, health checks, env validation, test expansion (246→470, 19 suites), keyboard a11y, error standardization, Cache-Control headers, push handlers, structured data, XSS sanitization, zero-byte validation, Realtime reconnection, bundle optimization |
+| Phase                          | Status            | Notes                                                                                                                                                                                                                                                                                                                |
+| ------------------------------ | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Phase 0: Documentation & Setup | ✅ Complete       | PRD, LICENSE, .gitignore, .env.example, README                                                                                                                                                                                                                                                                       |
+| Phase 1: Foundation            | ✅ Complete       | Monorepo, DB schema, auth, UI, landing, theme, middleware                                                                                                                                                                                                                                                            |
+| Phase 2: Core Experience       | ✅ Complete       | Split-screen, AI chat, job sync, canvas, mobile responsive                                                                                                                                                                                                                                                           |
+| Phase 3: Enhanced Features     | ✅ Complete       | Favorites, cover letters, CV upload, profile, settings                                                                                                                                                                                                                                                               |
+| Phase 4: Monetization & Alerts | ✅ Complete       | Stripe, pricing, gating, email templates, alert cron tasks                                                                                                                                                                                                                                                           |
+| Phase 5: AI Agents             | ✅ Complete       | Application agent (HITL), interview prep, BYOK, agent status                                                                                                                                                                                                                                                         |
+| Phase 6: Testing & Polish      | ✅ Complete       | E2E + unit tests, error boundaries, loading states, SEO, sitemap                                                                                                                                                                                                                                                     |
+| Phase 7: Production Hardening  | ✅ Complete       | Analytics, Speed Insights, bundle optimization, BYOK encryption, Realtime, a11y                                                                                                                                                                                                                                      |
+| Phase 8: Growth & Engagement   | ✅ Complete       | Job comparison, social sharing, company research, salary insights, resume builder, push notifications, referral program                                                                                                                                                                                              |
+| Phase 9: Enterprise & Scale    | ✅ Complete (7/7) | Team accounts, admin dashboard, enterprise API, org AI config, white-label, analytics, i18n                                                                                                                                                                                                                          |
+| Post-Audit Fixes (v1.6)        | ✅ Complete       | Security hardening, broken link fixes, dead code cleanup, feature wiring                                                                                                                                                                                                                                             |
+| Post-MVP Polish (v1.7-1.9)     | ✅ Complete       | Batches 2-7: rate limiting, DB indexes, Stripe idempotency, SEO, health checks, env validation, test expansion (246→470, 19 suites), keyboard a11y, error standardization, Cache-Control headers, push handlers, structured data, XSS sanitization, zero-byte validation, Realtime reconnection, bundle optimization |
 
 ### Post-Audit Fixes (v1.6)
 
 Comprehensive codebase audit identified and resolved 19 issues across security, completeness, and code quality:
 
 #### Security Fixes
+
 - **ILIKE wildcard escaping** in admin user search to prevent pattern injection
 - **Crypto-based referral codes** — replaced `Math.random()` with `crypto.randomBytes()`
 - **JSON-LD XSS prevention** — escape `</script>` in structured data component
@@ -1691,12 +1779,14 @@ Comprehensive codebase audit identified and resolved 19 issues across security, 
 - **Input validation** — max length on admin search schema
 
 #### Broken Links & Missing Pages
+
 - Created `/terms`, `/privacy`, `/about`, `/contact` marketing pages with real content
 - Removed dead `/blog` link from footer
 - Added `/organizations` to middleware protected routes
 - Replaced admin jobs "Coming Soon" stub with real job management page + search/pagination API
 
 #### Dead Code & Feature Wiring
+
 - **Org AI config integration** — `mergeOrgConfig()` now called in chat route, org settings override user prefs
 - **LanguageSwitcher** integrated into dashboard sidebar
 - **Schema type fix** — `organizationId` changed from `text` to `integer` in branding + AI config schemas
@@ -1705,6 +1795,7 @@ Comprehensive codebase audit identified and resolved 19 issues across security, 
 - Extracted shared `StatCard` component; deduplicated `timeAgo`/`formatDate` across admin pages
 
 #### Known Low-Severity Items (resolved in v1.7)
+
 - ~~Inconsistent `withTimezone` on older schema tables~~ (deferred, low impact)
 - ~~In-memory rate limiting (production should use Redis)~~ **RESOLVED** — Upstash Redis rate limiting on all routes with tiered limits
 - ~~Missing DB indexes on `jobs.department`, `applications(userId, jobId)`~~ **RESOLVED** — Composite indexes added in Batch 3
@@ -1789,16 +1880,19 @@ Focus: API response security, push notification reliability, SEO structured data
 Added in v1.2 to address known limitations from MVP. Updated in v1.3 to reflect architecture audit findings:
 
 #### 7.1 Vercel Analytics & Speed Insights
+
 - **`@vercel/analytics`**: Web analytics with page view tracking, custom events
 - **`@vercel/speed-insights`**: Real User Monitoring (RUM) for Core Web Vitals (LCP, FID, CLS, TTFB, INP)
 - Both integrated in root layout, zero-config on Vercel deployment
 
 #### 7.2 Bundle Optimization
+
 - **`@next/bundle-analyzer`**: Available via `ANALYZE=true pnpm build` for visual bundle inspection
 - **Dynamic imports**: Heavy components (`CoverLetterModal`, `InterviewPrepPanel`, `CVDropzone`) loaded with `next/dynamic` to reduce initial bundle
 - **Route-level code splitting**: Automatic via Next.js App Router (each route = separate chunk)
 
 #### 7.3 BYOK API Key Encryption at Rest
+
 - **Algorithm**: AES-256-GCM (authenticated encryption with associated data)
 - **Key derivation**: PBKDF2 with SHA-256 from `BYOK_ENCRYPTION_KEY` env var
 - **Implementation**: `packages/ai/src/crypto.ts` provides `encryptApiKey()` / `decryptApiKey()`
@@ -1807,12 +1901,14 @@ Added in v1.2 to address known limitations from MVP. Updated in v1.3 to reflect 
 - **Settings UI**: Encrypts keys on save via API, never sends plaintext to client
 
 #### 7.4 Supabase Realtime
+
 - **`packages/supabase/src/realtime.ts`**: Typed subscription helpers for jobs table changes
 - **`apps/web/hooks/use-realtime-jobs.ts`**: React hook subscribing to INSERT/UPDATE on `jobs` table
 - **Canvas integration**: New jobs appear live on canvas without manual refresh
 - **Cleanup**: Subscriptions properly unsubscribed on component unmount
 
 #### 7.5 Accessibility (WCAG 2.1 AA)
+
 - Focus management: Visible focus rings on all interactive elements
 - Color contrast: Verified AA contrast ratios (4.5:1 text, 3:1 large text)
 - ARIA labels: All form inputs, buttons, and regions properly labeled
@@ -1822,30 +1918,36 @@ Added in v1.2 to address known limitations from MVP. Updated in v1.3 to reflect 
 - Semantic HTML: Proper heading hierarchy, landmarks, and form associations
 
 #### 7.6 OpenRouter Integration
+
 - **Multi-model routing**: OpenRouter used as a provider for accessing multiple LLM backends (Anthropic, OpenAI, etc.) through a single API
 - **Configuration**: Integrated into `model-router.ts` alongside direct provider access
 - **Fallback**: Enables graceful model fallback when a primary provider is unavailable
 
 #### 7.7 Langfuse Observability
+
 - **Prompt management**: System prompts managed and versioned via Langfuse
 - **Tracing**: AI request/response tracing for debugging and optimization
 - **Analytics**: Token usage tracking, latency monitoring, and cost analysis per user/session
 
 #### 7.8 Chat Persistence & Session History
+
 - **3 API routes**: Chat sessions CRUD, message history retrieval, session management
 - **Schema**: Combined `chat.ts` schema handles both sessions and messages in a single file
 - **Resumable**: Users can continue previous conversations with full context restoration
 
 #### 7.9 PWA Support
+
 - **Install prompt**: Progressive Web App install prompt for mobile and desktop
 - **Offline page**: Custom offline fallback page when network is unavailable
 - **Service worker**: Caches critical assets for improved load performance
 
 #### 7.10 Keyboard Shortcuts
+
 - **System**: Global keyboard shortcuts for common actions (navigation, search focus, theme toggle)
 - **Discoverability**: Shortcut hints displayed in UI tooltips
 
 #### 7.11 API Endpoints
+
 - **Health check**: `/api/health` endpoint for uptime monitoring and deployment verification
 - **User data export**: `/api/user/export` endpoint for GDPR-compliant data export
 - **Usage stats/quota tracking**: `/api/user/usage` endpoint for tracking AI usage against subscription tier limits

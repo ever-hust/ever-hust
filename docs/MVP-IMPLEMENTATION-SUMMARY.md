@@ -1,4 +1,4 @@
-# Ever Jobs — MVP Implementation Summary
+# Hust — MVP Implementation Summary
 
 **Date**: 2026-02-18 (updated)
 **Branch**: `claude/agitated-davinci`
@@ -14,21 +14,22 @@ This document summarizes all MVP implementation work completed across 7 batches 
 
 ## Commit History
 
-| Commit | Description |
-|--------|-------------|
+| Commit    | Description                                                                             |
+| --------- | --------------------------------------------------------------------------------------- |
 | `bf38ec3` | feat: complete MVP gaps — alerts API, email templates, Zod validation, tests, and fixes |
-| `82da2f1` | feat: add CSP headers, BYOK settings, alerts UI, agent status, and structured data |
+| `82da2f1` | feat: add CSP headers, BYOK settings, alerts UI, agent status, and structured data      |
 | `c29a734` | feat: wire subscription emails, BYOK model routing, chat deep-links, and cleanup export |
-| `8f3032f` | fix: resolve BYOK key path, submitAnswers schema, app tracking, and UX gaps |
-| `2e470e0` | fix: complete BYOK with createAnthropic, add favicon and icon metadata |
-| `772e254` | fix: correct all /dashboard/ URLs to match route group paths, add welcome email |
-| `f1fd961` | fix: use env-based URLs in email send functions instead of hardcoded everjobs.ai |
+| `8f3032f` | fix: resolve BYOK key path, submitAnswers schema, app tracking, and UX gaps             |
+| `2e470e0` | fix: complete BYOK with createAnthropic, add favicon and icon metadata                  |
+| `772e254` | fix: correct all /dashboard/ URLs to match route group paths, add welcome email         |
+| `f1fd961` | fix: use env-based URLs in email send functions instead of hardcoded everjobs.ai        |
 
 ---
 
 ## Batch 1 — Alerts API, Email Templates, Validation & Tests
 
 ### What was done
+
 - **Alerts API** (`apps/web/app/api/user/alerts/route.ts`): Full CRUD — GET (list alerts), POST (create alert), PATCH (toggle active), DELETE
 - **Email templates**: Created 3 React Email templates:
   - `packages/email/src/templates/job-alert.tsx` — Job alert notification
@@ -45,6 +46,7 @@ This document summarizes all MVP implementation work completed across 7 batches 
 ## Batch 2 — CSP Headers, BYOK Settings, Alerts UI, Agent Status, Structured Data
 
 ### What was done
+
 - **Security headers** (`apps/web/middleware.ts`): Content Security Policy, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
 - **BYOK settings UI** (`apps/web/app/(dashboard)/settings/page.tsx`): API key input field for Anthropic, stored in user preferences
 - **Alerts management UI**: Settings page section to view, toggle, and delete alerts
@@ -58,6 +60,7 @@ This document summarizes all MVP implementation work completed across 7 batches 
 ## Batch 3 — Subscription Emails, BYOK Model Routing, Chat Deep-Links
 
 ### What was done
+
 - **Stripe webhook → email**: `sendSubscriptionConfirmedEmail()` called on `checkout.session.completed` webhook event
 - **BYOK model routing** (`packages/ai/src/model-router.ts`): Reads user preferences from DB, passes to `getModelForUser()` for correct model selection
 - **Chat deep-links**: `ChatPanel` accepts `initialPrompt` prop with auto-send via `useRef` + `useEffect`; chat page reads `?job=` query param to pre-populate prompt
@@ -69,6 +72,7 @@ This document summarizes all MVP implementation work completed across 7 batches 
 ## Batch 4 — BYOK Key Path, Schema Fix, App Tracking, UX
 
 ### What was done
+
 - **submitAnswersTool fix** (`packages/ai/src/tools/submit-answers.ts`): Corrected DB column from non-existent `answers`/`resumeUrl`/`notes` to actual `answersProvided` column
 - **submitAnswersTool export**: Added missing export from `packages/ai/src/index.ts`
 - **BYOK key storage alignment**: Settings page now stores at `preferences.apiKeys.anthropic` matching model-router's expected path (was `preferences.apiKey`)
@@ -81,6 +85,7 @@ This document summarizes all MVP implementation work completed across 7 batches 
 ## Batch 5 — BYOK Actually Working, Favicon
 
 ### What was done
+
 - **BYOK functional fix** (`packages/ai/src/model-router.ts`): Was detecting BYOK key but still using default `anthropic()` provider. Fixed by importing and using `createAnthropic({ apiKey })` from `@ai-sdk/anthropic`
 - **Favicon**: Created SVG favicon with indigo gradient and "EJ" text at `apps/web/public/favicon.svg`
 - **Icon metadata**: Added `icons: { icon: "/favicon.svg" }` to root layout metadata
@@ -90,20 +95,23 @@ This document summarizes all MVP implementation work completed across 7 batches 
 ## Batch 6 — CRITICAL: Route Group URL Fix, Welcome Email
 
 ### Critical bug discovered
+
 The `(dashboard)` directory is a **Next.js route group** — it does NOT add a URL segment. All actual routes are `/chat`, `/jobs`, `/profile`, `/settings` — NOT `/dashboard/chat`, `/dashboard/jobs`, etc. This was wrong across the entire application.
 
 ### Files fixed (8 files)
-| File | Change |
-|------|--------|
-| `apps/web/components/layout/sidebar.tsx` | `/dashboard/chat` → `/chat`, `/dashboard/jobs` → `/jobs`, etc. |
-| `apps/web/app/(auth)/login/page.tsx` | `callbackURL: "/chat"` (was `/dashboard/chat`) |
-| `apps/web/app/not-found.tsx` | `href="/chat"` (was `/dashboard/chat`) |
-| `apps/web/components/landing/structured-data.tsx` | Search action URL uses `/chat?q=` |
-| `packages/email/src/templates/subscription-confirmed.tsx` | Default URL and settings link |
-| `apps/web/middleware.ts` | Protects `/chat`, `/jobs`, `/profile`, `/settings` directly; added `/dashboard` → `/chat` redirect |
-| `tests/e2e/chat.spec.ts` | Fixed selector from `/dashboard/i` to `/chat/i` |
+
+| File                                                      | Change                                                                                             |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `apps/web/components/layout/sidebar.tsx`                  | `/dashboard/chat` → `/chat`, `/dashboard/jobs` → `/jobs`, etc.                                     |
+| `apps/web/app/(auth)/login/page.tsx`                      | `callbackURL: "/chat"` (was `/dashboard/chat`)                                                     |
+| `apps/web/app/not-found.tsx`                              | `href="/chat"` (was `/dashboard/chat`)                                                             |
+| `apps/web/components/landing/structured-data.tsx`         | Search action URL uses `/chat?q=`                                                                  |
+| `packages/email/src/templates/subscription-confirmed.tsx` | Default URL and settings link                                                                      |
+| `apps/web/middleware.ts`                                  | Protects `/chat`, `/jobs`, `/profile`, `/settings` directly; added `/dashboard` → `/chat` redirect |
+| `tests/e2e/chat.spec.ts`                                  | Fixed selector from `/dashboard/i` to `/chat/i`                                                    |
 
 ### Welcome email wired
+
 - Added `sendWelcomeEmail()` to BetterAuth's `databaseHooks.user.create.after` in `packages/auth/src/index.ts`
 
 ---
@@ -111,6 +119,7 @@ The `(dashboard)` directory is a **Next.js route group** — it does NOT add a U
 ## Batch 7 — Environment-Based Email URLs
 
 ### What was done
+
 - **`getAppUrl()` helper** (`packages/email/src/index.ts`): Reads `NEXT_PUBLIC_APP_URL` env var with `https://everjobs.ai` fallback
 - **All send functions updated** (`packages/email/src/send.ts`): `sendJobAlertEmail()`, `sendWelcomeEmail()`, `sendSubscriptionConfirmedEmail()` all use `getAppUrl()` for default URLs instead of hardcoded domains
 - **Subscription template**: `settingsUrl` derived from `dashboardUrl` prop via `replace(/\/chat$/, "/settings")`
@@ -120,77 +129,85 @@ The `(dashboard)` directory is a **Next.js route group** — it does NOT add a U
 ## Key Files Modified (Summary)
 
 ### Apps
-| File | Purpose |
-|------|---------|
-| `apps/web/app/api/ai/chat/route.ts` | AI chat endpoint with BYOK model routing |
-| `apps/web/app/api/user/alerts/route.ts` | Alert CRUD API |
-| `apps/web/app/api/stripe/webhook/route.ts` | Stripe webhook with subscription email |
-| `apps/web/app/(dashboard)/settings/page.tsx` | BYOK settings, alerts management |
-| `apps/web/components/chat/chat-panel.tsx` | Initial prompt deep-linking |
-| `apps/web/components/chat/chat-input.tsx` | Auto-resize textarea |
-| `apps/web/components/chat/agent-status.tsx` | Agent processing indicator |
-| `apps/web/components/layout/sidebar.tsx` | Fixed navigation URLs |
-| `apps/web/components/landing/structured-data.tsx` | JSON-LD structured data |
-| `apps/web/middleware.ts` | CSP headers, auth guard, URL fixes |
-| `apps/web/app/layout.tsx` | Favicon metadata |
-| `apps/web/app/not-found.tsx` | Fixed redirect URL |
-| `apps/web/app/(auth)/login/page.tsx` | Fixed callback URL |
-| `apps/web/public/favicon.svg` | SVG favicon |
+
+| File                                              | Purpose                                  |
+| ------------------------------------------------- | ---------------------------------------- |
+| `apps/web/app/api/ai/chat/route.ts`               | AI chat endpoint with BYOK model routing |
+| `apps/web/app/api/user/alerts/route.ts`           | Alert CRUD API                           |
+| `apps/web/app/api/stripe/webhook/route.ts`        | Stripe webhook with subscription email   |
+| `apps/web/app/(dashboard)/settings/page.tsx`      | BYOK settings, alerts management         |
+| `apps/web/components/chat/chat-panel.tsx`         | Initial prompt deep-linking              |
+| `apps/web/components/chat/chat-input.tsx`         | Auto-resize textarea                     |
+| `apps/web/components/chat/agent-status.tsx`       | Agent processing indicator               |
+| `apps/web/components/layout/sidebar.tsx`          | Fixed navigation URLs                    |
+| `apps/web/components/landing/structured-data.tsx` | JSON-LD structured data                  |
+| `apps/web/middleware.ts`                          | CSP headers, auth guard, URL fixes       |
+| `apps/web/app/layout.tsx`                         | Favicon metadata                         |
+| `apps/web/app/not-found.tsx`                      | Fixed redirect URL                       |
+| `apps/web/app/(auth)/login/page.tsx`              | Fixed callback URL                       |
+| `apps/web/public/favicon.svg`                     | SVG favicon                              |
 
 ### Packages
-| File | Purpose |
-|------|---------|
-| `packages/ai/src/model-router.ts` | BYOK with `createAnthropic()`, tier-based routing |
-| `packages/ai/src/tools/submit-answers.ts` | Fixed DB column mismatch |
-| `packages/ai/src/tools/apply-job.ts` | Added userJobs tracking |
-| `packages/ai/src/index.ts` | Added submitAnswersTool export |
-| `packages/auth/src/index.ts` | Welcome email on user creation |
-| `packages/email/src/index.ts` | `getAppUrl()` helper, exports |
-| `packages/email/src/send.ts` | All send functions with env-based URLs |
-| `packages/email/src/templates/job-alert.tsx` | Job alert email template |
-| `packages/email/src/templates/welcome.tsx` | Welcome email template |
-| `packages/email/src/templates/subscription-confirmed.tsx` | Subscription email template |
-| `packages/stripe/src/webhooks.ts` | Webhook event parsing |
-| `packages/triggers/src/index.ts` | Cleanup task export |
-| `packages/triggers/src/send-alerts.ts` | Alert matching and email sending |
-| `packages/triggers/src/sync-jobs.ts` | Job sync from Ever Jobs API |
-| `packages/triggers/src/cleanup.ts` | Data cleanup cron task |
+
+| File                                                      | Purpose                                           |
+| --------------------------------------------------------- | ------------------------------------------------- |
+| `packages/ai/src/model-router.ts`                         | BYOK with `createAnthropic()`, tier-based routing |
+| `packages/ai/src/tools/submit-answers.ts`                 | Fixed DB column mismatch                          |
+| `packages/ai/src/tools/apply-job.ts`                      | Added userJobs tracking                           |
+| `packages/ai/src/index.ts`                                | Added submitAnswersTool export                    |
+| `packages/auth/src/index.ts`                              | Welcome email on user creation                    |
+| `packages/email/src/index.ts`                             | `getAppUrl()` helper, exports                     |
+| `packages/email/src/send.ts`                              | All send functions with env-based URLs            |
+| `packages/email/src/templates/job-alert.tsx`              | Job alert email template                          |
+| `packages/email/src/templates/welcome.tsx`                | Welcome email template                            |
+| `packages/email/src/templates/subscription-confirmed.tsx` | Subscription email template                       |
+| `packages/stripe/src/webhooks.ts`                         | Webhook event parsing                             |
+| `packages/triggers/src/index.ts`                          | Cleanup task export                               |
+| `packages/triggers/src/send-alerts.ts`                    | Alert matching and email sending                  |
+| `packages/triggers/src/sync-jobs.ts`                      | Job sync from Ever Jobs API                       |
+| `packages/triggers/src/cleanup.ts`                        | Data cleanup cron task                            |
 
 ### Tests
-| File | Purpose |
-|------|---------|
-| `tests/e2e/chat.spec.ts` | Fixed URL selector |
-| `tests/e2e/landing.spec.ts` | Landing page E2E tests |
-| `tests/e2e/auth.spec.ts` | Auth flow tests |
-| `tests/e2e/subscription.spec.ts` | Subscription flow tests |
-| `packages/stripe/src/__tests__/plans.test.ts` | Plan config tests |
-| `packages/stripe/src/__tests__/webhooks.test.ts` | Webhook handler tests |
+
+| File                                             | Purpose                 |
+| ------------------------------------------------ | ----------------------- |
+| `tests/e2e/chat.spec.ts`                         | Fixed URL selector      |
+| `tests/e2e/landing.spec.ts`                      | Landing page E2E tests  |
+| `tests/e2e/auth.spec.ts`                         | Auth flow tests         |
+| `tests/e2e/subscription.spec.ts`                 | Subscription flow tests |
+| `packages/stripe/src/__tests__/plans.test.ts`    | Plan config tests       |
+| `packages/stripe/src/__tests__/webhooks.test.ts` | Webhook handler tests   |
 
 ---
 
 ## Critical Bugs Found & Fixed
 
 ### 1. Route Group URL Mismatch (Batch 6)
+
 - **Impact**: ALL navigation, redirects, email links, middleware, and tests were broken
 - **Root cause**: `(dashboard)` is a Next.js route group (parentheses = no URL segment), but code used `/dashboard/*` URLs everywhere
 - **Fix**: Updated 8 files to use correct paths (`/chat`, `/jobs`, `/profile`, `/settings`)
 
 ### 2. BYOK Not Functional (Batch 5)
+
 - **Impact**: Users providing their own API key still used the platform's key
 - **Root cause**: `model-router.ts` detected the BYOK key but called `anthropic()` (default provider) instead of `createAnthropic({ apiKey })`
 - **Fix**: Import `createAnthropic` from `@ai-sdk/anthropic` and create provider with user's key
 
 ### 3. BYOK Key Path Mismatch (Batch 4)
+
 - **Impact**: Settings page stored key at wrong path, model-router couldn't find it
 - **Root cause**: Settings stored at `preferences.apiKey`, model-router read from `preferences.apiKeys.anthropic`
 - **Fix**: Aligned settings page to store at `preferences.apiKeys.anthropic`
 
 ### 4. submitAnswersTool Schema Mismatch (Batch 4)
+
 - **Impact**: Application answer submission would fail with DB errors
 - **Root cause**: Tool wrote to non-existent columns (`answers`, `resumeUrl`, `notes`)
 - **Fix**: Use actual DB column `answersProvided`, remove non-existent fields
 
 ### 5. Hardcoded Email URLs (Batch 7)
+
 - **Impact**: Email links would point to wrong domain in non-production environments
 - **Root cause**: Send functions used hardcoded `everjobs.ai` URLs
 - **Fix**: Created `getAppUrl()` helper reading `NEXT_PUBLIC_APP_URL` env var
@@ -199,48 +216,49 @@ The `(dashboard)` directory is a **Next.js route group** — it does NOT add a U
 
 ## MVP Feature Completeness
 
-| PRD Feature | Status | Notes |
-|-------------|--------|-------|
+| PRD Feature                 | Status      | Notes                                              |
+| --------------------------- | ----------- | -------------------------------------------------- |
 | Landing page (all sections) | ✅ Complete | Hero, features, pricing, testimonials, CTA, footer |
-| LinkedIn OAuth login | ✅ Complete | BetterAuth + LinkedIn provider |
-| Split-screen layout | ✅ Complete | Responsive, mobile toggle |
-| AI Chat System | ✅ Complete | useChat, streaming, tool results |
-| Orchestrator Agent | ✅ Complete | Routes to specialized agents |
-| Onboarding Agent | ✅ Complete | LinkedIn data greeting, preference collection |
-| Job Search Agent | ✅ Complete | Natural language → structured filters |
-| Cover Letter Agent | ✅ Complete | Profile + job description generation |
-| Application Agent (HITL) | ✅ Complete | needsApproval, state persistence |
-| Interview Prep Agent | ✅ Complete | Mock questions, STAR coaching |
-| Jobs Canvas | ✅ Complete | Cards, filters, infinite scroll |
-| Canvas Sync | ✅ Complete | Tool results → canvas updates |
-| Favorites | ✅ Complete | Toggle, persist, profile display |
-| Job Alerts | ✅ Complete | CRUD API, Trigger.dev cron, email delivery |
-| Cover Letter Modal | ✅ Complete | Generate, edit, copy, regenerate |
-| CV Upload & Parsing | ✅ Complete | Supabase Storage, AI extraction |
-| User Profile | ✅ Complete | All sections, application history |
-| Settings Page | ✅ Complete | Preferences, BYOK, alerts management |
-| Stripe Subscriptions | ✅ Complete | Checkout, portal, webhooks, gating |
-| Free Tier Limits | ✅ Complete | Message/search/cover letter limits |
-| Email Templates | ✅ Complete | Welcome, job alert, subscription confirmed |
-| Welcome Email | ✅ Complete | Sent on user creation via BetterAuth hook |
-| Subscription Email | ✅ Complete | Sent on checkout.session.completed webhook |
-| BYOK (Bring Your Own Key) | ✅ Complete | Storage, UI, functional model routing |
-| Model Router | ✅ Complete | BYOK → preference → tier → env default |
-| Zod Validation | ✅ Complete | All API routes validated |
-| CSP Headers | ✅ Complete | Full security header set |
-| Structured Data | ✅ Complete | JSON-LD for SEO |
-| Dark/Light Theme | ✅ Complete | next-themes, cookie storage |
-| E2E Tests | ✅ Complete | Playwright test suite |
-| Unit Tests | ✅ Complete | Jest for Stripe, tools |
-| Agent Status Indicator | ✅ Complete | Shows processing state |
-| Chat Deep-Links | ✅ Complete | ?job= query param auto-sends |
-| Favicon | ✅ Complete | SVG with gradient |
+| LinkedIn OAuth login        | ✅ Complete | BetterAuth + LinkedIn provider                     |
+| Split-screen layout         | ✅ Complete | Responsive, mobile toggle                          |
+| AI Chat System              | ✅ Complete | useChat, streaming, tool results                   |
+| Orchestrator Agent          | ✅ Complete | Routes to specialized agents                       |
+| Onboarding Agent            | ✅ Complete | LinkedIn data greeting, preference collection      |
+| Job Search Agent            | ✅ Complete | Natural language → structured filters              |
+| Cover Letter Agent          | ✅ Complete | Profile + job description generation               |
+| Application Agent (HITL)    | ✅ Complete | needsApproval, state persistence                   |
+| Interview Prep Agent        | ✅ Complete | Mock questions, STAR coaching                      |
+| Jobs Canvas                 | ✅ Complete | Cards, filters, infinite scroll                    |
+| Canvas Sync                 | ✅ Complete | Tool results → canvas updates                      |
+| Favorites                   | ✅ Complete | Toggle, persist, profile display                   |
+| Job Alerts                  | ✅ Complete | CRUD API, Trigger.dev cron, email delivery         |
+| Cover Letter Modal          | ✅ Complete | Generate, edit, copy, regenerate                   |
+| CV Upload & Parsing         | ✅ Complete | Supabase Storage, AI extraction                    |
+| User Profile                | ✅ Complete | All sections, application history                  |
+| Settings Page               | ✅ Complete | Preferences, BYOK, alerts management               |
+| Stripe Subscriptions        | ✅ Complete | Checkout, portal, webhooks, gating                 |
+| Free Tier Limits            | ✅ Complete | Message/search/cover letter limits                 |
+| Email Templates             | ✅ Complete | Welcome, job alert, subscription confirmed         |
+| Welcome Email               | ✅ Complete | Sent on user creation via BetterAuth hook          |
+| Subscription Email          | ✅ Complete | Sent on checkout.session.completed webhook         |
+| BYOK (Bring Your Own Key)   | ✅ Complete | Storage, UI, functional model routing              |
+| Model Router                | ✅ Complete | BYOK → preference → tier → env default             |
+| Zod Validation              | ✅ Complete | All API routes validated                           |
+| CSP Headers                 | ✅ Complete | Full security header set                           |
+| Structured Data             | ✅ Complete | JSON-LD for SEO                                    |
+| Dark/Light Theme            | ✅ Complete | next-themes, cookie storage                        |
+| E2E Tests                   | ✅ Complete | Playwright test suite                              |
+| Unit Tests                  | ✅ Complete | Jest for Stripe, tools                             |
+| Agent Status Indicator      | ✅ Complete | Shows processing state                             |
+| Chat Deep-Links             | ✅ Complete | ?job= query param auto-sends                       |
+| Favicon                     | ✅ Complete | SVG with gradient                                  |
 
 ---
 
 ## Batch 8 — Langfuse Prompt Management, OpenRouter, Orchestrator Rewrite
 
 ### What was done
+
 - **Langfuse integration** (`packages/ai/src/prompts.ts`): New `getPrompt()` helper fetches prompts from Langfuse with graceful fallback to hardcoded defaults when Langfuse is unavailable
 - **OpenRouter model routing** (`packages/ai/src/model-router.ts`): Complete rewrite to route through OpenRouter as primary provider with `ANTHROPIC_TO_OPENROUTER` translation map; BYOK → user preference → tier default → env default priority chain
 - **Orchestrator async rewrite** (`packages/ai/src/agents/orchestrator.ts`): Converted prompt loading to async to support Langfuse fetch at runtime
@@ -252,6 +270,7 @@ The `(dashboard)` directory is a **Next.js route group** — it does NOT add a U
 ## Batch 9 — Jest Fixes, Comprehensive Test Suite, CI/CD
 
 ### What was done
+
 - **Jest OOM fix** (`jest.config.ts`): Added `diagnostics: false` and `tsconfig: { isolatedModules: true }` to ts-jest config, preventing OOM on deeply-nested AI SDK generics
 - **Tool schema tests fixed** (`packages/ai/src/tools/__tests__/tool-schemas.test.ts`): Changed `.parameters.` → `.inputSchema.` to match AI SDK v6 runtime shape
 - **New test suites**:
@@ -267,6 +286,7 @@ The `(dashboard)` directory is a **Next.js route group** — it does NOT add a U
 ## Batch 10 — Error Handling, SEO, Env Validation, Polish
 
 ### What was done
+
 - **API error handling** (`apps/web/app/api/jobs/search/route.ts`): Added try-catch with proper 500 error response; NaN-safe numeric parameter parsing
 - **SEO metadata**: Added page-level metadata to all dashboard pages via layout files (chat, jobs, profile, settings) and the marketing home page
 - **Environment validation** (`apps/web/lib/env.ts`): Updated AI section to make both `OPENROUTER_API_KEY` and `ANTHROPIC_API_KEY` optional (at least one required); added Langfuse env vars; cross-field validation warning
@@ -278,6 +298,7 @@ The `(dashboard)` directory is a **Next.js route group** — it does NOT add a U
 ## Batch 11 — Production Hardening (Phase 7)
 
 ### What was done
+
 - **Vercel Analytics** (`@vercel/analytics`): Web analytics with page view tracking, integrated in root layout
 - **Vercel Speed Insights** (`@vercel/speed-insights`): Real User Monitoring (RUM) for Core Web Vitals (LCP, FID, CLS, TTFB, INP)
 - **Bundle Analyzer** (`@next/bundle-analyzer`): Available via `ANALYZE=true pnpm build` for visual bundle inspection
@@ -295,29 +316,31 @@ The `(dashboard)` directory is a **Next.js route group** — it does NOT add a U
 - **PRD v1.2**: Updated with Phase 7 (Production Hardening), Phase 8-9 (Growth & Enterprise) roadmap
 
 ### New files
-| File | Purpose |
-|------|---------|
-| `packages/ai/src/crypto.ts` | AES-256-GCM encryption/decryption for BYOK API keys |
-| `packages/ai/src/crypto.test.ts` | 10 unit tests for crypto module |
-| `packages/supabase/src/realtime.ts` | Supabase Realtime subscription helpers |
-| `apps/web/hooks/use-realtime-jobs.ts` | React hook for live job updates |
+
+| File                                  | Purpose                                             |
+| ------------------------------------- | --------------------------------------------------- |
+| `packages/ai/src/crypto.ts`           | AES-256-GCM encryption/decryption for BYOK API keys |
+| `packages/ai/src/crypto.test.ts`      | 10 unit tests for crypto module                     |
+| `packages/supabase/src/realtime.ts`   | Supabase Realtime subscription helpers              |
+| `apps/web/hooks/use-realtime-jobs.ts` | React hook for live job updates                     |
 
 ### Modified files
-| File | Change |
-|------|--------|
-| `apps/web/app/layout.tsx` | Added Analytics + SpeedInsights components |
-| `apps/web/next.config.ts` | Added @next/bundle-analyzer wrapper |
-| `apps/web/package.json` | Added @vercel/analytics, @vercel/speed-insights, @next/bundle-analyzer |
-| `apps/web/app/globals.css` | High contrast mode, mobile touch targets |
-| `apps/web/app/api/user/settings/route.ts` | Encrypt API keys on save |
-| `apps/web/app/(dashboard)/chat/page.tsx` | Realtime jobs integration |
-| `apps/web/app/(dashboard)/profile/page.tsx` | Dynamic import for CVDropzone |
-| `apps/web/hooks/use-canvas-sync.ts` | Added `addRealtimeJob()` method |
-| `packages/ai/src/model-router.ts` | Decrypt BYOK keys before use |
-| `packages/ai/package.json` | Added crypto export path |
-| `packages/supabase/src/index.ts` | Export realtime helpers |
-| `.env.example` | Added BYOK_ENCRYPTION_KEY |
-| `docs/PRD.md` | Updated to v1.2 with Phase 7-9 |
+
+| File                                        | Change                                                                 |
+| ------------------------------------------- | ---------------------------------------------------------------------- |
+| `apps/web/app/layout.tsx`                   | Added Analytics + SpeedInsights components                             |
+| `apps/web/next.config.ts`                   | Added @next/bundle-analyzer wrapper                                    |
+| `apps/web/package.json`                     | Added @vercel/analytics, @vercel/speed-insights, @next/bundle-analyzer |
+| `apps/web/app/globals.css`                  | High contrast mode, mobile touch targets                               |
+| `apps/web/app/api/user/settings/route.ts`   | Encrypt API keys on save                                               |
+| `apps/web/app/(dashboard)/chat/page.tsx`    | Realtime jobs integration                                              |
+| `apps/web/app/(dashboard)/profile/page.tsx` | Dynamic import for CVDropzone                                          |
+| `apps/web/hooks/use-canvas-sync.ts`         | Added `addRealtimeJob()` method                                        |
+| `packages/ai/src/model-router.ts`           | Decrypt BYOK keys before use                                           |
+| `packages/ai/package.json`                  | Added crypto export path                                               |
+| `packages/supabase/src/index.ts`            | Export realtime helpers                                                |
+| `.env.example`                              | Added BYOK_ENCRYPTION_KEY                                              |
+| `docs/PRD.md`                               | Updated to v1.2 with Phase 7-9                                         |
 
 ---
 
@@ -369,4 +392,4 @@ Runtime validation is in `apps/web/lib/env.ts` — missing required vars throw a
 
 ---
 
-*Generated on 2026-02-15, updated 2026-02-18 with Batch 11 (Phase 7).*
+_Generated on 2026-02-15, updated 2026-02-18 with Batch 11 (Phase 7)._

@@ -8,11 +8,16 @@ Hust Platform is an AI-powered job search platform where the primary UX is a con
 
 **Domain**: everjobs.ai | **License**: Proprietary (Ever Co. LTD)
 
+## Package Manager
+
+> [!CAUTION]
+> **This project uses pnpm exclusively.** Do NOT use `npm` or `yarn` — they will fail to resolve workspace dependencies correctly. The root `package.json` specifies `"packageManager": "pnpm@9.15.0"` and workspaces are defined in `pnpm-workspace.yaml`.
+
 ## Commands
 
 ```bash
 pnpm install              # Install all dependencies
-pnpm dev                  # Start dev server (port 3000, Turbopack)
+pnpm dev                  # Start dev server (port 8443, Turbopack)
 pnpm build                # Build all packages and apps (via Turborepo)
 pnpm lint                 # Lint all packages (eslint --max-warnings 0)
 pnpm check-types          # Type-check all packages
@@ -154,7 +159,7 @@ Located in `apps/web/hooks/`. Key hooks:
 ### Testing
 
 - **Jest**: 1120 unit tests across 35 suites, living alongside source files as `*.test.ts`. Projects configured for: `ai`, `stripe`, `cv-parser`, `jobs-api`, `db`, `utils`, `email`, `triggers`, `web-lib`. Uses `ts-jest` with `isolatedModules: true` to avoid OOM from complex AI SDK/Zod generics. Key test files include `model-router.test.ts`, `prompts.test.ts`, `rate-limit.test.ts`, `tool-schemas.test.ts`, `crypto.test.ts`, `api-client.test.ts`, `api-response.test.ts`, `api-schemas.test.ts`, `subscription-gate.test.ts`, `referral-utils.test.ts`, `format-date.test.ts`, `org-config.test.ts`, `webhook-idempotency.test.ts`, `orchestrator.test.ts`, `constants.test.ts`, `env.test.ts`, `startup-checks.test.ts`, `safe-url.test.ts`, `salary-insights.test.ts`, `resume-builder.test.ts`, `resume-helpers.test.ts`, `webhook.test.ts`, `checkout.test.ts`, `portal.test.ts`, `plans.test.ts`, `client.test.ts`, `types.test.ts`, `guidance-topics.test.ts`, `db-helpers.test.ts`, `map-job.test.ts`, `helpers.test.ts`.
-- **Playwright**: 175 E2E tests across 8 spec files in `tests/e2e/`. Specs for: auth, landing, chat, jobs, profile, subscription. Runs against `http://localhost:3000`.
+- **Playwright**: 175 E2E tests across 8 spec files in `tests/e2e/`. Specs for: auth, landing, chat, jobs, profile, subscription. Runs against `http://localhost:8443`.
 
 ### UI Package Pattern
 

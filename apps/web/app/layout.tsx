@@ -49,11 +49,11 @@ export const metadata: Metadata = {
     "AI resume help",
     "find remote work",
   ],
-  authors: [{ name: "Ever Gauzy AI" }],
-  creator: "Ever Gauzy AI",
-  publisher: "Ever Gauzy AI",
+  authors: [{ name: "Ever Co. LTD" }],
+  creator: "Ever Co. LTD",
+  publisher: "Ever Co. LTD",
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
+    process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:8443"
   ),
   manifest: "/manifest.json",
   robots: {

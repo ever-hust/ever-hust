@@ -63,7 +63,7 @@ export async function POST(req: Request) {
         "You already have a subscription. Use the billing portal to manage it.",
       );
     }
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:8443";
 
     const { url } = await createCheckoutSession({
       userId,

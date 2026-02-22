@@ -192,7 +192,7 @@ describe("runStartupChecks", () => {
     it("does not warn when all recommended vars are set", () => {
       setMinimalCriticalVars();
       // Set all recommended vars
-      process.env.BETTER_AUTH_URL = "http://localhost:3000";
+      process.env.BETTER_AUTH_URL = "http://localhost:8443";
       process.env.LINKEDIN_CLIENT_ID = "test-id";
       process.env.LINKEDIN_CLIENT_SECRET = "test-secret";
       process.env.STRIPE_SECRET_KEY = "sk_test_123";

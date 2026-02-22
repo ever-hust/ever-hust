@@ -4,8 +4,9 @@ import { useState, useCallback } from "react";
 import Link from "next/link";
 import { Button } from "@ever-hust/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { BriefcaseBusiness, Menu, X } from "lucide-react";
+import { BriefcaseBusiness, LayoutDashboard, Menu, X } from "lucide-react";
 import { APP_NAME } from "@ever-hust/utils";
+import { useSession } from "@ever-hust/auth/client";
 
 const NAV_LINKS = [
   { href: "#features", label: "Features" },
@@ -15,6 +16,8 @@ const NAV_LINKS = [
 
 export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { data: session } = useSession();
+  const isLoggedIn = !!session?.user;
 
   const closeMobile = useCallback(() => setMobileOpen(false), []);
 
@@ -44,14 +47,25 @@ export function Navbar() {
 
         <div className="flex items-center gap-3">
           <ThemeToggle />
-          <Button variant="ghost" size="sm" className="hidden sm:inline-flex" asChild>
-            <Link href="/login">
-              Log in
-            </Link>
-          </Button>
-          <Button size="sm" className="hidden sm:inline-flex" asChild>
-            <Link href="/login">Get Started</Link>
-          </Button>
+          {isLoggedIn ? (
+            <Button size="sm" className="hidden gap-1.5 sm:inline-flex" asChild>
+              <Link href="/dashboard">
+                <LayoutDashboard className="h-3.5 w-3.5" aria-hidden="true" />
+                Dashboard
+              </Link>
+            </Button>
+          ) : (
+            <>
+              <Button variant="ghost" size="sm" className="hidden sm:inline-flex" asChild>
+                <Link href="/login">
+                  Log in
+                </Link>
+              </Button>
+              <Button size="sm" className="hidden sm:inline-flex" asChild>
+                <Link href="/login">Get Started</Link>
+              </Button>
+            </>
+          )}
 
           {/* Mobile menu button */}
           <Button
@@ -92,16 +106,27 @@ export function Navbar() {
             ))}
           </div>
           <div className="mt-3 flex flex-col gap-2 border-t pt-3 sm:hidden">
-            <Button variant="outline" className="w-full" asChild>
-              <Link href="/login" onClick={closeMobile}>
-                Log in
-              </Link>
-            </Button>
-            <Button className="w-full" asChild>
-              <Link href="/login" onClick={closeMobile}>
-                Get Started
-              </Link>
-            </Button>
+            {isLoggedIn ? (
+              <Button className="w-full gap-1.5" asChild>
+                <Link href="/dashboard" onClick={closeMobile}>
+                  <LayoutDashboard className="h-4 w-4" aria-hidden="true" />
+                  Dashboard
+                </Link>
+              </Button>
+            ) : (
+              <>
+                <Button variant="outline" className="w-full" asChild>
+                  <Link href="/login" onClick={closeMobile}>
+                    Log in
+                  </Link>
+                </Button>
+                <Button className="w-full" asChild>
+                  <Link href="/login" onClick={closeMobile}>
+                    Get Started
+                  </Link>
+                </Button>
+              </>
+            )}
           </div>
         </nav>
       )}

@@ -36,7 +36,7 @@ export default function DashboardError({
           Try Again
         </Button>
         <Button size="sm" className="gap-2" asChild>
-          <Link href="/chat">
+          <Link href="/dashboard">
             <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
             Go to Chat
           </Link>

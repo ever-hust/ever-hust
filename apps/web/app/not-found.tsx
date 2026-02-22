@@ -24,7 +24,7 @@ export default function NotFound() {
           </Link>
         </Button>
         <Button variant="outline" className="gap-2" asChild>
-          <Link href="/chat">
+          <Link href="/dashboard">
             <MessageSquare className="h-4 w-4" aria-hidden="true" />
             Go to Chat
           </Link>
@@ -36,7 +36,7 @@ export default function NotFound() {
         </p>
         <ul className="space-y-1.5 text-sm">
           <li>
-            <Link href="/chat" className="inline-flex items-center gap-1.5 text-primary hover:underline">
+            <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-primary hover:underline">
               <Search className="h-3 w-3" aria-hidden="true" />
               Search for jobs
             </Link>

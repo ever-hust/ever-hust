@@ -362,7 +362,7 @@ export default async function JobDetailPage({ params }: PageProps) {
             </Button>
           )}
           <Button variant="outline" size="lg" asChild>
-            <Link href={`/chat?job=${job.id}`}>
+            <Link href={`/dashboard?job=${job.id}`}>
               <FileText className="mr-1 h-4 w-4" aria-hidden="true" />
               Generate Cover Letter
             </Link>

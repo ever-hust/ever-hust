@@ -21,7 +21,7 @@ export default function JobNotFound() {
           </Link>
         </Button>
         <Button className="gap-2" asChild>
-          <Link href="/chat">
+          <Link href="/dashboard">
             <MessageSquare className="h-4 w-4" aria-hidden="true" />
             Search with AI
           </Link>

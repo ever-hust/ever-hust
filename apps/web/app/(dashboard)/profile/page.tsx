@@ -7,19 +7,19 @@ import {
   MapPin,
   Mail,
   Briefcase,
-  Heart,
   FileText,
   Star,
-  ExternalLink,
   User,
   Settings,
   Calendar,
+  Plus,
+  X,
 } from "lucide-react";
 import { Badge } from "@ever-hust/ui/badge";
 import { Button } from "@ever-hust/ui/button";
 import { Card } from "@ever-hust/ui/card";
 import { Skeleton } from "@ever-hust/ui/skeleton";
-import { Avatar, AvatarFallback } from "@ever-hust/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@ever-hust/ui/avatar";
 import dynamic from "next/dynamic";
 
 const CVDropzone = dynamic(
@@ -30,8 +30,8 @@ const CVDropzone = dynamic(
 import { ScrollToTop } from "@/components/shared/scroll-to-top";
 import { ErrorState } from "@/components/shared/error-state";
 import { PageHeader } from "@/components/shared/page-header";
-import { timeAgo } from "@/lib/format-date";
 import { safeExternalUrl } from "@/lib/safe-url";
+import { toast } from "sonner";
 import type { UserPreferences } from "@/lib/api-schemas";
 
 interface UserProfile {
@@ -114,32 +114,36 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div
-        className="mx-auto max-w-3xl space-y-6 p-6"
-        aria-busy="true"
-        aria-label="Loading profile"
-        role="status"
-      >
-        <Skeleton className="h-40 w-full rounded-lg" />
-        <Skeleton className="h-32 w-full rounded-lg" />
-        <Skeleton className="h-32 w-full rounded-lg" />
-        <span className="sr-only">Loading your profile...</span>
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <div
+          className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6"
+          aria-busy="true"
+          aria-label="Loading profile"
+          role="status"
+        >
+          <Skeleton className="h-40 w-full rounded-lg" />
+          <Skeleton className="h-32 w-full rounded-lg" />
+          <Skeleton className="h-32 w-full rounded-lg" />
+          <span className="sr-only">Loading your profile...</span>
+        </div>
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="flex flex-1 items-center justify-center">
-        <ErrorState
-          message={error ?? "Failed to load profile"}
-          onRetry={reloadProfile}
-        />
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex flex-1 items-center justify-center">
+          <ErrorState
+            message={error ?? "Failed to load profile"}
+            onRetry={reloadProfile}
+          />
+        </div>
       </div>
     );
   }
 
-  const { user, favorites, applications } = data;
+  const { user } = data;
   const skills = user.skills ?? [];
   const prefs: UserPreferences = user.preferences ?? {};
   const safePhoto = safeExternalUrl(user.photoUrl);
@@ -151,11 +155,10 @@ export default function ProfilePage() {
     : null;
 
   return (
-    <div ref={scrollRef} className="mx-auto max-w-3xl space-y-6 overflow-y-auto p-6">
+    <div className="flex flex-1 flex-col overflow-hidden">
       <PageHeader
         icon={User}
         title="Profile"
-        className="border-b-0 px-0 py-0"
         actions={
           <Button variant="outline" size="sm" className="gap-1.5" asChild>
             <Link href="/settings">
@@ -166,21 +169,20 @@ export default function ProfilePage() {
         }
       />
 
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
       {/* Header Card */}
       <Card className="p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <Avatar className="h-16 w-16 shrink-0">
             {safePhoto ? (
-              <img
+              <AvatarImage
                 src={safePhoto}
                 alt={user.name || "User profile photo"}
-                className="h-16 w-16 rounded-full object-cover"
               />
-            ) : (
-              <AvatarFallback className="text-lg">
-                <User className="h-8 w-8" aria-hidden="true" />
-              </AvatarFallback>
-            )}
+            ) : null}
+            <AvatarFallback className="text-lg">
+              <User className="h-8 w-8" aria-hidden="true" />
+            </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
@@ -227,33 +229,7 @@ export default function ProfilePage() {
       </Card>
 
       {/* Skills */}
-      <Card className="p-6">
-        <h2 className="flex items-center gap-2 text-lg font-semibold">
-          <Briefcase className="h-5 w-5" aria-hidden="true" />
-          Skills
-        </h2>
-        {skills.length > 0 ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {skills.map((skill, i) => (
-              <Badge key={`${skill}-${i}`} variant="secondary">
-                {skill}
-              </Badge>
-            ))}
-          </div>
-        ) : (
-          <div className="mt-3 rounded-md border border-dashed p-4 text-center">
-            <p className="text-sm text-muted-foreground">
-              No skills added yet.
-            </p>
-            <Button variant="outline" size="sm" className="mt-2 inline-block gap-1.5" asChild>
-              <Link href="/settings">
-                <Settings className="h-3.5 w-3.5" aria-hidden="true" />
-                Add Skills in Settings
-              </Link>
-            </Button>
-          </div>
-        )}
-      </Card>
+      <SkillsEditor initialSkills={skills} />
 
       {/* Preferences — only show if user has displayable job-search preferences */}
       {(prefs.jobTypes?.length || prefs.roleLevel?.length || prefs.salaryMin || prefs.salaryMax || prefs.remotePreference || prefs.locations?.length || prefs.companySizes?.length || prefs.timeline) && (
@@ -356,136 +332,151 @@ export default function ProfilePage() {
         </div>
       </Card>
 
-      {/* Favorite Jobs */}
-      <Card className="p-6">
-        <div className="flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-lg font-semibold">
-            <Heart className="h-5 w-5" aria-hidden="true" />
-            Favorite Jobs ({favorites.length})
-          </h2>
-          {favorites.length > 0 && (
-            <Button variant="ghost" size="sm" className="text-xs" asChild>
-              <Link href="/favorites">
-                View All
-              </Link>
-            </Button>
-          )}
-        </div>
-        {favorites.length > 0 ? (
-          <div className="mt-3 space-y-2">
-            {favorites.slice(0, 5).map((fav) => (
-              <div
-                key={fav.jobId}
-                className="flex items-center justify-between rounded-md border p-3 transition-colors hover:bg-muted/30"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">
-                    {fav.jobTitle ?? "Unknown Job"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {fav.companyName ?? "Unknown Company"}
-                    {fav.createdAt && (
-                      <> · Saved {timeAgo(fav.createdAt)}</>
-                    )}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 ml-2 shrink-0">
-                  <Link
-                    href={`/jobs/${fav.jobId}`}
-                    className="rounded text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    aria-label={`View ${fav.jobTitle ?? "job"} details`}
-                  >
-                    <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                  </Link>
-                </div>
-              </div>
-            ))}
-            {favorites.length > 5 && (
-              <p className="pt-1 text-center text-xs text-muted-foreground">
-                +{favorites.length - 5} more favorites
-              </p>
-            )}
-          </div>
-        ) : (
-          <div className="mt-3 rounded-md border border-dashed p-4 text-center">
-            <Heart className="mx-auto h-8 w-8 text-muted-foreground/30" aria-hidden="true" />
-            <p className="mt-2 text-sm text-muted-foreground">
-              No favorite jobs yet.
-            </p>
-            <p className="text-xs text-muted-foreground/70">
-              Use the chat to search for jobs and click the heart icon to save them.
-            </p>
-          </div>
-        )}
-      </Card>
-
-      {/* Applications */}
-      <Card className="p-6">
-        <div className="flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-lg font-semibold">
-            <Briefcase className="h-5 w-5" aria-hidden="true" />
-            Applications ({applications.length})
-          </h2>
-          {applications.length > 0 && (
-            <Button variant="ghost" size="sm" className="text-xs" asChild>
-              <Link href="/applications">
-                View All
-              </Link>
-            </Button>
-          )}
-        </div>
-        {applications.length > 0 ? (
-          <div className="mt-3 space-y-2">
-            {applications.slice(0, 5).map((app) => (
-              <div
-                key={app.id}
-                className="flex items-center justify-between rounded-md border p-3 transition-colors hover:bg-muted/30"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">
-                    {app.jobTitle ?? "Unknown Job"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {app.companyName ?? "Unknown Company"}
-                    {app.appliedAt && (
-                      <> · Applied {timeAgo(app.appliedAt)}</>
-                    )}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 ml-2 shrink-0">
-                  <Badge variant="outline" className="capitalize text-xs">
-                    {app.status}
-                  </Badge>
-                  <Link
-                    href={`/jobs/${app.jobId}`}
-                    className="rounded text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    aria-label={`View ${app.jobTitle ?? "job"} details`}
-                  >
-                    <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                  </Link>
-                </div>
-              </div>
-            ))}
-            {applications.length > 5 && (
-              <p className="pt-1 text-center text-xs text-muted-foreground">
-                +{applications.length - 5} more applications
-              </p>
-            )}
-          </div>
-        ) : (
-          <div className="mt-3 rounded-md border border-dashed p-4 text-center">
-            <Briefcase className="mx-auto h-8 w-8 text-muted-foreground/30" aria-hidden="true" />
-            <p className="mt-2 text-sm text-muted-foreground">
-              No applications yet.
-            </p>
-            <p className="text-xs text-muted-foreground/70">
-              Use the chat to apply for jobs and track them here.
-            </p>
-          </div>
-        )}
-      </Card>
-
       <ScrollToTop containerRef={scrollRef} />
+      </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Skills editor sub-component
+// ---------------------------------------------------------------------------
+
+function SkillsEditor({ initialSkills }: { initialSkills: string[] }) {
+  const [skills, setSkills] = useState<string[]>(initialSkills);
+  const [newSkill, setNewSkill] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const saveSkills = useCallback(async (updatedSkills: string[]) => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/user/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ skills: updatedSkills }),
+      });
+      if (!res.ok) {
+        toast.error("Failed to save skills");
+        return false;
+      }
+      toast.success("Skills updated");
+      return true;
+    } catch {
+      toast.error("Failed to save skills");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }, []);
+
+  const addSkill = useCallback(async () => {
+    const trimmed = newSkill.trim();
+    if (!trimmed || skills.includes(trimmed)) {
+      setNewSkill("");
+      return;
+    }
+    const updated = [...skills, trimmed];
+    const ok = await saveSkills(updated);
+    if (ok) {
+      setSkills(updated);
+      setNewSkill("");
+      inputRef.current?.focus();
+    }
+  }, [newSkill, skills, saveSkills]);
+
+  const removeSkill = useCallback(
+    async (skill: string) => {
+      const updated = skills.filter((s) => s !== skill);
+      const ok = await saveSkills(updated);
+      if (ok) setSkills(updated);
+    },
+    [skills, saveSkills]
+  );
+
+  return (
+    <Card className="p-6">
+      <div className="flex items-center justify-between">
+        <h2 className="flex items-center gap-2 text-lg font-semibold">
+          <Briefcase className="h-5 w-5" aria-hidden="true" />
+          Skills
+        </h2>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-xs"
+          onClick={() => {
+            setEditing((e) => !e);
+            if (!editing) {
+              requestAnimationFrame(() => inputRef.current?.focus());
+            }
+          }}
+        >
+          {editing ? "Done" : "Edit"}
+        </Button>
+      </div>
+
+      {skills.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {skills.map((skill, i) => (
+            <Badge
+              key={`${skill}-${i}`}
+              variant="secondary"
+              className={editing ? "pr-1" : ""}
+            >
+              {skill}
+              {editing && (
+                <button
+                  type="button"
+                  onClick={() => removeSkill(skill)}
+                  disabled={saving}
+                  className="ml-1 rounded-full p-0.5 hover:bg-destructive/20 hover:text-destructive transition-colors"
+                  aria-label={`Remove ${skill}`}
+                >
+                  <X className="h-3 w-3" aria-hidden="true" />
+                </button>
+              )}
+            </Badge>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-3 rounded-md border border-dashed p-4 text-center">
+          <p className="text-sm text-muted-foreground">
+            No skills added yet. Click Edit to add skills.
+          </p>
+        </div>
+      )}
+
+      {editing && (
+        <div className="mt-3 flex gap-2">
+          <input
+            ref={inputRef}
+            type="text"
+            value={newSkill}
+            onChange={(e) => setNewSkill(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addSkill();
+              }
+            }}
+            placeholder="Type a skill and press Enter"
+            disabled={saving}
+            className="flex-1 rounded-md border bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={addSkill}
+            disabled={saving || !newSkill.trim()}
+            className="gap-1"
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+            Add
+          </Button>
+        </div>
+      )}
+    </Card>
   );
 }

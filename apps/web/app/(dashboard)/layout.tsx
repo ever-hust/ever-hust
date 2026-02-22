@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { APP_NAME } from "@ever-hust/utils";
 import { Sidebar } from "@/components/layout/sidebar";
+import { ChatProvider } from "@/components/chat/chat-context";
+import { ChatShell } from "@/components/layout/chat-shell";
 import { OnboardingCheck } from "@/components/onboarding/onboarding-check";
 import { PWAInstallPrompt } from "@/components/shared/pwa-install-prompt";
 import { KeyboardShortcutsHelp } from "@/components/shared/keyboard-shortcuts-help";
@@ -24,8 +26,12 @@ export default function DashboardLayout({
 }) {
   return (
     <div className="flex h-screen">
-      <Sidebar />
-      <main id="main-content" className="flex flex-1 flex-col overflow-hidden">{children}</main>
+      <ChatProvider>
+        <Sidebar />
+        <main id="main-content" className="flex flex-1 flex-col overflow-hidden">
+          <ChatShell>{children}</ChatShell>
+        </main>
+      </ChatProvider>
       <OnboardingCheck />
       <PWAInstallPrompt />
       <KeyboardShortcutsHelp />
@@ -34,3 +40,4 @@ export default function DashboardLayout({
     </div>
   );
 }
+

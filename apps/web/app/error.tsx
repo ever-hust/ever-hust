@@ -38,7 +38,7 @@ export default function Error({
           Try Again
         </Button>
         <Button asChild>
-          <Link href="/chat">Go to Dashboard</Link>
+          <Link href="/dashboard">Go to Dashboard</Link>
         </Button>
       </div>
     </div>

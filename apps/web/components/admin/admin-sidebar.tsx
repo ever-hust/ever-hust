@@ -114,7 +114,7 @@ export function AdminSidebar() {
       className="w-full justify-start gap-3 text-muted-foreground"
       asChild
     >
-      <Link href="/chat">
+      <Link href="/dashboard">
         <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
         Back to App
       </Link>

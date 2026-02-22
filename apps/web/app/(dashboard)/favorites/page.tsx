@@ -162,7 +162,7 @@ export default function FavoritesPage() {
             description="Browse jobs and click the heart icon to save them here for easy access later."
           >
             <Button size="sm" className="gap-1.5" asChild>
-              <Link href="/chat">
+              <Link href="/dashboard">
                 <Briefcase className="h-3.5 w-3.5" aria-hidden="true" />
                 Search Jobs
               </Link>
@@ -248,7 +248,7 @@ export default function FavoritesPage() {
                           )}
                           <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" asChild>
                             <Link
-                              href={`/chat?job=${job.id}`}
+                              href={`/dashboard?job=${job.id}`}
                               aria-label={`Generate cover letter for ${job.title}`}
                             >
                               <FileText className="h-3 w-3" aria-hidden="true" />

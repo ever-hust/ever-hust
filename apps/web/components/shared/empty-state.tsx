@@ -29,7 +29,7 @@ interface EmptyStateProps {
  *   title="No favorites yet"
  *   description="Browse jobs and click the heart icon to save them here."
  * >
- *   <Link href="/chat">
+ *   <Link href="/dashboard">
  *     <Button size="sm">Search Jobs</Button>
  *   </Link>
  * </EmptyState>

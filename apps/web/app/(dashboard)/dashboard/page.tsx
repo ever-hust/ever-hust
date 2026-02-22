@@ -3,11 +3,11 @@
 import { useEffect, useCallback, useState, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
-import { SplitScreen } from "@/components/layout/split-screen";
-import { ChatPanel } from "@/components/chat/chat-panel";
 import { JobsCanvas } from "@/components/canvas/jobs-canvas";
+import { DashboardCanvas } from "@/components/canvas/dashboard-canvas";
 import { useCanvasSync } from "@/hooks/use-canvas-sync";
 import { useFavorites } from "@/hooks/use-favorites";
+import { useChatContext } from "@/components/chat/chat-context";
 import { useRealtimeJobs, type RealtimeJob } from "@/hooks/use-realtime-jobs";
 import { useKeyboardShortcuts, getChatShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { toast } from "sonner";
@@ -21,8 +21,6 @@ const SalaryInsightsCard = dynamic(
   { ssr: false },
 );
 
-// Lazy-load dialog components — they are only rendered when the user opens
-// them, so they don't need to be in the initial bundle.
 const CoverLetterModal = dynamic(
   () =>
     import("@/components/shared/cover-letter-modal").then(
@@ -39,9 +37,10 @@ const JobDetailPanel = dynamic(
   { ssr: false },
 );
 
-export default function ChatPage() {
+export default function DashboardPage() {
   const searchParams = useSearchParams();
   const canvas = useCanvasSync();
+  const { setOnToolResult, setOnCoverLetter } = useChatContext();
   const [coverLetterText, setCoverLetterText] = useState("");
   const [coverLetterOpen, setCoverLetterOpen] = useState(false);
   const [detailJobId, setDetailJobId] = useState<number | null>(null);
@@ -74,8 +73,6 @@ export default function ChatPage() {
   }, [hookFavorites]);
 
   // Subscribe to live job updates via Supabase Realtime.
-  // New jobs inserted by the background sync task will appear on the canvas
-  // automatically without requiring a page refresh or new search.
   useRealtimeJobs({
     onInsert: useCallback(
       (job: RealtimeJob) => {
@@ -140,18 +137,34 @@ export default function ChatPage() {
         );
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
-        // Failed to fetch job — ignore deep link
       }
     }
     fetchJobAndBuildPrompt();
     return () => { controller.abort(); };
   }, [searchParams]);
 
-  // Destructure the stable callback ref so we can depend on it directly
-  // instead of the entire canvas object (which changes identity on state updates).
+  // Destructure stable refs
   const { handleToolResult } = canvas;
 
-  // Toggle favorite via API (direct from UI click)
+  // Register tool-result callback with ChatContext so layout-level ChatPanel can call it
+  useEffect(() => {
+    setOnToolResult(() => handleToolResult);
+    return () => setOnToolResult(undefined);
+  }, [handleToolResult, setOnToolResult]);
+
+  // Handle cover letter text from AI chat
+  const handleCoverLetter = useCallback((text: string) => {
+    setCoverLetterText(text);
+    setCoverLetterOpen(true);
+  }, []);
+
+  // Register cover-letter callback with ChatContext
+  useEffect(() => {
+    setOnCoverLetter(() => handleCoverLetter);
+    return () => setOnCoverLetter(undefined);
+  }, [handleCoverLetter, setOnCoverLetter]);
+
+  // Toggle favorite via API
   const handleFavorite = useCallback(async (jobId: number) => {
     try {
       const res = await fetch("/api/user/favorites", {
@@ -174,67 +187,53 @@ export default function ChatPage() {
     }
   }, [handleToolResult]);
 
-  // Open job detail panel instead of navigating away
+  // Open job detail panel
   const handleViewDetails = useCallback((jobId: number) => {
     setDetailJobId(jobId);
     setDetailOpen(true);
   }, []);
 
-  // Handle cover letter text from AI chat
-  const handleCoverLetter = useCallback((text: string) => {
-    setCoverLetterText(text);
-    setCoverLetterOpen(true);
-  }, []);
-
   return (
     <>
-      <SplitScreen
-        jobCount={canvas.totalCount}
-        chatPanel={
-          <ChatPanel
-            onToolResult={canvas.handleToolResult}
-            onCoverLetter={handleCoverLetter}
-            initialPrompt={initialPrompt}
-          />
-        }
-        canvasPanel={
-          <div className="flex h-full flex-col">
-            {/* Salary insights overlay — rendered above jobs when available */}
-            {canvas.salaryInsights && (
-              <div className="border-b p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-muted-foreground font-medium">
-                    Salary Analysis
-                  </span>
-                  <button
-                    type="button"
-                    onClick={canvas.clearSalaryInsights}
-                    className="text-xs text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
-                    aria-label="Dismiss salary insights"
-                  >
-                    Dismiss
-                  </button>
-                </div>
-                <SalaryInsightsCard data={canvas.salaryInsights} />
-              </div>
-            )}
-            <div className="flex-1 overflow-hidden">
-              <JobsCanvas
-                jobs={canvas.jobs}
-                filters={canvas.filters}
-                totalCount={canvas.totalCount}
-                isLoading={canvas.isLoading}
-                hasMore={canvas.hasMore}
-                favoritedJobIds={canvas.favoritedJobIds}
-                onFiltersChange={canvas.setFilters}
-                onLoadMore={canvas.loadMore}
-                onFavorite={handleFavorite}
-                onViewDetails={handleViewDetails}
-              />
+      <div className="flex h-full flex-col">
+        {/* Salary insights overlay */}
+        {canvas.salaryInsights && (
+          <div className="border-b p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-muted-foreground font-medium">
+                Salary Analysis
+              </span>
+              <button
+                type="button"
+                onClick={canvas.clearSalaryInsights}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+                aria-label="Dismiss salary insights"
+              >
+                Dismiss
+              </button>
             </div>
+            <SalaryInsightsCard data={canvas.salaryInsights} />
           </div>
-        }
-      />
+        )}
+        <div className="flex-1 overflow-hidden">
+          {canvas.showDashboard ? (
+            <DashboardCanvas />
+          ) : (
+            <JobsCanvas
+              jobs={canvas.jobs}
+              filters={canvas.filters}
+              totalCount={canvas.totalCount}
+              isLoading={canvas.isLoading}
+              hasMore={canvas.hasMore}
+              favoritedJobIds={canvas.favoritedJobIds}
+              onFiltersChange={canvas.setFilters}
+              onLoadMore={canvas.loadMore}
+              onFavorite={handleFavorite}
+              onViewDetails={handleViewDetails}
+            />
+          )}
+        </div>
+      </div>
 
       {/* Job detail slide-over panel */}
       <JobDetailPanel

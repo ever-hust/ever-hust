@@ -65,7 +65,7 @@ export function Breadcrumbs({
       className={cn("flex items-center text-xs text-muted-foreground", className)}
     >
       <Link
-        href="/chat"
+        href="/dashboard"
         className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
       >
         <Home className="h-3 w-3" aria-hidden="true" />

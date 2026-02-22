@@ -293,7 +293,7 @@ export const JobCard = memo(function JobCard({
             {/* Action buttons */}
             <div className="flex items-center gap-2">
               <Link
-                href={`/chat?job=${job.id}`}
+                href={`/dashboard?job=${job.id}`}
                 className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:underline"
                 onClick={(e) => e.stopPropagation()}
                 aria-label={`Generate cover letter for ${job.title}`}

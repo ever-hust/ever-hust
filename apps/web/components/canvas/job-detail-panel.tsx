@@ -263,7 +263,7 @@ export function JobDetailPanel({
               )}
               <Button variant="outline" size="sm" asChild>
                 <Link
-                  href={`/chat?job=${job.id}`}
+                  href={`/dashboard?job=${job.id}`}
                   aria-label={`Generate cover letter for ${job.title}`}
                 >
                   <FileText className="mr-1 h-3 w-3" aria-hidden="true" />

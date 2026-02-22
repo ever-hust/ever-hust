@@ -29,7 +29,7 @@ export default async function AdminLayout({
   const role = await getUserRole(user.id);
 
   if (role !== "admin") {
-    redirect("/chat");
+    redirect("/dashboard");
   }
 
   return (

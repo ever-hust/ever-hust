@@ -24,7 +24,7 @@ const VALUE_PROPS = [
  * to prevent open redirect attacks.
  */
 function getSafeCallbackUrl(raw: string | null): string {
-  const SAFE_DEFAULT = "/chat";
+  const SAFE_DEFAULT = "/dashboard";
   if (!raw) return SAFE_DEFAULT;
 
   // Decode percent-encoded sequences to catch bypass attempts like /%2F%2Fevil.com

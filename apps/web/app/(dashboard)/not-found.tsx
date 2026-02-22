@@ -15,7 +15,7 @@ export default function DashboardNotFound() {
       </p>
       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
         <Button className="gap-2" asChild>
-          <Link href="/chat">
+          <Link href="/dashboard">
             <MessageSquare className="h-4 w-4" aria-hidden="true" />
             Go to Chat
           </Link>
@@ -28,7 +28,7 @@ export default function DashboardNotFound() {
         </Button>
       </div>
       <Link
-        href="/chat"
+        href="/dashboard"
         className="mt-4 inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-3 w-3" aria-hidden="true" />

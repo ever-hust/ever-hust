@@ -20,6 +20,8 @@ interface CanvasState {
   favoritedJobIds: Set<number>;
   coverLetterContext: CoverLetterContext | null;
   salaryInsights: SalaryInsightsData | null;
+  /** When true, show the DashboardCanvas instead of JobsCanvas */
+  showDashboard: boolean;
 }
 
 export function useCanvasSync() {
@@ -36,12 +38,63 @@ export function useCanvasSync() {
     jobs: [],
     filters: {},
     totalCount: 0,
-    isLoading: false,
+    isLoading: true, // start loading — initial fetch will resolve this
     hasMore: false,
     favoritedJobIds: new Set(),
     coverLetterContext: null,
     salaryInsights: null,
+    showDashboard: true,
   });
+
+  // Track whether the AI has populated jobs (to avoid overwriting with DB results)
+  const aiPopulatedRef = useRef(false);
+
+  // Fetch jobs from the database on mount AND whenever filters change.
+  // AI chat tool results (searchJobs) will set aiPopulatedRef to true,
+  // preventing this effect from overwriting AI results until filters change.
+  useEffect(() => {
+    const controller = new AbortController();
+    async function fetchJobs() {
+      setState((prev) => ({ ...prev, isLoading: true }));
+      try {
+        const params = new URLSearchParams({ page: "1", limit: "25" });
+        const f = state.filters;
+        if (f.keywords) params.set("keywords", f.keywords);
+        if (f.location) params.set("location", f.location);
+        if (f.isRemote) params.set("isRemote", "true");
+        if (f.jobType) params.set("jobType", f.jobType);
+        if (f.salaryMin) params.set("salaryMin", String(f.salaryMin));
+        if (f.salaryMax) params.set("salaryMax", String(f.salaryMax));
+
+        const res = await fetch(`/api/jobs/search?${params.toString()}`, {
+          signal: controller.signal,
+        });
+        if (!res.ok || controller.signal.aborted) return;
+        const data = (await res.json()) as {
+          jobs: JobCardData[];
+          total: number;
+          hasMore: boolean;
+        };
+        if (!controller.signal.aborted) {
+          setState((prev) => ({
+            ...prev,
+            jobs: data.jobs,
+            totalCount: data.total,
+            hasMore: data.hasMore,
+            isLoading: false,
+          }));
+          // When user applies filters, reset the AI-populated flag
+          // so that subsequent filter changes keep working
+          aiPopulatedRef.current = false;
+        }
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setState((prev) => (prev.isLoading ? { ...prev, isLoading: false } : prev));
+      }
+    }
+    fetchJobs();
+    return () => controller.abort();
+  }, [state.filters]);
 
   // Handle tool results from the AI chat stream
   const handleToolResult = useCallback(
@@ -68,6 +121,7 @@ export function useCanvasSync() {
             totalCount: searchResult.totalCount,
             hasMore: searchResult.hasMore,
             isLoading: false,
+            showDashboard: false,
           }));
           break;
         }
@@ -77,6 +131,7 @@ export function useCanvasSync() {
           setState((prev) => ({
             ...prev,
             filters: { ...prev.filters, ...filterResult.filters },
+            showDashboard: false,
           }));
           break;
         }

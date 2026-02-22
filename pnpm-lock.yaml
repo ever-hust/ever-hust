@@ -53,12 +53,18 @@ importers:
       '@ever-hust/email':
         specifier: workspace:^
         version: link:../../packages/email
+      '@ever-hust/jobs-api':
+        specifier: workspace:*
+        version: link:../../packages/jobs-api
       '@ever-hust/stripe':
         specifier: workspace:*
         version: link:../../packages/stripe
       '@ever-hust/supabase':
         specifier: workspace:*
         version: link:../../packages/supabase
+      '@ever-hust/triggers':
+        specifier: workspace:*
+        version: link:../../packages/triggers
       '@ever-hust/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -146,6 +152,9 @@ importers:
       react:
         specifier: ^19.2.0
         version: 19.2.4
+      react-country-flag:
+        specifier: ^3.1.0
+        version: 3.1.0(react@19.2.4)
       react-dom:
         specifier: ^19.2.0
         version: 19.2.4(react@19.2.4)
@@ -5028,6 +5037,12 @@ packages:
 
   queue-microtask@1.2.3:
     resolution: {integrity: sha512-NuaNSa6flKT5JaSYQzJok04JzTL1CA6aGhv5rfLW3PgqA+M2ChpZQnAC8h8i4ZFkBS8X5RqkDBHA7r4hej3K9A==}
+
+  react-country-flag@3.1.0:
+    resolution: {integrity: sha512-JWQFw1efdv9sTC+TGQvTKXQg1NKbDU2mBiAiRWcKM9F1sK+/zjhP2yGmm8YDddWyZdXVkR8Md47rPMJmo4YO5g==}
+    engines: {node: '>=12'}
+    peerDependencies:
+      react: '>=16'
 
   react-dom@19.2.4:
     resolution: {integrity: sha512-AXJdLo8kgMbimY95O2aKQqsz2iWi9jMgKJhRBAxECE4IFxfcazB2LmzloIoibJI3C12IlY20+KFaLv+71bUJeQ==}
@@ -10316,6 +10331,10 @@ snapshots:
       side-channel: 1.1.0
 
   queue-microtask@1.2.3: {}
+
+  react-country-flag@3.1.0(react@19.2.4):
+    dependencies:
+      react: 19.2.4
 
   react-dom@19.2.4(react@19.2.4):
     dependencies:

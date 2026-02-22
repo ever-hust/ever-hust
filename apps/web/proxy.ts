@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const protectedRoutes = ["/chat", "/jobs", "/profile", "/settings", "/applications", "/favorites", "/admin", "/organizations"];
+const protectedRoutes = ["/dashboard", "/jobs", "/profile", "/settings", "/applications", "/favorites", "/admin", "/organizations"];
 
 // ---------------------------------------------------------------------------
 // Security headers applied to all responses
@@ -80,16 +80,22 @@ function applySecurityHeaders(response: NextResponse): NextResponse {
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // If user visits root "/" and has a session → redirect to dashboard
+  if (pathname === "/") {
+    const sessionToken =
+      request.cookies.get("__Secure-better-auth.session_token")?.value ??
+      request.cookies.get("better-auth.session_token")?.value;
+    if (sessionToken) {
+      const dashboardUrl = new URL("/dashboard", request.url);
+      return NextResponse.redirect(dashboardUrl);
+    }
+    return applySecurityHeaders(NextResponse.next());
+  }
+
   // Check if it's a protected route
   const isProtected = protectedRoutes.some((route) =>
     pathname.startsWith(route)
   );
-
-  // Redirect /dashboard to /chat
-  if (pathname === "/dashboard") {
-    const chatUrl = new URL("/chat", request.url);
-    return NextResponse.redirect(chatUrl);
-  }
 
   if (!isProtected) {
     return applySecurityHeaders(NextResponse.next());

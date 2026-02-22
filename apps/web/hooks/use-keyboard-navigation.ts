@@ -68,7 +68,7 @@ export function useKeyboardNavigation() {
           switch (next.key) {
             case "c":
               next.preventDefault();
-              router.push("/chat");
+              router.push("/dashboard");
               break;
             case "j":
               next.preventDefault();

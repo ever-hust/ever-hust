@@ -70,7 +70,7 @@ export function UsageQuota() {
         className="mt-1 h-7 w-full gap-1 text-[10px]"
         asChild
       >
-        <Link href="/settings">
+        <Link href="/subscriptions">
           <Sparkles className="h-3 w-3" aria-hidden="true" />
           Upgrade to Pro
         </Link>

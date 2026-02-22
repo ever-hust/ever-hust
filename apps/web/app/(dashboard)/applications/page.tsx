@@ -150,7 +150,7 @@ const ApplicationCard = memo(function ApplicationCard({ app }: { app: Applicatio
           <div className="mt-3 flex items-center gap-2">
             {app.coverLetter && (
               <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" asChild>
-                <Link href={`/chat?job=${app.jobId}`}>
+                <Link href={`/dashboard?job=${app.jobId}`}>
                   <FileText className="h-3 w-3" aria-hidden="true" />
                   View Cover Letter
                 </Link>
@@ -314,7 +314,7 @@ export default function ApplicationsPage() {
             }
           >
             <Button size="sm" asChild>
-              <Link href="/chat">Go to Chat</Link>
+              <Link href="/dashboard">Go to Chat</Link>
             </Button>
           </EmptyState>
         ) : (

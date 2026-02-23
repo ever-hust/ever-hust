@@ -57,7 +57,10 @@ export async function GET() {
 
     return apiSuccess({ favorites });
   } catch (error) {
-    console.error("[api/user/favorites/list]", error instanceof Error ? error.message : error);
+    const msg = error instanceof Error ? error.message : String(error);
+    const cause = (error as Record<string, unknown>)?.cause;
+    console.error("[api/user/favorites/list]", msg);
+    if (cause) console.error("[api/user/favorites/list] Cause:", (cause as Record<string, unknown>).code, (cause as Record<string, unknown>).message ?? cause);
     return apiError("Failed to load favorites");
   }
 }

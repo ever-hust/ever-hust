@@ -126,7 +126,10 @@ export async function GET(req: Request) {
       { cacheSeconds: 120 },
     );
   } catch (err) {
-    console.error("[api/jobs/search] Database query failed:", err instanceof Error ? err.message : err);
+    const msg = err instanceof Error ? err.message : String(err);
+    const cause = (err as any)?.cause;
+    console.error("[api/jobs/search] Database query failed:", msg);
+    if (cause) console.error("[api/jobs/search] Cause:", cause.code, cause.message ?? cause);
     return apiError("Failed to search jobs. Please try again.");
   }
 }

@@ -21,6 +21,21 @@ function optional(name: string, fallback?: string): string | undefined {
   return process.env[name] ?? fallback;
 }
 
+/**
+ * Required in production, optional in development.
+ * Prevents dev-time crashes from env vars that only matter for
+ * third-party services (Stripe, Resend, etc.).
+ */
+function devOptional(name: string): string | undefined {
+  const value = process.env[name];
+  if (!value && process.env.NODE_ENV === "production") {
+    throw new Error(
+      `[env] Missing required environment variable: ${name}. See .env.example for reference.`,
+    );
+  }
+  return value;
+}
+
 // ---------------------------------------------------------------------------
 // Validate all required env vars at import time (server-side only).
 // This file should ONLY be imported in Server Components / API routes.
@@ -50,15 +65,15 @@ export const env = {
   // Only required if the BYOK feature is enabled. Must be a 256-bit hex string.
   BYOK_ENCRYPTION_KEY: optional("BYOK_ENCRYPTION_KEY"),
 
-  // Stripe
-  STRIPE_SECRET_KEY: required("STRIPE_SECRET_KEY"),
-  STRIPE_WEBHOOK_SECRET: required("STRIPE_WEBHOOK_SECRET"),
-  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: required(
+  // Stripe (required in production, optional in dev)
+  STRIPE_SECRET_KEY: devOptional("STRIPE_SECRET_KEY"),
+  STRIPE_WEBHOOK_SECRET: devOptional("STRIPE_WEBHOOK_SECRET"),
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: devOptional(
     "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
   ),
 
-  // Email
-  RESEND_API_KEY: required("RESEND_API_KEY"),
+  // Email (required in production, optional in dev)
+  RESEND_API_KEY: devOptional("RESEND_API_KEY"),
   EMAIL_FROM: optional("EMAIL_FROM", "alerts@everjobs.ai"),
 
   // App

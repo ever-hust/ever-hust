@@ -29,6 +29,21 @@ export async function register() {
   runStartupChecks();
 
   // -------------------------------------------------------------------------
+  // 1b. Ensure DB schema is up-to-date (idempotent ALTER TABLE IF NOT EXISTS)
+  // -------------------------------------------------------------------------
+  if (process.env.DATABASE_URL) {
+    try {
+      const { ensureJobsColumns } = await import("@ever-hust/db/ensure-columns");
+      await ensureJobsColumns(process.env.DATABASE_URL);
+    } catch (error) {
+      console.warn(
+        "[db] Schema migration failed (non-fatal):",
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
+
+  // -------------------------------------------------------------------------
   // 2. Langfuse / OpenTelemetry tracing
   // -------------------------------------------------------------------------
   const publicKey = process.env.LANGFUSE_PUBLIC_KEY;

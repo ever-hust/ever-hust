@@ -7,9 +7,18 @@
  * In production builds, missing non-optional vars will throw at startup.
  */
 
+/**
+ * During `next build` the route handlers are pre-rendered / collected and
+ * the runtime env vars are typically not available yet. We skip validation
+ * for these phases so the build succeeds, and enforce the check at runtime.
+ */
+const isBuildPhase =
+  process.env.NEXT_PHASE === "phase-production-build";
+
 function required(name: string): string {
   const value = process.env[name];
   if (!value) {
+    if (isBuildPhase) return "" as string;
     throw new Error(
       `[env] Missing required environment variable: ${name}. See .env.example for reference.`,
     );
@@ -28,7 +37,7 @@ function optional(name: string, fallback?: string): string | undefined {
  */
 function devOptional(name: string): string | undefined {
   const value = process.env[name];
-  if (!value && process.env.NODE_ENV === "production") {
+  if (!value && process.env.NODE_ENV === "production" && !isBuildPhase) {
     throw new Error(
       `[env] Missing required environment variable: ${name}. See .env.example for reference.`,
     );

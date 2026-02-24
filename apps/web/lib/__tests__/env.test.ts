@@ -74,15 +74,31 @@ describe("env module", () => {
     await expect(importEnv()).rejects.toThrow("BETTER_AUTH_SECRET");
   });
 
-  it("throws when STRIPE_SECRET_KEY is missing", async () => {
+  it("does not throw when STRIPE_SECRET_KEY is missing in dev/test", async () => {
     setAllRequiredEnvVars();
     delete process.env.STRIPE_SECRET_KEY;
+    const { env } = await importEnv();
+    expect(env.STRIPE_SECRET_KEY).toBeUndefined();
+  });
+
+  it("throws when STRIPE_SECRET_KEY is missing in production", async () => {
+    setAllRequiredEnvVars();
+    delete process.env.STRIPE_SECRET_KEY;
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
     await expect(importEnv()).rejects.toThrow("STRIPE_SECRET_KEY");
   });
 
-  it("throws when RESEND_API_KEY is missing", async () => {
+  it("does not throw when RESEND_API_KEY is missing in dev/test", async () => {
     setAllRequiredEnvVars();
     delete process.env.RESEND_API_KEY;
+    const { env } = await importEnv();
+    expect(env.RESEND_API_KEY).toBeUndefined();
+  });
+
+  it("throws when RESEND_API_KEY is missing in production", async () => {
+    setAllRequiredEnvVars();
+    delete process.env.RESEND_API_KEY;
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
     await expect(importEnv()).rejects.toThrow("RESEND_API_KEY");
   });
 

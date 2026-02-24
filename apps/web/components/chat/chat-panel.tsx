@@ -82,7 +82,7 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
   // Pre-fill input from deep link (?job=123) or Compare→Chat / Cover Letter flow.
   // Tracks the last consumed prompt so the same prompt isn't injected twice,
   // but a *new* prompt from context always works — even mid-conversation.
-  const lastConsumedPrompt = useRef<string | undefined>();
+  const lastConsumedPrompt = useRef<string | undefined>(undefined);
 
   const {
     sessions,

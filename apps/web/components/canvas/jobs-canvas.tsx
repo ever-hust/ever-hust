@@ -198,7 +198,7 @@ export const JobsCanvas = memo(function JobsCanvas({
           <button
             type="button"
             role="tab"
-            aria-selected={viewMode === "list" ? true : false}
+            aria-selected={viewMode === "list" ? "true" : "false"}
             className={`inline-flex items-center gap-1 rounded-l-md px-2.5 py-1 text-xs font-medium transition-colors ${
               viewMode === "list"
                 ? "bg-primary text-primary-foreground"
@@ -212,7 +212,7 @@ export const JobsCanvas = memo(function JobsCanvas({
           <button
             type="button"
             role="tab"
-            aria-selected={viewMode === "split" ? true : false}
+            aria-selected={viewMode === "split" ? "true" : "false"}
             className={`inline-flex items-center gap-1 border-l border-r px-2.5 py-1 text-xs font-medium transition-colors ${
               viewMode === "split"
                 ? "bg-primary text-primary-foreground"
@@ -226,7 +226,7 @@ export const JobsCanvas = memo(function JobsCanvas({
           <button
             type="button"
             role="tab"
-            aria-selected={viewMode === "map" ? true : false}
+            aria-selected={viewMode === "map" ? "true" : "false"}
             className={`inline-flex items-center gap-1 rounded-r-md px-2.5 py-1 text-xs font-medium transition-colors ${
               viewMode === "map"
                 ? "bg-primary text-primary-foreground"
@@ -275,7 +275,7 @@ export const JobsCanvas = memo(function JobsCanvas({
       ) : viewMode === "split" ? (
         <div className="flex flex-1 gap-3 overflow-hidden px-3 pb-3">
           {/* Left: scrollable job list */}
-          <div className="w-1/2 overflow-y-auto space-y-2" role="feed" aria-busy={isLoading ? true : false} aria-label="Job results">
+          <div className="w-1/2 overflow-y-auto space-y-2" role="feed" aria-busy={isLoading ? "true" : "false"} aria-label="Job results">
               {jobs.map((job, index) => (
                 <div
                   key={job.id}
@@ -294,8 +294,8 @@ export const JobsCanvas = memo(function JobsCanvas({
                 </div>
               ))}
               {isLoading && (
-                <div>
-                  <div className="flex items-center justify-center py-4" role="status">
+                <div role="status" aria-label="Loading more jobs">
+                  <div className="flex items-center justify-center py-4">
                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                   </div>
                 </div>
@@ -312,7 +312,7 @@ export const JobsCanvas = memo(function JobsCanvas({
           </div>
         </div>
       ) : (
-      <div className="flex-1 overflow-y-auto px-3 pb-3" role="feed" aria-busy={isLoading ? true : false}>
+      <div className="flex-1 overflow-y-auto px-3 pb-3" role="feed" aria-busy={isLoading ? "true" : "false"}>
         {jobs.length === 0 && isLoading ? (
           <JobCardSkeletonList count={5} />
         ) : jobs.length === 0 && !isLoading ? (

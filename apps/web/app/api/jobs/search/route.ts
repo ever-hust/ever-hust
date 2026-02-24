@@ -127,7 +127,7 @@ export async function GET(req: Request) {
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    const cause = (err as any)?.cause;
+    const cause = err instanceof Error ? (err as Error & { cause?: { code?: string; message?: string } }).cause : undefined;
     console.error("[api/jobs/search] Database query failed:", msg);
     if (cause) console.error("[api/jobs/search] Cause:", cause.code, cause.message ?? cause);
     return apiError("Failed to search jobs. Please try again.");

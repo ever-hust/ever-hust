@@ -12,7 +12,7 @@ export function getNovuClient(): Novu | null {
   if (!apiKey) return null;
 
   if (!novuClient) {
-    novuClient = new Novu({ apiKey });
+    novuClient = new Novu({ secretKey: apiKey });
   }
   return novuClient;
 }

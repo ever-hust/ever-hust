@@ -82,14 +82,17 @@ tests/e2e/
 
 ### Jest Configuration
 
-The `jest.config.ts` at the repo root defines 6 test projects:
+The `jest.config.ts` at the repo root defines 9 test projects:
 
-- **ai** — AI model routing, prompt management, rate limiting, tool schemas
-- **stripe** — Pricing plans, subscription logic
-- **cv-parser** — PDF parsing, data extraction
+- **ai** — AI model routing, prompt management, rate limiting, tool schemas, orchestrator, salary/resume helpers, org-config merge
+- **stripe** — Pricing plans, checkout, portal, webhooks
+- **cv-parser** — PDF parsing, data extraction, Zod schemas
 - **jobs-api** — API client, type validation
+- **db** — Database helpers, schema validation
 - **utils** — Utility functions (formatSalary, formatDate, truncate)
-- **email** — Email sending, retry logic
+- **email** — Email sending, retry logic, template rendering
+- **triggers** — Background task job mapping
+- **web-lib** — API response helpers, env validation, rate limiting, referral utils, webhook idempotency, startup checks, subscription gating, URL safety
 
 ## When to Run Tests
 
@@ -175,27 +178,31 @@ E2E tests need a running dev server with env vars set. Copy `.env.example` to `.
 
 ## Current Test Suite Summary
 
-**9 suites, 131 tests** — all passing.
+**38 suites, 1240 tests** — all passing.
 
-| Project   | Suite(s)                                        | Tests | What's tested                                                       |
-| --------- | ----------------------------------------------- | ----- | ------------------------------------------------------------------- |
-| ai        | model-router, prompts, rate-limit, tool-schemas | 56    | Model routing, prompt management, rate limiting, tool input schemas |
-| stripe    | plans                                           | 8     | Pricing plans, plan lookup helpers                                  |
-| utils     | helpers                                         | 18    | formatSalary, formatDate, truncate                                  |
-| cv-parser | index                                           | 8     | PDF parsing, data extraction, Zod schemas                           |
-| email     | send                                            | 13    | Retry logic, error handling, all 3 email types                      |
-| jobs-api  | types                                           | 7     | API client types, schema validation                                 |
+| Project   | Suite(s)                                                                                                                                                                     | Tests | What's tested                                                                        |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------ |
+| ai        | model-router, prompts, rate-limit, tool-schemas, orchestrator, crypto, org-config, salary/resume helpers, guidance-topics                                                    | 500+  | Model routing, prompt management, rate limiting, tool schemas, agent orchestration   |
+| stripe    | plans, checkout, portal, webhook                                                                                                                                             | 60+   | Pricing plans, checkout sessions, portal redirects, webhook handling                 |
+| utils     | helpers                                                                                                                                                                      | 30+   | formatSalary, formatDate, truncate, shared utilities                                 |
+| cv-parser | index                                                                                                                                                                        | 20+   | PDF/DOCX parsing, data extraction, Zod schemas                                       |
+| email     | send                                                                                                                                                                         | 30+   | Retry logic, error handling, all email types                                         |
+| jobs-api  | types, client                                                                                                                                                                | 30+   | API client, schema validation, type guards                                           |
+| db        | helpers                                                                                                                                                                      | 10+   | Database helper functions, schema validation                                         |
+| triggers  | map-job                                                                                                                                                                      | 10+   | Job mapping, data transformation                                                     |
+| web-lib   | api-response, api-schemas, constants, env, format-date, hook-utils, rate-limit, referral-utils, safe-url, startup-checks, subscription-gate, webhook-idempotency, api-client | 250+  | API helpers, env validation, rate limiting, webhook idempotency, subscription gating |
 
 ## Test Coverage Goals
 
-| Package         | Current | Target    |
-| --------------- | ------- | --------- |
-| @ever-hust/ai        | ~70%    | 80%+      |
-| @ever-hust/stripe    | ~90%    | 90%+      |
-| @ever-hust/utils     | ~90%    | 90%+      |
-| @ever-hust/cv-parser | ~50%    | 70%+      |
-| @ever-hust/email     | ~80%    | 90%+      |
-| E2E flows       | 6 specs | 10+ specs |
+| Package              | Estimated | Target |
+| -------------------- | --------- | ------ |
+| @ever-hust/ai        | ~80%      | 85%+   |
+| @ever-hust/stripe    | ~90%      | 90%+   |
+| @ever-hust/utils     | ~90%      | 90%+   |
+| @ever-hust/cv-parser | ~60%      | 70%+   |
+| @ever-hust/email     | ~85%      | 90%+   |
+| web-lib              | ~80%      | 85%+   |
+| E2E flows            | 8 specs   | 12+    |
 
 ## Known Test Notes
 

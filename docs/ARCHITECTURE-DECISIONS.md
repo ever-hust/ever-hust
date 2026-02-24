@@ -259,7 +259,7 @@ This document captures key architectural decisions made during the MVP implement
 - Tests compile fast without OOM
 - Type safety maintained via separate build step
 - CI/CD allocates sufficient memory for test runs
-- Test count: 9 suites, 131 tests
+- Test count: 38 suites, 1240 tests across 9 projects
 
 **Status**: Implemented.
 
@@ -307,6 +307,27 @@ This document captures key architectural decisions made during the MVP implement
 
 ---
 
+## ADR-016: Build-Safe Environment Variable Validation
+
+**Context**: The `env.ts` module validates all env vars at import time. However, during `next build`, route handlers are pre-rendered/collected and runtime env vars are unavailable, causing build failures.
+
+**Decision**: Detect the build phase via `process.env.NEXT_PHASE === "phase-production-build"` and skip validation:
+
+- `required()`: Returns `""` during build phase instead of throwing
+- `devOptional()`: Skips the production-only check during build phase
+- Runtime behavior is unchanged — missing required vars still throw at server startup
+
+**Consequence**:
+
+- `pnpm build` succeeds without all env vars being set
+- Runtime validation is unaffected (enforced at startup)
+- `NEXT_PHASE` is set internally by Next.js, not a user-configured env var
+- Tests for `devOptional` vars split into dev-mode (no throw) and production-mode (throws) variants
+
+**Status**: Implemented.
+
+---
+
 ## Document Index
 
 | Document               | Location                                                              | Description                         |
@@ -320,4 +341,4 @@ This document captures key architectural decisions made during the MVP implement
 
 ---
 
-_Generated on 2026-02-15, updated 2026-02-16 with ADR-011 through ADR-015._
+_Generated on 2026-02-15, updated 2026-02-24 with ADR-016 (Build-Safe Env Validation)._

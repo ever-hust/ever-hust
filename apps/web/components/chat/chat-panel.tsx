@@ -79,7 +79,10 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
   const [activeToolName, setActiveToolName] = useState<string | undefined>();
   const coverLetterPending = useRef(false);
   const hasCreatedSession = useRef(false);
-  const initialPromptUsed = useRef(false);
+  // Pre-fill input from deep link (?job=123) or Compare→Chat / Cover Letter flow.
+  // Tracks the last consumed prompt so the same prompt isn't injected twice,
+  // but a *new* prompt from context always works — even mid-conversation.
+  const lastConsumedPrompt = useRef<string | undefined>();
 
   const {
     sessions,
@@ -116,17 +119,22 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
 
   const isLoading = status === "streaming" || status === "submitted";
 
-  // Pre-fill input from deep link (e.g. ?job=123)
+  // Pre-fill input from deep link (?job=123) or Compare→Chat / Cover Letter flow.
+  // Tracks the last consumed prompt so the same prompt isn't injected twice,
+  // but a *new* prompt from context always works — even mid-conversation.
   useEffect(() => {
-    if (initialPrompt && !initialPromptUsed.current && messages.length === 0) {
-      initialPromptUsed.current = true;
+    if (
+      initialPrompt &&
+      initialPrompt !== lastConsumedPrompt.current
+    ) {
+      lastConsumedPrompt.current = initialPrompt;
       setInput(initialPrompt);
       // Focus the chat input after a frame so the textarea renders
       requestAnimationFrame(() => {
         document.getElementById("chat-input")?.focus();
       });
     }
-  }, [initialPrompt, messages.length]);
+  }, [initialPrompt]);
 
   // Sync agent state with chat status — read agentState via ref to avoid
   // re-running the effect when agentState itself changes (feedback loop).
@@ -264,7 +272,7 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
     setActiveToolName(undefined);
     coverLetterPending.current = false;
     hasCreatedSession.current = false;
-    initialPromptUsed.current = false;
+    lastConsumedPrompt.current = undefined;
     await startNewSession();
   }, [setMessages, startNewSession]);
 

@@ -24,6 +24,10 @@ interface ChatContextValue {
   /** Called when ChatPanel produces a cover letter. */
   onCoverLetter: ((text: string) => void) | undefined;
   setOnCoverLetter: (cb: ((text: string) => void) | undefined) => void;
+
+  /** Initial prompt to pre-fill the chat input (e.g. from deep link or compare). */
+  initialPrompt: string | undefined;
+  setInitialPrompt: (prompt: string | undefined) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -89,6 +93,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     useState<((toolName: string, result: unknown) => void) | undefined>();
   const [onCoverLetter, setOnCoverLetter] =
     useState<((text: string) => void) | undefined>();
+  const [initialPrompt, setInitialPrompt] = useState<string | undefined>();
 
   // Prevent flash: don't render children until hydrated
   if (!hydrated) return null;
@@ -104,6 +109,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setOnToolResult,
         onCoverLetter,
         setOnCoverLetter,
+        initialPrompt,
+        setInitialPrompt,
       }}
     >
       {children}

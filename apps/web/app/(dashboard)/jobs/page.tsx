@@ -1,25 +1,31 @@
 "use client";
 
-import { useEffect, useCallback, useState, useRef } from "react";
+import { useEffect, useCallback, useState, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { JobsCanvas } from "@/components/canvas/jobs-canvas";
 import type { JobCardData } from "@/components/canvas/job-card";
 import type { JobFilters } from "@/components/canvas/filter-bar";
 import { useFavorites } from "@/hooks/use-favorites";
+import { useHiddenJobs } from "@/hooks/use-hidden-jobs";
 import { toast } from "sonner";
 
 export default function JobsPage() {
   const router = useRouter();
   const { favoritedJobIds, toggleFavorite } = useFavorites();
+  const { hiddenJobIds, hideJob } = useHiddenJobs();
   const [jobs, setJobs] = useState<JobCardData[]>([]);
   const [filters, setFilters] = useState<JobFilters>({});
   const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
   const loadMoreAbortRef = useRef<AbortController | null>(null);
-  // Track page in a ref so handleLoadMore doesn't depend on `page` state,
-  // avoiding re-creation of the callback (and re-renders) on every pagination.
   const pageRef = useRef(1);
+
+  // Filter out hidden jobs from the displayed list
+  const visibleJobs = useMemo(
+    () => jobs.filter((job) => !hiddenJobIds.has(job.id)),
+    [jobs, hiddenJobIds]
+  );
 
   // Load jobs on mount and when filters change
   useEffect(() => {
@@ -101,8 +107,6 @@ export default function JobsPage() {
       if (err instanceof DOMException && err.name === "AbortError") return;
       toast.error("Failed to load more jobs");
     } finally {
-      // Only reset loading if this request wasn't aborted by a newer one.
-      // The newer request will manage its own loading state.
       if (!controller.signal.aborted) {
         setIsLoading(false);
       }
@@ -116,8 +120,6 @@ export default function JobsPage() {
     [router]
   );
 
-  // Reset page tracking synchronously on filter change to prevent stale
-  // pageRef values if loadMore fires between setFilters and the useEffect.
   const handleFiltersChange = useCallback((newFilters: JobFilters) => {
     pageRef.current = 1;
     loadMoreAbortRef.current?.abort();
@@ -126,7 +128,7 @@ export default function JobsPage() {
 
   return (
     <JobsCanvas
-      jobs={jobs}
+      jobs={visibleJobs}
       filters={filters}
       totalCount={totalCount}
       isLoading={isLoading}
@@ -136,6 +138,7 @@ export default function JobsPage() {
       onLoadMore={handleLoadMore}
       onFavorite={toggleFavorite}
       onViewDetails={handleViewDetails}
+      onHideJob={hideJob}
     />
   );
 }

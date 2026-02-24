@@ -8,6 +8,7 @@ import { DashboardCanvas } from "@/components/canvas/dashboard-canvas";
 import { useCanvasSync } from "@/hooks/use-canvas-sync";
 import { useFavorites } from "@/hooks/use-favorites";
 import { useChatContext } from "@/components/chat/chat-context";
+import { useHiddenJobs } from "@/hooks/use-hidden-jobs";
 import { useRealtimeJobs, type RealtimeJob } from "@/hooks/use-realtime-jobs";
 import { useKeyboardShortcuts, getChatShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { toast } from "sonner";
@@ -40,13 +41,13 @@ const JobDetailPanel = dynamic(
 export default function DashboardPage() {
   const searchParams = useSearchParams();
   const canvas = useCanvasSync();
-  const { setOnToolResult, setOnCoverLetter } = useChatContext();
+  const { setOnToolResult, setOnCoverLetter, setInitialPrompt, focusChatInput } = useChatContext();
   const [coverLetterText, setCoverLetterText] = useState("");
   const [coverLetterOpen, setCoverLetterOpen] = useState(false);
   const [detailJobId, setDetailJobId] = useState<number | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [, setInitialPrompt] = useState<string | undefined>();
   const deepLinkHandled = useRef(false);
+  const { hiddenJobIds, hideJob } = useHiddenJobs();
 
   // Keyboard shortcuts
   const shortcuts = useMemo(
@@ -137,13 +138,14 @@ export default function DashboardPage() {
         setInitialPrompt(
           `Write me a cover letter for the "${title}" position at ${company}${locationStr}. Make it professional and tailored.`
         );
+        focusChatInput();
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
       }
     }
     fetchJobAndBuildPrompt();
     return () => { controller.abort(); };
-  }, [searchParams]);
+  }, [searchParams, setInitialPrompt, focusChatInput]);
 
   // Destructure stable refs
   const { handleToolResult } = canvas;
@@ -222,7 +224,7 @@ export default function DashboardPage() {
             <DashboardCanvas />
           ) : (
             <JobsCanvas
-              jobs={canvas.jobs}
+              jobs={canvas.jobs.filter((j) => !hiddenJobIds.has(j.id))}
               filters={canvas.filters}
               totalCount={canvas.totalCount}
               isLoading={canvas.isLoading}
@@ -232,6 +234,7 @@ export default function DashboardPage() {
               onLoadMore={canvas.loadMore}
               onFavorite={handleFavorite}
               onViewDetails={handleViewDetails}
+              onHideJob={hideJob}
             />
           )}
         </div>

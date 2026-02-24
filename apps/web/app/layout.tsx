@@ -9,7 +9,9 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { QueryProvider } from "@/components/query-provider";
 import { ServiceWorkerRegister } from "@/components/sw-register";
 import { ConnectionStatus } from "@/components/shared/connection-status";
+import { PostHogProvider } from "@/components/providers/posthog-provider";
 import { Toaster } from "@ever-hust/ui/sonner";
+import { Suspense } from "react";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -132,7 +134,11 @@ export default async function RootLayout({
               enableSystem
               disableTransitionOnChange
             >
-              {children}
+              <Suspense fallback={null}>
+                <PostHogProvider>
+                  {children}
+                </PostHogProvider>
+              </Suspense>
               <Toaster />
               <ConnectionStatus />
               <ServiceWorkerRegister />

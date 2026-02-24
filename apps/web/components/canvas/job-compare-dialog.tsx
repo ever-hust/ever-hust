@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo } from "react";
+import { memo, useMemo, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -10,10 +10,11 @@ import {
 } from "@ever-hust/ui/dialog";
 import { Button } from "@ever-hust/ui/button";
 import { Badge } from "@ever-hust/ui/badge";
-import { ExternalLink, MapPin, Building2, Clock, DollarSign } from "lucide-react";
+import { ExternalLink, MapPin, Building2, Clock, DollarSign, MessageSquare } from "lucide-react";
 import { cn } from "@ever-hust/ui/lib/utils";
 import { formatSalary, formatLocation, timeAgo } from "@/lib/format-date";
 import { safeExternalUrl } from "@/lib/safe-url";
+import { useChatContext } from "@/components/chat/chat-context";
 import type { JobCardData } from "./job-card";
 
 interface JobCompareDialogProps {
@@ -46,6 +47,22 @@ export const JobCompareDialog = memo(function JobCompareDialog({
   onOpenChange,
 }: JobCompareDialogProps) {
   const columns = jobs.length;
+  const { setInitialPrompt, focusChatInput } = useChatContext();
+
+  /** Build a compare prompt and send it to the AI chat. */
+  const handleDiscussWithAI = useCallback(() => {
+    const jobSummaries = jobs.map((job, i) => {
+      const salary = formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency, job.salaryInterval);
+      const location = formatLocation(job.locationCity, job.locationState, job.locationCountry, job.isRemote) ?? "Unknown";
+      return `${i + 1}. "${job.title}" at ${job.companyName ?? "Unknown Company"} — ${location}${salary ? `, ${salary}` : ""}${job.isRemote ? " (Remote)" : ""}`;
+    }).join("\n");
+
+    setInitialPrompt(
+      `Compare these ${jobs.length} jobs and help me decide which one is the best fit:\n\n${jobSummaries}\n\nConsider salary, location, company reputation, growth potential, and work-life balance.`
+    );
+    focusChatInput();
+    onOpenChange(false);
+  }, [jobs, setInitialPrompt, focusChatInput, onOpenChange]);
 
   /** Pre-compute formatted values for each job. */
   const formatted = useMemo(
@@ -423,6 +440,28 @@ export const JobCompareDialog = memo(function JobCompareDialog({
                 </div>
               );
             })}
+          </div>
+
+          {/* Discuss with AI row */}
+          <div
+            className={cn(
+              "grid border-t bg-muted/10",
+              columns === 3
+                ? "grid-cols-[140px_1fr_1fr_1fr]"
+                : "grid-cols-[140px_1fr_1fr]"
+            )}
+          >
+            <div className="col-span-full flex items-center justify-center px-4 py-3">
+              <Button
+                size="sm"
+                variant="secondary"
+                className="gap-1.5"
+                onClick={handleDiscussWithAI}
+              >
+                <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
+                Discuss with AI
+              </Button>
+            </div>
           </div>
           </div>
         </div>

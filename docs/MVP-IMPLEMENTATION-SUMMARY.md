@@ -1,8 +1,8 @@
 # Hust — MVP Implementation Summary
 
-**Date**: 2026-02-18 (updated)
+**Date**: 2026-02-23 (updated)
 **Branch**: `claude/agitated-davinci`
-**Status**: MVP Complete + Production Hardening (11 implementation batches)
+**Status**: MVP Complete + Production Hardening (12 implementation batches)
 
 ---
 
@@ -344,6 +344,93 @@ The `(dashboard)` directory is a **Next.js route group** — it does NOT add a U
 
 ---
 
+## Batch 12 — Infrastructure Integrations, Compare→Chat, Hidden Jobs, Split View
+
+### What was done
+
+- **Novu notifications** (`apps/web/lib/novu.ts`): Client initialization with trigger, subscriber management, and workflow ID constants
+- **Sentry error tracking**: 3 config files for client, server, and edge runtimes (`sentry.client.config.ts`, `sentry.server.config.ts`, `sentry.edge.config.ts`)
+- **PostHog analytics** (`apps/web/lib/posthog.ts`, `apps/web/components/providers/posthog-provider.tsx`): Privacy-respecting defaults with automatic pageview tracking in root layout
+- **OpenTelemetry** (`apps/web/lib/otel.ts`): Diagnostic logger initialization
+- **Scalar API docs**: OpenAPI 3.1 spec at `/api/docs`, interactive Scalar reference at `/docs/api`
+- **Zustand state stores** (`apps/web/lib/stores/job-store.ts`): Hidden jobs persistence, map visibility, compare state
+- **Hidden jobs feature**: Schema update (added `hidden` status to `userJobs`), API endpoints (`/api/user/hidden-jobs`), React hook (`use-hidden-jobs.ts`), dashboard filtering
+- **Address autocomplete**: Google Places-powered autocomplete replaces plain text location input in filter bar
+- **Split view mode**: New 3-way List | Split | Map toggle; split shows scrollable job list + sticky map side-by-side
+- **Compare → Chat integration**: "Discuss with AI" button in compare dialog generates comparison prompt and sends to chat via ChatContext
+- **Cover letter deep link**: Wired `?job=` deep link through `ChatContext.initialPrompt` so prompt reaches ChatPanel and focuses input
+- **Geocoding backfill API** (`/api/admin/geocode`): POST endpoint to backfill lat/lng coordinates for existing jobs
+- **Removed duplicate Apply Now button** from job detail sidebar
+
+### New files (14+)
+
+| File                                                  | Purpose                      |
+| ----------------------------------------------------- | ---------------------------- |
+| `apps/web/lib/novu.ts`                                | Novu notification service    |
+| `apps/web/lib/otel.ts`                                | OpenTelemetry initialization |
+| `apps/web/lib/posthog.ts`                             | PostHog analytics client     |
+| `apps/web/lib/stores/job-store.ts`                    | Zustand UI state stores      |
+| `apps/web/sentry.client.config.ts`                    | Sentry client config         |
+| `apps/web/sentry.server.config.ts`                    | Sentry server config         |
+| `apps/web/sentry.edge.config.ts`                      | Sentry edge config           |
+| `apps/web/app/api/docs/route.ts`                      | OpenAPI 3.1 spec endpoint    |
+| `apps/web/app/(marketing)/docs/api/page.tsx`          | Scalar API reference page    |
+| `apps/web/app/api/admin/geocode/route.ts`             | Geocoding backfill API       |
+| `apps/web/app/api/user/hidden-jobs/route.ts`          | Hidden jobs API              |
+| `apps/web/components/providers/posthog-provider.tsx`  | PostHog provider             |
+| `apps/web/components/canvas/address-autocomplete.tsx` | Google Places autocomplete   |
+| `apps/web/hooks/use-hidden-jobs.ts`                   | Hidden jobs React hook       |
+
+### Modified files
+
+| File                                                | Change                                   |
+| --------------------------------------------------- | ---------------------------------------- |
+| `packages/db/src/schema/user-jobs.ts`               | Added `hidden` status enum value         |
+| `apps/web/components/chat/chat-context.tsx`         | Added `initialPrompt`/`setInitialPrompt` |
+| `apps/web/components/layout/chat-shell.tsx`         | Passes `initialPrompt` to ChatPanel      |
+| `apps/web/components/canvas/job-card.tsx`           | Added `onHide` prop with EyeOff button   |
+| `apps/web/components/canvas/jobs-canvas.tsx`        | `onHideJob` prop, split view mode        |
+| `apps/web/components/canvas/filter-bar.tsx`         | AddressAutocomplete replaces text input  |
+| `apps/web/components/canvas/job-compare-dialog.tsx` | "Discuss with AI" button                 |
+| `apps/web/app/(dashboard)/dashboard/page.tsx`       | Hidden jobs filter, ChatContext bridge   |
+| `apps/web/app/(dashboard)/jobs/[id]/page.tsx`       | Removed duplicate Apply button           |
+| `apps/web/app/layout.tsx`                           | PostHogProvider in Suspense              |
+| `apps/web/package.json`                             | 12 new deps, 4 new devDeps               |
+
+### New packages added
+
+| Package                   | Category           |
+| ------------------------- | ------------------ |
+| `@novu/api`               | Notifications      |
+| `@sentry/nextjs`          | Error tracking     |
+| `posthog-js`              | Analytics          |
+| `@opentelemetry/api`      | Observability      |
+| `zustand`                 | State management   |
+| `tailwind-merge`          | CSS utility        |
+| `react-google-recaptcha`  | Security           |
+| `tailwindcss-animate`     | Animation (dev)    |
+| `@tailwindcss/typography` | Prose styles (dev) |
+| `@faker-js/faker`         | Test data (dev)    |
+
+---
+
+## Updated MVP Feature Completeness
+
+| PRD Feature            | Status      | Notes                                      |
+| ---------------------- | ----------- | ------------------------------------------ |
+| Address Autocomplete   | ✅ Complete | Google Places in filter bar                |
+| Hidden Jobs            | ✅ Complete | Hide/unhide with API + Zustand persistence |
+| Split View             | ✅ Complete | List + Map side-by-side                    |
+| Compare → Chat         | ✅ Complete | "Discuss with AI" sends comparison to chat |
+| Cover Letter Deep Link | ✅ Complete | `?job=` wired through ChatContext          |
+| Geocoding Backfill     | ✅ Complete | `/api/admin/geocode` POST endpoint         |
+| Novu Notifications     | ✅ Complete | Client + trigger helpers                   |
+| Sentry Error Tracking  | ✅ Complete | Client + server + edge configs             |
+| PostHog Analytics      | ✅ Complete | Provider + pageview tracking               |
+| API Documentation      | ✅ Complete | OpenAPI spec + Scalar UI                   |
+
+---
+
 ## Known Limitations / Future Work
 
 These items are intentionally out of scope:
@@ -392,4 +479,4 @@ Runtime validation is in `apps/web/lib/env.ts` — missing required vars throw a
 
 ---
 
-_Generated on 2026-02-15, updated 2026-02-18 with Batch 11 (Phase 7)._
+_Generated on 2026-02-15, updated 2026-02-23 with Batch 12 (Infrastructure Integrations + Compare→Chat + Hidden Jobs)._

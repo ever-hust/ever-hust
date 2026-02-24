@@ -21,7 +21,7 @@ export const userJobs = pgTable(
       .references(() => jobs.id, { onDelete: "cascade" }),
 
     status: text("status", {
-      enum: ["viewed", "applied", "favorited", "rejected"],
+      enum: ["viewed", "applied", "favorited", "rejected", "hidden"],
     }).notNull(),
 
     appliedAt: timestamp("applied_at"),

@@ -433,112 +433,94 @@ export default async function JobDetailPage({ params }: PageProps) {
                 <dl className="space-y-4">
                   {job.jobType && job.jobType.length > 0 && (
                     <div className="flex items-start gap-3">
-                      <Briefcase className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                      <div>
-                        <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                          Job Type
-                        </dt>
-                        <dd className="mt-0.5 text-sm">{job.jobType.join(", ")}</dd>
-                      </div>
+                      <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        <Briefcase className="h-4 w-4 shrink-0" aria-hidden="true" />
+                        Job Type
+                      </dt>
+                      <dd className="mt-0.5 text-sm">{job.jobType.join(", ")}</dd>
                     </div>
                   )}
 
                   {job.jobLevel && (
                     <div className="flex items-start gap-3">
-                      <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                      <div>
-                        <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                          Experience Level
-                        </dt>
-                        <dd className="mt-0.5 text-sm">{job.jobLevel}</dd>
-                      </div>
+                      <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        <GraduationCap className="h-4 w-4 shrink-0" aria-hidden="true" />
+                        Experience Level
+                      </dt>
+                      <dd className="mt-0.5 text-sm">{job.jobLevel}</dd>
                     </div>
                   )}
 
                   {job.department && (
                     <div className="flex items-start gap-3">
-                      <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                      <div>
-                        <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                          Department
-                        </dt>
-                        <dd className="mt-0.5 text-sm">{job.department}</dd>
-                      </div>
+                      <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        <Building2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+                        Department
+                      </dt>
+                      <dd className="mt-0.5 text-sm">{job.department}</dd>
                     </div>
                   )}
 
                   {job.team && (
                     <div className="flex items-start gap-3">
-                      <Users className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                      <div>
-                        <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                          Team
-                        </dt>
-                        <dd className="mt-0.5 text-sm">{job.team}</dd>
-                      </div>
+                      <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        <Users className="h-4 w-4 shrink-0" aria-hidden="true" />
+                        Team
+                      </dt>
+                      <dd className="mt-0.5 text-sm">{job.team}</dd>
                     </div>
                   )}
 
                   {job.employmentType && (
                     <div className="flex items-start gap-3">
-                      <Briefcase className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                      <div>
-                        <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                          Employment Type
-                        </dt>
-                        <dd className="mt-0.5 text-sm">{job.employmentType}</dd>
-                      </div>
+                      <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        <Briefcase className="h-4 w-4 shrink-0" aria-hidden="true" />
+                        Employment Type
+                      </dt>
+                      <dd className="mt-0.5 text-sm">{job.employmentType}</dd>
                     </div>
                   )}
 
                   {job.jobFunction && (
                     <div className="flex items-start gap-3">
-                      <Briefcase className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                      <div>
-                        <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                          Function
-                        </dt>
-                        <dd className="mt-0.5 text-sm">{job.jobFunction}</dd>
-                      </div>
+                      <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        <Briefcase className="h-4 w-4 shrink-0" aria-hidden="true" />
+                        Function
+                      </dt>
+                      <dd className="mt-0.5 text-sm">{job.jobFunction}</dd>
                     </div>
                   )}
 
                   {salary && (
                     <div className="flex items-start gap-3">
-                      <DollarSign className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                      <div>
-                        <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                          Salary Range
-                        </dt>
-                        <dd className="mt-0.5 text-sm">{salary}</dd>
-                      </div>
+                      <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        <DollarSign className="h-4 w-4 shrink-0" aria-hidden="true" />
+                        Salary Range
+                      </dt>
+                      <dd className="mt-0.5 text-sm">{salary}</dd>
                     </div>
                   )}
 
                   {location && (
                     <div className="flex items-start gap-3">
-                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                      <div>
-                        <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                          Location
-                        </dt>
-                        <dd className="mt-0.5 text-sm">
-                          {location}
-                          {job.isRemote && " (Remote)"}
-                        </dd>
-                      </div>
+                      <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
+                        Location
+                      </dt>
+                      <dd className="mt-0.5 text-sm">
+                        {location}
+                        {job.isRemote && " (Remote)"}
+                      </dd>
                     </div>
                   )}
 
                   {postedDate && (
                     <div className="flex items-start gap-3">
-                      <Calendar className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                      <div>
-                        <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                          Date Posted
-                        </dt>
-                        <dd className="mt-0.5 text-sm">{postedDate}</dd>
-                      </div>
+                      <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        <Calendar className="h-4 w-4 shrink-0" aria-hidden="true" />
+                        Date Posted
+                      </dt>
+                      <dd className="mt-0.5 text-sm">{postedDate}</dd>
                     </div>
                   )}
                 </dl>
@@ -637,19 +619,7 @@ export default async function JobDetailPage({ params }: PageProps) {
               </Card>
             )}
 
-            {/* Apply CTA in sidebar */}
-            {applyLink && (
-              <Button className="block w-full" size="lg" asChild>
-                <a
-                  href={applyLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Apply Now
-                  <ExternalLink className="ml-1 h-4 w-4" aria-hidden="true" />
-                </a>
-              </Button>
-            )}
+            {/* Apply button removed — the main content area already has a prominent Apply button */}
           </div>
         </div>
       </div>

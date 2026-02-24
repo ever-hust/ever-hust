@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect, memo } from "react";
-import { Heart, ExternalLink, MapPin, Building2, Clock, FileText, Share2, Check } from "lucide-react";
+import { Heart, ExternalLink, MapPin, Building2, Clock, FileText, Share2, Check, EyeOff } from "lucide-react";
 import { Badge } from "@ever-hust/ui/badge";
 import { Button } from "@ever-hust/ui/button";
 import { cn } from "@ever-hust/ui/lib/utils";
@@ -46,6 +46,7 @@ interface JobCardProps {
   onFavorite?: (jobId: number) => void;
   onViewDetails?: (jobId: number) => void;
   onToggleCompare?: (jobId: number) => void;
+  onHide?: (jobId: number) => void;
 }
 
 /** Duration of the favorite-button bounce animation (ms). */
@@ -59,6 +60,7 @@ export const JobCard = memo(function JobCard({
   onFavorite,
   onViewDetails,
   onToggleCompare,
+  onHide,
 }: JobCardProps) {
   const [animating, setAnimating] = useState(false);
   const animTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -152,7 +154,7 @@ export const JobCard = memo(function JobCard({
                 : "border-muted-foreground/30 bg-background hover:border-primary"
             )}
             aria-label={isSelected ? `Deselect ${job.title} from comparison` : `Select ${job.title} for comparison`}
-            aria-pressed={isSelected}
+            aria-pressed={isSelected ? true : false}
           >
             {isSelected && <Check className="h-3 w-3" aria-hidden="true" />}
           </button>
@@ -206,27 +208,45 @@ export const JobCard = memo(function JobCard({
               </p>
             </div>
 
-            {/* Favorite button with animation */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn(
-                "h-7 w-7 shrink-0 transition-transform",
-                animating && "scale-125"
+            <div className="flex items-center gap-0.5">
+              {/* Hide button */}
+              {onHide && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  aria-label={`Hide ${job.title}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onHide(job.id);
+                  }}
+                >
+                  <EyeOff className="h-4 w-4 text-muted-foreground hover:text-foreground transition-colors" />
+                </Button>
               )}
-              aria-label={isFavorited ? `Remove ${job.title} from favorites` : `Add ${job.title} to favorites`}
-              aria-pressed={isFavorited}
-              onClick={handleFavorite}
-            >
-              <Heart
+
+              {/* Favorite button with animation */}
+              <Button
+                variant="ghost"
+                size="icon"
                 className={cn(
-                  "h-4 w-4 transition-colors duration-200",
-                  isFavorited
-                    ? "fill-red-500 text-red-500"
-                    : "text-muted-foreground hover:text-red-400"
+                  "h-7 w-7 shrink-0 transition-transform",
+                  animating && "scale-125"
                 )}
-              />
-            </Button>
+                aria-label={isFavorited ? `Remove ${job.title} from favorites` : `Add ${job.title} to favorites`}
+                aria-pressed={isFavorited}
+                onClick={handleFavorite}
+              >
+                <Heart
+                  className={cn(
+                    "h-4 w-4 transition-colors duration-200",
+                    isFavorited
+                      ? "fill-red-500 text-red-500"
+                      : "text-muted-foreground hover:text-red-400"
+                  )}
+                />
+              </Button>
+            </div>
           </div>
 
           {/* Location and salary */}

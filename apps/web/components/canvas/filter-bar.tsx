@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, useCallback, memo } from "react";
 import { Input } from "@ever-hust/ui/input";
 import { Button } from "@ever-hust/ui/button";
 import { Badge } from "@ever-hust/ui/badge";
+import { AddressAutocomplete } from "./address-autocomplete";
 
 export interface JobFilters {
   keywords?: string;
@@ -113,16 +114,13 @@ export const FilterBar = memo(function FilterBar({ filters, onFiltersChange }: F
           />
         </div>
         <div className="relative min-w-0 flex-1 basis-[140px]">
-          <Input
-            aria-label="Filter by location"
-            placeholder="Location..."
+          <AddressAutocomplete
             value={localLocation}
-            onChange={(e) => {
-              const value = e.target.value;
+            onChange={(value) => {
               setLocalLocation(value);
               debouncedUpdate({ location: value || undefined });
             }}
-            className="h-8 text-sm"
+            placeholder="City, state, or country..."
           />
         </div>
         <Button

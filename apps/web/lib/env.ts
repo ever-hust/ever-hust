@@ -98,6 +98,16 @@ export const env = {
 
   // Google Maps (optional — map view disabled when not set)
   NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: optional("NEXT_PUBLIC_GOOGLE_MAPS_API_KEY"),
+
+  // PostHog analytics (optional — analytics disabled when not set)
+  NEXT_PUBLIC_POSTHOG_KEY: optional("NEXT_PUBLIC_POSTHOG_KEY"),
+  NEXT_PUBLIC_POSTHOG_HOST: optional("NEXT_PUBLIC_POSTHOG_HOST", "https://us.i.posthog.com"),
+
+  // Sentry error tracking (optional — error tracking disabled when not set)
+  NEXT_PUBLIC_SENTRY_DSN: optional("NEXT_PUBLIC_SENTRY_DSN"),
+
+  // Novu notifications (optional — notifications disabled when not set)
+  NOVU_API_KEY: optional("NOVU_API_KEY"),
 } as const;
 
 // ---------------------------------------------------------------------------

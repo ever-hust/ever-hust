@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useMemo, useEffect, memo } from "react";
-import { Briefcase, Loader2, GitCompareArrows, X, SearchX, List, Map } from "lucide-react";
+import { Briefcase, Loader2, GitCompareArrows, X, SearchX, List, Map, LayoutGrid } from "lucide-react";
 import { Button } from "@ever-hust/ui/button";
 import { Badge } from "@ever-hust/ui/badge";
 import { JobCard, type JobCardData } from "./job-card";
@@ -40,6 +40,7 @@ interface JobsCanvasProps {
   onViewDetails: (jobId: number) => void;
   onToggleCompareMode?: () => void;
   onToggleJobCompare?: (jobId: number) => void;
+  onHideJob?: (jobId: number) => void;
 }
 
 export const JobsCanvas = memo(function JobsCanvas({
@@ -57,12 +58,13 @@ export const JobsCanvas = memo(function JobsCanvas({
   onViewDetails,
   onToggleCompareMode,
   onToggleJobCompare,
+  onHideJob,
 }: JobsCanvasProps) {
   // Internal compare state — used when controlled props are not provided
   const [internalCompareMode, setInternalCompareMode] = useState(false);
   const [internalSelectedIds, setInternalSelectedIds] = useState<Set<number>>(new Set());
   const [compareDialogOpen, setCompareDialogOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"list" | "map">("list");
+  const [viewMode, setViewMode] = useState<"list" | "map" | "split">("list");
 
   const isCompareMode = controlledCompareMode ?? internalCompareMode;
   const selectedJobIds = controlledSelectedIds ?? internalSelectedIds;
@@ -191,12 +193,12 @@ export const JobsCanvas = memo(function JobsCanvas({
           </Button>
         )}
 
-        {/* List / Map toggle */}
+        {/* List / Map / Split toggle */}
         <div className="flex items-center rounded-md border" role="tablist" aria-label="View mode">
           <button
             type="button"
             role="tab"
-            aria-selected={viewMode === "list"}
+            aria-selected={viewMode === "list" ? true : false}
             className={`inline-flex items-center gap-1 rounded-l-md px-2.5 py-1 text-xs font-medium transition-colors ${
               viewMode === "list"
                 ? "bg-primary text-primary-foreground"
@@ -210,7 +212,21 @@ export const JobsCanvas = memo(function JobsCanvas({
           <button
             type="button"
             role="tab"
-            aria-selected={viewMode === "map"}
+            aria-selected={viewMode === "split" ? true : false}
+            className={`inline-flex items-center gap-1 border-l border-r px-2.5 py-1 text-xs font-medium transition-colors ${
+              viewMode === "split"
+                ? "bg-primary text-primary-foreground"
+                : "bg-transparent text-muted-foreground hover:bg-accent"
+            }`}
+            onClick={() => setViewMode("split")}
+          >
+            <LayoutGrid className="h-3 w-3" aria-hidden="true" />
+            Split
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={viewMode === "map" ? true : false}
             className={`inline-flex items-center gap-1 rounded-r-md px-2.5 py-1 text-xs font-medium transition-colors ${
               viewMode === "map"
                 ? "bg-primary text-primary-foreground"
@@ -247,7 +263,7 @@ export const JobsCanvas = memo(function JobsCanvas({
         </div>
       )}
 
-      {/* Job cards (list) or map view */}
+      {/* Job cards (list), map view, or split view */}
       {viewMode === "map" ? (
         <div className="flex-1 px-3 pb-3">
           <GoogleMapView
@@ -256,8 +272,47 @@ export const JobsCanvas = memo(function JobsCanvas({
             onViewDetails={onViewDetails}
           />
         </div>
+      ) : viewMode === "split" ? (
+        <div className="flex flex-1 gap-3 overflow-hidden px-3 pb-3">
+          {/* Left: scrollable job list */}
+          <div className="w-1/2 overflow-y-auto space-y-2" role="feed" aria-busy={isLoading ? true : false} aria-label="Job results">
+              {jobs.map((job, index) => (
+                <div
+                  key={job.id}
+                  ref={index === jobs.length - 1 ? lastJobRef : undefined}
+                >
+                  <JobCard
+                    job={job}
+                    isFavorited={favoritedJobIds.has(job.id)}
+                    isCompareMode={isCompareMode}
+                    isSelected={selectedJobIds.has(job.id)}
+                    onFavorite={onFavorite}
+                    onViewDetails={onViewDetails}
+                    onToggleCompare={handleToggleJobCompare}
+                    onHide={onHideJob}
+                  />
+                </div>
+              ))}
+              {isLoading && (
+                <div>
+                  <div className="flex items-center justify-center py-4" role="status">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                </div>
+              )}
+            {/* end split job list */}
+          </div>
+          {/* Right: sticky map */}
+          <div className="w-1/2">
+            <GoogleMapView
+              jobs={jobs}
+              favoritedJobIds={favoritedJobIds}
+              onViewDetails={onViewDetails}
+            />
+          </div>
+        </div>
       ) : (
-      <div className="flex-1 overflow-y-auto px-3 pb-3" role="feed" aria-busy={isLoading}>
+      <div className="flex-1 overflow-y-auto px-3 pb-3" role="feed" aria-busy={isLoading ? true : false}>
         {jobs.length === 0 && isLoading ? (
           <JobCardSkeletonList count={5} />
         ) : jobs.length === 0 && !isLoading ? (
@@ -283,9 +338,9 @@ export const JobsCanvas = memo(function JobsCanvas({
             />
           )
         ) : (
-          <ul className="space-y-2" aria-label="Job results">
+          <div className="space-y-2" aria-label="Job results">
             {jobs.map((job, index) => (
-              <li
+              <div
                 key={job.id}
                 ref={index === jobs.length - 1 ? lastJobRef : undefined}
               >
@@ -297,19 +352,20 @@ export const JobsCanvas = memo(function JobsCanvas({
                   onFavorite={onFavorite}
                   onViewDetails={onViewDetails}
                   onToggleCompare={handleToggleJobCompare}
+                  onHide={onHideJob}
                 />
-              </li>
+              </div>
             ))}
 
             {isLoading && (
-              <li className="list-none">
+              <div>
                 <div className="flex items-center justify-center py-4" role="status" aria-label="Loading more jobs">
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" aria-hidden="true" />
                   <span className="sr-only">Loading more jobs...</span>
                 </div>
-              </li>
+              </div>
             )}
-          </ul>
+          </div>
         )}
       </div>
       )}

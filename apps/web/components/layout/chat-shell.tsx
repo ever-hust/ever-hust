@@ -29,7 +29,7 @@ interface ChatShellProps {
 }
 
 export function ChatShell({ children }: ChatShellProps) {
-  const { chatOpen, toggleChat, onToolResult, onCoverLetter } =
+  const { chatOpen, toggleChat, onToolResult, onCoverLetter, initialPrompt } =
     useChatContext();
 
   // Track if component has mounted (for initial animation prevention)
@@ -75,6 +75,7 @@ export function ChatShell({ children }: ChatShellProps) {
         <ChatPanel
           onToolResult={onToolResult}
           onCoverLetter={onCoverLetter}
+          initialPrompt={initialPrompt}
         />
       </div>
 
@@ -154,6 +155,7 @@ export function ChatShell({ children }: ChatShellProps) {
             <ChatPanel
               onToolResult={onToolResult}
               onCoverLetter={onCoverLetter}
+              initialPrompt={initialPrompt}
             />
           </div>
         </>

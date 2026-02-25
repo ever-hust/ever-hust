@@ -17,6 +17,75 @@ export const auth = betterAuth({
   }),
   baseURL: process.env.BETTER_AUTH_URL,
   secret: process.env.BETTER_AUTH_SECRET,
+
+  // ---------------------------------------------------------------------------
+  // Email & Password authentication (fallback for users without social accounts)
+  // ---------------------------------------------------------------------------
+  emailAndPassword: {
+    enabled: true,
+    autoSignIn: true,
+    minPasswordLength: 8,
+    maxPasswordLength: 128,
+    requireEmailVerification: true,
+    sendResetPassword: async ({ user, url }) => {
+      try {
+        const { Resend } = await import("resend");
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        await resend.emails.send({
+          from: process.env.EMAIL_FROM ?? "alerts@everjobs.ai",
+          to: user.email,
+          subject: "Reset your password",
+          html: `
+            <p>Hi ${user.name ?? user.email.split("@")[0]},</p>
+            <p>Click the link below to reset your password:</p>
+            <p><a href="${url}">Reset Password</a></p>
+            <p>If you didn't request this, you can safely ignore this email.</p>
+          `,
+        });
+      } catch (error) {
+        console.error(
+          `[Auth] Failed to send password reset email to ${user.email}:`,
+          error instanceof Error ? error.message : error
+        );
+      }
+    },
+  },
+
+  // ---------------------------------------------------------------------------
+  // Email verification — only applies to email/password sign-ups
+  // ---------------------------------------------------------------------------
+  emailVerification: {
+    sendOnSignUp: true,
+    autoSignInAfterVerification: true,
+    expiresIn: 60 * 60 * 24, // 24 hours
+    sendVerificationEmail: async ({ user, url }) => {
+      try {
+        const { sendVerificationEmail: sendEmail } = await import("@ever-hust/email");
+        await sendEmail({
+          to: user.email,
+          userName: user.name ?? user.email.split("@")[0],
+          verificationUrl: url,
+        });
+      } catch (error) {
+        console.error(
+          `[Auth] Failed to send verification email to ${user.email}:`,
+          error instanceof Error ? error.message : error
+        );
+      }
+    },
+  },
+
+  // ---------------------------------------------------------------------------
+  // Account linking: allows users who registered with LinkedIn to later log in
+  // with GitHub (or other providers) by matching on verified email.
+  // ---------------------------------------------------------------------------
+  account: {
+    accountLinking: {
+      enabled: true,
+      trustedProviders: ["linkedin", "github", "google", "facebook", "twitter"],
+    },
+  },
+
   socialProviders: {
     linkedin: {
       clientId: process.env.LINKEDIN_CLIENT_ID ?? "",
@@ -34,6 +103,22 @@ export const auth = betterAuth({
           photoUrl: profile.picture ?? null,
         };
       },
+    },
+    github: {
+      clientId: process.env.GITHUB_CLIENT_ID ?? "",
+      clientSecret: process.env.GITHUB_CLIENT_SECRET ?? "",
+    },
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID ?? "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+    },
+    facebook: {
+      clientId: process.env.FACEBOOK_CLIENT_ID ?? "",
+      clientSecret: process.env.FACEBOOK_CLIENT_SECRET ?? "",
+    },
+    twitter: {
+      clientId: process.env.TWITTER_CLIENT_ID ?? "",
+      clientSecret: process.env.TWITTER_CLIENT_SECRET ?? "",
     },
   },
   session: {

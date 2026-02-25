@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 
 export const getUserProfileTool = tool({
   description:
-    "Get the current user's profile information including their name, skills, preferences, and onboarding status. Use this to personalize recommendations and check if onboarding is needed.",
+    "Get the current user's profile information including their name, skills, preferences, CV data (work history, education, summary), and onboarding status. Use this to personalize recommendations, check if onboarding is needed, or access the user's CV-extracted data for job matching and resume building.",
   inputSchema: z.object({
     // userId is injected server-side by the orchestrator — not LLM-provided
     userId: z.string().optional(),
@@ -26,6 +26,7 @@ export const getUserProfileTool = tool({
         preferences: users.preferences,
         onboardingCompleted: users.onboardingCompleted,
         photoUrl: users.photoUrl,
+        cvParsedData: users.cvParsedData,
       })
       .from(users)
       .where(eq(users.id, userId))
@@ -45,9 +46,28 @@ export const getUserProfileTool = tool({
     const safePreferences = prefs
       ? { ...prefs, apiKeys: undefined }
       : undefined;
+
+    // Strip PII and rawText from CV data before returning to LLM context
+    // Keep: headline, summary, skills, experience (title+company+dates), education
+    // Omit: email, phone, rawText (too large / PII)
+    const rawCv = user.cvParsedData as Record<string, unknown> | null;
+    let safeCvData: Record<string, unknown> | undefined;
+    if (rawCv) {
+      safeCvData = {
+        headline: rawCv.headline,
+        summary: rawCv.summary,
+        skills: rawCv.skills,
+        experience: rawCv.experience,
+        education: rawCv.education,
+        location: rawCv.location,
+        name: rawCv.name,
+      };
+    }
+
     return {
       found: true,
       ...user,
+      cvParsedData: safeCvData,
       preferences: safePreferences,
       onboardingCompleted: !!user.onboardingCompleted,
     };

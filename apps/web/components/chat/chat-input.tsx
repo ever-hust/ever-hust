@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useCallback, useEffect } from "react";
+import { useRef, useCallback, useEffect, memo } from "react";
 import { Send, StopCircle } from "lucide-react";
 import { Button } from "@ever-hust/ui/button";
 
@@ -23,7 +23,7 @@ const CHAR_COUNT_WARNING_THRESHOLD = 4_000;
 /** Hard limit on input length. */
 const MAX_INPUT_LENGTH = 8_000;
 
-export function ChatInput({
+export const ChatInput = memo(function ChatInput({
   input,
   onInputChange,
   onSend,
@@ -129,4 +129,4 @@ export function ChatInput({
       </div>
     </div>
   );
-}
+});

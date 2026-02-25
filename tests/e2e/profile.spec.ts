@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { test, expect } from "@playwright/test";
 
 test.describe("Profile Page - Auth Redirect", () => {
@@ -115,6 +116,46 @@ test.describe("Alerts API", () => {
 test.describe("CV Upload API", () => {
   test("upload endpoint requires authentication", async ({ request }) => {
     const response = await request.post("/api/cv/upload");
+    expect(response.status()).toBe(401);
+  });
+
+  test("upload rejects unauthenticated PDF upload", async ({ request }) => {
+    const response = await request.post("/api/cv/upload", {
+      multipart: {
+        file: {
+          name: "resume.pdf",
+          mimeType: "application/pdf",
+          buffer: Buffer.from("fake-pdf-content"),
+        },
+      },
+    });
+    expect(response.status()).toBe(401);
+  });
+
+  test("upload rejects unauthenticated DOCX upload", async ({ request }) => {
+    const response = await request.post("/api/cv/upload", {
+      multipart: {
+        file: {
+          name: "resume.docx",
+          mimeType:
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          buffer: Buffer.from("fake-docx-content"),
+        },
+      },
+    });
+    expect(response.status()).toBe(401);
+  });
+
+  test("upload rejects unauthenticated TXT upload", async ({ request }) => {
+    const response = await request.post("/api/cv/upload", {
+      multipart: {
+        file: {
+          name: "resume.txt",
+          mimeType: "text/plain",
+          buffer: Buffer.from("John Doe\nSoftware Engineer"),
+        },
+      },
+    });
     expect(response.status()).toBe(401);
   });
 });

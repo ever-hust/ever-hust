@@ -5,7 +5,7 @@ const CACHE_NAME = "ever-jobs-v1";
 const OFFLINE_URL = "/offline";
 
 // Assets to cache immediately on install
-const PRECACHE_ASSETS = ["/manifest.json"];
+const PRECACHE_ASSETS = ["/manifest.json", "/offline"];
 
 // Install: cache critical assets
 self.addEventListener("install", (event) => {

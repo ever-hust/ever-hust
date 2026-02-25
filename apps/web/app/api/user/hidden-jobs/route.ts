@@ -1,8 +1,15 @@
 import { db, userJobs } from "@ever-hust/db";
 import { and, eq } from "drizzle-orm";
-import { auth } from "@ever-hust/auth";
-import { headers } from "next/headers";
-import { apiSuccess, apiUnauthorized, apiError, apiBadRequest } from "../../../../lib/api-response";
+import { NextResponse } from "next/server";
+import { requireSessionUser } from "../../../../lib/get-session-user";
+import { applyRateLimit } from "../../../../lib/rate-limit";
+import { hiddenJobToggleSchema, parseBody } from "../../../../lib/api-schemas";
+import {
+  apiSuccess,
+  apiBadRequest,
+  apiError,
+  safeJsonParse,
+} from "../../../../lib/api-response";
 
 /**
  * POST /api/user/hidden-jobs — Hide a job for the user
@@ -10,9 +17,17 @@ import { apiSuccess, apiUnauthorized, apiError, apiBadRequest } from "../../../.
  * GET /api/user/hidden-jobs — List hidden job IDs
  */
 
-export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return apiUnauthorized();
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function GET(_req: Request) {
+  let user;
+  try {
+    user = await requireSessionUser();
+  } catch (response) {
+    return response as NextResponse;
+  }
+
+  const rateLimited = applyRateLimit(user.id, "authenticated");
+  if (rateLimited) return rateLimited;
 
   try {
     const result = await db
@@ -20,31 +35,45 @@ export async function GET() {
       .from(userJobs)
       .where(
         and(
-          eq(userJobs.userId, session.user.id),
+          eq(userJobs.userId, user.id),
           eq(userJobs.status, "hidden")
         )
       );
 
     return apiSuccess({ hiddenJobIds: result.map((r) => r.jobId) });
   } catch (err) {
-    console.error("[hidden-jobs] GET error:", err);
+    console.error(
+      "[api/user/hidden-jobs] GET failed:",
+      err instanceof Error ? err.message : err,
+    );
     return apiError("Failed to fetch hidden jobs");
   }
 }
 
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return apiUnauthorized();
+  let user;
+  try {
+    user = await requireSessionUser();
+  } catch (response) {
+    return response as NextResponse;
+  }
+
+  const rateLimited = applyRateLimit(user.id, "authenticated");
+  if (rateLimited) return rateLimited;
+
+  const jsonResult = await safeJsonParse(req);
+  if (!jsonResult.ok) return jsonResult.response;
+  const validation = parseBody(hiddenJobToggleSchema, jsonResult.data);
+  if (!validation.success) {
+    return apiBadRequest(validation.error);
+  }
+  const { jobId } = validation.data;
 
   try {
-    const body = await req.json();
-    const jobId = Number(body.jobId);
-    if (!Number.isFinite(jobId)) return apiBadRequest("Invalid jobId");
-
     await db
       .insert(userJobs)
       .values({
-        userId: session.user.id,
+        userId: user.id,
         jobId,
         status: "hidden",
         createdAt: new Date(),
@@ -57,25 +86,38 @@ export async function POST(req: Request) {
 
     return apiSuccess({ hidden: true, jobId });
   } catch (err) {
-    console.error("[hidden-jobs] POST error:", err);
+    console.error(
+      "[api/user/hidden-jobs] POST failed:",
+      err instanceof Error ? err.message : err,
+    );
     return apiError("Failed to hide job");
   }
 }
 
 export async function DELETE(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return apiUnauthorized();
+  let user;
+  try {
+    user = await requireSessionUser();
+  } catch (response) {
+    return response as NextResponse;
+  }
+
+  const rateLimited = applyRateLimit(user.id, "authenticated");
+  if (rateLimited) return rateLimited;
+
+  const url = new URL(req.url);
+  const rawJobId = url.searchParams.get("jobId");
+  const jobId = Number(rawJobId);
+  if (!rawJobId || !Number.isFinite(jobId) || jobId < 1) {
+    return apiBadRequest("Invalid or missing jobId query parameter");
+  }
 
   try {
-    const url = new URL(req.url);
-    const jobId = Number(url.searchParams.get("jobId"));
-    if (!Number.isFinite(jobId)) return apiBadRequest("Invalid jobId");
-
     await db
       .delete(userJobs)
       .where(
         and(
-          eq(userJobs.userId, session.user.id),
+          eq(userJobs.userId, user.id),
           eq(userJobs.jobId, jobId),
           eq(userJobs.status, "hidden")
         )
@@ -83,7 +125,10 @@ export async function DELETE(req: Request) {
 
     return apiSuccess({ hidden: false, jobId });
   } catch (err) {
-    console.error("[hidden-jobs] DELETE error:", err);
+    console.error(
+      "[api/user/hidden-jobs] DELETE failed:",
+      err instanceof Error ? err.message : err,
+    );
     return apiError("Failed to unhide job");
   }
 }

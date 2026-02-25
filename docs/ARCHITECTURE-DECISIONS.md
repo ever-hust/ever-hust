@@ -328,6 +328,100 @@ This document captures key architectural decisions made during the MVP implement
 
 ---
 
+## ADR-017: Email Verification for Password Signups
+
+**Context**: Users signing up with email/password need to verify their email address to prevent abuse and ensure deliverability of transactional emails.
+
+**Decision**: Use BetterAuth's built-in `emailVerification` configuration in `packages/auth/src/index.ts`:
+
+- `sendOnSignUp: true` — sends verification email immediately on registration
+- `autoSignInAfterVerification: true` — auto-signs user in after clicking verification link
+- `expiresIn: 86400` (24 hours) — token expiry
+- `requireEmailVerification: true` — blocks login until verified
+
+**Scope**: Only email/password registrations require verification. OAuth providers (LinkedIn, Google, GitHub) are trusted to have pre-verified emails.
+
+**Implementation**:
+
+- Verification email template at `packages/email/src/templates/verification-email.tsx`
+- `sendVerificationEmail()` in `packages/email/src/send.ts` with retry logic
+- `/verify-email` page at `apps/web/app/(auth)/verify-email/page.tsx`
+
+**Consequence**:
+
+- Reduces spam accounts and validates email deliverability
+- Users see a clear "check your email" prompt after signup
+- Token-based verification with 24h expiry balances UX and security
+
+**Status**: Implemented.
+
+---
+
+## ADR-018: Uppy + Supabase Storage for File Uploads
+
+**Context**: The app needs file upload capabilities for CVs and avatars. Previously, CV uploads used a custom `CVDropzone` component. The approach needs standardization.
+
+**Decision**: Adopt **Uppy** as the standard file upload library and **Supabase Storage** as the storage backend for all user-uploaded files.
+
+- **Uppy Core** (`@uppy/core`) + **Dashboard** (`@uppy/dashboard`) + **XHR Upload** (`@uppy/xhr-upload`) for the client-side upload UI
+- **Supabase Storage** helpers in `packages/supabase/src/storage.ts`: `uploadFile()`, `getPublicUrl()`, `deleteFile()`
+- Avatar images stored at `avatars/{userId}.{ext}` in Supabase Storage
+- CV PDFs stored at `cvs/{userId}/{filename}` in Supabase Storage
+
+**API routes**:
+
+- `/api/user/avatar` — handles avatar upload, stores in Supabase, updates `photoUrl`
+- `/api/cv/upload` — handles CV upload to Supabase + AI extraction pipeline
+
+**Consequence**:
+
+- Single upload library across the app (replaces custom `CVDropzone`)
+- CDN-backed storage with public URLs via Supabase
+- `SUPABASE_SERVICE_ROLE_KEY` required for server-side uploads
+- Deprecated: `apps/web/components/canvas/cv-dropzone.tsx` (deleted)
+
+**Status**: Implemented. Profile page uses `UppyCvUpload` and `UppyAvatarUpload` components.
+
+---
+
+## ADR-019: Dark Mode Toggle on Auth Pages
+
+**Context**: The dashboard has theme support via `next-themes`, but auth pages (login, reset-password) had no way to switch themes before the user is authenticated.
+
+**Decision**: Add a `ThemeToggle` component to the top-right corner of all public auth pages (login, reset-password). The component uses `useTheme()` from `next-themes` with Sun/Moon icons.
+
+**Implementation**:
+
+- `apps/web/components/shared/theme-toggle.tsx` — reusable toggle with animated icon swap
+- Rendered in `apps/web/app/(auth)/login/page.tsx` and `apps/web/app/(auth)/reset-password/page.tsx`
+
+**Status**: Implemented.
+
+---
+
+## ADR-020: Global 429 Rate Limit Feedback
+
+**Context**: API routes enforce rate limits, but the client had no unified way to detect and communicate rate limiting to users.
+
+**Decision**: Implement a global `RateLimitInterceptor` component that patches `window.fetch()` to detect HTTP 429 responses and display a user-friendly toast notification via Sonner.
+
+**Details**:
+
+- Mounted once in the root layout (`apps/web/app/layout.tsx`)
+- Patches `window.fetch` on mount, restores on unmount
+- De-duplicates toasts with a 5-second cooldown to avoid flooding
+- Shows "Too many requests — please wait a moment." toast
+
+**Consequence**:
+
+- Consistent UX for all rate-limited endpoints (no per-route handling needed)
+- Users get immediate actionable feedback instead of silent failures
+- Does not block the 429 response — calling code still receives the original response
+
+**Status**: Implemented.
+
+---
+
 ## Document Index
 
 | Document               | Location                                                              | Description                         |
@@ -336,9 +430,10 @@ This document captures key architectural decisions made during the MVP implement
 | MVP Summary            | [docs/MVP-IMPLEMENTATION-SUMMARY.md](./MVP-IMPLEMENTATION-SUMMARY.md) | Detailed implementation changelog   |
 | Architecture Decisions | [docs/ARCHITECTURE-DECISIONS.md](./ARCHITECTURE-DECISIONS.md)         | This document                       |
 | Testing Guide          | [docs/TESTING.md](./TESTING.md)                                       | Test setup, running, writing tests  |
+| Security               | [SECURITY.md](../SECURITY.md)                                         | Auth security measures              |
 | README                 | [README.md](../README.md)                                             | Project setup and getting started   |
 | Environment Variables  | [.env.example](../.env.example)                                       | Required environment variables      |
 
 ---
 
-_Generated on 2026-02-15, updated 2026-02-24 with ADR-016 (Build-Safe Env Validation)._
+_Generated on 2026-02-15, updated 2026-02-24 with ADR-017–020 (Email Verification, Uppy + Supabase Storage, Dark Mode Toggle, Rate Limit Feedback)._

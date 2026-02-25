@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { db } from "@ever-hust/db";
-import { jobs } from "@ever-hust/db";
+import { jobs, users } from "@ever-hust/db";
 import { eq } from "drizzle-orm";
 import {
   extractAtsKeywords,
@@ -23,6 +23,8 @@ export const resumeBuilderTool = tool({
       .describe(
         "Optional job ID to pull specific requirements from a job listing in the database"
       ),
+    // userId is injected server-side by the orchestrator — not LLM-provided
+    userId: z.string().optional(),
     userSummary: z
       .string()
       .max(2000)
@@ -46,11 +48,63 @@ export const resumeBuilderTool = tool({
   execute: async ({
     targetJobTitle,
     targetJobId,
-    userSummary,
-    skills,
-    experience,
+    userId,
+    userSummary: rawUserSummary,
+    skills: rawSkills,
+    experience: rawExperience,
   }) => {
     try {
+      // Auto-fill from user's CV data if the LLM didn't provide fields
+      let userSummary = rawUserSummary;
+      let skills = rawSkills;
+      let experience = rawExperience;
+
+      if (userId && (!skills?.length || !experience?.length || !userSummary)) {
+        try {
+          const [userRow] = await db
+            .select({
+              skills: users.skills,
+              cvParsedData: users.cvParsedData,
+              headline: users.headline,
+            })
+            .from(users)
+            .where(eq(users.id, userId))
+            .limit(1);
+
+          if (userRow) {
+            const cv = userRow.cvParsedData as {
+              summary?: string;
+              headline?: string;
+              skills?: string[];
+              experience?: { company: string; title: string; startDate?: string; endDate?: string }[];
+            } | null;
+
+            // Fill skills from profile if not provided
+            if (!skills?.length) {
+              const profileSkills = (userRow.skills as string[]) ?? [];
+              const cvSkills = cv?.skills ?? [];
+              skills = [...new Set([...profileSkills, ...cvSkills])].slice(0, 50);
+            }
+
+            // Fill experience from CV if not provided
+            if (!experience?.length && cv?.experience?.length) {
+              experience = cv.experience.map(
+                (e) => `${e.title} at ${e.company}${e.startDate ? `, ${e.startDate}` : ""}${e.endDate ? `-${e.endDate}` : ""}`,
+              );
+            }
+
+            // Fill summary from CV if not provided
+            if (!userSummary) {
+              userSummary = cv?.summary ?? cv?.headline ?? userRow.headline ?? undefined;
+            }
+          }
+        } catch (cvErr) {
+          console.warn(
+            "[resume-builder] Failed to auto-fetch user CV data:",
+            cvErr instanceof Error ? cvErr.message : cvErr,
+          );
+        }
+      }
       let targetJob: {
         title: string;
         company: string | null;

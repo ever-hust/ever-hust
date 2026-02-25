@@ -587,6 +587,42 @@ describe("resumeBuilderTool schema", () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it("should accept optional userId as string", () => {
+    const result = resumeBuilderTool.inputSchema.safeParse({
+      targetJobTitle: "Software Engineer",
+      userId: "user_abc123",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("should accept valid UUID userId", () => {
+    const result = resumeBuilderTool.inputSchema.safeParse({
+      targetJobTitle: "Software Engineer",
+      userId: "550e8400-e29b-41d4-a716-446655440000",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("should reject non-string userId", () => {
+    const result = resumeBuilderTool.inputSchema.safeParse({
+      targetJobTitle: "Software Engineer",
+      userId: 12345,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("should validate full input including userId", () => {
+    const result = resumeBuilderTool.inputSchema.safeParse({
+      targetJobTitle: "Senior Backend Engineer",
+      targetJobId: 99,
+      userId: "user_xyz",
+      userSummary: "Full-stack developer with 8 years experience.",
+      skills: ["Go", "Kubernetes", "PostgreSQL"],
+      experience: ["Staff Engineer at Stripe, 2020-Present"],
+    });
+    expect(result.success).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -67,9 +67,9 @@ Turborepo with `apps/*` and `packages/*` workspaces. All packages use `@ever-hus
 - **`packages/ui/`** — ShadCN components exported as `@ever-hust/ui/<component-name>`
 - **`packages/stripe/`** — Stripe checkout, portal, webhook parsing, plan definitions
 - **`packages/jobs-api/`** — Ever Jobs external API client with circuit breaker + retry
-- **`packages/email/`** — React Email templates + Resend sender
+- **`packages/email/`** — React Email templates (welcome, job alert, subscription, verification) + Resend sender
 - **`packages/triggers/`** — Trigger.dev scheduled tasks (job sync, alerts, cleanup)
-- **`packages/supabase/`** — Supabase client for Realtime + Storage
+- **`packages/supabase/`** — Supabase client for Realtime + Storage (`uploadFile`, `getPublicUrl`, `deleteFile`)
 - **`packages/cv-parser/`** — CV/resume parsing logic
 - **`packages/eslint-config/`** — Shared ESLint configs (base, next, react-internal)
 - **`packages/typescript-config/`** — Shared tsconfig presets
@@ -122,12 +122,12 @@ API routes in `apps/web/app/api/` follow a consistent pattern:
 
 ### Component Organization
 
-- **`apps/web/components/canvas/`** — Jobs canvas, job cards (keyboard navigable in compare mode), filter bar, CV dropzone
+- **`apps/web/components/canvas/`** — Jobs canvas, job cards (keyboard navigable in compare mode), filter bar
 - **`apps/web/components/chat/`** — Chat panel, messages, input, tool approval, agent status
 - **`apps/web/components/landing/`** — Marketing page sections (hero, features, pricing, etc.)
 - **`apps/web/components/layout/`** — Sidebar, split-screen layout
 - **`apps/web/components/settings/`** — Settings page cards (AI model, API keys, subscription, etc.)
-- **`apps/web/components/shared/`** — Reusable components (dialogs, error states, keyboard shortcuts)
+- **`apps/web/components/shared/`** — Reusable components (dialogs, error states, keyboard shortcuts, theme-toggle, rate-limit-interceptor, Uppy upload components)
 - **`apps/web/components/onboarding/`** — New user onboarding flow
 - **`apps/web/lib/constants.ts`** — Shared application constants (AI limits, free-tier caps, canvas settings)
 - **`packages/ui/src/alert-dialog.tsx`** — ShadCN AlertDialog component (imported as `@ever-hust/ui/alert-dialog`)
@@ -143,7 +143,9 @@ All marketing pages include JSON-LD structured data: `Organization` (landing), `
 - **BYOK key safety**: When `BYOK_ENCRYPTION_KEY` is absent, the model router detects encrypted ciphertext and falls through to the platform model instead of sending it as an API key
 - **LLM context hygiene**: `getUserProfile` tool strips encrypted API keys from preferences before returning data to LLM context
 - **AI tool input bounds**: All AI tool Zod schemas enforce `.max()` constraints on string/array inputs to limit LLM-generated payload sizes
-- **Service worker**: Includes `push` and `notificationclick` event handlers for Web Push notifications, in addition to offline caching
+- **Service worker**: Includes `push` and `notificationclick` event handlers for Web Push notifications, offline caching with precached `/offline` page
+- **Email verification**: BetterAuth `emailVerification` config for email/password signups only; OAuth providers are trusted
+- **Rate limit UX**: Global `RateLimitInterceptor` patches `window.fetch` to show toast on 429 responses
 
 ### Custom Hooks
 

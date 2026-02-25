@@ -129,6 +129,14 @@ jobs:
           NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_placeholder"
           LINKEDIN_CLIENT_ID: "ci-dummy"
           LINKEDIN_CLIENT_SECRET: "ci-dummy"
+          GITHUB_CLIENT_ID: "ci-dummy"
+          GITHUB_CLIENT_SECRET: "ci-dummy"
+          GOOGLE_CLIENT_ID: "ci-dummy"
+          GOOGLE_CLIENT_SECRET: "ci-dummy"
+          FACEBOOK_CLIENT_ID: "ci-dummy"
+          FACEBOOK_CLIENT_SECRET: "ci-dummy"
+          TWITTER_CLIENT_ID: "ci-dummy"
+          TWITTER_CLIENT_SECRET: "ci-dummy"
 
       - name: Upload Playwright report
         if: always()

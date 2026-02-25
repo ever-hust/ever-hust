@@ -10,6 +10,7 @@ import { QueryProvider } from "@/components/query-provider";
 import { ServiceWorkerRegister } from "@/components/sw-register";
 import { ConnectionStatus } from "@/components/shared/connection-status";
 import { PostHogProvider } from "@/components/providers/posthog-provider";
+import { RateLimitInterceptor } from "@/components/shared/rate-limit-interceptor";
 import { Toaster } from "@ever-hust/ui/sonner";
 import { Suspense } from "react";
 import "./globals.css";
@@ -140,6 +141,7 @@ export default async function RootLayout({
                 </PostHogProvider>
               </Suspense>
               <Toaster />
+              <RateLimitInterceptor />
               <ConnectionStatus />
               <ServiceWorkerRegister />
               <Analytics />

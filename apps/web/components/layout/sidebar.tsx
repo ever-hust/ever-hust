@@ -151,7 +151,7 @@ function LanguageDropdown({
             aria-label="Languages"
           >
             {filtered.length === 0 ? (
-              <li className="px-2 py-3 text-center text-xs text-muted-foreground">
+              <li role="none" className="px-2 py-3 text-center text-xs text-muted-foreground">
                 No languages found
               </li>
             ) : (
@@ -159,29 +159,37 @@ function LanguageDropdown({
                 const { countryCode, label } = localeLabels[locale];
                 const isActive = locale === currentLocale;
                 return (
-                  <li key={locale} role="option" aria-selected={isActive}>
-                    <button
-                      type="button"
-                      onClick={() => {
+                  <li
+                    key={locale}
+                    role="option"
+                    aria-selected={isActive}
+                    tabIndex={0}
+                    onClick={() => {
+                      onSelect(locale);
+                      setOpen(false);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
                         onSelect(locale);
                         setOpen(false);
-                      }}
-                      className={cn(
-                        "flex w-full items-center gap-2 px-2 py-1.5 text-sm transition-colors",
-                        "hover:bg-accent hover:text-accent-foreground",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-                        isActive && "bg-accent/50 font-medium"
-                      )}
-                    >
-                      <ReactCountryFlag
-                        countryCode={countryCode}
-                        svg
-                        aria-hidden="true"
-                        className="!w-4 !h-3"
-                      />
-                      <span className="flex-1 text-left">{label}</span>
-                      {isActive && <Check className="h-3.5 w-3.5 text-primary shrink-0" aria-hidden="true" />}
-                    </button>
+                      }
+                    }}
+                    className={cn(
+                      "flex w-full cursor-pointer items-center gap-2 px-2 py-1.5 text-sm transition-colors",
+                      "hover:bg-accent hover:text-accent-foreground",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                      isActive && "bg-accent/50 font-medium"
+                    )}
+                  >
+                    <ReactCountryFlag
+                      countryCode={countryCode}
+                      svg
+                      aria-hidden="true"
+                      className="!w-4 !h-3"
+                    />
+                    <span className="flex-1 text-left">{label}</span>
+                    {isActive && <Check className="h-3.5 w-3.5 text-primary shrink-0" aria-hidden="true" />}
                   </li>
                 );
               })
@@ -206,6 +214,49 @@ const navItems = [
   { href: "/profile", label: "My Profile", icon: User },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
+
+/** Fetches badge counts for nav items (applications pending, active alerts). */
+function useNavBadges(): Record<string, number> {
+  const [badges, setBadges] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchCounts() {
+      try {
+        const [appsRes, alertsRes] = await Promise.all([
+          fetch("/api/user/applications?countOnly=true").catch(() => null),
+          fetch("/api/user/alerts").catch(() => null),
+        ]);
+
+        if (cancelled) return;
+        const next: Record<string, number> = {};
+
+        if (appsRes?.ok) {
+          const data = await appsRes.json();
+          const count = data.count ?? (Array.isArray(data.applications) ? data.applications.filter((a: { status: string }) => a.status === "pending" || a.status === "in_progress").length : 0);
+          if (count > 0) next["/applications"] = count;
+        }
+
+        if (alertsRes?.ok) {
+          const data = await alertsRes.json();
+          const count = Array.isArray(data.alerts) ? data.alerts.length : 0;
+          if (count > 0) next["/alerts"] = count;
+        }
+
+        if (!cancelled) setBadges(next);
+      } catch {
+        /* non-blocking */
+      }
+    }
+
+    fetchCounts();
+    const interval = setInterval(fetchCounts, 60_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  return badges;
+}
 
 // ---------------------------------------------------------------------------
 // Collapse persistence
@@ -252,6 +303,7 @@ export function Sidebar() {
   const router = useRouter();
   const { focusChatInput } = useChatContext();
   const { data: session } = useSession();
+  const navBadges = useNavBadges();
   const currentLocale = useLocale();
   const { setTheme, theme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -390,7 +442,7 @@ export function Sidebar() {
   const userName = session?.user?.name ?? "User";
   const userInitials = userName
     .split(" ")
-    .map((n) => n[0])
+    .map((n: string) => n[0])
     .join("")
     .slice(0, 2)
     .toUpperCase();
@@ -413,6 +465,7 @@ export function Sidebar() {
   ) {
     const active = isNavActive(item.href);
     const isCollapsedDesktop = !showLabel && !isMobile;
+    const badgeCount = navBadges[item.href] ?? 0;
 
     return (
       <div key={item.href} className={cn("relative", isCollapsedDesktop && "group/tooltip")}>
@@ -434,8 +487,22 @@ export function Sidebar() {
             className="h-4 w-4 shrink-0"
             aria-hidden="true"
           />
-          {showLabel && <span>{item.label}</span>}
-          {!showLabel && (
+          {showLabel && (
+            <span className="flex-1 flex items-center justify-between">
+              {item.label}
+              {badgeCount > 0 && (
+                <span className="ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">
+                  {badgeCount > 99 ? "99+" : badgeCount}
+                </span>
+              )}
+            </span>
+          )}
+          {!showLabel && badgeCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary px-0.5 text-[8px] font-bold text-primary-foreground">
+              {badgeCount > 9 ? "9+" : badgeCount}
+            </span>
+          )}
+          {!showLabel && badgeCount === 0 && (
             <span className="sr-only">{item.label}</span>
           )}
         </Button>

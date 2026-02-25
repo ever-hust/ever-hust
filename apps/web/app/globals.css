@@ -41,7 +41,8 @@
 
   /* Shadows */
   --shadow-xs: 0 1px 2px 0 oklch(0 0 0 / 0.05);
-  --shadow-sm: 0 1px 3px 0 oklch(0 0 0 / 0.1), 0 1px 2px -1px oklch(0 0 0 / 0.1);
+  --shadow-sm:
+    0 1px 3px 0 oklch(0 0 0 / 0.1), 0 1px 2px -1px oklch(0 0 0 / 0.1);
 
   /* Fonts */
   --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
@@ -161,12 +162,71 @@
 
 /* Chat typing indicator bounce animation */
 @keyframes typing-bounce {
-  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-  30% { transform: translateY(-6px); opacity: 1; }
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-6px);
+    opacity: 1;
+  }
+}
+
+.typing-dot {
+  animation: typing-bounce 1.4s ease-in-out infinite;
+}
+
+.typing-dot-1 {
+  animation-delay: 0s;
+}
+
+.typing-dot-2 {
+  animation-delay: 0.16s;
+}
+
+.typing-dot-3 {
+  animation-delay: 0.32s;
+}
+
+/* Onboarding progress bar — width driven by --progress custom property */
+.progress-fill {
+  width: var(--progress);
 }
 
 /* Smooth pulse for skeleton loading states */
 @keyframes skeleton-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Chat panel desktop slide animation
+ * Classes applied by chat-shell.tsx instead of inline styles.
+ * Keep the 38% and 300ms values in sync with the component's design intent.
+ * ------------------------------------------------------------------------- */
+.chat-panel-desktop {
+  width: 0%;
+  min-width: 0px;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.chat-panel-desktop.chat-panel-open {
+  width: 38%;
+  min-width: 320px;
+  opacity: 1;
+  overflow: visible;
+}
+
+.chat-panel-desktop.chat-panel-animated {
+  transition-property: width, min-width, opacity;
+  transition-timing-function: ease-in-out;
+  transition-duration: 300ms;
 }

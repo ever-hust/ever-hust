@@ -154,7 +154,7 @@ export const JobCard = memo(function JobCard({
                 : "border-muted-foreground/30 bg-background hover:border-primary"
             )}
             aria-label={isSelected ? `Deselect ${job.title} from comparison` : `Select ${job.title} for comparison`}
-            aria-pressed={isSelected ? "true" : "false"}
+            aria-pressed={isSelected}
           >
             {isSelected && <Check className="h-3 w-3" aria-hidden="true" />}
           </button>

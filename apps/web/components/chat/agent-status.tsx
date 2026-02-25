@@ -1,5 +1,7 @@
 "use client";
 
+import { memo } from "react";
+
 import { cn } from "@ever-hust/ui/lib/utils";
 import {
   Search,
@@ -48,7 +50,7 @@ interface AgentStatusProps {
  * Compact status indicator that shows what the AI agent is currently doing.
  * Renders inline within the chat, typically above the input area.
  */
-export function AgentStatus({
+export const AgentStatus = memo(function AgentStatus({
   state,
   activeToolName,
   className,
@@ -88,4 +90,4 @@ export function AgentStatus({
       )}
     </div>
   );
-}
+});

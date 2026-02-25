@@ -13,6 +13,8 @@ import { AIModelCard } from "@/components/settings/ai-model-card";
 import { ApiKeysCard } from "@/components/settings/api-keys-card";
 import { PrivacyDataCard } from "@/components/settings/privacy-data-card";
 import { DangerZoneCard } from "@/components/settings/danger-zone-card";
+import { ConnectedAccountsCard } from "@/components/settings/connected-accounts-card";
+import { SetPasswordCard } from "@/components/settings/set-password-card";
 import type { UserSettings } from "@/components/settings/types";
 import type { UserPreferences } from "@/lib/api-schemas";
 
@@ -98,6 +100,8 @@ export default function SettingsPage() {
             initialModel={initialModel}
           />
           <ApiKeysCard initialKeys={initialApiKeys} />
+          <ConnectedAccountsCard />
+          <SetPasswordCard />
           <PrivacyDataCard />
           <DangerZoneCard />
         </div>

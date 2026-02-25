@@ -63,6 +63,14 @@ export const env = {
   BETTER_AUTH_URL: required("BETTER_AUTH_URL"),
   LINKEDIN_CLIENT_ID: required("LINKEDIN_CLIENT_ID"),
   LINKEDIN_CLIENT_SECRET: required("LINKEDIN_CLIENT_SECRET"),
+  GITHUB_CLIENT_ID: devOptional("GITHUB_CLIENT_ID"),
+  GITHUB_CLIENT_SECRET: devOptional("GITHUB_CLIENT_SECRET"),
+  GOOGLE_CLIENT_ID: devOptional("GOOGLE_CLIENT_ID"),
+  GOOGLE_CLIENT_SECRET: devOptional("GOOGLE_CLIENT_SECRET"),
+  FACEBOOK_CLIENT_ID: devOptional("FACEBOOK_CLIENT_ID"),
+  FACEBOOK_CLIENT_SECRET: devOptional("FACEBOOK_CLIENT_SECRET"),
+  TWITTER_CLIENT_ID: devOptional("TWITTER_CLIENT_ID"),
+  TWITTER_CLIENT_SECRET: devOptional("TWITTER_CLIENT_SECRET"),
 
   // AI — at least one of OPENROUTER_API_KEY or ANTHROPIC_API_KEY must be set.
   // OpenRouter is the primary provider; Anthropic is the fallback / BYOK provider.

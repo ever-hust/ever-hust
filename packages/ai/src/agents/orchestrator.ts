@@ -173,7 +173,15 @@ export async function createOrchestratorStream({
         },
       },
       companyResearch: companyResearchTool,
-      resumeBuilder: resumeBuilderTool,
+      resumeBuilder: {
+        ...resumeBuilderTool,
+        execute: async (params: any, execOptions: any) => {
+          return resumeBuilderTool.execute!(
+            { ...params, userId },
+            execOptions
+          );
+        },
+      },
       salaryInsights: salaryInsightsTool,
     },
     stopWhen: stepCountIs(MAX_AI_STEPS_PER_TURN),

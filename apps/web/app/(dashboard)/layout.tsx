@@ -3,7 +3,7 @@ import { APP_NAME } from "@ever-hust/utils";
 import { Sidebar } from "@/components/layout/sidebar";
 import { ChatProvider } from "@/components/chat/chat-context";
 import { ChatShell } from "@/components/layout/chat-shell";
-import { OnboardingCheck } from "@/components/onboarding/onboarding-check";
+import { OnboardingGate } from "@/components/onboarding/onboarding-gate";
 import { PWAInstallPrompt } from "@/components/shared/pwa-install-prompt";
 import { KeyboardShortcutsHelp } from "@/components/shared/keyboard-shortcuts-help";
 import { KeyboardNavigation } from "@/components/shared/keyboard-navigation";
@@ -29,10 +29,11 @@ export default function DashboardLayout({
       <ChatProvider>
         <Sidebar />
         <main id="main-content" className="flex flex-1 flex-col overflow-hidden">
-          <ChatShell>{children}</ChatShell>
+          <ChatShell>
+            <OnboardingGate>{children}</OnboardingGate>
+          </ChatShell>
         </main>
       </ChatProvider>
-      <OnboardingCheck />
       <PWAInstallPrompt />
       <KeyboardShortcutsHelp />
       <KeyboardNavigation />

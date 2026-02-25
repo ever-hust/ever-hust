@@ -111,6 +111,11 @@ export const favoriteToggleSchema = z.object({
   jobId: z.number().int().positive(),
 });
 
+// === Hidden Jobs Route ===
+export const hiddenJobToggleSchema = z.object({
+  jobId: z.number().int().positive(),
+});
+
 // === Job Search Query Params ===
 export const jobSearchParamsSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),

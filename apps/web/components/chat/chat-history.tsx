@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect, memo } from "react";
 import { History, MessageSquare, ChevronRight, Loader2, X, Trash2, Search } from "lucide-react";
 import { Button } from "@ever-hust/ui/button";
 import { cn } from "@ever-hust/ui/lib/utils";
@@ -29,7 +29,7 @@ interface ChatHistoryProps {
  * Can be toggled open/closed with a button.
  * Shows sessions sorted by most recent first.
  */
-export function ChatHistory({
+export const ChatHistory = memo(function ChatHistory({
   sessions,
   activeSessionId,
   isLoading,
@@ -190,7 +190,7 @@ export function ChatHistory({
                       <div
                         role="button"
                         tabIndex={isSessionLoading || isDeleting ? -1 : 0}
-                        aria-disabled={isSessionLoading || isDeleting || undefined}
+                        aria-disabled={isSessionLoading || isDeleting ? true : undefined}
                         className={cn(
                           "group/item flex w-full items-center gap-3 rounded-md px-4 py-2.5 text-left transition-colors hover:bg-accent/50 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                           isActive && "bg-accent/30",
@@ -268,5 +268,5 @@ export function ChatHistory({
       />
     </>
   );
-}
+});
 

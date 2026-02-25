@@ -1,7 +1,12 @@
 import { PDFParse } from "pdf-parse";
+import mammoth from "mammoth";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateObject } from "ai";
 import { z } from "zod";
+
+// ---------------------------------------------------------------------------
+// Public types & constants
+// ---------------------------------------------------------------------------
 
 export interface ParsedCV {
   name?: string;
@@ -28,8 +33,18 @@ export interface ParsedCV {
   rawText: string;
 }
 
+/** MIME types accepted by the CV parser. */
+export const SUPPORTED_CV_MIME_TYPES = new Set([
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "text/plain",
+]);
+
+/** File extensions accepted by the CV parser (without leading dot). */
+export const SUPPORTED_CV_EXTENSIONS = new Set(["pdf", "docx", "txt"]);
+
 // ---------------------------------------------------------------------------
-// PDF text extraction (lightweight, no AI needed)
+// Text extraction — one function per format
 // ---------------------------------------------------------------------------
 
 /**
@@ -42,6 +57,40 @@ export async function extractTextFromPDF(buffer: Buffer): Promise<string> {
     return result.text;
   } finally {
     await parser.destroy().catch(() => {});
+  }
+}
+
+/**
+ * Extract text from a DOCX buffer using mammoth.
+ */
+export async function extractTextFromDOCX(buffer: Buffer): Promise<string> {
+  const result = await mammoth.extractRawText({ buffer });
+  return result.value;
+}
+
+/**
+ * Extract text from a plain-text (TXT) buffer.
+ */
+export function extractTextFromTXT(buffer: Buffer): string {
+  return buffer.toString("utf-8");
+}
+
+/**
+ * Dispatch to the correct text extractor based on MIME type.
+ */
+async function extractText(
+  buffer: Buffer,
+  mimeType: string,
+): Promise<string> {
+  switch (mimeType) {
+    case "application/pdf":
+      return extractTextFromPDF(buffer);
+    case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+      return extractTextFromDOCX(buffer);
+    case "text/plain":
+      return extractTextFromTXT(buffer);
+    default:
+      throw new Error(`Unsupported MIME type: ${mimeType}`);
   }
 }
 
@@ -221,14 +270,21 @@ export function extractBasicInfo(text: string): Partial<ParsedCV> {
 // ---------------------------------------------------------------------------
 
 /**
- * Parse a CV from a PDF buffer. Uses AI-powered extraction when available,
+ * Parse a CV from a file buffer. Uses AI-powered extraction when available,
  * falls back to basic pattern matching otherwise.
+ *
+ * @param buffer  — The raw file bytes.
+ * @param mimeType — MIME type of the file (e.g. "application/pdf").
+ *                   Defaults to "application/pdf" for backwards compatibility.
  *
  * Returns structured data including work experience, education, skills,
  * and the raw text for further processing.
  */
-export async function parseCV(buffer: Buffer): Promise<ParsedCV> {
-  const rawText = await extractTextFromPDF(buffer);
+export async function parseCV(
+  buffer: Buffer,
+  mimeType: string = "application/pdf",
+): Promise<ParsedCV> {
+  const rawText = await extractText(buffer, mimeType);
 
   // Try AI-powered extraction first
   const aiResult = await extractWithAI(rawText);

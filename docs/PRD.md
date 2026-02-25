@@ -1097,9 +1097,9 @@ Topics to explore naturally during conversation (NOT hardcoded question sequence
 
 **Entry Point**: Onboarding chat or Profile page.
 
-**Canvas**: Drag & drop zone with file browser fallback.
+**Canvas**: Uppy upload widget on profile page with file browser.
 
-**Supported**: PDF, DOCX (max 10MB).
+**Supported**: PDF, DOCX, and TXT (max 10MB). DOCX extraction via `mammoth`, TXT via UTF-8 read.
 
 **Flow**:
 
@@ -1875,6 +1875,16 @@ Focus: API response security, push notification reliability, SEO structured data
 - **Realtime subscription auto-reconnection** — The `useRealtimeJobs` hook now implements automatic reconnection with exponential backoff (3 attempts, starting at 1 second). When the Supabase Realtime WebSocket connection drops (network interruption, server restart, auth token expiry), the hook automatically attempts to re-establish the subscription. Failed reconnection attempts surface an error state to the canvas UI, and successful reconnection resumes live job updates without user intervention.
 - **Bundle optimization** — Added `optimizePackageImports` configuration in `next.config.ts` for `lucide-react` and `recharts`. This enables tree-shaking at the module level for these icon and chart libraries, reducing the client-side JavaScript bundle by eliminating unused exports. Particularly impactful for `lucide-react` which exports 1000+ icon components but only ~50 are used in the app.
 
+#### CV Enhancement Batch
+
+Focus: Multi-format CV parsing, AI agent CV data access, and resume builder auto-fetch.
+
+- **DOCX + TXT CV parsing** — Extended `packages/cv-parser` to support Word documents (via `mammoth` library) and plain text files alongside existing PDF support. Format detection is MIME-type-based with graceful fallback.
+- **Upload route expansion** — `/api/cv/upload` now accepts `application/pdf`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document`, and `text/plain` MIME types. Invalid types return 400.
+- **Uppy widget update** — CV upload widget on profile page updated to accept `.pdf`, `.docx`, and `.txt` file extensions with updated file type restrictions.
+- **AI agent CV data exposure** — `getUserProfileTool` now returns sanitized `cvParsedData` (skills, experience, education, certifications, summary) with PII (`contactInfo`, `rawText`) stripped. The AI can reference the user's CV data during conversations.
+- **Resume builder auto-fetch** — `resumeBuilderTool` accepts `userId` (injected by orchestrator) and auto-fetches the user's CV data (skills, experience, summary) when the LLM doesn't provide them, eliminating manual re-entry.
+
 ### Phase 7: Production Hardening (v1.2) + Architecture Audit (v1.3)
 
 Added in v1.2 to address known limitations from MVP. Updated in v1.3 to reflect architecture audit findings:
@@ -1888,7 +1898,7 @@ Added in v1.2 to address known limitations from MVP. Updated in v1.3 to reflect 
 #### 7.2 Bundle Optimization
 
 - **`@next/bundle-analyzer`**: Available via `ANALYZE=true pnpm build` for visual bundle inspection
-- **Dynamic imports**: Heavy components (`CoverLetterModal`, `InterviewPrepPanel`, `CVDropzone`) loaded with `next/dynamic` to reduce initial bundle
+- **Dynamic imports**: Heavy components (`CoverLetterModal`, `InterviewPrepPanel`) loaded with `next/dynamic` to reduce initial bundle. `UppyCvUpload` and `UppyAvatarUpload` are imported directly on profile page.
 - **Route-level code splitting**: Automatic via Next.js App Router (each route = separate chunk)
 
 #### 7.3 BYOK API Key Encryption at Rest
@@ -1971,7 +1981,7 @@ Added in v1.2 to address known limitations from MVP. Updated in v1.3 to reflect 
 
 - Automated job applications (requires external auto-apply API)
 - Database branching for preview deployments (Supabase feature)
-- CV drag-and-drop zone in canvas (exists on profile page only)
+- CV upload uses Uppy components on profile page (not drag-and-drop canvas zone)
 - Multi-provider BYOK (only Anthropic keys supported; OpenAI/Google keys stored but not yet routed)
 - Multi-agent architecture (consolidated into single orchestrator; separate agents may be reintroduced if complexity warrants it)
 

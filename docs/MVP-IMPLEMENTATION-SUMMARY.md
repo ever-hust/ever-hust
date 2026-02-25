@@ -2,13 +2,13 @@
 
 **Date**: 2026-02-23 (updated)
 **Branch**: `claude/agitated-davinci`
-**Status**: MVP Complete + Production Hardening (12 implementation batches)
+**Status**: MVP Complete + Production Hardening (13 implementation batches)
 
 ---
 
 ## Overview
 
-This document summarizes all MVP implementation work completed across 7 batches of commits. The work addressed gaps identified between the PRD specification and the actual codebase, fixing bugs, wiring missing integrations, and ensuring all MVP features work end-to-end.
+This document summarizes all MVP implementation work completed across 13 batches of commits. The work addressed gaps identified between the PRD specification and the actual codebase, fixing bugs, wiring missing integrations, and ensuring all MVP features work end-to-end.
 
 ---
 
@@ -439,8 +439,8 @@ These items are intentionally out of scope:
 2. ~~**Supabase Realtime**~~: ✅ **DONE** — Live job updates via Supabase Realtime subscriptions
 3. ~~**Redis rate limiting**~~: ✅ **DONE** — Upstash Redis rate limiting with in-memory fallback
 4. ~~**API key encryption**~~: ✅ **DONE** — AES-256-GCM encryption at rest with PBKDF2 key derivation
-5. **CV drag-and-drop in canvas**: Upload exists on profile page; dedicated canvas dropzone planned
-6. **Supabase Storage buckets**: CV upload endpoint exists but Supabase Storage integration needs env configuration
+5. ~~**CV drag-and-drop in canvas**~~: ✅ **DONE** — Replaced with Uppy upload components (`UppyCvUpload`, `UppyAvatarUpload`) on profile page
+6. ~~**Supabase Storage buckets**~~: ✅ **DONE** — Full Supabase Storage integration via `packages/supabase/src/storage.ts`
 7. **Database branching**: Supabase database branching for preview deployments not configured
 8. ~~**Accessibility audit**~~: ✅ **DONE** — Focus management, high contrast, touch targets, reduced motion, ARIA labels
 9. ~~**Bundle optimization**~~: ✅ **DONE** — Bundle analyzer, dynamic imports, code splitting
@@ -479,4 +479,54 @@ Runtime validation is in `apps/web/lib/env.ts` — missing required vars throw a
 
 ---
 
-_Generated on 2026-02-15, updated 2026-02-23 with Batch 12 (Infrastructure Integrations + Compare→Chat + Hidden Jobs)._
+## Batch 13 — Email Verification, Uppy Uploads, Dark Mode, PWA Offline, Rate Limit Feedback
+
+### What was done
+
+- **Email verification** (`packages/auth/src/index.ts`): Added `emailVerification` config to BetterAuth — `sendOnSignUp: true`, `autoSignInAfterVerification: true`, 24h token expiry, `requireEmailVerification: true`. Only affects email/password signups; OAuth providers are trusted.
+- **Verification email template** (`packages/email/src/templates/verification-email.tsx`): React Email template matching brand style.
+- **Verification send function** (`packages/email/src/send.ts`): `sendVerificationEmail()` with retry logic.
+- **Verify email page** (`apps/web/app/(auth)/verify-email/page.tsx`): Token verification flow — reads `?token=` param, calls BetterAuth, shows success/error/loading states.
+- **Supabase Storage utilities** (`packages/supabase/src/storage.ts`): `uploadFile()`, `getPublicUrl()`, `deleteFile()` helpers using `SUPABASE_SERVICE_ROLE_KEY`. Exported via `./storage` subpath.
+- **Uppy CV upload** (`apps/web/components/shared/uppy-cv-upload.tsx`): Uppy Dashboard for PDF uploads (max 10MB), XHR upload to `/api/cv/upload`.
+- **Uppy avatar upload** (`apps/web/components/shared/uppy-avatar-upload.tsx`): Uppy Dashboard modal for image uploads (max 5MB), XHR upload to `/api/user/avatar`.
+- **Avatar upload API** (`apps/web/app/api/user/avatar/route.ts`): Stores avatar in Supabase Storage at `avatars/{userId}.{ext}`, updates `photoUrl`.
+- **CV upload updated** (`apps/web/app/api/cv/upload/route.ts`): Now stores PDF in Supabase Storage at `cvs/{userId}/{filename}` before AI parsing.
+- **Profile page updated** (`apps/web/app/(dashboard)/profile/page.tsx`): Replaced `CVDropzone` with `UppyCvUpload`, added `UppyAvatarUpload` overlay on avatar.
+- **Deleted** `apps/web/components/canvas/cv-dropzone.tsx` (replaced by Uppy components).
+- **Dark mode toggle** (`apps/web/components/shared/theme-toggle.tsx`): Sun/Moon icon toggle; added to login and reset-password pages.
+- **PWA offline page** (`apps/web/app/offline/page.tsx`): Offline fallback with WifiOff icon and retry button; precached in `sw.js`.
+- **Rate limit interceptor** (`apps/web/components/shared/rate-limit-interceptor.tsx`): Global `window.fetch` patch that detects 429 responses and shows Sonner toast; mounted in root layout.
+
+### New files
+
+| File                                                    | Purpose                      |
+| ------------------------------------------------------- | ---------------------------- |
+| `packages/email/src/templates/verification-email.tsx`   | Verification email template  |
+| `packages/supabase/src/storage.ts`                      | Supabase Storage helpers     |
+| `apps/web/app/(auth)/verify-email/page.tsx`             | Email verification page      |
+| `apps/web/app/api/user/avatar/route.ts`                 | Avatar upload API            |
+| `apps/web/components/shared/uppy-cv-upload.tsx`         | Uppy CV upload component     |
+| `apps/web/components/shared/uppy-avatar-upload.tsx`     | Uppy avatar upload component |
+| `apps/web/components/shared/theme-toggle.tsx`           | Dark mode toggle             |
+| `apps/web/components/shared/rate-limit-interceptor.tsx` | 429 rate limit toast         |
+| `apps/web/app/offline/page.tsx`                         | PWA offline page             |
+
+### Deleted files
+
+| File                                         | Reason                      |
+| -------------------------------------------- | --------------------------- |
+| `apps/web/components/canvas/cv-dropzone.tsx` | Replaced by Uppy components |
+
+### New packages
+
+| Package            | Category          |
+| ------------------ | ----------------- |
+| `@uppy/core`       | File uploads      |
+| `@uppy/dashboard`  | Upload UI         |
+| `@uppy/xhr-upload` | XHR upload plugin |
+| `@uppy/react`      | React bindings    |
+
+---
+
+_Generated on 2026-02-15, updated 2026-02-24 with Batch 13 (Email Verification, Uppy Uploads, Dark Mode, Offline Page, Rate Limit Feedback)._

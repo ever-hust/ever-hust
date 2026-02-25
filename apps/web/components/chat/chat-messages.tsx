@@ -57,8 +57,8 @@ const CopyButton = memo(function CopyButton({ text }: { text: string }) {
   );
 });
 
-/** Pre-computed animation delays to avoid recalculation on re-renders */
-const TYPING_DOT_DELAYS = ["0s", "0.16s", "0.32s"] as const;
+/** CSS class suffixes for the three typing dots */
+const TYPING_DOT_CLASSES = ["typing-dot-1", "typing-dot-2", "typing-dot-3"] as const;
 
 /** Memoized typing indicator — static content that never needs to re-render */
 const TypingIndicator = memo(function TypingIndicator() {
@@ -70,14 +70,10 @@ const TypingIndicator = memo(function TypingIndicator() {
         </AvatarFallback>
       </Avatar>
       <div className="flex items-center gap-1.5 rounded-xl bg-muted px-4 py-3">
-        {TYPING_DOT_DELAYS.map((delay, i) => (
+        {TYPING_DOT_CLASSES.map((cls) => (
           <div
-            key={i}
-            className="h-2 w-2 rounded-full bg-muted-foreground/60"
-            style={{
-              animation: "typing-bounce 1.4s ease-in-out infinite",
-              animationDelay: delay,
-            }}
+            key={cls}
+            className={`h-2 w-2 rounded-full bg-muted-foreground/60 typing-dot ${cls}`}
           />
         ))}
       </div>
@@ -192,7 +188,7 @@ const MessageBubble = memo(function MessageBubble({
   );
 });
 
-export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
+export const ChatMessages = memo(function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
   return (
     <div className="space-y-4" role="log" aria-live="polite" aria-label="Conversation">
       {messages.map((message) => (
@@ -202,4 +198,4 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
       {isLoading && <TypingIndicator />}
     </div>
   );
-}
+});

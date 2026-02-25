@@ -22,9 +22,14 @@ import { Skeleton } from "@ever-hust/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@ever-hust/ui/avatar";
 import dynamic from "next/dynamic";
 
-const CVDropzone = dynamic(
+const UppyCvUpload = dynamic(
   () =>
-    import("@/components/canvas/cv-dropzone").then((mod) => mod.CVDropzone),
+    import("@/components/shared/uppy-cv-upload").then((mod) => mod.UppyCvUpload),
+  { ssr: false }
+);
+const UppyAvatarUpload = dynamic(
+  () =>
+    import("@/components/shared/uppy-avatar-upload").then((mod) => mod.UppyAvatarUpload),
   { ssr: false }
 );
 import { ScrollToTop } from "@/components/shared/scroll-to-top";
@@ -173,17 +178,20 @@ export default function ProfilePage() {
       {/* Header Card */}
       <Card className="p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-          <Avatar className="h-16 w-16 shrink-0">
-            {safePhoto ? (
-              <AvatarImage
-                src={safePhoto}
-                alt={user.name || "User profile photo"}
-              />
-            ) : null}
-            <AvatarFallback className="text-lg">
-              <User className="h-8 w-8" aria-hidden="true" />
-            </AvatarFallback>
-          </Avatar>
+          <div className="group/avatar relative h-16 w-16 shrink-0">
+            <Avatar className="h-16 w-16">
+              {safePhoto ? (
+                <AvatarImage
+                  src={safePhoto}
+                  alt={user.name || "User profile photo"}
+                />
+              ) : null}
+              <AvatarFallback className="text-lg">
+                <User className="h-8 w-8" aria-hidden="true" />
+              </AvatarFallback>
+            </Avatar>
+            <UppyAvatarUpload onUploadComplete={() => reloadProfile()} />
+          </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
@@ -316,14 +324,14 @@ export default function ProfilePage() {
                   </p>
                 </div>
               </div>
-              <CVDropzone
+              <UppyCvUpload
                 onUploadComplete={() => {
                   reloadProfile();
                 }}
               />
             </div>
           ) : (
-            <CVDropzone
+            <UppyCvUpload
               onUploadComplete={() => {
                 reloadProfile();
               }}

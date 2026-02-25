@@ -24,7 +24,8 @@ export function getAppUrl(): string {
   return process.env.NEXT_PUBLIC_APP_URL ?? "https://everjobs.ai";
 }
 
-export { sendJobAlertEmail, sendWelcomeEmail, sendSubscriptionConfirmedEmail } from "./send";
+export { sendJobAlertEmail, sendWelcomeEmail, sendSubscriptionConfirmedEmail, sendVerificationEmail } from "./send";
 export { JobAlertEmail } from "./templates/job-alert";
 export { WelcomeEmail } from "./templates/welcome";
 export { SubscriptionConfirmedEmail } from "./templates/subscription-confirmed";
+export { VerificationEmail } from "./templates/verification-email";

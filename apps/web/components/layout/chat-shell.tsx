@@ -11,16 +11,6 @@ import { ChatPanel } from "@/components/chat/chat-panel";
 import { useChatContext } from "@/components/chat/chat-context";
 
 // ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-/** Width of the chat panel when open (percentage). */
-const CHAT_WIDTH_PERCENT = 38;
-
-/** Transition duration in ms (keep in sync with CSS). */
-const TRANSITION_MS = 300;
-
-// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -62,15 +52,10 @@ export function ChatShell({ children }: ChatShellProps) {
       <div
         className={cn(
           "relative hidden flex-col border-r md:flex",
-          enableTransition && "transition-[width,min-width,opacity] ease-in-out",
+          "chat-panel-desktop",
+          enableTransition && "chat-panel-animated",
+          chatOpen ? "chat-panel-open" : "chat-panel-closed",
         )}
-        style={{
-          width: chatOpen ? `${CHAT_WIDTH_PERCENT}%` : "0%",
-          minWidth: chatOpen ? "320px" : "0px",
-          transitionDuration: enableTransition ? `${TRANSITION_MS}ms` : "0ms",
-          overflow: chatOpen ? undefined : "hidden",
-          opacity: chatOpen ? 1 : 0,
-        }}
       >
         <ChatPanel
           onToolResult={onToolResult}

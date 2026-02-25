@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { parseCV } from "@ever-hust/cv-parser";
+import {
+  parseCV,
+  SUPPORTED_CV_MIME_TYPES,
+  SUPPORTED_CV_EXTENSIONS,
+} from "@ever-hust/cv-parser";
 import { db } from "@ever-hust/db";
 import { users } from "@ever-hust/db";
 import { eq } from "drizzle-orm";
@@ -10,12 +14,16 @@ import {
   apiBadRequest,
   apiError,
 } from "../../../../lib/api-response";
-
-/** Allowed MIME types for CV uploads */
-const ALLOWED_MIME_TYPES = new Set(["application/pdf"]);
+import { uploadFile } from "@ever-hust/supabase/storage";
 
 /** Maximum file size: 10 MB */
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+/**
+ * Map of file extensions to their human-readable format names.
+ * Used for error messages.
+ */
+const EXTENSION_LABELS = "PDF, Word (.docx), or plain text (.txt)";
 
 export async function POST(req: Request) {
   let user;
@@ -44,14 +52,16 @@ export async function POST(req: Request) {
   }
   const file = fileEntry;
 
-  // Validate file type (MIME + extension)
-  if (!ALLOWED_MIME_TYPES.has(file.type)) {
-    return apiBadRequest("Only PDF files are supported");
+  // Validate file type (MIME)
+  if (!SUPPORTED_CV_MIME_TYPES.has(file.type)) {
+    return apiBadRequest(`Unsupported file type. Accepted: ${EXTENSION_LABELS}`);
   }
 
+  // Validate file extension
   const fileName = file.name?.toLowerCase() ?? "";
-  if (!fileName || !fileName.endsWith(".pdf")) {
-    return apiBadRequest("File must have a .pdf extension");
+  const ext = fileName.split(".").pop() ?? "";
+  if (!fileName || !SUPPORTED_CV_EXTENSIONS.has(ext)) {
+    return apiBadRequest(`File must have a supported extension: ${EXTENSION_LABELS}`);
   }
 
   // Validate file size
@@ -60,9 +70,9 @@ export async function POST(req: Request) {
   }
 
   // Reject empty or suspiciously small files
-  if (file.size < 100) {
+  if (file.size < 10) {
     return apiBadRequest(
-      "File appears to be empty or too small to be a valid PDF",
+      "File appears to be empty or too small to be valid",
     );
   }
 
@@ -71,12 +81,17 @@ export async function POST(req: Request) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Parse CV
-    const parsed = await parseCV(buffer);
+    // Upload to Supabase Storage
+    const storagePath = `cvs/${userId}/${fileName}`;
+    const cvFileUrl = await uploadFile(storagePath, buffer, file.type);
 
-    // Store parsed data and merge skills atomically
+    // Parse CV (pass MIME type for format-specific extraction)
+    const parsed = await parseCV(buffer, file.type);
+
+    // Store parsed data, file URL, and merge skills atomically
     const updateFields: Record<string, unknown> = {
       cvParsedData: parsed,
+      cvFileUrl,
       updatedAt: new Date(),
     };
 
@@ -110,12 +125,13 @@ export async function POST(req: Request) {
         hasEducation: (parsed.education ?? []).length > 0,
         textLength: parsed.rawText?.length ?? 0,
       },
+      fileUrl: cvFileUrl,
     });
   } catch (error) {
     console.error(
       "[cv/upload] CV parsing error:",
       error instanceof Error ? error.message : error,
     );
-    return apiError("Failed to parse CV. Please ensure the file is a valid PDF.");
+    return apiError("Failed to parse CV. Please ensure the file is valid.");
   }
 }

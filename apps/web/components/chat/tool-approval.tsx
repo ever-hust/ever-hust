@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
 import { Button } from "@ever-hust/ui/button";
 import { Card } from "@ever-hust/ui/card";
 import { Badge } from "@ever-hust/ui/badge";
@@ -34,7 +34,7 @@ function getToolDisplay(toolName: string, args: Record<string, unknown>) {
   }
 }
 
-export function ToolApproval({
+export const ToolApproval = memo(function ToolApproval({
   toolName,
   args,
   onApprove,
@@ -117,4 +117,4 @@ export function ToolApproval({
       </div>
     </Card>
   );
-}
+});

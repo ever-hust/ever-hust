@@ -3,6 +3,7 @@ import { render } from "@react-email/components";
 import { JobAlertEmail } from "./templates/job-alert";
 import { WelcomeEmail } from "./templates/welcome";
 import { SubscriptionConfirmedEmail } from "./templates/subscription-confirmed";
+import { VerificationEmail } from "./templates/verification-email";
 import type React from "react";
 import { APP_NAME } from "@ever-hust/utils";
 
@@ -226,4 +227,43 @@ export async function sendSubscriptionConfirmedEmail({
 
     return data;
   }, "sendSubscriptionConfirmedEmail");
+}
+
+// ── Email Verification ──────────────────────────────────────────────────────
+
+interface SendVerificationEmailParams {
+  to: string;
+  userName: string;
+  verificationUrl: string;
+}
+
+export async function sendVerificationEmail({
+  to,
+  userName,
+  verificationUrl,
+}: SendVerificationEmailParams) {
+  const element = VerificationEmail({
+    userName,
+    verificationUrl,
+  }) as React.ReactElement;
+
+  const html = await render(element);
+
+  return withRetry(async () => {
+    const { data, error } = await getResend().emails.send({
+      from: EMAIL_FROM,
+      to,
+      subject: `Verify your email — ${APP_NAME}`,
+      html,
+    });
+
+    if (error) {
+      throw new EmailSendError(
+        `Failed to send verification email: ${error.message ?? "Unknown error"}`,
+        (error as { statusCode?: number }).statusCode,
+      );
+    }
+
+    return data;
+  }, "sendVerificationEmail");
 }

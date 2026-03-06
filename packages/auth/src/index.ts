@@ -15,6 +15,16 @@ export const auth = betterAuth({
       verification: schema.verifications,
     },
   }),
+
+  // Declare custom columns on the users table so Better Auth can persist them
+  user: {
+    additionalFields: {
+      linkedinId: { type: "string", required: false, input: false },
+      linkedinData: { type: "string", required: false, input: false, fieldName: "linkedin_data" },
+      headline: { type: "string", required: false, input: false },
+      photoUrl: { type: "string", required: false, input: false, fieldName: "photo_url" },
+    },
+  },
   baseURL: process.env.BETTER_AUTH_URL,
   secret: process.env.BETTER_AUTH_SECRET,
 

@@ -1,8 +1,4 @@
 {
-  "statusLine": {
-    "type": "command",
-    "command": "bash '/e/Coding/Ever Gauzy AI/ever-jobs-website/.claude/statusline-command.sh'"
-  },
   "hooks": {
     "PostToolUse": [
       {

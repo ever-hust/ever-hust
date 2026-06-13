@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "license": "UNLICENSED",
+  "license": "AGPL-3.0-or-later",
   "exports": {
     "./*": "./src/*.tsx",
     "./lib/utils": "./src/lib/utils.ts"

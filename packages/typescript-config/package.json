@@ -2,7 +2,7 @@
   "name": "@ever-hust/typescript-config",
   "version": "0.0.0",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "AGPL-3.0-or-later",
   "publishConfig": {
     "access": "public"
   }

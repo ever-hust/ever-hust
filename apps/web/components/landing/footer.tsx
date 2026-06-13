@@ -123,6 +123,18 @@ export function Footer() {
           <p className="text-sm text-muted-foreground">
             &copy; {new Date().getFullYear()} Ever Co. LTD. All rights reserved.
           </p>
+          {/* AGPL-3.0 §13: source-availability offer must remain visible to network users. */}
+          <p className="text-xs text-muted-foreground/70">
+            Open source under{" "}
+            <a
+              href="https://github.com/ever-co/ever-hust"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              AGPL-3.0 &mdash; Source Code
+            </a>
+          </p>
           <p className="text-xs text-muted-foreground/60">
             Built with &hearts; using Next.js, AI SDK, and Claude
           </p>

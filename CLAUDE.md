@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Hust Platform is an AI-powered job search platform where the primary UX is a conversational AI assistant. Users interact through a split-screen interface: AI chat on the left, dynamic jobs canvas on the right. Authentication is via LinkedIn OAuth.
 
-**Domain**: everjobs.ai | **License**: Proprietary (Ever Co. LTD)
+**Domain**: everjobs.ai | **License**: GNU AGPL-3.0-or-later (Copyright © 2026 Ever Co. LTD)
 
 ## Package Manager
 

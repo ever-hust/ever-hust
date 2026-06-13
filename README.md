@@ -213,6 +213,21 @@ pnpm test:e2e
 
 ## License
 
-Proprietary. All rights reserved. See [LICENSE](LICENSE) for details.
+Hust is **free, open-source software** licensed under the **GNU Affero General Public
+License v3.0 (AGPL-3.0-or-later)**. See [LICENSE](LICENSE) for the full text.
 
 Copyright (c) 2026 Ever Co. LTD.
+
+### Network use & source availability (AGPL §13)
+
+Because Hust is designed to be operated as a network service, the AGPL's §13 applies: if you
+run a modified version of Hust and let users interact with it over a network, you must make the
+**Complete Corresponding Source** of your modified version available to those users. The
+canonical source is published at **https://github.com/ever-co/ever-hust**, and the running
+application exposes a "Source Code" link in its footer. This obligation remains even when
+white-label branding is enabled.
+
+> The **source code** is AGPL-3.0. The hosted **service brand, trademarks, and content**
+> ("Hust", "Ever Jobs", logos, marketing copy) remain the property of Ever Co. LTD and are not
+> licensed under the AGPL. You may run, modify, and redistribute the code; you may not pass off
+> your deployment as the official Hust service.

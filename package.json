@@ -1,6 +1,7 @@
 {
   "name": "ever-hust",
   "private": true,
+  "license": "AGPL-3.0-or-later",
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",

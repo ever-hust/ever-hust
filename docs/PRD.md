@@ -5,7 +5,7 @@
 **Status**: MVP Implemented + Production Hardening + Growth Features + Enterprise Features + Audit Fixes + Post-MVP Polish (Phase 9 Complete + Post-Audit + Batches 2-7)
 **Previous Versions**: 1.8 (2026-02-19), 1.7 (2026-02-19), 1.6 (2026-02-18), 1.5 (2026-02-18), 1.4 (2026-02-18), 1.3 (2026-02-18), 1.2 (2026-02-18), 1.1 (2026-02-15), 1.0 (2026-02-14, Approved)
 **Domain**: hust.so
-**License**: Proprietary (All Rights Reserved)
+**License**: GNU AGPL-3.0-or-later (source code); brand/content © Ever Co. LTD
 **Repository**: github.com/ever-co/ever-hust
 
 ---
@@ -1424,7 +1424,7 @@ EMAIL_FROM=alerts@everjobs.ai
 ### Phase 0: Documentation & Setup
 
 - Write PRD document (`docs/PRD.md`)
-- Set proprietary license
+- Set open-source license (GNU AGPL-3.0-or-later)
 - Create `.gitignore`, `.env.example`, `README.md`
 
 ### Phase 1: Foundation (Weeks 1-2)
@@ -1989,7 +1989,11 @@ Added in v1.2 to address known limitations from MVP. Updated in v1.3 to reflect 
 
 ## Appendix B: License
 
-This project is proprietary software. All rights reserved.
+The Hust source code is licensed under the **GNU Affero General Public License v3.0
+(AGPL-3.0-or-later)**. See the root `LICENSE` file for the full text. As a network service,
+deployments are subject to AGPL §13 (network-use source-availability). The "Hust" / "Ever Jobs"
+brands, trademarks, logos, and marketing content remain the property of Ever Co. LTD and are not
+licensed under the AGPL.
 
 Copyright (c) 2026 Ever Co. LTD.
 

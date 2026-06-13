@@ -1,0 +1,19 @@
+Ever Hust — AI-powered job search platform
+Copyright (c) 2026 Ever Co. LTD <legal@ever.co>
+
+This product is licensed under the GNU Affero General Public License v3.0
+(AGPL-3.0-or-later). See the LICENSE file for the full license text.
+
+As a network service, this software is subject to AGPL section 13: operators who
+make a modified version available to users over a network must offer those users
+the Complete Corresponding Source of the modified version. The canonical source is
+published at https://github.com/ever-co/ever-hust.
+
+The names "Hust" and "Ever Jobs", the Ever Co. logos, and the associated brand and
+marketing content are trademarks and property of Ever Co. LTD. They are NOT licensed
+under the AGPL. Redistribution of the source code does not grant any right to use
+these marks, and you may not present your deployment as the official Hust service.
+
+This product depends on third-party open-source software, each under its own license
+(predominantly MIT, Apache-2.0, ISC, and BSD). Run `pnpm licenses list` for the full
+dependency license inventory.

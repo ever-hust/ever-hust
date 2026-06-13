@@ -117,11 +117,11 @@ describe("env module", () => {
   });
 
   describe("optional env vars with fallbacks", () => {
-    it("NEXT_PUBLIC_APP_URL falls back to https://everjobs.ai", async () => {
+    it("NEXT_PUBLIC_APP_URL falls back to https://hust.so", async () => {
       setAllRequiredEnvVars();
       delete process.env.NEXT_PUBLIC_APP_URL;
       const { env } = await importEnv();
-      expect(env.NEXT_PUBLIC_APP_URL).toBe("https://everjobs.ai");
+      expect(env.NEXT_PUBLIC_APP_URL).toBe("https://hust.so");
     });
 
     it("NEXT_PUBLIC_APP_URL uses the env value when set", async () => {
@@ -138,11 +138,11 @@ describe("env module", () => {
       expect(env.NEXT_PUBLIC_APP_NAME).toBe("Hust");
     });
 
-    it("EMAIL_FROM falls back to alerts@everjobs.ai", async () => {
+    it("EMAIL_FROM falls back to alerts@hust.so", async () => {
       setAllRequiredEnvVars();
       delete process.env.EMAIL_FROM;
       const { env } = await importEnv();
-      expect(env.EMAIL_FROM).toBe("alerts@everjobs.ai");
+      expect(env.EMAIL_FROM).toBe("alerts@hust.so");
     });
 
     it("DEFAULT_AI_MODEL falls back to claude-sonnet-4-5-20250929", async () => {

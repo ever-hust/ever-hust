@@ -1325,7 +1325,7 @@ DATABASE_URL=
 
 # BetterAuth
 BETTER_AUTH_SECRET=
-BETTER_AUTH_URL=https://everjobs.ai
+BETTER_AUTH_URL=https://hust.so
 
 # LinkedIn OAuth
 LINKEDIN_CLIENT_ID=
@@ -1352,7 +1352,7 @@ TRIGGER_SECRET_KEY=
 
 # Email
 RESEND_API_KEY=
-EMAIL_FROM=alerts@everjobs.ai
+EMAIL_FROM=alerts@hust.so
 ```
 
 ---

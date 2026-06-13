@@ -6,7 +6,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Hust Platform is an AI-powered job search platform where the primary UX is a conversational AI assistant. Users interact through a split-screen interface: AI chat on the left, dynamic jobs canvas on the right. Authentication is via LinkedIn OAuth.
 
-**Domain**: everjobs.ai | **License**: GNU AGPL-3.0-or-later (Copyright © 2026 Ever Co. LTD)
+**Domain**: hust.so | **License**: GNU AGPL-3.0-or-later (Copyright © 2026 Ever Co. LTD)
+
+## Standalone-First Principle (optional Gauzy integration)
+
+Hust is a **standalone product** — it must always build, run, and ship without any Gauzy product.
+Its only hard external dependency is the **Ever Jobs API** (`packages/jobs-api/`). Hust owns its
+own auth (BetterAuth + LinkedIn), users, database, and apply flow.
+
+Hust *optionally* integrates with the wider **Ever Gauzy** platform for the agency/company
+scenario, via two future seams — both through the **Gauzy AI API**, both off by default:
+
+- **Auto-apply** — default is manual apply (open the apply URL); optional auto-apply delegates to
+  Gauzy AI's `AutomationTask` queue + the Ever Gauzy AI Automation client.
+- **Identity / employee / org / tenant sync (SSO)** — default is own BetterAuth + LinkedIn;
+  optional SSO mirrors employees from Ever Gauzy API via a shared JWT and `external*Id` refs.
+
+When working on any Gauzy-related feature: never make Gauzy a hard dependency, keep it behind a
+flag + adapter with graceful fallback to standalone, and integrate via the Gauzy AI API. Full
+design: [`docs/GAUZY-INTEGRATION.md`](docs/GAUZY-INTEGRATION.md).
 
 ## Package Manager
 

@@ -17,7 +17,7 @@ const openApiSpec = {
       "Ever Hust — AI-powered job search platform. Endpoints for jobs, users, chat, and more.",
     contact: {
       name: "Ever Hust Team",
-      url: "https://everjobs.ai",
+      url: "https://hust.so",
     },
   },
   servers: [

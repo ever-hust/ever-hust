@@ -28,8 +28,8 @@ export function SubscriptionConfirmedEmail({
   planName = "Quarterly",
   amount = "$12/month",
   billingCycle = "$36 billed every 3 months",
-  chatUrl = "https://everjobs.ai/chat",
-  manageUrl = "https://everjobs.ai/settings",
+  chatUrl = "https://hust.so/chat",
+  manageUrl = "https://hust.so/settings",
 }: SubscriptionConfirmedEmailProps) {
   return (
     <Html>

@@ -75,7 +75,7 @@ export async function POST(req: Request) {
     });
 
     const appUrl =
-      process.env.NEXT_PUBLIC_APP_URL ?? "https://everjobs.ai";
+      process.env.NEXT_PUBLIC_APP_URL ?? "https://hust.so";
     const referralLink = `${appUrl}/signup?ref=${referralCode}`;
 
     return apiSuccess(

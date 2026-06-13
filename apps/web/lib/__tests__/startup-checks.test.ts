@@ -201,7 +201,7 @@ describe("runStartupChecks", () => {
       process.env.RESEND_API_KEY = "re_test_123";
       process.env.NEXT_PUBLIC_SUPABASE_URL = "https://test.supabase.co";
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "test-anon-key";
-      process.env.NEXT_PUBLIC_APP_URL = "https://everjobs.ai";
+      process.env.NEXT_PUBLIC_APP_URL = "https://hust.so";
       // Also set AI keys to suppress that warning
       process.env.OPENROUTER_API_KEY = "or-test-key";
 

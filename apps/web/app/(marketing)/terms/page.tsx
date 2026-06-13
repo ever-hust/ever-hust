@@ -202,10 +202,10 @@ export default function TermsPage() {
               <p className="mt-3">
                 You may delete your account at any time by contacting us at{" "}
                 <a
-                  href="mailto:legal@everjobs.ai"
+                  href="mailto:legal@hust.so"
                   className="text-primary underline underline-offset-4 hover:text-primary/80"
                 >
-                  legal@everjobs.ai
+                  legal@hust.so
                 </a>
                 . Upon account deletion, we will remove your personal data in
                 accordance with our Privacy Policy.
@@ -236,10 +236,10 @@ export default function TermsPage() {
                 If you have any questions about these Terms, please contact us
                 at{" "}
                 <a
-                  href="mailto:legal@everjobs.ai"
+                  href="mailto:legal@hust.so"
                   className="text-primary underline underline-offset-4 hover:text-primary/80"
                 >
-                  legal@everjobs.ai
+                  legal@hust.so
                 </a>
                 .
               </p>

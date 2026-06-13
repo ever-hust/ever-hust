@@ -224,7 +224,7 @@ test.describe("Contact Page", () => {
     await expect(helloLink).toBeVisible();
     await expect(helloLink).toHaveAttribute(
       "href",
-      "mailto:hello@everjobs.ai"
+      "mailto:hello@hust.so"
     );
 
     const supportLink = page.getByRole("link", {
@@ -233,7 +233,7 @@ test.describe("Contact Page", () => {
     await expect(supportLink).toBeVisible();
     await expect(supportLink).toHaveAttribute(
       "href",
-      "mailto:support@everjobs.ai"
+      "mailto:support@hust.so"
     );
 
     const partnershipsLink = page.getByRole("link", {
@@ -242,7 +242,7 @@ test.describe("Contact Page", () => {
     await expect(partnershipsLink).toBeVisible();
     await expect(partnershipsLink).toHaveAttribute(
       "href",
-      "mailto:partnerships@everjobs.ai"
+      "mailto:partnerships@hust.so"
     );
   });
 

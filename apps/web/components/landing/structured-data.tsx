@@ -1,7 +1,7 @@
 import { APP_NAME } from "@ever-hust/utils";
 
 export function StructuredData() {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://everjobs.ai";
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://hust.so";
 
   const organization = {
     "@context": "https://schema.org",

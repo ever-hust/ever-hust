@@ -47,7 +47,7 @@ This document captures key architectural decisions made during the MVP implement
 
 **Context**: Email templates contain links to the app (dashboard, settings, etc.). These links must work correctly in all environments (dev, staging, production).
 
-**Decision**: Create a `getAppUrl()` helper in `packages/email/src/index.ts` that reads `NEXT_PUBLIC_APP_URL` with `https://everjobs.ai` fallback. All send functions use this for default URL generation.
+**Decision**: Create a `getAppUrl()` helper in `packages/email/src/index.ts` that reads `NEXT_PUBLIC_APP_URL` with `https://hust.so` fallback. All send functions use this for default URL generation.
 
 **Consequence**:
 

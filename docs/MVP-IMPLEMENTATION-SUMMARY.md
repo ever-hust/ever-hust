@@ -22,7 +22,7 @@ This document summarizes all MVP implementation work completed across 13 batches
 | `8f3032f` | fix: resolve BYOK key path, submitAnswers schema, app tracking, and UX gaps             |
 | `2e470e0` | fix: complete BYOK with createAnthropic, add favicon and icon metadata                  |
 | `772e254` | fix: correct all /dashboard/ URLs to match route group paths, add welcome email         |
-| `f1fd961` | fix: use env-based URLs in email send functions instead of hardcoded everjobs.ai        |
+| `f1fd961` | fix: use env-based URLs in email send functions instead of hardcoded hust.so        |
 
 ---
 
@@ -120,7 +120,7 @@ The `(dashboard)` directory is a **Next.js route group** — it does NOT add a U
 
 ### What was done
 
-- **`getAppUrl()` helper** (`packages/email/src/index.ts`): Reads `NEXT_PUBLIC_APP_URL` env var with `https://everjobs.ai` fallback
+- **`getAppUrl()` helper** (`packages/email/src/index.ts`): Reads `NEXT_PUBLIC_APP_URL` env var with `https://hust.so` fallback
 - **All send functions updated** (`packages/email/src/send.ts`): `sendJobAlertEmail()`, `sendWelcomeEmail()`, `sendSubscriptionConfirmedEmail()` all use `getAppUrl()` for default URLs instead of hardcoded domains
 - **Subscription template**: `settingsUrl` derived from `dashboardUrl` prop via `replace(/\/chat$/, "/settings")`
 
@@ -209,7 +209,7 @@ The `(dashboard)` directory is a **Next.js route group** — it does NOT add a U
 ### 5. Hardcoded Email URLs (Batch 7)
 
 - **Impact**: Email links would point to wrong domain in non-production environments
-- **Root cause**: Send functions used hardcoded `everjobs.ai` URLs
+- **Root cause**: Send functions used hardcoded `hust.so` URLs
 - **Fix**: Created `getAppUrl()` helper reading `NEXT_PUBLIC_APP_URL` env var
 
 ---
@@ -456,7 +456,7 @@ See `.env.example` for the complete list. Key additions from this implementation
 
 ```env
 # App URL (used in all email links)
-NEXT_PUBLIC_APP_URL=https://everjobs.ai
+NEXT_PUBLIC_APP_URL=https://hust.so
 
 # AI — at least one required
 OPENROUTER_API_KEY=sk-or-v1-...
@@ -472,7 +472,7 @@ LANGFUSE_BASE_URL=https://cloud.langfuse.com
 
 # Email
 RESEND_API_KEY=
-EMAIL_FROM=alerts@everjobs.ai
+EMAIL_FROM=alerts@hust.so
 ```
 
 Runtime validation is in `apps/web/lib/env.ts` — missing required vars throw at startup, optional vars warn.

@@ -1,12 +1,24 @@
 # Hust
 
-AI-powered job search platform. Chat with AI to find, apply, and land your dream job.
+**The Anti-Hustle Career OS** — an open agentic job-search platform that finds, evaluates and tailors your applications, then tracks every one from first search to signed offer.
 
 ## Overview
 
-Hust is an AI-first job search platform where the primary UX is a conversational AI assistant. After LinkedIn login, users interact through a split-screen interface: AI chat on the left and a dynamic data canvas on the right.
+Hust is an open-source, AI-native platform that takes a job seeker through the entire journey — from the first search to a signed offer — without the spray-and-pray grind. The interface is conversational: an AI assistant on the left, a live jobs canvas on the right. But unlike a job board or a search box, Hust doesn't just *find* roles — it **evaluates** them for you, **tailors** your applications, and **tracks** every one through to the offer.
 
-**Domain**: everjobs.ai
+*Anti-Hustle* is the whole point: instead of pushing you to apply to more, Hust helps you apply to **fewer, better** jobs. It scores each opening against your CV and goals with an explainable fit verdict — and an honest "don't bother" when the math says so — flags postings that may not be real with a **ghost-job radar**, turns your profile into real, ATS-ready résumés and cover letters (generated with your sign-off, never sent behind your back), preps you with a **STAR interview story bank**, scripts your **salary negotiation**, and runs **funnel analytics** that learn from your outcomes to sharpen your targeting.
+
+Two principles run through everything: **quality over quantity** and **human-in-the-loop**. Hust is built to say *no* on your behalf — to bad-fit roles and fake postings — and never applies for you without explicit consent. Your data stays yours, the source is auditable, and the AI's job is to advise, not to grind.
+
+Hust works for individuals out of the box and scales to **agencies and enterprises** — organizations, teams, an admin console, an enterprise API, and white-label branding are built in, and an **optional integration with the Ever Gauzy platform** adds employee/org sync (SSO) and automated apply-at-scale. Hust's only hard dependency is the **Ever Jobs** sourcing API; everything else — including the Gauzy integration — is optional. Released under **AGPL-3.0**.
+
+**Domain**: hust.so
+
+> [!NOTE]
+> **Hust is a standalone product.** It runs fully without any Gauzy product — its only hard
+> external dependency is the **Ever Jobs API** (job listings). It *optionally* integrates with the
+> wider **Ever Gauzy** platform for the agency/company scenario. See
+> [Relationship to Gauzy / Gauzy AI](#relationship-to-gauzy--gauzy-ai-optional).
 
 ## Features
 
@@ -202,11 +214,34 @@ pnpm test:e2e
 
 **Current coverage:** 38 test suites, 1240 tests across 9 projects. See [docs/TESTING.md](docs/TESTING.md) for details.
 
+## Relationship to Gauzy / Gauzy AI (optional)
+
+Hust is **fully usable on its own** — a self-serve, single-user AI job-search assistant. The only
+hard external dependency is the **Ever Jobs API** (job listings). Hust owns its own login
+(BetterAuth + LinkedIn), users, database, and apply flow.
+
+Hust *optionally* plugs into the wider **Ever Gauzy** platform to serve the **agency / company**
+scenario, where a business sources and applies to jobs on behalf of its employees at scale. There
+are two optional, future integration seams — both via the **Gauzy AI API**, both off by default:
+
+| Seam | Standalone default | Integrated (optional) |
+| ---- | ------------------ | --------------------- |
+| **A — Auto-apply** | Manual apply (opens the job's apply URL) | Application executed by Gauzy AI's `AutomationTask` queue + the Ever Gauzy AI Automation client |
+| **B — Identity & employee/org/tenant sync** | Own BetterAuth + LinkedIn + own DB | SSO + employees mirrored from Ever Gauzy API (shared JWT, `external*Id` cross-refs) |
+
+How the pieces fit in integrated mode: **Ever Gauzy** = back office (orgs, teams, employees,
+pipelines) · **Ever Gauzy AI** = engine (match, score, auto-apply, alerts) · **Hust** = the
+employee-facing UI to review and apply · **Ever Gauzy AI Automation** = executes the applications.
+
+> Design rule: never make Gauzy a hard dependency. Hust must always build, run, and ship without
+> it. Full details: **[docs/GAUZY-INTEGRATION.md](docs/GAUZY-INTEGRATION.md)**.
+
 ## Documentation
 
 | Document                                                 | Description                                          |
 | -------------------------------------------------------- | ---------------------------------------------------- |
 | [PRD](docs/PRD.md)                                       | Full product requirements with implementation status |
+| [Gauzy / Gauzy AI Integration](docs/GAUZY-INTEGRATION.md) | Optional, standalone-first integration with the Gauzy platform |
 | [MVP Summary](docs/MVP-IMPLEMENTATION-SUMMARY.md)        | Detailed changelog of all 12 implementation batches  |
 | [Architecture Decisions](docs/ARCHITECTURE-DECISIONS.md) | 15 ADRs covering key design choices                  |
 | [Testing Guide](docs/TESTING.md)                         | Test setup, running, and writing guide               |

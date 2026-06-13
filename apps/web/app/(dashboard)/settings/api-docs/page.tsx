@@ -209,7 +209,7 @@ function EndpointSection({
 // Main page
 // ---------------------------------------------------------------------------
 
-const BASE_URL = "https://everjobs.ai/api/v1";
+const BASE_URL = "https://hust.so/api/v1";
 
 export default function ApiDocsPage() {
   return (
@@ -618,10 +618,10 @@ console.log(data.byLevel);  // Breakdown per seniority level`}
             <p className="text-sm text-muted-foreground">
               Need help? Contact us at{" "}
               <a
-                href="mailto:support@everjobs.ai"
+                href="mailto:support@hust.so"
                 className="text-primary hover:underline"
               >
-                support@everjobs.ai
+                support@hust.so
               </a>
             </p>
           </div>

@@ -91,10 +91,10 @@ export const env = {
 
   // Email (required in production, optional in dev)
   RESEND_API_KEY: devOptional("RESEND_API_KEY"),
-  EMAIL_FROM: optional("EMAIL_FROM", "alerts@everjobs.ai"),
+  EMAIL_FROM: optional("EMAIL_FROM", "alerts@hust.so"),
 
   // App
-  NEXT_PUBLIC_APP_URL: optional("NEXT_PUBLIC_APP_URL", "https://everjobs.ai"),
+  NEXT_PUBLIC_APP_URL: optional("NEXT_PUBLIC_APP_URL", "https://hust.so"),
   NEXT_PUBLIC_APP_NAME: optional("NEXT_PUBLIC_APP_NAME", "Hust"),
 
   // Langfuse (optional — falls back to hardcoded prompts)

@@ -34,8 +34,8 @@ export function JobAlertEmail({
   userName = "Job Seeker",
   alertCriteria = "Software Engineer in San Francisco",
   jobs = [],
-  manageUrl = "https://everjobs.ai/settings",
-  unsubscribeUrl = "https://everjobs.ai/settings",
+  manageUrl = "https://hust.so/settings",
+  unsubscribeUrl = "https://hust.so/settings",
 }: JobAlertEmailProps) {
   return (
     <Html>

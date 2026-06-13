@@ -70,8 +70,8 @@ describe("createCheckoutSession", () => {
     userId: "user_1",
     email: "user@example.com",
     planId: "monthly",
-    successUrl: "https://everjobs.ai/settings?success=true",
-    cancelUrl: "https://everjobs.ai/settings?canceled=true",
+    successUrl: "https://hust.so/settings?success=true",
+    cancelUrl: "https://hust.so/settings?canceled=true",
   };
 
   it("creates a checkout session for a valid plan", async () => {

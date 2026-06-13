@@ -20,7 +20,7 @@ interface VerificationEmailProps {
 
 export function VerificationEmail({
   userName = "there",
-  verificationUrl = "https://everjobs.ai/verify-email?token=xxx",
+  verificationUrl = "https://hust.so/verify-email?token=xxx",
 }: VerificationEmailProps) {
   return (
     <Html>

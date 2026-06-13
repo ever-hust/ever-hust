@@ -63,6 +63,29 @@ packages/utils/            — Shared utilities and constants
 - **DB client**: Lazy singleton via Proxy — only connects on first access
 - **Environment**: Copy `.env.example` → `.env.local`; startup checks validate critical vars on boot
 
+## Standalone-First Principle (Gauzy integration is optional)
+
+> [!IMPORTANT]
+> **Hust must always build, run, and ship without any Gauzy product.** The only hard external
+> dependency is the **Ever Jobs API** (`packages/jobs-api`). Hust owns its own auth (BetterAuth +
+> LinkedIn), users, DB, and apply flow.
+
+Hust *optionally* integrates with the wider **Ever Gauzy** platform (for the agency/company
+scenario) via two future seams, both through the **Gauzy AI API** and both off by default:
+
+- **Seam A — Auto-apply:** default is manual apply (open the apply URL); optional auto-apply hands
+  the application to Gauzy AI's `AutomationTask` queue + the Ever Gauzy AI Automation client.
+- **Seam B — Identity/employee/org/tenant sync (SSO):** default is own BetterAuth + LinkedIn;
+  optional SSO mirrors employees from Ever Gauzy API via a shared JWT and `external*Id` refs.
+
+When adding/reviewing any Gauzy-related feature, keep these invariants:
+
+1. **No hard Gauzy dependency** — standalone must work with zero Gauzy config.
+2. **Flagged + adapter + graceful fallback** to the standalone behavior.
+3. **Integrate via the Gauzy AI API**, not by embedding Gauzy internals.
+
+Full design: [`docs/GAUZY-INTEGRATION.md`](docs/GAUZY-INTEGRATION.md).
+
 ## Important Notes
 
 - `packages/jobs-api/` is a client for the **external** Ever Jobs API service — do not rename its API references to "Hust"

@@ -1,7 +1,7 @@
 import { APP_NAME } from "@ever-hust/utils";
 
 export function AboutStructuredData() {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://everjobs.ai";
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://hust.so";
 
   const organization = {
     "@context": "https://schema.org",
@@ -25,7 +25,7 @@ export function AboutStructuredData() {
       {
         "@type": "ContactPoint",
         contactType: "hiring",
-        email: "careers@everjobs.ai",
+        email: "careers@hust.so",
       },
     ],
     brand: {

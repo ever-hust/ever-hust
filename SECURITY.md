@@ -29,7 +29,7 @@ Please include, where possible:
 ## Scope
 
 This policy covers the source code in this repository. The hosted service at
-`everjobs.ai` is also in scope for responsible disclosure. Out of scope: third-party
+`hust.so` is also in scope for responsible disclosure. Out of scope: third-party
 dependencies (please report upstream), social-engineering, and volumetric/DoS testing against
 production.
 

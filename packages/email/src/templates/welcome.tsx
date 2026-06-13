@@ -21,7 +21,7 @@ interface WelcomeEmailProps {
 
 export function WelcomeEmail({
   userName = "there",
-  chatUrl = "https://everjobs.ai/chat",
+  chatUrl = "https://hust.so/chat",
 }: WelcomeEmailProps) {
   return (
     <Html>

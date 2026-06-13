@@ -13,8 +13,8 @@ jest.mock("./index", () => ({
       send: mockSendFn,
     },
   }),
-  EMAIL_FROM: "test@everjobs.ai",
-  getAppUrl: () => "https://test.everjobs.ai",
+  EMAIL_FROM: "test@hust.so",
+  getAppUrl: () => "https://test.hust.so",
 }));
 
 // Mock @react-email/components render
@@ -77,7 +77,7 @@ describe("sendJobAlertEmail", () => {
     expect(mockSend).toHaveBeenCalledTimes(1);
     expect(mockSend).toHaveBeenCalledWith(
       expect.objectContaining({
-        from: "test@everjobs.ai",
+        from: "test@hust.so",
         to: "user@example.com",
         subject: '1 new job matching "React developer in NYC"',
       }),
@@ -178,8 +178,8 @@ describe("sendJobAlertEmail", () => {
     const { JobAlertEmail } = require("./templates/job-alert");
     expect(JobAlertEmail).toHaveBeenCalledWith(
       expect.objectContaining({
-        manageUrl: "https://test.everjobs.ai/settings",
-        unsubscribeUrl: "https://test.everjobs.ai/settings",
+        manageUrl: "https://test.hust.so/settings",
+        unsubscribeUrl: "https://test.hust.so/settings",
       }),
     );
   });
@@ -217,7 +217,7 @@ describe("sendWelcomeEmail", () => {
     const { WelcomeEmail } = require("./templates/welcome");
     expect(WelcomeEmail).toHaveBeenCalledWith(
       expect.objectContaining({
-        chatUrl: "https://test.everjobs.ai/chat",
+        chatUrl: "https://test.hust.so/chat",
       }),
     );
   });
@@ -276,8 +276,8 @@ describe("sendSubscriptionConfirmedEmail", () => {
     const { SubscriptionConfirmedEmail } = require("./templates/subscription-confirmed");
     expect(SubscriptionConfirmedEmail).toHaveBeenCalledWith(
       expect.objectContaining({
-        chatUrl: "https://test.everjobs.ai/chat",
-        manageUrl: "https://test.everjobs.ai/settings",
+        chatUrl: "https://test.hust.so/chat",
+        manageUrl: "https://test.hust.so/settings",
       }),
     );
   });

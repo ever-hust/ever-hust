@@ -33,21 +33,21 @@ const CONTACT_CHANNELS = [
     title: "General Inquiries",
     description:
       `For general questions about ${APP_NAME}, our platform, or how to get started.`,
-    email: "hello@everjobs.ai",
+    email: "hello@hust.so",
   },
   {
     icon: MessageSquare,
     title: "Support",
     description:
       "Need help with your account, billing, or a technical issue? Our support team is here for you.",
-    email: "support@everjobs.ai",
+    email: "support@hust.so",
   },
   {
     icon: Building,
     title: "Partnerships & Enterprise",
     description:
       `Interested in integrating ${APP_NAME} into your organization, or exploring a partnership?`,
-    email: "partnerships@everjobs.ai",
+    email: "partnerships@hust.so",
   },
 ];
 
@@ -114,10 +114,10 @@ export default function ContactPage() {
               <p>
                 <strong className="text-foreground">Platform:</strong>{" "}
                 <a
-                  href="https://everjobs.ai"
+                  href="https://hust.so"
                   className="text-primary underline underline-offset-4 hover:text-primary/80"
                 >
-                  everjobs.ai
+                  hust.so
                 </a>
               </p>
               <p>

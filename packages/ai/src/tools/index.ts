@@ -26,3 +26,6 @@ export { companyDeepDiveTool } from "./company-deep-dive";
 export { draftOutreachTool } from "./draft-outreach";
 export { careerAdvisorTool } from "./career-advisor";
 export { captureWritingStyleTool } from "./capture-writing-style";
+export { prepInterviewTool } from "./prep-interview";
+export { batchEvaluateTool } from "./batch-evaluate";
+export { applyCopilotTool } from "./apply-copilot";

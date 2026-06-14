@@ -86,3 +86,19 @@ export type {
   CareerGrowthSummary,
   GrowthRecommendation,
 } from "./schemas/career-growth";
+
+export {
+  INTERVIEW_PREP_SCHEMA_VERSION,
+  interviewPrepArtifact,
+  interviewPrepDraftSchema,
+  interviewPrepSummarySchema,
+} from "./schemas/interview-prep";
+export type { InterviewPrepDraft, InterviewPrepSummary } from "./schemas/interview-prep";
+
+export {
+  APPLY_DRAFT_SCHEMA_VERSION,
+  applyDraftArtifact,
+  applyDraftLlmPartSchema,
+  applyDraftSummarySchema,
+} from "./schemas/apply-draft";
+export type { ApplyDraftLlmPart, ApplyDraftSummary } from "./schemas/apply-draft";

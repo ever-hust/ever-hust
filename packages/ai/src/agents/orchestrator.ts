@@ -34,6 +34,9 @@ import {
   draftOutreachTool,
   careerAdvisorTool,
   captureWritingStyleTool,
+  prepInterviewTool,
+  batchEvaluateTool,
+  applyCopilotTool,
 } from "../tools";
 import { checkSearchLimit, checkCoverLetterLimit } from "../rate-limit";
 import { getOrchestratorPrompt } from "../prompts";
@@ -284,6 +287,24 @@ export async function createOrchestratorStream({
         ...captureWritingStyleTool,
         execute: async (params: any, execOptions: any) => {
           return captureWritingStyleTool.execute!({ ...params, userId }, execOptions);
+        },
+      },
+      prepInterview: {
+        ...prepInterviewTool,
+        execute: async (params: any, execOptions: any) => {
+          return prepInterviewTool.execute!({ ...params, userId, model }, execOptions);
+        },
+      },
+      batchEvaluate: {
+        ...batchEvaluateTool,
+        execute: async (params: any, execOptions: any) => {
+          return batchEvaluateTool.execute!({ ...params, userId, model }, execOptions);
+        },
+      },
+      applyCopilot: {
+        ...applyCopilotTool,
+        execute: async (params: any, execOptions: any) => {
+          return applyCopilotTool.execute!({ ...params, userId, model }, execOptions);
         },
       },
     },

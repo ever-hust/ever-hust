@@ -67,6 +67,9 @@ export {
   draftOutreachTool,
   careerAdvisorTool,
   captureWritingStyleTool,
+  prepInterviewTool,
+  batchEvaluateTool,
+  applyCopilotTool,
 } from "./tools";
 
 // Application pipeline stages (spec #2)

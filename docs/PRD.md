@@ -53,7 +53,7 @@
 
 Hust is an AI-first job search platform where the primary user experience is conversational. After authenticating via LinkedIn OAuth, users interact with an AI assistant through a split-screen interface: an AI chat panel on the left and a dynamic data canvas on the right. The AI guides users through job discovery, application preparation, and career management.
 
-The platform consumes job data from an external Ever Jobs API (github.com/ever-co/ever-jobs, deployed separately in Kubernetes), which aggregates listings from 25 sources including LinkedIn, Indeed, Glassdoor, ZipRecruiter, and multiple ATS platforms. Jobs are stored locally in a shared PostgreSQL database (Supabase) and presented through an intelligent, agent-driven interface.
+The platform consumes job data from an external Ever Jobs API (github.com/ever-jobs/ever-jobs, deployed separately in Kubernetes), which aggregates listings from 25 sources including LinkedIn, Indeed, Glassdoor, ZipRecruiter, and multiple ATS platforms. Jobs are stored locally in a shared PostgreSQL database (Supabase) and presented through an intelligent, agent-driven interface.
 
 The system is built as a Turborepo monorepo deployed on Vercel, with a Supabase PostgreSQL database managed via Drizzle ORM. Monetization is handled through Stripe subscriptions at three pricing tiers. Background jobs (alerts, job syncing) are managed by Trigger.dev v3. The AI layer uses Vercel AI SDK v6 with a unified orchestrator agent that handles all tasks (job search, application, cover letter, interview prep) via 11 registered tools and behavioral guidance in the system prompt, with OpenRouter for multi-model routing, Langfuse for observability, and human-in-the-loop approval flows.
 
@@ -1161,7 +1161,7 @@ The architecture supports any external API that returns questions and accepts an
 
 ## 11. Ever Jobs API Integration
 
-**Source**: [github.com/ever-co/ever-jobs](https://github.com/ever-co/ever-jobs) (NestJS, TypeScript)
+**Source**: [github.com/ever-jobs/ever-jobs](https://github.com/ever-jobs/ever-jobs) (NestJS, TypeScript)
 **OpenAPI Docs**: Available at `/docs` (Scalar) and `/swg` (Swagger)
 
 ### Endpoints

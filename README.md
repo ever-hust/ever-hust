@@ -77,7 +77,7 @@ The candidate journey, end to end: **find → evaluate → tailor → apply → 
 - 🌐 **Website** — https://hust.so
 - 📘 **Documentation** — https://docs.hust.so
 - 🚀 **Live App** — https://hust.so
-- 🧩 **Ever Jobs** (sourcing backend) — https://github.com/ever-co/ever-jobs
+- 🧩 **Ever Jobs** (sourcing backend) — https://github.com/ever-jobs/ever-jobs
 - 🏢 **Ever Platform** — https://ever.co
 
 ## 💻 Demo, Cloud & Self-Hosting

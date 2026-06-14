@@ -49,4 +49,6 @@ export {
   companyResearchTool,
   resumeBuilderTool,
   salaryInsightsTool,
+  evaluateJobTool,
+  runEvaluateJob,
 } from "./tools";

@@ -28,5 +28,6 @@ export type {
   EvaluationBlocks,
   EvaluationDimension,
   EvaluationBand,
+  BudgetFit,
   DimensionSource,
 } from "./schemas/evaluation";

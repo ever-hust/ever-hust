@@ -20,6 +20,7 @@ import {
   companyResearchTool,
   resumeBuilderTool,
   salaryInsightsTool,
+  evaluateJobTool,
 } from "../tools";
 import { checkSearchLimit, checkCoverLetterLimit } from "../rate-limit";
 import { getOrchestratorPrompt } from "../prompts";
@@ -183,6 +184,16 @@ export async function createOrchestratorStream({
         },
       },
       salaryInsights: salaryInsightsTool,
+      evaluateJob: {
+        ...evaluateJobTool,
+        execute: async (params: any, execOptions: any) => {
+          // Inject userId + the resolved model server-side (never LLM-provided).
+          return evaluateJobTool.execute!(
+            { ...params, userId, model },
+            execOptions
+          );
+        },
+      },
     },
     stopWhen: stepCountIs(MAX_AI_STEPS_PER_TURN),
   });

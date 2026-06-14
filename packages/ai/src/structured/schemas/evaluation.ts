@@ -95,6 +95,7 @@ export const evaluationLlmPartSchema = z.object({
 });
 
 export type EvaluationBand = z.infer<typeof evaluationBandSchema>;
+export type BudgetFit = z.infer<typeof budgetFitSchema>;
 export type DimensionSource = z.infer<typeof dimensionSourceSchema>;
 export type EvaluationDimension = z.infer<typeof evaluationDimensionSchema>;
 export type EvaluationBlocks = z.infer<typeof evaluationBlocksSchema>;

@@ -12,3 +12,4 @@ export { interviewPrepTool } from "./interview-prep";
 export { companyResearchTool } from "./company-research";
 export { resumeBuilderTool } from "./resume-builder";
 export { salaryInsightsTool } from "./salary-insights";
+export { evaluateJobTool, runEvaluateJob } from "./evaluate-job";

@@ -7,6 +7,11 @@ export { chatSessions, chatMessages } from "./chat";
 export { agentInstances } from "./agents";
 export { subscriptions } from "./subscriptions";
 export { applications } from "./applications";
+export { evaluations } from "./evaluations";
+export type {
+  EvaluationDimensionRow,
+  EvaluationBlocksRow,
+} from "./evaluations";
 export { pushSubscriptions } from "./push-subscriptions";
 export { referrals, referralCredits } from "./referrals";
 export { apiKeys } from "./api-keys";

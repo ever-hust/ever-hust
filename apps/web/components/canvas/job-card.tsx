@@ -9,6 +9,7 @@ import Link from "next/link";
 import { formatSalary, formatLocation, timeAgo } from "@/lib/format-date";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { safeExternalUrl } from "@/lib/safe-url";
+import { computeFreshness, isCaution, type LivenessSignal } from "@/lib/freshness";
 
 export interface JobCardData {
   id: number;
@@ -36,6 +37,9 @@ export interface JobCardData {
   companyIndustry: string | null;
   latitude: number | null;
   longitude: number | null;
+  // Freshness / liveness (spec #4) — optional, forward-compatible.
+  expiresAt?: string | Date | null;
+  liveness?: LivenessSignal | null;
 }
 
 interface JobCardProps {
@@ -85,6 +89,11 @@ export const JobCard = memo(function JobCard({
     job.isRemote
   ) ?? "Unknown";
   const posted = timeAgo(job.datePosted);
+  const freshness = computeFreshness({
+    datePosted: job.datePosted,
+    expiresAt: job.expiresAt,
+    liveness: job.liveness ?? null,
+  });
   const safeLogo = safeExternalUrl(job.companyLogo);
   const applyLink = safeExternalUrl(job.applyUrl) ?? safeExternalUrl(job.jobUrl) ?? null;
 
@@ -263,6 +272,20 @@ export const JobCard = memo(function JobCard({
                 <Clock className="h-3 w-3" aria-hidden="true" />
                 {posted}
               </span>
+            )}
+            {isCaution(freshness.state) && (
+              <Badge
+                variant="outline"
+                className={cn(
+                  "h-4 px-1.5 text-[10px]",
+                  freshness.state === "expired"
+                    ? "border-red-500/40 text-red-600 dark:text-red-400"
+                    : "border-amber-500/40 text-amber-600 dark:text-amber-400"
+                )}
+                title="Freshness signal — verify before applying"
+              >
+                {freshness.label}
+              </Badge>
             )}
             {job.jobLevel && (
               <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">

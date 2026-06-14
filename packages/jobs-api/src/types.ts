@@ -67,6 +67,16 @@ export interface JobPostDto {
   };
   description?: string;
   datePosted?: string;
+  /** When the posting expires / was last seen live (ISO), if the source provides it. */
+  expiresAt?: string;
+  /**
+   * Optional liveness signal from the Ever Jobs corpus (spec #4 / #7). Forward-compatible:
+   * Hust tolerates its absence and derives freshness from dates when not provided.
+   */
+  liveness?: {
+    state?: "active" | "expired" | "uncertain";
+    checkedAt?: string;
+  };
   emails?: string[];
   skills?: string[];
   department?: string;

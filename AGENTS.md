@@ -15,7 +15,7 @@ This file provides guidance to all AI coding assistants (GitHub Copilot, Google 
 | **Monorepo**          | Turborepo with pnpm workspaces       |
 | **Package Namespace** | `@ever-hust/*`                       |
 | **Workspace Config**  | `pnpm-workspace.yaml`                |
-| **Node Version**      | ≥24                                  |
+| **Node Version**      | ≥22                                  |
 
 ## Commands
 

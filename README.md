@@ -100,7 +100,7 @@ The candidate journey, end to end: **find → evaluate → tailor → apply → 
 | **Testing**         | Jest (1240 unit tests) + Playwright (E2E)                    |
 | **Deployment**      | Vercel                                                       |
 
-**Requirements:** Node.js 24+ · pnpm 10+ · a Supabase project · a LinkedIn Developer App · a Stripe account · an AI provider key (OpenRouter or Anthropic).
+**Requirements:** Node.js 22+ · pnpm 10+ · a Supabase project · a LinkedIn Developer App · a Stripe account · an AI provider key (OpenRouter or Anthropic).
 
 ## 🏗️ Architecture
 

@@ -23,6 +23,7 @@ import {
   evaluateJobTool,
   marketInsightsTool,
   updateApplicationStageTool,
+  funnelAnalyticsTool,
 } from "../tools";
 import { checkSearchLimit, checkCoverLetterLimit } from "../rate-limit";
 import { getOrchestratorPrompt } from "../prompts";
@@ -194,6 +195,12 @@ export async function createOrchestratorStream({
             { ...params, userId },
             execOptions
           );
+        },
+      },
+      funnelAnalytics: {
+        ...funnelAnalyticsTool,
+        execute: async (_params: any, execOptions: any) => {
+          return funnelAnalyticsTool.execute!({ userId }, execOptions);
         },
       },
       evaluateJob: {

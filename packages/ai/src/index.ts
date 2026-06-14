@@ -56,6 +56,7 @@ export {
   runEvaluateJob,
   marketInsightsTool,
   updateApplicationStageTool,
+  funnelAnalyticsTool,
 } from "./tools";
 
 // Application pipeline stages (spec #2)

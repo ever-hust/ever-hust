@@ -132,10 +132,10 @@ export default function AboutPage() {
             <p className="mt-4 text-sm text-muted-foreground">
               Interested in joining our team? Reach out at{" "}
               <a
-                href="mailto:careers@hust.so"
+                href="mailto:careers@ever.co"
                 className="text-primary underline underline-offset-4 hover:text-primary/80"
               >
-                careers@hust.so
+                careers@ever.co
               </a>
               .
             </p>

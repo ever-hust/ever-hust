@@ -618,10 +618,10 @@ console.log(data.byLevel);  // Breakdown per seniority level`}
             <p className="text-sm text-muted-foreground">
               Need help? Contact us at{" "}
               <a
-                href="mailto:support@hust.so"
+                href="mailto:support@ever.co"
                 className="text-primary hover:underline"
               >
-                support@hust.so
+                support@ever.co
               </a>
             </p>
           </div>

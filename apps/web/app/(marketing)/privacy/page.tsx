@@ -219,10 +219,10 @@ export default function PrivacyPage() {
               <p className="mt-3">
                 To exercise any of these rights, please contact us at{" "}
                 <a
-                  href="mailto:privacy@hust.so"
+                  href="mailto:privacy@ever.co"
                   className="text-primary underline underline-offset-4 hover:text-primary/80"
                 >
-                  privacy@hust.so
+                  privacy@ever.co
                 </a>
                 . We will respond to your request within 30 days.
               </p>
@@ -301,10 +301,10 @@ export default function PrivacyPage() {
                 If you have questions or concerns about this Privacy Policy or
                 our data practices, please contact us at{" "}
                 <a
-                  href="mailto:privacy@hust.so"
+                  href="mailto:privacy@ever.co"
                   className="text-primary underline underline-offset-4 hover:text-primary/80"
                 >
-                  privacy@hust.so
+                  privacy@ever.co
                 </a>
                 .
               </p>

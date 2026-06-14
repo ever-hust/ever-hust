@@ -33,21 +33,21 @@ const CONTACT_CHANNELS = [
     title: "General Inquiries",
     description:
       `For general questions about ${APP_NAME}, our platform, or how to get started.`,
-    email: "hello@hust.so",
+    email: "hello@ever.co",
   },
   {
     icon: MessageSquare,
     title: "Support",
     description:
       "Need help with your account, billing, or a technical issue? Our support team is here for you.",
-    email: "support@hust.so",
+    email: "support@ever.co",
   },
   {
     icon: Building,
     title: "Partnerships & Enterprise",
     description:
       `Interested in integrating ${APP_NAME} into your organization, or exploring a partnership?`,
-    email: "partnerships@hust.so",
+    email: "partnerships@ever.co",
   },
 ];
 

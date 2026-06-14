@@ -25,7 +25,7 @@ export function AboutStructuredData() {
       {
         "@type": "ContactPoint",
         contactType: "hiring",
-        email: "careers@hust.so",
+        email: "careers@ever.co",
       },
     ],
     brand: {

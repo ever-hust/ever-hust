@@ -1,8 +1,35 @@
-# Hust
+<div align="center">
 
-**The Anti-Hustle Career OS** — an open agentic job-search platform that finds, evaluates and tailors your applications, then tracks every one from first search to signed offer.
+<a href="https://hust.so">
+  <img src="https://hust.so/assets/hust-banner.png" alt="Ever Hust — The Anti-Hustle Career OS" width="760" />
+</a>
 
-## Overview
+# Ever® Hust™ — The Anti-Hustle Career OS
+
+**An open agentic job-search platform that finds, evaluates and tailors your applications, then tracks every one from first search to signed offer.**
+
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![CI](https://github.com/ever-hust/ever-hust/actions/workflows/ci.yml/badge.svg)](https://github.com/ever-hust/ever-hust/actions/workflows/ci.yml)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Made with TypeScript](https://img.shields.io/badge/Made_with-TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Website](https://img.shields.io/badge/Website-hust.so-6E56CF)](https://hust.so)
+[![Docs](https://img.shields.io/badge/Docs-docs.hust.so-6E56CF)](https://docs.hust.so)
+[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/hust)
+[![X](https://img.shields.io/badge/Follow-%40hust__so-000000?logo=x&logoColor=white)](https://x.com/hust_so)
+
+[Website](https://hust.so) · [Documentation](https://docs.hust.so) · [Live App](https://hust.so) · [Discord](https://discord.gg/hust) · [Roadmap](docs/PRD.md)
+
+</div>
+
+---
+
+> [!NOTE]
+> **Hust is a standalone product.** It runs fully without any Gauzy product — its only hard
+> external dependency is the **Ever Jobs API** (job listings). It *optionally* integrates with the
+> wider **Ever Gauzy** platform for the agency/company scenario. See
+> [Relationship to Ever Gauzy / Ever Jobs](docs/GAUZY-INTEGRATION.md).
+
+## 🌟 What is it
 
 Hust is an open-source, AI-native platform that takes a job seeker through the entire journey — from the first search to a signed offer — without the spray-and-pray grind. The interface is conversational: an AI assistant on the left, a live jobs canvas on the right. But unlike a job board or a search box, Hust doesn't just *find* roles — it **evaluates** them for you, **tailors** your applications, and **tracks** every one through to the offer.
 
@@ -12,15 +39,9 @@ Two principles run through everything: **quality over quantity** and **human-in-
 
 Hust works for individuals out of the box and scales to **agencies and enterprises** — organizations, teams, an admin console, an enterprise API, and white-label branding are built in, and an **optional integration with the Ever Gauzy platform** adds employee/org sync (SSO) and automated apply-at-scale. Hust's only hard dependency is the **Ever Jobs** sourcing API; everything else — including the Gauzy integration — is optional. Released under **AGPL-3.0**.
 
-**Domain**: hust.so
+## ✨ Features
 
-> [!NOTE]
-> **Hust is a standalone product.** It runs fully without any Gauzy product — its only hard
-> external dependency is the **Ever Jobs API** (job listings). It *optionally* integrates with the
-> wider **Ever Gauzy** platform for the agency/company scenario. See
-> [Relationship to Gauzy / Gauzy AI](#relationship-to-gauzy--gauzy-ai-optional).
-
-## Features
+The candidate journey, end to end: **find → evaluate → tailor → apply → interview → negotiate → track**.
 
 | Category                | Feature                       | Details                                                                                         |
 | ----------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------- |
@@ -35,7 +56,57 @@ Hust works for individuals out of the box and scales to **agencies and enterpris
 | **PWA**                 | Installable + offline         | Service worker, push notifications, offline fallback                                            |
 | **i18n**                | Multi-language                | Language switcher in sidebar                                                                    |
 
-## Architecture
+> Deeper candidate-workflow depth — the fit-scoring engine, ghost-job radar, document rendering, pipeline, and funnel analytics — is on the active roadmap toward the full Anti-Hustle Career OS. See the [PRD](docs/PRD.md).
+
+## 🖼️ Screenshots
+
+<details>
+<summary>Show / hide screenshots</summary>
+<br/>
+
+| Conversational job search | Live jobs canvas |
+| --- | --- |
+| ![AI chat](https://hust.so/assets/screenshots/chat.png) | ![Jobs canvas](https://hust.so/assets/screenshots/canvas.png) |
+
+> Full walkthroughs and a live demo at **[hust.so](https://hust.so)** and **[docs.hust.so](https://docs.hust.so)**.
+
+</details>
+
+## 🔗 Links
+
+- 🌐 **Website** — https://hust.so
+- 📘 **Documentation** — https://docs.hust.so
+- 🚀 **Live App** — https://hust.so
+- 🧩 **Ever Jobs** (sourcing backend) — https://github.com/ever-co/ever-jobs
+- 🏢 **Ever Platform** — https://ever.co
+
+## 💻 Demo, Cloud & Self-Hosting
+
+- **Cloud (easiest):** sign up at **[hust.so](https://hust.so)**. Free tier to get started; **Pro** and **Enterprise** tiers unlock unlimited search, advanced agents, and team features.
+- **Self-hosting:** Hust is AGPL-3.0 — clone this repo and follow the **Quick Start** below. You can run the whole platform yourself; only the **Ever Jobs API** (for listings) is required. See the AGPL §13 source-availability obligations in the **License** section below.
+- **Bring your own keys (BYOK):** use your own Anthropic / OpenRouter key, encrypted at rest.
+
+## 🧱 Technology Stack and Requirements
+
+| Layer               | Technology                                                   |
+| ------------------- | ------------------------------------------------------------ |
+| **Framework**       | Next.js 16.1 (App Router, Turbopack, Server Components)      |
+| **Styling**         | Tailwind CSS 4.1 + ShadCN UI                                 |
+| **Build**           | Turborepo monorepo + pnpm                                    |
+| **Auth**            | BetterAuth v1 (LinkedIn OAuth)                               |
+| **Database**        | PostgreSQL via Supabase (Drizzle ORM)                        |
+| **AI**              | Vercel AI SDK v6, OpenRouter, Claude Sonnet 4 default        |
+| **Observability**   | Langfuse (prompts + tracing), Sentry, PostHog, OpenTelemetry |
+| **Payments**        | Stripe subscriptions + webhooks                              |
+| **Email**           | React Email + Resend                                         |
+| **Background Jobs** | Trigger.dev v3                                               |
+| **State**           | Zustand (client), React Query (server state)                 |
+| **Testing**         | Jest (1240 unit tests) + Playwright (E2E)                    |
+| **Deployment**      | Vercel                                                       |
+
+**Requirements:** Node.js 22+ · pnpm 10+ · a Supabase project · a LinkedIn Developer App · a Stripe account · an AI provider key (OpenRouter or Anthropic).
+
+## 🏗️ Architecture
 
 ```mermaid
 graph TB
@@ -83,25 +154,7 @@ graph TB
     UI --> Maps
 ```
 
-## Tech Stack
-
-| Layer               | Technology                                                   |
-| ------------------- | ------------------------------------------------------------ |
-| **Framework**       | Next.js 16.1 (App Router, Turbopack, Server Components)      |
-| **Styling**         | Tailwind CSS 4.1 + ShadCN UI                                 |
-| **Build**           | Turborepo monorepo + pnpm                                    |
-| **Auth**            | BetterAuth v1 (LinkedIn OAuth)                               |
-| **Database**        | PostgreSQL via Supabase (Drizzle ORM)                        |
-| **AI**              | Vercel AI SDK v6, OpenRouter, Claude Sonnet 4 default        |
-| **Observability**   | Langfuse (prompts + tracing), Sentry, PostHog, OpenTelemetry |
-| **Payments**        | Stripe subscriptions + webhooks                              |
-| **Email**           | React Email + Resend                                         |
-| **Background Jobs** | Trigger.dev v3                                               |
-| **State**           | Zustand (client), React Query (server state)                 |
-| **Testing**         | Jest (1240 unit tests) + Playwright (E2E)                    |
-| **Deployment**      | Vercel                                                       |
-
-## Project Structure
+### Project Structure
 
 ```
 ever-hust/
@@ -132,16 +185,7 @@ ever-hust/
 └── docs/                    # Documentation
 ```
 
-## Getting Started
-
-### Prerequisites
-
-- Node.js 22+
-- pnpm 10+
-- Supabase account
-- LinkedIn Developer App
-- Stripe account
-- AI provider key (OpenRouter or Anthropic)
+## 🚀 Quick Start
 
 ### Setup
 
@@ -195,7 +239,7 @@ See `.env.example` for the complete list. Key groups:
 | **Observability** | `LANGFUSE_*`                                                 | Optional          |
 | **Maps**          | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`                            | Optional          |
 
-## Testing
+## 🧪 Testing
 
 ```bash
 # Run all unit tests
@@ -214,7 +258,7 @@ pnpm test:e2e
 
 **Current coverage:** 38 test suites, 1240 tests across 9 projects. See [docs/TESTING.md](docs/TESTING.md) for details.
 
-## Relationship to Gauzy / Gauzy AI (optional)
+## 🔌 Relationship to Ever Gauzy / Ever Jobs (optional)
 
 Hust is **fully usable on its own** — a self-serve, single-user AI job-search assistant. The only
 hard external dependency is the **Ever Jobs API** (job listings). Hust owns its own login
@@ -236,7 +280,9 @@ employee-facing UI to review and apply · **Ever Gauzy AI Automation** = execute
 > Design rule: never make Gauzy a hard dependency. Hust must always build, run, and ship without
 > it. Full details: **[docs/GAUZY-INTEGRATION.md](docs/GAUZY-INTEGRATION.md)**.
 
-## Documentation
+## 📄 Documentation
+
+Full documentation lives at **[docs.hust.so](https://docs.hust.so)**. In-repo references:
 
 | Document                                                 | Description                                          |
 | -------------------------------------------------------- | ---------------------------------------------------- |
@@ -246,23 +292,61 @@ employee-facing UI to review and apply · **Ever Gauzy AI Automation** = execute
 | [Architecture Decisions](docs/ARCHITECTURE-DECISIONS.md) | 15 ADRs covering key design choices                  |
 | [Testing Guide](docs/TESTING.md)                         | Test setup, running, and writing guide               |
 
-## License
+## 💌 Contact & Community
+
+- 💬 **Discord** — https://discord.gg/hust
+- 🐦 **X / Twitter** — https://x.com/hust_so
+- 🗣️ **GitHub Discussions** — https://github.com/ever-hust/ever-hust/discussions
+- ✉️ **Email** — hello@ever.co
+
+## 🔐 Security
+
+Hust is meant to be served over **HTTPS** only. If you discover a security vulnerability, please
+report it responsibly to **security@ever.co** rather than opening a public issue. See
+[SECURITY.md](SECURITY.md) for scope and our responsible-disclosure policy.
+
+## 🛡️ License
 
 Hust is **free, open-source software** licensed under the **GNU Affero General Public
 License v3.0 (AGPL-3.0-or-later)**. See [LICENSE](LICENSE) for the full text.
 
-Copyright (c) 2026 Ever Co. LTD.
+Copyright © 2026 Ever Co. LTD.
 
 ### Network use & source availability (AGPL §13)
 
 Because Hust is designed to be operated as a network service, the AGPL's §13 applies: if you
 run a modified version of Hust and let users interact with it over a network, you must make the
 **Complete Corresponding Source** of your modified version available to those users. The
-canonical source is published at **https://github.com/ever-co/ever-hust**, and the running
+canonical source is published at **https://github.com/ever-hust/ever-hust**, and the running
 application exposes a "Source Code" link in its footer. This obligation remains even when
 white-label branding is enabled.
+
+## ™️ Trademarks
+
+**Ever® Hust™**, **Ever® Gauzy™**, **Ever Jobs**, and related names and logos are trademarks of
+Ever Co. LTD.
 
 > The **source code** is AGPL-3.0. The hosted **service brand, trademarks, and content**
 > ("Hust", "Ever Jobs", logos, marketing copy) remain the property of Ever Co. LTD and are not
 > licensed under the AGPL. You may run, modify, and redistribute the code; you may not pass off
-> your deployment as the official Hust service.
+> your deployment as the official Hust service. White-label branding does not transfer any
+> trademark rights.
+
+## 🍺 Contribute
+
+- ⭐ **Star** this repo — it genuinely helps.
+- 🐛 **File** issues and feature requests.
+- 🔀 **Open a PR** — read [CONTRIBUTING.md](CONTRIBUTING.md) and our [Code of Conduct](CODE_OF_CONDUCT.md) first.
+- 🧭 Work on `develop`, PR to `main`; **conventional commits**; **pnpm only**.
+
+## 💪 Thanks to our Contributors
+
+[![Contributors](https://contrib.rocks/image?repo=ever-hust/ever-hust)](https://github.com/ever-hust/ever-hust/graphs/contributors)
+
+## ⭐ Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=ever-hust/ever-hust&type=Date)](https://star-history.com/#ever-hust/ever-hust&Date)
+
+## ©️ Copyright
+
+Copyright © 2026-present, [Ever Co. LTD](https://ever.co). All rights reserved.

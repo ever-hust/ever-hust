@@ -77,6 +77,14 @@ export interface JobPostDto {
     state?: "active" | "expired" | "uncertain";
     checkedAt?: string;
   };
+  /**
+   * Optional posting-legitimacy / ghost-job signal from the Ever Jobs corpus (spec #7).
+   * Forward-compatible: Hust derives a heuristic when absent. Orthogonal to the fit score.
+   */
+  legitimacy?: {
+    state?: "verified" | "likely" | "uncertain";
+    reasons?: string[];
+  };
   emails?: string[];
   skills?: string[];
   department?: string;

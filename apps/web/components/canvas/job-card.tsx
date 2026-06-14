@@ -10,6 +10,7 @@ import { formatSalary, formatLocation, timeAgo } from "@/lib/format-date";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { safeExternalUrl } from "@/lib/safe-url";
 import { computeFreshness, isCaution, type LivenessSignal } from "@/lib/freshness";
+import { assessLegitimacy } from "@/lib/legitimacy";
 
 export interface JobCardData {
   id: number;
@@ -93,6 +94,11 @@ export const JobCard = memo(function JobCard({
     datePosted: job.datePosted,
     expiresAt: job.expiresAt,
     liveness: job.liveness ?? null,
+  });
+  // Posting-legitimacy radar (spec #7) — orthogonal to fit; only flags "uncertain".
+  const legitimacy = assessLegitimacy({
+    hasSalary: !!(job.salaryMin || job.salaryMax),
+    descriptionLength: job.description?.length ?? 0,
   });
   const safeLogo = safeExternalUrl(job.companyLogo);
   const applyLink = safeExternalUrl(job.applyUrl) ?? safeExternalUrl(job.jobUrl) ?? null;
@@ -285,6 +291,15 @@ export const JobCard = memo(function JobCard({
                 title="Freshness signal — verify before applying"
               >
                 {freshness.label}
+              </Badge>
+            )}
+            {legitimacy.level === "uncertain" && (
+              <Badge
+                variant="outline"
+                className="h-4 px-1.5 text-[10px] border-orange-500/40 text-orange-600 dark:text-orange-400"
+                title={`Possible ghost job — ${legitimacy.reasons.join(" ")}`}
+              >
+                Verify posting
               </Badge>
             )}
             {job.jobLevel && (

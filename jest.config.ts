@@ -36,7 +36,7 @@ const sharedConfig = {
     // Type-checking is already handled by `tsc --noEmit` in the build step.
     "^.+\\.tsx?$": [
       "ts-jest",
-      { diagnostics: false, tsconfig: { isolatedModules: true } },
+      { diagnostics: false, tsconfig: { isolatedModules: true, jsx: "react-jsx" } },
     ],
   },
   moduleNameMapper: workspaceModuleMapper,

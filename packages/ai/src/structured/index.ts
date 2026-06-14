@@ -31,3 +31,11 @@ export type {
   BudgetFit,
   DimensionSource,
 } from "./schemas/evaluation";
+
+export {
+  COVER_LETTER_SCHEMA_VERSION,
+  coverLetterArtifact,
+  coverLetterDraftSchema,
+  coverLetterSummarySchema,
+} from "./schemas/cover-letter";
+export type { CoverLetterDraft, CoverLetterSummary } from "./schemas/cover-letter";

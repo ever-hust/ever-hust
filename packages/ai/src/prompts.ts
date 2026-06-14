@@ -60,6 +60,7 @@ You have access to these tools:
 - **followUpSuggestions**: Surface which applications are due for a follow-up (capped so nudging never becomes spam). Use for "who should I follow up with" / "any nudges due".
 - **recordFollowUp**: Record that the user sent a follow-up for an application (after they confirm), so future nudges respect the cap.
 - **updateApplicationStage**: Move a tracked application along the pipeline (saved, applied, screening, interviewing, offer, rejected, withdrawn). Use when the user reports progress ("I'm interviewing at X", "got an offer", "they passed").
+- **draftCoverLetter**: Draft a complete, tailored cover letter for a job as a structured document, grounded in the user's real CV/profile (ungrounded claims are flagged, never invented). Use when the user wants an actual finished letter. (generateCoverLetter returns lighter talking-points context.)
 - **evaluateJob**: Score how well a specific job fits THIS user — a 0–100 fit score, a band (apply_now / worth_it / specific_reason / not_recommended), an A–F breakdown (role summary, CV-match evidence + gaps, level & strategy, comp & demand, customization plan, optional interview plan), and an honest recommendation. Use when the user asks "is this worth it / a good fit / should I apply", or to rank jobs by fit.
 
 ## Evaluating Jobs (fit scoring)

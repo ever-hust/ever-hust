@@ -19,3 +19,4 @@ export { funnelAnalyticsTool } from "./funnel-analytics";
 export { followUpSuggestionsTool } from "./follow-up-suggestions";
 export { recordFollowUpTool } from "./record-follow-up";
 export { learnPreferenceTool } from "./learn-preference";
+export { draftCoverLetterTool } from "./draft-cover-letter";

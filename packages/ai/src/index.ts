@@ -60,6 +60,7 @@ export {
   followUpSuggestionsTool,
   recordFollowUpTool,
   learnPreferenceTool,
+  draftCoverLetterTool,
 } from "./tools";
 
 // Application pipeline stages (spec #2)

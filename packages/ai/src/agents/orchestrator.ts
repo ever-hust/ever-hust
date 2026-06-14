@@ -27,6 +27,7 @@ import {
   followUpSuggestionsTool,
   recordFollowUpTool,
   learnPreferenceTool,
+  draftCoverLetterTool,
 } from "../tools";
 import { checkSearchLimit, checkCoverLetterLimit } from "../rate-limit";
 import { getOrchestratorPrompt } from "../prompts";
@@ -229,6 +230,15 @@ export async function createOrchestratorStream({
         execute: async (params: any, execOptions: any) => {
           // Inject userId + the resolved model server-side (never LLM-provided).
           return evaluateJobTool.execute!(
+            { ...params, userId, model },
+            execOptions
+          );
+        },
+      },
+      draftCoverLetter: {
+        ...draftCoverLetterTool,
+        execute: async (params: any, execOptions: any) => {
+          return draftCoverLetterTool.execute!(
             { ...params, userId, model },
             execOptions
           );

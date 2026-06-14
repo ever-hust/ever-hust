@@ -14,10 +14,10 @@
 [![Made with TypeScript](https://img.shields.io/badge/Made_with-TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Website](https://img.shields.io/badge/Website-hust.so-6E56CF)](https://hust.so)
 [![Docs](https://img.shields.io/badge/Docs-docs.hust.so-6E56CF)](https://docs.hust.so)
-[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/hust)
+[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/zHVdHkDbnj)
 [![X](https://img.shields.io/badge/Follow-%40hust__so-000000?logo=x&logoColor=white)](https://x.com/hust_so)
 
-[Website](https://hust.so) · [Documentation](https://docs.hust.so) · [Live App](https://hust.so) · [Discord](https://discord.gg/hust) · [Roadmap](docs/PRD.md)
+[Website](https://hust.so) · [Documentation](https://docs.hust.so) · [Live App](https://hust.so) · [Discord](https://discord.gg/zHVdHkDbnj) · [Roadmap](docs/PRD.md)
 
 </div>
 
@@ -294,7 +294,7 @@ Full documentation lives at **[docs.hust.so](https://docs.hust.so)**. In-repo re
 
 ## 💌 Contact & Community
 
-- 💬 **Discord** — https://discord.gg/hust
+- 💬 **Discord** — https://discord.gg/zHVdHkDbnj
 - 🐦 **X / Twitter** — https://x.com/hust_so
 - 🗣️ **GitHub Discussions** — https://github.com/ever-hust/ever-hust/discussions
 - ✉️ **Email** — hello@ever.co

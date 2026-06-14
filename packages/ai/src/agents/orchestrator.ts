@@ -26,6 +26,7 @@ import {
   funnelAnalyticsTool,
   followUpSuggestionsTool,
   recordFollowUpTool,
+  learnPreferenceTool,
 } from "../tools";
 import { checkSearchLimit, checkCoverLetterLimit } from "../rate-limit";
 import { getOrchestratorPrompt } from "../prompts";
@@ -215,6 +216,12 @@ export async function createOrchestratorStream({
         ...recordFollowUpTool,
         execute: async (params: any, execOptions: any) => {
           return recordFollowUpTool.execute!({ ...params, userId }, execOptions);
+        },
+      },
+      learnPreference: {
+        ...learnPreferenceTool,
+        execute: async (params: any, execOptions: any) => {
+          return learnPreferenceTool.execute!({ ...params, userId }, execOptions);
         },
       },
       evaluateJob: {

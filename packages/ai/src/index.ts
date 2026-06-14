@@ -59,6 +59,7 @@ export {
   funnelAnalyticsTool,
   followUpSuggestionsTool,
   recordFollowUpTool,
+  learnPreferenceTool,
 } from "./tools";
 
 // Application pipeline stages (spec #2)

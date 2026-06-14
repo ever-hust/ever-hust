@@ -127,7 +127,7 @@ export function Footer() {
           <p className="text-xs text-muted-foreground/70">
             Open source under{" "}
             <a
-              href="https://github.com/ever-co/ever-hust"
+              href="https://github.com/ever-hust/ever-hust"
               target="_blank"
               rel="noopener noreferrer"
               className="underline underline-offset-2 hover:text-foreground"

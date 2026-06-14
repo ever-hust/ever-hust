@@ -74,7 +74,7 @@ In the full Ever Gauzy platform, Hust is the **client/frontend layer** for job s
 
 | System | Role relative to Hust | Repo |
 | --- | --- | --- |
-| **Ever Hust** (this repo) | Employee-facing SaaS UI: chat, browse, apply, track | `ever-co/ever-hust` |
+| **Ever Hust** (this repo) | Employee-facing SaaS UI: chat, browse, apply, track | `ever-hust/ever-hust` |
 | **Ever Jobs API** | Job listings (read-only scraping of 60+ boards). **Hust's only hard dependency.** | `ever-jobs/ever-jobs` |
 | **Ever Gauzy API** | *(optional)* Identity master: tenants, orgs, users, employees, roles, campaigns, pipelines | `ever-co/ever-gauzy` |
 | **Ever Gauzy AI API** | *(optional)* AI/crawler backend: matching, scoring, proposals, **apply task queue**, Novu alerts | `ever-co/ever-gauzy-ai` |

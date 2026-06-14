@@ -6,7 +6,7 @@
 **Previous Versions**: 1.8 (2026-02-19), 1.7 (2026-02-19), 1.6 (2026-02-18), 1.5 (2026-02-18), 1.4 (2026-02-18), 1.3 (2026-02-18), 1.2 (2026-02-18), 1.1 (2026-02-15), 1.0 (2026-02-14, Approved)
 **Domain**: hust.so
 **License**: GNU AGPL-3.0-or-later (source code); brand/content © Ever Co. LTD
-**Repository**: github.com/ever-co/ever-hust
+**Repository**: github.com/ever-hust/ever-hust
 
 ---
 

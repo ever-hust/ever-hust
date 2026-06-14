@@ -14,3 +14,4 @@ export { resumeBuilderTool } from "./resume-builder";
 export { salaryInsightsTool } from "./salary-insights";
 export { evaluateJobTool, runEvaluateJob } from "./evaluate-job";
 export { marketInsightsTool, computeMarketInsights } from "./market-insights";
+export { updateApplicationStageTool } from "./update-application-stage";

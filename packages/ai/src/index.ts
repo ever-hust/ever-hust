@@ -55,4 +55,16 @@ export {
   evaluateJobTool,
   runEvaluateJob,
   marketInsightsTool,
+  updateApplicationStageTool,
 } from "./tools";
+
+// Application pipeline stages (spec #2)
+export {
+  PIPELINE_STAGES,
+  STAGE_LABELS,
+  ACTIVE_STAGES,
+  TERMINAL_STAGES,
+  isValidStage,
+  isTerminalStage,
+} from "./pipeline/stages";
+export type { PipelineStage } from "./pipeline/stages";

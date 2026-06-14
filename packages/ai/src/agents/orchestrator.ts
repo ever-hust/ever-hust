@@ -22,6 +22,7 @@ import {
   salaryInsightsTool,
   evaluateJobTool,
   marketInsightsTool,
+  updateApplicationStageTool,
 } from "../tools";
 import { checkSearchLimit, checkCoverLetterLimit } from "../rate-limit";
 import { getOrchestratorPrompt } from "../prompts";
@@ -186,6 +187,15 @@ export async function createOrchestratorStream({
       },
       salaryInsights: salaryInsightsTool,
       marketInsights: marketInsightsTool,
+      updateApplicationStage: {
+        ...updateApplicationStageTool,
+        execute: async (params: any, execOptions: any) => {
+          return updateApplicationStageTool.execute!(
+            { ...params, userId },
+            execOptions
+          );
+        },
+      },
       evaluateJob: {
         ...evaluateJobTool,
         execute: async (params: any, execOptions: any) => {

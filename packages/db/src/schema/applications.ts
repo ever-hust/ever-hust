@@ -38,6 +38,24 @@ export const applications = pgTable(
     answersProvided: jsonb("answers_provided"),
     coverLetter: text("cover_letter"),
 
+    // Pipeline / Kanban (spec #2) — the user's tracking stage, distinct from the
+    // apply-action `status` above. Additive; defaults so existing rows stay valid.
+    pipelineStage: text("pipeline_stage", {
+      enum: [
+        "saved",
+        "applied",
+        "screening",
+        "interviewing",
+        "offer",
+        "rejected",
+        "withdrawn",
+      ],
+    })
+      .notNull()
+      .default("applied"),
+    stageChangedAt: timestamp("stage_changed_at").notNull().defaultNow(),
+    sortOrder: integer("sort_order").notNull().default(0),
+
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -45,6 +63,7 @@ export const applications = pgTable(
     index("applications_user_id_idx").on(table.userId),
     index("applications_user_job_idx").on(table.userId, table.jobId),
     index("applications_user_status_idx").on(table.userId, table.status),
+    index("applications_user_stage_idx").on(table.userId, table.pipelineStage),
     index("applications_job_id_idx").on(table.jobId),
   ]
 );

@@ -54,6 +54,8 @@ export async function GET(req: Request) {
           id: applications.id,
           jobId: applications.jobId,
           status: applications.status,
+          pipelineStage: applications.pipelineStage,
+          stageChangedAt: applications.stageChangedAt,
           coverLetter: applications.coverLetter,
           createdAt: applications.createdAt,
           updatedAt: applications.updatedAt,

@@ -26,10 +26,21 @@ import { safeExternalUrl } from "@/lib/safe-url";
 // Types
 // ---------------------------------------------------------------------------
 
+type PipelineStage =
+  | "saved"
+  | "applied"
+  | "screening"
+  | "interviewing"
+  | "offer"
+  | "rejected"
+  | "withdrawn";
+
 interface Application {
   id: number;
   jobId: number;
   status: "pending" | "in_progress" | "submitted" | "failed";
+  pipelineStage?: PipelineStage;
+  stageChangedAt?: string;
   coverLetter: string | null;
   createdAt: string;
   updatedAt: string;
@@ -55,6 +66,17 @@ const STATUS_CONFIG: Record<
   in_progress: { label: "In Progress", variant: "default", className: "bg-blue-500 hover:bg-blue-600" },
   submitted: { label: "Submitted", variant: "default", className: "bg-emerald-500 hover:bg-emerald-600" },
   failed: { label: "Failed", variant: "destructive" },
+};
+
+// Pipeline stage labels (spec #2 — the user's Kanban tracking stage)
+const PIPELINE_STAGE_LABELS: Record<PipelineStage, string> = {
+  saved: "Saved",
+  applied: "Applied",
+  screening: "Screening",
+  interviewing: "Interviewing",
+  offer: "Offer",
+  rejected: "Rejected",
+  withdrawn: "Withdrawn",
 };
 
 // ---------------------------------------------------------------------------
@@ -124,12 +146,19 @@ const ApplicationCard = memo(function ApplicationCard({ app }: { app: Applicatio
                 {app.companyName ?? "Unknown Company"}
               </p>
             </div>
-            <Badge
-              variant={statusConfig.variant}
-              className={cn("shrink-0 text-[10px]", statusConfig.className)}
-            >
-              {statusConfig.label}
-            </Badge>
+            <div className="flex shrink-0 items-center gap-1.5">
+              {app.pipelineStage && (
+                <Badge variant="outline" className="text-[10px]">
+                  {PIPELINE_STAGE_LABELS[app.pipelineStage]}
+                </Badge>
+              )}
+              <Badge
+                variant={statusConfig.variant}
+                className={cn("text-[10px]", statusConfig.className)}
+              >
+                {statusConfig.label}
+              </Badge>
+            </div>
           </div>
 
           {/* Location + date */}

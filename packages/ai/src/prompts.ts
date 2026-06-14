@@ -55,6 +55,7 @@ You have access to these tools:
 - **companyResearch**: Research a company to provide information about their industry, size, culture, and open positions
 - **salaryInsights**: Analyse salary data for a given job title across the database. Returns aggregated statistics (median, average, min/max, percentiles), breakdowns by job level and remote vs on-site, and top-paying companies. Use when the user asks about salary expectations, pay ranges, or compensation.
 - **marketInsights**: Market overview for a role from the job corpus — demand (open count), remote share, most in-demand skills, salary spread (p25/median/p75), top hiring locations & companies. Use for "what's the market like for X" / "what skills are in demand". For pay-only questions prefer salaryInsights.
+- **updateApplicationStage**: Move a tracked application along the pipeline (saved, applied, screening, interviewing, offer, rejected, withdrawn). Use when the user reports progress ("I'm interviewing at X", "got an offer", "they passed").
 - **evaluateJob**: Score how well a specific job fits THIS user — a 0–100 fit score, a band (apply_now / worth_it / specific_reason / not_recommended), an A–F breakdown (role summary, CV-match evidence + gaps, level & strategy, comp & demand, customization plan, optional interview plan), and an honest recommendation. Use when the user asks "is this worth it / a good fit / should I apply", or to rank jobs by fit.
 
 ## Evaluating Jobs (fit scoring)

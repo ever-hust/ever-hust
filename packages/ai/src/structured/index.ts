@@ -39,3 +39,50 @@ export {
   coverLetterSummarySchema,
 } from "./schemas/cover-letter";
 export type { CoverLetterDraft, CoverLetterSummary } from "./schemas/cover-letter";
+
+export {
+  RESUME_SCHEMA_VERSION,
+  resumeArtifact,
+  resumeDraftSchema,
+  resumeSummarySchema,
+} from "./schemas/resume";
+export type { ResumeDraft, ResumeSummary } from "./schemas/resume";
+
+export {
+  NEGOTIATION_SCHEMA_VERSION,
+  negotiationArtifact,
+  negotiationDraftSchema,
+  negotiationSummarySchema,
+} from "./schemas/negotiation";
+export type { NegotiationDraft, NegotiationSummary } from "./schemas/negotiation";
+
+export {
+  COMPANY_RESEARCH_SCHEMA_VERSION,
+  companyResearchArtifact,
+  companyResearchDraftSchema,
+  companyResearchSummarySchema,
+} from "./schemas/company-research";
+export type {
+  CompanyResearchDraft,
+  CompanyResearchSummary,
+} from "./schemas/company-research";
+
+export {
+  OUTREACH_SCHEMA_VERSION,
+  outreachArtifact,
+  outreachDraftSchema,
+  outreachSummarySchema,
+} from "./schemas/outreach";
+export type { OutreachDraft, OutreachSummary } from "./schemas/outreach";
+
+export {
+  CAREER_GROWTH_SCHEMA_VERSION,
+  careerGrowthArtifact,
+  careerGrowthLlmPartSchema,
+  careerGrowthSummarySchema,
+} from "./schemas/career-growth";
+export type {
+  CareerGrowthLlmPart,
+  CareerGrowthSummary,
+  GrowthRecommendation,
+} from "./schemas/career-growth";

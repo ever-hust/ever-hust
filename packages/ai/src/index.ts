@@ -61,6 +61,12 @@ export {
   recordFollowUpTool,
   learnPreferenceTool,
   draftCoverLetterTool,
+  tailorResumeTool,
+  negotiationBriefTool,
+  companyDeepDiveTool,
+  draftOutreachTool,
+  careerAdvisorTool,
+  captureWritingStyleTool,
 } from "./tools";
 
 // Application pipeline stages (spec #2)

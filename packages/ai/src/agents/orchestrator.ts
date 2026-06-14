@@ -28,6 +28,12 @@ import {
   recordFollowUpTool,
   learnPreferenceTool,
   draftCoverLetterTool,
+  tailorResumeTool,
+  negotiationBriefTool,
+  companyDeepDiveTool,
+  draftOutreachTool,
+  careerAdvisorTool,
+  captureWritingStyleTool,
 } from "../tools";
 import { checkSearchLimit, checkCoverLetterLimit } from "../rate-limit";
 import { getOrchestratorPrompt } from "../prompts";
@@ -242,6 +248,42 @@ export async function createOrchestratorStream({
             { ...params, userId, model },
             execOptions
           );
+        },
+      },
+      tailorResume: {
+        ...tailorResumeTool,
+        execute: async (params: any, execOptions: any) => {
+          return tailorResumeTool.execute!({ ...params, userId, model }, execOptions);
+        },
+      },
+      negotiationBrief: {
+        ...negotiationBriefTool,
+        execute: async (params: any, execOptions: any) => {
+          return negotiationBriefTool.execute!({ ...params, userId, model }, execOptions);
+        },
+      },
+      companyDeepDive: {
+        ...companyDeepDiveTool,
+        execute: async (params: any, execOptions: any) => {
+          return companyDeepDiveTool.execute!({ ...params, userId, model }, execOptions);
+        },
+      },
+      draftOutreach: {
+        ...draftOutreachTool,
+        execute: async (params: any, execOptions: any) => {
+          return draftOutreachTool.execute!({ ...params, userId, model }, execOptions);
+        },
+      },
+      careerAdvisor: {
+        ...careerAdvisorTool,
+        execute: async (params: any, execOptions: any) => {
+          return careerAdvisorTool.execute!({ ...params, userId, model }, execOptions);
+        },
+      },
+      captureWritingStyle: {
+        ...captureWritingStyleTool,
+        execute: async (params: any, execOptions: any) => {
+          return captureWritingStyleTool.execute!({ ...params, userId }, execOptions);
         },
       },
     },

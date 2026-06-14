@@ -24,6 +24,8 @@ import {
   marketInsightsTool,
   updateApplicationStageTool,
   funnelAnalyticsTool,
+  followUpSuggestionsTool,
+  recordFollowUpTool,
 } from "../tools";
 import { checkSearchLimit, checkCoverLetterLimit } from "../rate-limit";
 import { getOrchestratorPrompt } from "../prompts";
@@ -201,6 +203,18 @@ export async function createOrchestratorStream({
         ...funnelAnalyticsTool,
         execute: async (_params: any, execOptions: any) => {
           return funnelAnalyticsTool.execute!({ userId }, execOptions);
+        },
+      },
+      followUpSuggestions: {
+        ...followUpSuggestionsTool,
+        execute: async (_params: any, execOptions: any) => {
+          return followUpSuggestionsTool.execute!({ userId }, execOptions);
+        },
+      },
+      recordFollowUp: {
+        ...recordFollowUpTool,
+        execute: async (params: any, execOptions: any) => {
+          return recordFollowUpTool.execute!({ ...params, userId }, execOptions);
         },
       },
       evaluateJob: {

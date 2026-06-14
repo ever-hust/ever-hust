@@ -16,3 +16,5 @@ export { evaluateJobTool, runEvaluateJob } from "./evaluate-job";
 export { marketInsightsTool, computeMarketInsights } from "./market-insights";
 export { updateApplicationStageTool } from "./update-application-stage";
 export { funnelAnalyticsTool } from "./funnel-analytics";
+export { followUpSuggestionsTool } from "./follow-up-suggestions";
+export { recordFollowUpTool } from "./record-follow-up";

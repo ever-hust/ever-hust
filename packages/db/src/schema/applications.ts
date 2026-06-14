@@ -56,6 +56,10 @@ export const applications = pgTable(
     stageChangedAt: timestamp("stage_changed_at").notNull().defaultNow(),
     sortOrder: integer("sort_order").notNull().default(0),
 
+    // Follow-up cadence (spec #9) — capped nudging. Additive.
+    followUpCount: integer("follow_up_count").notNull().default(0),
+    lastFollowUpAt: timestamp("last_follow_up_at"),
+
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

@@ -57,6 +57,8 @@ export {
   marketInsightsTool,
   updateApplicationStageTool,
   funnelAnalyticsTool,
+  followUpSuggestionsTool,
+  recordFollowUpTool,
 } from "./tools";
 
 // Application pipeline stages (spec #2)

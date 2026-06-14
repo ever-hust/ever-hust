@@ -34,6 +34,9 @@ export type {
   EvaluationBand,
   DimensionSource,
 } from "./structured";
+
+// Ethical-guardrail policy primitives (spec #6)
+export * from "./policy";
 export {
   searchJobsTool,
   updateFiltersTool,

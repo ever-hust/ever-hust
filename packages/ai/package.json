@@ -12,7 +12,8 @@
     "./prompts": "./src/prompts.ts",
     "./crypto": "./src/crypto.ts",
     "./org-config": "./src/org-config.ts",
-    "./structured": "./src/structured/index.ts"
+    "./structured": "./src/structured/index.ts",
+    "./policy": "./src/policy/index.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit"

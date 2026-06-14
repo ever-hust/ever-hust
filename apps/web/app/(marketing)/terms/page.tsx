@@ -161,6 +161,24 @@ export default function TermsPage() {
                 responsible for reviewing and verifying all AI-generated content
                 before using it in any professional or personal context.
               </p>
+              <p className="mt-3">
+                <span className="font-medium text-foreground">
+                  Human-in-the-loop; no automated submissions.
+                </span>{" "}
+                The Service is advisory. It drafts and recommends, but it never
+                submits an application, sends a message, or takes any outward
+                action on your behalf without your explicit, per-action approval.
+                This approval step is enforced structurally and cannot be skipped.
+                You remain in control of every action taken in your name.
+              </p>
+              <p className="mt-3">
+                <span className="font-medium text-foreground">
+                  You own your data.
+                </span>{" "}
+                Your profile, CV, evaluations, and the documents you generate
+                belong to you. We use only anonymized, aggregated data to improve
+                the Service, as described in Section 5 and our Privacy Policy.
+              </p>
             </section>
 
             {/* 7. Limitation of Liability */}

@@ -71,7 +71,7 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Run unit tests
-        run: pnpm test -- --ci --coverage --passWithNoTests
+        run: pnpm test:ci
         env:
           NODE_OPTIONS: "--experimental-vm-modules --max-old-space-size=4096"
 

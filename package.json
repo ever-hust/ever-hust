@@ -9,6 +9,7 @@
     "check-types": "turbo run check-types",
     "format": "pnpm prettier --write \"**/*.{ts,tsx,md,json}\"",
     "test": "node --max-old-space-size=4096 --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.config.ts",
+    "test:ci": "node --max-old-space-size=4096 --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.config.ts --ci --coverage --passWithNoTests",
     "test:e2e": "pnpm playwright test",
     "db:push": "pnpm --filter @ever-hust/db db:push",
     "db:migrate": "pnpm --filter @ever-hust/db db:migrate",

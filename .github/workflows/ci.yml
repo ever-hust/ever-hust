@@ -11,9 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Build/test runtime stays on Node 22: Node 24 hangs Playwright 1.58's chromium
-  # extraction during the E2E browser install. (The actions below run on Node 24.)
-  NODE_VERSION: "22"
+  NODE_VERSION: "24"
 
 jobs:
   # ---------------------------------------------------------------------------

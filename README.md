@@ -1,10 +1,6 @@
 <div align="center">
 
-<a href="https://hust.so">
-  <img src="https://hust.so/assets/hust-banner.png" alt="Ever Hust — The Anti-Hustle Career OS" width="760" />
-</a>
-
-# Ever® Hust™ — The Anti-Hustle Career OS
+# Ever® Hust™ - The Anti-Hustle Career OS
 
 **An open agentic job-search platform that finds, evaluates and tailors your applications, then tracks every one from first search to signed offer.**
 
@@ -15,7 +11,7 @@
 [![Website](https://img.shields.io/badge/Website-hust.so-6E56CF)](https://hust.so)
 [![Docs](https://img.shields.io/badge/Docs-docs.hust.so-6E56CF)](https://docs.hust.so)
 [![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/zHVdHkDbnj)
-[![X](https://img.shields.io/badge/Follow-%40hust__so-000000?logo=x&logoColor=white)](https://x.com/hust_so)
+[![X](https://img.shields.io/badge/Follow-%40hust__so-000000?logo=x&logoColor=white)](https://x.com)
 
 [Website](https://hust.so) · [Documentation](https://docs.hust.so) · [Live App](https://hust.so) · [Discord](https://discord.gg/zHVdHkDbnj) · [Roadmap](docs/PRD.md)
 
@@ -295,9 +291,9 @@ Full documentation lives at **[docs.hust.so](https://docs.hust.so)**. In-repo re
 ## 💌 Contact & Community
 
 - 💬 **Discord** — https://discord.gg/zHVdHkDbnj
-- 🐦 **X / Twitter** — https://x.com/hust_so
+- 🐦 **X / Twitter** — https://x.com
 - 🗣️ **GitHub Discussions** — https://github.com/ever-hust/ever-hust/discussions
-- ✉️ **Email** — hello@ever.co
+- ✉️ **Email** — hust@ever.co
 
 ## 🔐 Security
 

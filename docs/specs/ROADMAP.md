@@ -104,3 +104,41 @@ capability) · `EJ→Hust` (EJ produces, Hust renders).
   `OTHERS/Research/COMPETITORS.md`). No competitor names in any spec, comment, or commit.
 - New AI tools follow the existing orchestrator pattern: Zod input, `userId` injected server-side,
   structured output. New tables via Drizzle migrations.
+
+---
+
+## Build status — MVP shipped (2026-06-15)
+
+All 21 epics have an MVP on `develop` (spec → plan → tasks → code → unit tests, CI-green). Built
+in dependency order on `develop` (cascaded to `stage`/`main`), every commit verified
+competitor-free.
+
+| # | Epic | Status | Notes |
+|---|------|--------|-------|
+| 5 | Structured-output contract | ✅ shipped | `packages/ai/src/structured/` — Artifact + assertArtifact + validated generation |
+| 3 | Evaluation engine (`evaluateJob`) | ✅ shipped | tool + `evaluations` table + scoring/taxonomy/assemble + canvas card + read route |
+| 1 | Harvest Ever Jobs (`getMarketInsights`) | ✅ shipped | read-only corpus market overview |
+| 2 | Applications Kanban | ✅ shipped | pipeline stages + `updateApplicationStage` + PATCH route + stage badge |
+| 4 | Liveness / freshness | ✅ shipped | `computeFreshness` + forward-compat DTO `liveness` + caution badge (never auto-hides) |
+| 6 | Guardrails as policy | ✅ shipped | `approval_gates` + requireApproval/assertNoInvented/withCostGate/followUpPolicy + Terms |
+| 7 | Legitimacy radar | ✅ shipped | `assessLegitimacy` (orthogonal to fit) + forward-compat DTO `legitimacy` + badge |
+| 8 | Funnel analytics | ✅ shipped | `computeFunnel` + `funnelAnalytics` tool (stages × evaluations) |
+| 9 | Follow-up cadence | ✅ shipped | `computeFollowUpSuggestions` + suggest/record tools (capped) |
+| 10 | Cover-letter pipeline | ✅ shipped | `cover_letter` artifact + `draftCoverLetter` (grounded, no-invent). *PDF render deferred.* |
+| 11 | Résumé tailoring | ✅ shipped | `resume` artifact + `tailorResume` (ATS-aware, grounded). *HTML→PDF render deferred.* |
+| 12 | Interview prep + story bank | ✅ shipped | `interview_prep` artifact + `prepInterview` (STAR bank from real history) |
+| 13 | Learning loop | ✅ shipped | two-layer `reconcile` + `learnPreference` → feeds #3 weight merge |
+| 14 | Writing-style fingerprint | ✅ shipped | privacy-safe `extractStyleFingerprint` (no raw text) + `captureWritingStyle` |
+| 15 | Negotiation brief | ✅ shipped | `negotiation` artifact + `negotiationBrief` (market-anchored, no invented numbers) |
+| 16 | Company deep-dive | ✅ shipped | `company_research` artifact + `companyDeepDive` (grounded in corpus) |
+| 17 | Outreach (draft-only) | ✅ shipped | `outreach` artifact + `draftOutreach` (never sends) |
+| 18 | Career-growth advisor | ✅ shipped | `aggregateGaps` + `careerAdvisor` (gaps → growth plan) |
+| 19 | Batch evaluation | ✅ shipped | pure `planBatchEvaluation` (cost-gated) + bounded `batchEvaluate` tool. *Trigger.dev fan-out deferred.* |
+| 19a | Apply copilot | ✅ shipped | `apply_draft` artifact + `applyCopilot` (drafts all fields, opens approval gate, **never submits**) |
+| 19b | Localized comp packs | ✅ shipped | `getCompPack` (US/DE/UK/IN + generic). *Wiring into #3 Comp dim deferred.* |
+
+**MVP-deferred enhancements** (additive follow-ups, none blocking): real PDF rendering for
+#10/#11 (needs a render service), Trigger.dev background fan-out for #19, bespoke canvas cards for
+the advisory tools (today they narrate via chat, like #3's card), and applying #19b packs inside
+the #3 Comp dimension. New DB tables (`evaluations`, `approval_gates`) + additive columns are
+push-based; apply them to stage/prod with `pnpm db:push` before the features go live there.

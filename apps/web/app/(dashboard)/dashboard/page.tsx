@@ -23,6 +23,14 @@ const SalaryInsightsCard = dynamic(
   { ssr: false },
 );
 
+const EvaluationCard = dynamic(
+  () =>
+    import("@/components/canvas/evaluation-card").then(
+      (mod) => mod.EvaluationCard,
+    ),
+  { ssr: false },
+);
+
 const CoverLetterModal = dynamic(
   () =>
     import("@/components/shared/cover-letter-modal").then(
@@ -222,6 +230,25 @@ export default function DashboardPage() {
               </button>
             </div>
             <SalaryInsightsCard data={canvas.salaryInsights} />
+          </div>
+        )}
+        {/* Job-fit evaluation overlay */}
+        {canvas.evaluation && (
+          <div className="border-b p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-muted-foreground font-medium">
+                Job Fit Evaluation
+              </span>
+              <button
+                type="button"
+                onClick={canvas.clearEvaluation}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+                aria-label="Dismiss job fit evaluation"
+              >
+                Dismiss
+              </button>
+            </div>
+            <EvaluationCard data={canvas.evaluation} />
           </div>
         )}
         <div className="flex-1 overflow-hidden">

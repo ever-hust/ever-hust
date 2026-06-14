@@ -35,11 +35,13 @@ test.describe("Authentication - Login Page", () => {
   });
 
   test("login page shows LinkedIn sign-in button", async ({ page }) => {
-    await expect(page.getByText(/linkedin/i)).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /continue with linkedin/i })
+    ).toBeVisible();
   });
 
   test("login page shows sign-in heading", async ({ page }) => {
-    await expect(page.getByText(/sign in/i)).toBeVisible();
+    await expect(page.getByText(/welcome back/i)).toBeVisible();
   });
 
   test("login page is accessible without authentication", async ({

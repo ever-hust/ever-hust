@@ -31,7 +31,7 @@ test.describe("Admin Dashboard - Auth Redirect", () => {
   }) => {
     await page.goto("/admin");
     await page.waitForURL(/\/login/);
-    await expect(page.getByText(/sign in/i)).toBeVisible();
+    await expect(page.getByText(/welcome back/i)).toBeVisible();
   });
 });
 

@@ -24,7 +24,7 @@ export default function NotFound() {
           </Link>
         </Button>
         <Button variant="outline" className="gap-2" asChild>
-          <Link href="/dashboard">
+          <Link href="/chat">
             <MessageSquare className="h-4 w-4" aria-hidden="true" />
             Go to Chat
           </Link>

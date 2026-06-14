@@ -12,13 +12,14 @@ test.describe("Landing Page", () => {
   });
 
   test("renders navigation links", async ({ page }) => {
-    await expect(page.getByRole("link", { name: /pricing/i })).toBeVisible();
-    await expect(page.getByRole("link", { name: /login/i })).toBeVisible();
+    const nav = page.locator('nav[aria-label="Main navigation"]');
+    await expect(nav.getByRole("link", { name: "Pricing" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /log in/i }).first()).toBeVisible();
   });
 
   test("renders features section", async ({ page }) => {
     await expect(
-      page.getByText(/ai chat assistant/i).first()
+      page.getByText(/ai chat interface/i).first()
     ).toBeVisible();
   });
 
@@ -124,7 +125,7 @@ test.describe("Navigation", () => {
 
   test("navigates to login page", async ({ page }) => {
     await page.goto("/login");
-    await expect(page.getByText(/sign in/i)).toBeVisible();
+    await expect(page.getByText(/welcome back/i)).toBeVisible();
   });
 
   test("navigates to about page", async ({ page }) => {

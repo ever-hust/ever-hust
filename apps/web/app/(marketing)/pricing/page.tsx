@@ -43,6 +43,7 @@ export default function PricingPage() {
       <PricingStructuredData />
       <Navbar />
       <main id="main-content" className="flex-1">
+        <h1 className="sr-only">Pricing</h1>
         <PricingSection />
       </main>
       <Footer />

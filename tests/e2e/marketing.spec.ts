@@ -36,7 +36,7 @@ test.describe("Landing Page", () => {
 
   test("renders features section", async ({ page }) => {
     await expect(
-      page.getByText(/ai chat assistant/i).first()
+      page.getByText(/ai chat interface/i).first()
     ).toBeVisible();
   });
 
@@ -212,14 +212,14 @@ test.describe("Contact Page", () => {
   });
 
   test("renders all three contact channels", async ({ page }) => {
-    await expect(page.getByText("General Inquiries")).toBeVisible();
-    await expect(page.getByText("Support")).toBeVisible();
-    await expect(page.getByText("Partnerships & Enterprise")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "General Inquiries" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Support" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Partnerships & Enterprise" })).toBeVisible();
   });
 
   test("renders email addresses as mailto links", async ({ page }) => {
     const helloLink = page.getByRole("link", {
-      name: /hello@everjobs\.ai/i,
+      name: /hello@ever\.co/i,
     });
     await expect(helloLink).toBeVisible();
     await expect(helloLink).toHaveAttribute(
@@ -228,7 +228,7 @@ test.describe("Contact Page", () => {
     );
 
     const supportLink = page.getByRole("link", {
-      name: /support@everjobs\.ai/i,
+      name: /support@ever\.co/i,
     });
     await expect(supportLink).toBeVisible();
     await expect(supportLink).toHaveAttribute(
@@ -237,7 +237,7 @@ test.describe("Contact Page", () => {
     );
 
     const partnershipsLink = page.getByRole("link", {
-      name: /partnerships@everjobs\.ai/i,
+      name: /partnerships@ever\.co/i,
     });
     await expect(partnershipsLink).toBeVisible();
     await expect(partnershipsLink).toHaveAttribute(
@@ -271,7 +271,7 @@ test.describe("Terms of Service Page", () => {
   });
 
   test("renders last-updated date", async ({ page }) => {
-    await expect(page.getByText(/last updated/i)).toBeVisible();
+    await expect(page.getByText(/last updated/i).first()).toBeVisible();
   });
 
   test("renders all 10 terms sections", async ({ page }) => {
@@ -297,7 +297,7 @@ test.describe("Terms of Service Page", () => {
 
   test("renders contact email link", async ({ page }) => {
     const emailLinks = page.getByRole("link", {
-      name: /legal@everjobs\.ai/i,
+      name: /legal@ever\.co/i,
     });
     const count = await emailLinks.count();
     expect(count).toBeGreaterThanOrEqual(1);
@@ -325,7 +325,7 @@ test.describe("Privacy Policy Page", () => {
   });
 
   test("renders last-updated date", async ({ page }) => {
-    await expect(page.getByText(/last updated/i)).toBeVisible();
+    await expect(page.getByText(/last updated/i).first()).toBeVisible();
   });
 
   test("renders key privacy sections", async ({ page }) => {
@@ -348,7 +348,7 @@ test.describe("Privacy Policy Page", () => {
 
   test("renders contact email link", async ({ page }) => {
     const emailLinks = page.getByRole("link", {
-      name: /privacy@everjobs\.ai/i,
+      name: /privacy@ever\.co/i,
     });
     const count = await emailLinks.count();
     expect(count).toBeGreaterThanOrEqual(1);

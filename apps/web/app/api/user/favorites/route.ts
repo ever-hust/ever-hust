@@ -97,3 +97,36 @@ export async function POST(req: Request) {
     return apiError("Failed to toggle favorite");
   }
 }
+
+// DELETE /api/user/favorites - Remove a job from favorites
+export async function DELETE(req: Request) {
+  let user;
+  try {
+    user = await requireSessionUser();
+  } catch (response) {
+    return response as NextResponse;
+  }
+  const userId = user.id;
+
+  // Rate limit: 100 req/min per authenticated user
+  const rateLimited = applyRateLimit(userId, "authenticated");
+  if (rateLimited) return rateLimited;
+
+  const jsonResult = await safeJsonParse(req);
+  if (!jsonResult.ok) return jsonResult.response;
+  const validation = parseBody(favoriteToggleSchema, jsonResult.data);
+  if (!validation.success) {
+    return apiBadRequest(validation.error);
+  }
+  const { jobId } = validation.data;
+
+  try {
+    await db
+      .delete(userJobs)
+      .where(and(eq(userJobs.userId, userId), eq(userJobs.jobId, jobId)));
+    return apiSuccess({ jobId, favorited: false });
+  } catch (err) {
+    console.error("[api/user/favorites] DELETE failed:", err instanceof Error ? err.message : err);
+    return apiError("Failed to remove favorite");
+  }
+}

@@ -26,8 +26,10 @@ test.describe("Chat UI - Login Prompt", () => {
   test("login page has LinkedIn sign-in for chat access", async ({ page }) => {
     await page.goto("/chat");
     await page.waitForURL(/\/login/);
-    await expect(page.getByText(/linkedin/i)).toBeVisible();
-    await expect(page.getByText(/sign in/i)).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /continue with linkedin/i })
+    ).toBeVisible();
+    await expect(page.getByText(/welcome back/i)).toBeVisible();
   });
 });
 

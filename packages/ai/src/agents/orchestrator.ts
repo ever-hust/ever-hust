@@ -21,6 +21,7 @@ import {
   resumeBuilderTool,
   salaryInsightsTool,
   evaluateJobTool,
+  marketInsightsTool,
 } from "../tools";
 import { checkSearchLimit, checkCoverLetterLimit } from "../rate-limit";
 import { getOrchestratorPrompt } from "../prompts";
@@ -184,6 +185,7 @@ export async function createOrchestratorStream({
         },
       },
       salaryInsights: salaryInsightsTool,
+      marketInsights: marketInsightsTool,
       evaluateJob: {
         ...evaluateJobTool,
         execute: async (params: any, execOptions: any) => {

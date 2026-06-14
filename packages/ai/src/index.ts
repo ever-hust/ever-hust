@@ -54,4 +54,5 @@ export {
   salaryInsightsTool,
   evaluateJobTool,
   runEvaluateJob,
+  marketInsightsTool,
 } from "./tools";

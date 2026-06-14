@@ -103,6 +103,20 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
 
+      - name: Build (production server for E2E)
+        run: pnpm build
+        env:
+          DATABASE_URL: "postgresql://localhost:5432/test"
+          BETTER_AUTH_SECRET: "test-secret-at-least-32-characters-long"
+          BETTER_AUTH_URL: "http://localhost:8443"
+          NEXT_PUBLIC_SUPABASE_URL: "https://test.supabase.co"
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "test-anon-key"
+          NEXT_PUBLIC_APP_URL: "http://localhost:8443"
+          NEXT_PUBLIC_APP_NAME: "Hust"
+          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_placeholder"
+          LINKEDIN_CLIENT_ID: "ci-dummy"
+          LINKEDIN_CLIENT_SECRET: "ci-dummy"
+
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
 
@@ -110,6 +124,7 @@ jobs:
         run: pnpm exec playwright test
         env:
           CI: true
+          PORT: "8443"
           DATABASE_URL: "postgresql://localhost:5432/test"
           BETTER_AUTH_SECRET: "test-secret-at-least-32-characters-long"
           BETTER_AUTH_URL: "http://localhost:8443"

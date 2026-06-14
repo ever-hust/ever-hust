@@ -18,7 +18,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "pnpm --filter web dev",
+    // In CI, serve the production build (fast, no per-route dev compilation).
+    // `next start` reads PORT (set to 8443 in the workflow). Locally, use dev.
+    command: process.env.CI ? "pnpm --filter web start" : "pnpm --filter web dev",
     url: "http://localhost:8443",
     reuseExistingServer: !process.env.CI,
     timeout: 120000,

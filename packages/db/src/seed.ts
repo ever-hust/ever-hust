@@ -1152,6 +1152,9 @@ interface SeedJob {
   salarySource: string;
   datePosted: Date;
   expiresAt: Date;
+  liveness: string;
+  legitimacy: string;
+  legitimacyReasons: string[] | null;
 }
 
 function generateJobs(count: number): SeedJob[] {
@@ -1204,6 +1207,17 @@ function generateJobs(count: number): SeedJob[] {
     const expiresAt = new Date(datePosted);
     expiresAt.setDate(expiresAt.getDate() + randInt(30, 60));
 
+    // Corpus signals (spec #4 liveness / #7 legitimacy) — deterministic spread by
+    // index so the canvas exercises every badge state in local dev + E2E.
+    const liveness = i % 11 === 0 ? "expired" : i % 7 === 0 ? "uncertain" : "active";
+    const legitimacy = i % 13 === 0 ? "uncertain" : i % 4 === 0 ? "verified" : "likely";
+    const legitimacyReasons =
+      legitimacy === "uncertain"
+        ? ["Limited corroboration across sources.", "No verified company-domain match."]
+        : legitimacy === "verified"
+          ? ["Posting verified across multiple sources.", "Compensation disclosed."]
+          : null;
+
     // IDs
     const idx = String(i + 1).padStart(3, "0");
     const externalId = `${site.prefix}-seed-${idx}`;
@@ -1254,6 +1268,9 @@ function generateJobs(count: number): SeedJob[] {
       salarySource: "seed",
       datePosted,
       expiresAt,
+      liveness,
+      legitimacy,
+      legitimacyReasons,
     });
   }
 

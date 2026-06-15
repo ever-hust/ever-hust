@@ -15,13 +15,22 @@ test.describe("Authenticated — account & usage", () => {
     expect(body.usage).toHaveProperty("searches");
   });
 
-  test("GET applications lists the user's pipeline", async ({ request }) => {
+  test("GET applications lists the user's pipeline with follow-up urgency", async ({ request }) => {
     const res = await request.get("/api/user/applications");
     expect(res.status()).toBe(200);
-    const body = (await res.json()) as { applications: unknown[]; total: number };
+    const body = (await res.json()) as {
+      applications: Array<{ followUp?: { urgency: string } }>;
+      total: number;
+    };
     expect(Array.isArray(body.applications)).toBe(true);
     // auth.setup seeds at least two applications for this user.
     expect(body.total).toBeGreaterThanOrEqual(2);
+    // Every row carries a computed follow-up urgency (spec #9).
+    const VALID = ["overdue", "due", "waiting", "capped", "none"];
+    for (const app of body.applications) {
+      expect(app.followUp).toBeDefined();
+      expect(VALID).toContain(app.followUp!.urgency);
+    }
   });
 
   test("GET applications validates the status filter", async ({ request }) => {

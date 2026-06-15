@@ -4,6 +4,8 @@ import type { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { applyRateLimit } from "../../../../lib/rate-limit";
 import { apiSuccess, apiBadRequest, apiError } from "../../../../lib/api-response";
+import { followUpUrgency } from "@ever-hust/ai/cadence/follow-ups";
+import type { PipelineStage } from "@ever-hust/ai/pipeline/stages";
 import { z } from "zod";
 
 const applicationsQuerySchema = z.object({
@@ -56,6 +58,8 @@ export async function GET(req: Request) {
           status: applications.status,
           pipelineStage: applications.pipelineStage,
           stageChangedAt: applications.stageChangedAt,
+          followUpCount: applications.followUpCount,
+          lastFollowUpAt: applications.lastFollowUpAt,
           coverLetter: applications.coverLetter,
           createdAt: applications.createdAt,
           updatedAt: applications.updatedAt,
@@ -83,8 +87,34 @@ export async function GET(req: Request) {
 
     const total = Number(countResult[0]?.count ?? 0);
 
+    // Attach the per-application follow-up urgency (spec #9) so the UI can badge each row
+    // without importing the cadence engine into the client bundle.
+    const now = new Date();
+    const withFollowUp = results.map((r) => {
+      const status = followUpUrgency(
+        {
+          applicationId: r.id,
+          jobTitle: r.jobTitle,
+          companyName: r.companyName,
+          stage: (r.pipelineStage ?? "saved") as PipelineStage,
+          stageChangedAt: r.stageChangedAt ?? r.updatedAt,
+          followUpCount: r.followUpCount ?? 0,
+          lastFollowUpAt: r.lastFollowUpAt ?? null,
+        },
+        now,
+      );
+      return {
+        ...r,
+        followUp: {
+          urgency: status.urgency,
+          label: status.label,
+          daysSinceActivity: status.daysSinceActivity,
+        },
+      };
+    });
+
     return apiSuccess({
-      applications: results,
+      applications: withFollowUp,
       total,
       offset,
       limit,

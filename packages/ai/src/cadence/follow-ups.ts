@@ -67,3 +67,55 @@ export function computeFollowUpSuggestions(
 
   return suggestions.sort((a, b) => b.daysSinceActivity - a.daysSinceActivity);
 }
+
+/**
+ * Per-application follow-up urgency (spec #9 visual taxonomy). Unlike
+ * {@link computeFollowUpSuggestions} (which returns only the due ones), this classifies a single
+ * application so the Kanban/list UI can render a badge on every row. Pure; `now` injectable.
+ *
+ * - `overdue` — due AND it has been a while since the last activity.
+ * - `due`     — eligible for a follow-up now.
+ * - `waiting` — too soon since the last nudge (policy interval not elapsed).
+ * - `capped`  — the follow-up cap has been reached; stop nudging.
+ * - `none`    — the stage isn't one where a follow-up makes sense.
+ */
+export type FollowUpUrgency = "overdue" | "due" | "waiting" | "capped" | "none";
+
+export interface FollowUpStatus {
+  urgency: FollowUpUrgency;
+  label: string;
+  daysSinceActivity: number | null;
+  followUpCount: number;
+}
+
+/** Days since last activity beyond which a due follow-up is considered overdue. */
+export const OVERDUE_AFTER_DAYS = 7;
+
+export function followUpUrgency(
+  app: FollowUpApp,
+  now: Date,
+  policy: FollowUpPolicy = DEFAULT_FOLLOW_UP_POLICY,
+): FollowUpStatus {
+  if (!FOLLOWABLE_STAGES.includes(app.stage)) {
+    return { urgency: "none", label: "", daysSinceActivity: null, followUpCount: app.followUpCount };
+  }
+
+  const anchor = app.lastFollowUpAt ?? app.stageChangedAt;
+  const daysSinceActivity = Math.floor((now.getTime() - anchor.getTime()) / MS_PER_DAY);
+  const decision = canSendFollowUp({
+    sentCount: app.followUpCount,
+    lastSentAt: anchor,
+    now,
+    policy,
+  });
+
+  if (!decision.allowed) {
+    return decision.reason === "max_reached"
+      ? { urgency: "capped", label: "Follow-up limit reached", daysSinceActivity, followUpCount: app.followUpCount }
+      : { urgency: "waiting", label: "Recently followed up", daysSinceActivity, followUpCount: app.followUpCount };
+  }
+
+  return daysSinceActivity >= OVERDUE_AFTER_DAYS
+    ? { urgency: "overdue", label: "Follow up — overdue", daysSinceActivity, followUpCount: app.followUpCount }
+    : { urgency: "due", label: "Follow up due", daysSinceActivity, followUpCount: app.followUpCount };
+}

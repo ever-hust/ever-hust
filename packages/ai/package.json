@@ -14,7 +14,8 @@
     "./org-config": "./src/org-config.ts",
     "./structured": "./src/structured/index.ts",
     "./policy": "./src/policy/index.ts",
-    "./pipeline/stages": "./src/pipeline/stages.ts"
+    "./pipeline/stages": "./src/pipeline/stages.ts",
+    "./cadence/follow-ups": "./src/cadence/follow-ups.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit"

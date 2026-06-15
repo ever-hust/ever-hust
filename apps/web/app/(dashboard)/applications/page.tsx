@@ -10,6 +10,7 @@ import {
   FileText,
   ExternalLink,
   Filter,
+  BellRing,
 } from "lucide-react";
 import { Button } from "@ever-hust/ui/button";
 import { Badge } from "@ever-hust/ui/badge";
@@ -50,7 +51,21 @@ interface Application {
   locationCity: string | null;
   locationState: string | null;
   isRemote: boolean | null;
+  // Follow-up cadence urgency (spec #9), computed server-side.
+  followUp?: {
+    urgency: "overdue" | "due" | "waiting" | "capped" | "none";
+    label: string;
+    daysSinceActivity: number | null;
+  };
 }
+
+// Only the actionable states get a row badge; "waiting"/"capped"/"none" stay quiet.
+const FOLLOW_UP_BADGE: Partial<
+  Record<NonNullable<Application["followUp"]>["urgency"], string>
+> = {
+  overdue: "border-red-500/40 text-red-600 dark:text-red-400",
+  due: "border-amber-500/40 text-amber-600 dark:text-amber-400",
+};
 
 type StatusFilter = "all" | "pending" | "in_progress" | "submitted" | "failed";
 
@@ -147,6 +162,20 @@ const ApplicationCard = memo(function ApplicationCard({ app }: { app: Applicatio
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
+              {app.followUp && FOLLOW_UP_BADGE[app.followUp.urgency] && (
+                <Badge
+                  variant="outline"
+                  className={cn("flex items-center gap-1 text-[10px]", FOLLOW_UP_BADGE[app.followUp.urgency])}
+                  title={
+                    app.followUp.daysSinceActivity != null
+                      ? `${app.followUp.label} — ${app.followUp.daysSinceActivity}d since last activity`
+                      : app.followUp.label
+                  }
+                >
+                  <BellRing className="h-3 w-3" aria-hidden="true" />
+                  {app.followUp.urgency === "overdue" ? "Follow up" : "Due"}
+                </Badge>
+              )}
               {app.pipelineStage && (
                 <Badge variant="outline" className="text-[10px]">
                   {PIPELINE_STAGE_LABELS[app.pipelineStage]}

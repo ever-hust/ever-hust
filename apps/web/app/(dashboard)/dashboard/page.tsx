@@ -31,6 +31,12 @@ const EvaluationCard = dynamic(
   { ssr: false },
 );
 
+const ArtifactCard = dynamic(
+  () =>
+    import("@/components/canvas/artifact-card").then((mod) => mod.ArtifactCard),
+  { ssr: false },
+);
+
 const CoverLetterModal = dynamic(
   () =>
     import("@/components/shared/cover-letter-modal").then(
@@ -249,6 +255,25 @@ export default function DashboardPage() {
               </button>
             </div>
             <EvaluationCard data={canvas.evaluation} />
+          </div>
+        )}
+        {/* Advisory artifact overlay (cover letter, résumé, negotiation, etc.) */}
+        {canvas.artifact && (
+          <div className="border-b p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-muted-foreground font-medium">
+                {canvas.artifact.title}
+              </span>
+              <button
+                type="button"
+                onClick={canvas.clearArtifact}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+                aria-label="Dismiss AI artifact"
+              >
+                Dismiss
+              </button>
+            </div>
+            <ArtifactCard artifact={canvas.artifact} />
           </div>
         )}
         <div className="flex-1 overflow-hidden">

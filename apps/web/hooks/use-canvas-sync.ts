@@ -5,6 +5,19 @@ import type { JobCardData } from "@/components/canvas/job-card";
 import type { JobFilters } from "@/components/canvas/filter-bar";
 import type { SalaryInsightsData } from "@/components/canvas/salary-insights-card";
 import type { EvaluationView } from "@/components/canvas/evaluation-card";
+import type { ArtifactView } from "@/components/canvas/artifact-card";
+
+/** Advisory tools whose structured result renders on the canvas as a generic artifact card. */
+const ARTIFACT_TITLES: Record<string, string> = {
+  draftCoverLetter: "Cover Letter",
+  tailorResume: "Résumé Tailoring",
+  negotiationBrief: "Negotiation Brief",
+  companyDeepDive: "Company Brief",
+  draftOutreach: "Outreach Draft",
+  prepInterview: "Interview Prep",
+  careerAdvisor: "Growth Plan",
+  applyCopilot: "Application Draft",
+};
 
 export interface CoverLetterContext {
   jobId: number;
@@ -22,6 +35,7 @@ interface CanvasState {
   coverLetterContext: CoverLetterContext | null;
   salaryInsights: SalaryInsightsData | null;
   evaluation: EvaluationView | null;
+  artifact: ArtifactView | null;
   /** When true, show the DashboardCanvas instead of JobsCanvas */
   showDashboard: boolean;
 }
@@ -46,6 +60,7 @@ export function useCanvasSync() {
     coverLetterContext: null,
     salaryInsights: null,
     evaluation: null,
+    artifact: null,
     showDashboard: true,
   });
 
@@ -200,6 +215,31 @@ export function useCanvasSync() {
           break;
         }
 
+        case "draftCoverLetter":
+        case "tailorResume":
+        case "negotiationBrief":
+        case "companyDeepDive":
+        case "draftOutreach":
+        case "prepInterview":
+        case "careerAdvisor":
+        case "applyCopilot": {
+          // Surface any successful advisory artifact as a generic card; errors are narrated.
+          if (!data.error) {
+            const subtitleParts = [data.jobTitle, data.companyName].filter(
+              (x): x is string => typeof x === "string"
+            );
+            setState((prev) => ({
+              ...prev,
+              artifact: {
+                title: ARTIFACT_TITLES[toolName] ?? "AI Result",
+                subtitle: subtitleParts.length > 0 ? subtitleParts.join(" • ") : undefined,
+                data: data as Record<string, unknown>,
+              },
+            }));
+          }
+          break;
+        }
+
         default:
           // Unknown tool — ignore but log for debugging
           if (process.env.NODE_ENV === "development") {
@@ -247,6 +287,10 @@ export function useCanvasSync() {
     setState((prev) => ({ ...prev, evaluation: null }));
   }, []);
 
+  const clearArtifact = useCallback(() => {
+    setState((prev) => ({ ...prev, artifact: null }));
+  }, []);
+
   // Add a job from Supabase Realtime (live update from background sync).
   // Only prepends if the job doesn't already exist in the list.
   const addRealtimeJob = useCallback((job: JobCardData) => {
@@ -270,6 +314,7 @@ export function useCanvasSync() {
     clearCoverLetter,
     clearSalaryInsights,
     clearEvaluation,
+    clearArtifact,
     addRealtimeJob,
   };
 }

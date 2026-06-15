@@ -18,8 +18,10 @@
     "db:generate": "pnpm --filter @ever-hust/db db:generate"
   },
   "devDependencies": {
+    "@ever-hust/db": "workspace:*",
     "@playwright/test": "^1.60.0",
     "@types/jest": "^30.0.0",
+    "drizzle-orm": "^0.45.1",
     "jest": "^30.2.0",
     "prettier": "^3.7.4",
     "ts-jest": "^29.4.6",

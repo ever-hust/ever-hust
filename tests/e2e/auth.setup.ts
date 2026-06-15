@@ -1,0 +1,55 @@
+import { test as setup, expect } from "@playwright/test";
+import { db, users } from "@ever-hust/db";
+import { eq } from "drizzle-orm";
+
+/**
+ * Playwright auth setup (runs as a dependency project before authenticated specs).
+ *
+ * Establishes a real, signed BetterAuth session WITHOUT OAuth:
+ *  1. Sign up via email/password (creates the user + account; the verification email send is
+ *     non-blocking in CI where Resend isn't configured).
+ *  2. Flip emailVerified + onboardingCompleted directly in the test DB (the app requires email
+ *     verification, and we want to skip the onboarding gate). This is a test-DB write only.
+ *  3. Sign in → BetterAuth issues a properly signed session cookie.
+ *  4. Persist the storage state for authenticated specs (`test.use({ storageState: AUTH_FILE })`).
+ */
+export const AUTH_FILE = "tests/e2e/.auth/user.json";
+
+const TEST_EMAIL = "e2e.tester@hust.test";
+const TEST_PASSWORD = "e2e-test-password-123";
+const TEST_NAME = "E2E Tester";
+
+setup("authenticate", async ({ request }) => {
+  // 1. Sign up (idempotent across re-runs — ignore "already exists").
+  await request.post("/api/auth/sign-up/email", {
+    data: { email: TEST_EMAIL, password: TEST_PASSWORD, name: TEST_NAME },
+    failOnStatusCode: false,
+  });
+
+  // 2. Verify + onboard directly in the test database.
+  await db
+    .update(users)
+    .set({
+      emailVerified: true,
+      onboardingCompleted: true,
+      preferences: {
+        jobType: ["fulltime"],
+        remotePreference: "remote",
+        roleLevel: "senior",
+        skills: ["TypeScript", "React", "Node.js"],
+        salaryMin: 150000,
+        industries: ["tech"],
+      },
+    })
+    .where(eq(users.email, TEST_EMAIL));
+
+  // 3. Sign in for a valid signed session cookie.
+  const signIn = await request.post("/api/auth/sign-in/email", {
+    data: { email: TEST_EMAIL, password: TEST_PASSWORD },
+    failOnStatusCode: false,
+  });
+  expect(signIn.ok(), `sign-in failed: ${signIn.status()}`).toBeTruthy();
+
+  // 4. Persist auth state for authenticated specs.
+  await request.storageState({ path: AUTH_FILE });
+});

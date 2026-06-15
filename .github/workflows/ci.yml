@@ -122,6 +122,11 @@ jobs:
         env:
           DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/hust_test"
 
+      - name: Seed database (jobs corpus for authenticated + AI E2E)
+        run: pnpm db:seed
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/hust_test"
+
       - name: Build (production server for E2E)
         run: pnpm build
         env:
@@ -147,6 +152,10 @@ jobs:
           DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/hust_test"
           BETTER_AUTH_SECRET: "test-secret-at-least-32-characters-long"
           BETTER_AUTH_URL: "http://localhost:8443"
+          # Real-LLM E2E: set the OPENROUTER_API_KEY repo secret to activate the AI specs.
+          # When unset, the AI specs skip gracefully (suite stays green).
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          DEFAULT_AI_MODEL: "claude-haiku-4-5-20251001"
           NEXT_PUBLIC_SUPABASE_URL: "https://test.supabase.co"
           NEXT_PUBLIC_SUPABASE_ANON_KEY: "test-anon-key"
           NEXT_PUBLIC_APP_URL: "http://localhost:8443"

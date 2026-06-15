@@ -12,9 +12,18 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   projects: [
+    // Auth setup — runs first, establishes a signed session for authenticated specs.
+    {
+      name: "setup",
+      testMatch: /auth\.setup\.ts/,
+    },
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
+      // Unauthenticated by default (existing redirect/401 specs). Authenticated specs opt in
+      // with `test.use({ storageState: AUTH_FILE })`; they depend on the setup project below.
+      dependencies: ["setup"],
+      testIgnore: /auth\.setup\.ts/,
     },
   ],
   webServer: {

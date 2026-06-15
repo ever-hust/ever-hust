@@ -22,6 +22,7 @@ import {
 } from "../evaluation/scoring";
 import { detectTaxonomy } from "../evaluation/taxonomy";
 import { assembleEvaluation } from "../evaluation/assemble";
+import { getCompPack } from "../comp/packs";
 
 export const evaluateJobInput = z.object({
   jobId: z
@@ -144,6 +145,9 @@ function buildPrompt(input: {
     .filter(Boolean)
     .join(", ");
 
+  // Localized comp semantics (spec #19b) so Comp/Demand reasons correctly outside the US.
+  const compPack = getCompPack(job.locationCountry);
+
   return [
     "## Candidate",
     `Headline: ${typeof cv.headline === "string" ? cv.headline : (prefs.roleLevel ?? "—")}`,
@@ -170,6 +174,7 @@ function buildPrompt(input: {
     `Remote dimension: ${remote.score5}/5 — ${remote.rationale}`,
     `Level dimension: ${level.score5}/5 — ${level.rationale}`,
     `CV skill-overlap baseline: ${Math.round(overlap.ratio * 100)}% — matched: ${overlap.matched.slice(0, 20).join(", ") || "none"}; missing: ${overlap.missing.slice(0, 20).join(", ") || "none"}`,
+    `Market comp semantics (${compPack.market}, ${compPack.currency}): statutory = ${compPack.statutoryComponents.join(", ")}; norms = ${compPack.norms.join(" ")}; equity = ${compPack.equityConvention}. Use these for the Comp/Demand block instead of US assumptions.`,
     "",
     "## Your task",
     `Score these dimensions (1–5 + one-sentence rationale), using the keys exactly: ${LLM_DIMENSION_KEYS.join(", ")}.`,

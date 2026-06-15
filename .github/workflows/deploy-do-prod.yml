@@ -1,8 +1,9 @@
 name: Deploy Hust Web to DigitalOcean (Prod)
 
-# Deploys the web app to the k8s-gauzy cluster (host: app.hust.so) after the
-# image build completes. Materialises the runtime env + TLS secrets from GitHub
-# Actions secrets, applies the manifest, and rolls the deployment to pick up :latest.
+# Deploys the web app to the k8s-gauzy cluster (host: app.hust.so) after the image
+# build completes. Uses the cluster kubeconfig directly (HUST_KUBECONFIG secret) —
+# no doctl / DO API token needed. Materialises the runtime env + TLS secrets from
+# GitHub Actions secrets, applies the manifest, and rolls the deployment.
 on:
   workflow_run:
     workflows: ["Build and Publish Hust Web Image (Prod)"]
@@ -16,7 +17,6 @@ concurrency:
 
 jobs:
   deploy-web:
-    # Only deploy if the upstream build succeeded (or when dispatched manually).
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     environment: prod
@@ -24,22 +24,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install doctl
-        uses: digitalocean/action-doctl@v2
-        with:
-          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
-
-      - name: Save DigitalOcean kubeconfig (short-lived)
-        run: doctl kubernetes cluster kubeconfig save --expiry-seconds 1200 k8s-gauzy
+      - name: Configure kubeconfig
+        env:
+          HUST_KUBECONFIG: ${{ secrets.HUST_KUBECONFIG }}
+        run: |
+          mkdir -p "$HOME/.kube"
+          printf '%s' "$HUST_KUBECONFIG" > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+          kubectl config use-context do-sfo2-k8s-gauzy
 
       - name: Materialise runtime env Secret (hust-prod-web-env)
         env:
           HUST_PROD_ENV: ${{ secrets.HUST_PROD_ENV }}
         run: |
           printf '%s' "$HUST_PROD_ENV" > /tmp/hust.env
-          kubectl --context do-sfo2-k8s-gauzy create secret generic hust-prod-web-env \
-            --from-env-file=/tmp/hust.env --dry-run=client -o yaml \
-            | kubectl --context do-sfo2-k8s-gauzy apply -f -
+          kubectl create secret generic hust-prod-web-env \
+            --from-env-file=/tmp/hust.env --dry-run=client -o yaml | kubectl apply -f -
           rm -f /tmp/hust.env
 
       - name: Materialise TLS Secret (app.hust.so-tls)
@@ -47,19 +47,21 @@ jobs:
           INGRESS_CERT: ${{ secrets.HUST_INGRESS_CERT }}
           INGRESS_CERT_KEY: ${{ secrets.HUST_INGRESS_CERT_KEY }}
         run: |
+          if [ -z "$INGRESS_CERT" ]; then
+            echo "HUST_INGRESS_CERT not set — skipping TLS secret (ingress will lack a cert until provided)."
+            exit 0
+          fi
           crt="${HOME}/app.hust.so.crt"; key="${HOME}/app.hust.so.key"
           printf '%s' "$INGRESS_CERT" | base64 --decode > "$crt"
           printf '%s' "$INGRESS_CERT_KEY" | base64 --decode > "$key"
-          kubectl --context do-sfo2-k8s-gauzy create secret tls app.hust.so-tls \
-            --cert="$crt" --key="$key" --dry-run=client -o yaml \
-            | kubectl --context do-sfo2-k8s-gauzy apply -f -
+          kubectl create secret tls app.hust.so-tls \
+            --cert="$crt" --key="$key" --dry-run=client -o yaml | kubectl apply -f -
           rm -f "$crt" "$key"
 
       - name: Apply k8s manifest
-        run: |
-          kubectl --context do-sfo2-k8s-gauzy apply -f .deploy/k8s/k8s-manifest.prod.yaml
+        run: kubectl apply -f .deploy/k8s/k8s-manifest.prod.yaml
 
-      - name: Roll the deployment to pick up :latest
+      - name: Roll the deployment
         run: |
-          kubectl --context do-sfo2-k8s-gauzy rollout restart deployment/hust-prod-web
-          kubectl --context do-sfo2-k8s-gauzy rollout status deployment/hust-prod-web --timeout=180s
+          kubectl rollout restart deployment/hust-prod-web
+          kubectl rollout status deployment/hust-prod-web --timeout=240s

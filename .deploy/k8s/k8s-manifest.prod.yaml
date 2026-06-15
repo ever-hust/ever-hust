@@ -67,7 +67,7 @@ spec:
     spec:
       containers:
         - name: hust-prod-web
-          image: registry.digitalocean.com/ever/hust-web:latest
+          image: ghcr.io/ever-hust/hust-web:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
@@ -105,5 +105,6 @@ spec:
             periodSeconds: 20
             timeoutSeconds: 5
             failureThreshold: 3
-      # No imagePullSecrets: the cluster's DOCR↔DOKS integration injects the
-      # registry pull secret automatically (same pattern as gauzy-ai).
+      # No imagePullSecrets: the GHCR package ghcr.io/ever-hust/hust-web is public
+      # (safe — only public NEXT_PUBLIC_* are baked in). Make it private + add a
+      # pull secret here if that policy ever changes.

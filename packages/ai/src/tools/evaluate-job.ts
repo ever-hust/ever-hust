@@ -22,6 +22,7 @@ import {
 } from "../evaluation/scoring";
 import { detectTaxonomy } from "../evaluation/taxonomy";
 import { assembleEvaluation } from "../evaluation/assemble";
+import { assessPostingLegitimacy } from "../evaluation/legitimacy";
 import { getCompPack } from "../comp/packs";
 
 export const evaluateJobInput = z.object({
@@ -230,6 +231,8 @@ export async function runEvaluateJob(args: {
       salaryMin: jobs.salaryMin,
       salaryMax: jobs.salaryMax,
       salaryCurrency: jobs.salaryCurrency,
+      legitimacy: jobs.legitimacy,
+      legitimacyReasons: jobs.legitimacyReasons,
     })
     .from(jobs)
     .where(eq(jobs.id, jobId))
@@ -303,6 +306,14 @@ export async function runEvaluateJob(args: {
     telemetry: { functionId: "evaluate-job", metadata: { userId, jobId } },
   });
 
+  // Block G — posting legitimacy (spec #7): prefer the Ever Jobs corpus signal, else heuristic.
+  const legitimacy = assessPostingLegitimacy({
+    hasSalary: toNumber(job.salaryMin) != null || toNumber(job.salaryMax) != null,
+    descriptionLength: job.description?.length ?? 0,
+    corpusSignal: (job.legitimacy ?? null) as "verified" | "likely" | "uncertain" | null,
+    corpusReasons: (job.legitimacyReasons ?? null) as string[] | null,
+  });
+
   const summary = assembleEvaluation({
     jobId,
     jobFamily,
@@ -311,6 +322,7 @@ export async function runEvaluateJob(args: {
     deterministic: { comp, remote, level },
     llmPart,
     includeInterviewPlan,
+    legitimacy,
   });
 
   // Validate the artifact before persistence (throws in dev/test, degrades in prod).

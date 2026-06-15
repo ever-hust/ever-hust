@@ -3,6 +3,7 @@ import type {
   EvaluationLlmPart,
 } from "../structured/schemas/evaluation";
 import { DEFAULT_DIMENSIONS, computeScore } from "./scoring";
+import { LEGITIMACY_NOTE, type PostingLegitimacy } from "./legitimacy";
 
 function clamp5(x: number): number {
   if (!Number.isFinite(x)) return 3;
@@ -34,6 +35,8 @@ export function assembleEvaluation(input: {
   deterministic: DeterministicInputs;
   llmPart: EvaluationLlmPart;
   includeInterviewPlan: boolean;
+  /** Block G — posting legitimacy (spec #7), attached deterministically; orthogonal to fit. */
+  legitimacy?: PostingLegitimacy;
 }): EvaluationSummary {
   const {
     jobId,
@@ -43,6 +46,7 @@ export function assembleEvaluation(input: {
     deterministic,
     llmPart,
     includeInterviewPlan,
+    legitimacy,
   } = input;
 
   const llmByKey = new Map(llmPart.dimensions.map((d) => [d.key, d]));
@@ -85,6 +89,14 @@ export function assembleEvaluation(input: {
   };
   if (includeInterviewPlan && llmPart.blocks.interviewPlan) {
     blocks.interviewPlan = llmPart.blocks.interviewPlan;
+  }
+  // Block G — posting legitimacy is attached server-side and stays orthogonal to the fit score.
+  if (legitimacy) {
+    blocks.legitimacy = {
+      level: legitimacy.level,
+      reasons: legitimacy.reasons,
+      note: LEGITIMACY_NOTE,
+    };
   }
 
   return {

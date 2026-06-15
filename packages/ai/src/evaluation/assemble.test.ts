@@ -133,4 +133,56 @@ describe("assembleEvaluation", () => {
     });
     expect(summary.band).toBe("not_recommended");
   });
+
+  describe("Block G — posting legitimacy (spec #7)", () => {
+    it("attaches the legitimacy block when provided, with the fixed orthogonal-to-fit note", () => {
+      const { weights } = resolveWeights({});
+      const summary = assembleEvaluation({
+        jobId: 7,
+        jobFamily: "Software Eng",
+        archetype: "Backend",
+        weights,
+        deterministic,
+        llmPart: llmPart(),
+        includeInterviewPlan: false,
+        legitimacy: { level: "uncertain", reasons: ["No salary disclosed."] },
+      });
+      expect(summary.blocks.legitimacy?.level).toBe("uncertain");
+      expect(summary.blocks.legitimacy?.reasons).toEqual(["No salary disclosed."]);
+      expect(summary.blocks.legitimacy?.note).toContain("orthogonal to fit");
+      expect(evaluationSummarySchema.safeParse(summary).success).toBe(true);
+    });
+
+    it("omits the legitimacy block when not provided", () => {
+      const { weights } = resolveWeights({});
+      const summary = assembleEvaluation({
+        jobId: 7,
+        jobFamily: "Software Eng",
+        archetype: "Backend",
+        weights,
+        deterministic,
+        llmPart: llmPart(),
+        includeInterviewPlan: false,
+      });
+      expect(summary.blocks.legitimacy).toBeUndefined();
+    });
+
+    it("does not let legitimacy influence the fit score (orthogonality)", () => {
+      const { weights } = resolveWeights({});
+      const base = {
+        jobId: 7, jobFamily: "Software Eng", archetype: "Backend", weights,
+        deterministic, llmPart: llmPart(), includeInterviewPlan: false,
+      };
+      const withGhost = assembleEvaluation({
+        ...base,
+        legitimacy: { level: "uncertain" as const, reasons: ["Thin description."] },
+      });
+      const withVerified = assembleEvaluation({
+        ...base,
+        legitimacy: { level: "verified" as const, reasons: ["Verified across sources."] },
+      });
+      expect(withGhost.score).toBe(withVerified.score);
+      expect(withGhost.band).toBe(withVerified.band);
+    });
+  });
 });

@@ -13,6 +13,7 @@ import {
   DollarSign,
   Wand2,
   MessageSquareQuote,
+  ShieldCheck,
 } from "lucide-react";
 import {
   Card,
@@ -65,9 +66,33 @@ export interface EvaluationView {
     };
     customization: string;
     interviewPlan?: { theme: string; starSeed: string }[];
+    // Block G — posting legitimacy (spec #7), orthogonal to the fit score.
+    legitimacy?: {
+      level: "verified" | "likely" | "uncertain";
+      reasons: string[];
+      note: string;
+    };
   };
   recommendation: string;
 }
+
+const LEGITIMACY_META: Record<
+  "verified" | "likely" | "uncertain",
+  { label: string; pill: string }
+> = {
+  verified: {
+    label: "Verified posting",
+    pill: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
+  },
+  likely: {
+    label: "Likely legitimate",
+    pill: "bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30",
+  },
+  uncertain: {
+    label: "Verify before applying",
+    pill: "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30",
+  },
+};
 
 // ---------------------------------------------------------------------------
 // Presentation helpers
@@ -328,6 +353,34 @@ export const EvaluationCard = memo(function EvaluationCard({
         <Section title="Customization plan" icon={Wand2}>
           <p className="text-xs text-muted-foreground">{data.blocks.customization}</p>
         </Section>
+
+        {/* Block G — posting legitimacy (orthogonal to fit) */}
+        {data.blocks.legitimacy && (
+          <Section
+            title="Posting legitimacy"
+            icon={ShieldCheck}
+            defaultOpen={data.blocks.legitimacy.level === "uncertain"}
+          >
+            <div className="space-y-1.5">
+              <Badge
+                variant="outline"
+                className={cn("text-[10px]", LEGITIMACY_META[data.blocks.legitimacy.level].pill)}
+              >
+                {LEGITIMACY_META[data.blocks.legitimacy.level].label}
+              </Badge>
+              {data.blocks.legitimacy.reasons.length > 0 && (
+                <ul className="list-disc space-y-0.5 pl-4 text-[11px] text-muted-foreground">
+                  {data.blocks.legitimacy.reasons.map((reason, i) => (
+                    <li key={i}>{reason}</li>
+                  ))}
+                </ul>
+              )}
+              <p className="text-[10px] italic text-muted-foreground/70">
+                {data.blocks.legitimacy.note}
+              </p>
+            </div>
+          </Section>
+        )}
 
         {/* Interview plan (opt-in) */}
         {data.blocks.interviewPlan && data.blocks.interviewPlan.length > 0 && (

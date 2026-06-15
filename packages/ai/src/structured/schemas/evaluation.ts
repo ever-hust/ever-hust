@@ -58,6 +58,18 @@ export const evaluationBlocksSchema = z.object({
   }),
   customization: z.string().min(1).max(4000),
   interviewPlan: z.array(interviewPlanItemSchema).max(20).optional(),
+  /**
+   * Block G — posting legitimacy / ghost-job radar (spec #7). Server-attached and
+   * deterministic, NOT LLM-produced — orthogonal to the fit score, never folded into it.
+   * Optional so the LLM part validates without it.
+   */
+  legitimacy: z
+    .object({
+      level: z.enum(["verified", "likely", "uncertain"]),
+      reasons: z.array(z.string().max(500)).max(10),
+      note: z.string().max(300),
+    })
+    .optional(),
 });
 
 /** The full, server-assembled evaluation summary that is persisted and rendered. */

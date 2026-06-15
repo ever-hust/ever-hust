@@ -1,7 +1,14 @@
 "use client";
 
 import { memo } from "react";
-import { Sparkles, ShieldCheck, AlertTriangle, CheckCircle2 } from "lucide-react";
+import {
+  Sparkles,
+  ShieldCheck,
+  AlertTriangle,
+  CheckCircle2,
+  Copy,
+  Check,
+} from "lucide-react";
 import {
   Card,
   CardContent,
@@ -11,6 +18,7 @@ import {
 } from "@ever-hust/ui/card";
 import { Badge } from "@ever-hust/ui/badge";
 import { cn } from "@ever-hust/ui/lib/utils";
+import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 
 /**
  * Generic structured-artifact card (spec #5 surface). Reflectively renders any of the advisory
@@ -57,6 +65,51 @@ function humanize(key: string): string {
 
 function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((x) => typeof x === "string");
+}
+
+/** Flatten a value to plain text for copy/export. */
+function valueToText(value: unknown): string {
+  if (value == null || value === "") return "";
+  if (typeof value === "string" || typeof value === "number") return String(value);
+  if (isStringArray(value)) return value.map((v) => `- ${v}`).join("\n");
+  if (Array.isArray(value)) {
+    return value
+      .map((v) =>
+        v && typeof v === "object"
+          ? Object.entries(v as Record<string, unknown>)
+              .map(([k, val]) => `${humanize(k)}: ${typeof val === "object" ? JSON.stringify(val) : String(val)}`)
+              .join("\n")
+          : `- ${String(v)}`
+      )
+      .join("\n\n");
+  }
+  if (typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([k, val]) => `${humanize(k)}: ${typeof val === "object" ? JSON.stringify(val) : String(val)}`)
+      .join("\n");
+  }
+  return String(value);
+}
+
+/** Render the artifact as a copy-paste-ready Markdown-ish document (for export to Docs/Word → PDF). */
+function artifactToText(view: ArtifactView): string {
+  const lines: string[] = [`# ${view.title}`];
+  if (view.subtitle) lines.push(view.subtitle);
+  lines.push("");
+  for (const [key, value] of Object.entries(view.data)) {
+    if (
+      HIDDEN_KEYS.has(key) ||
+      value == null ||
+      value === "" ||
+      (Array.isArray(value) && value.length === 0)
+    ) {
+      continue;
+    }
+    lines.push(`## ${humanize(key)}`);
+    lines.push(valueToText(value));
+    lines.push("");
+  }
+  return lines.join("\n").trim();
 }
 
 function KeyValueBlock({ obj }: { obj: Record<string, unknown> }) {
@@ -123,6 +176,7 @@ export const ArtifactCard = memo(function ArtifactCard({
   const grounded = data.grounded as boolean | undefined;
   const flaggedClaims = (data.flaggedClaims as string[] | undefined) ?? [];
   const needsApproval = data.needsApproval as boolean | undefined;
+  const { copied, copy } = useCopyToClipboard();
 
   const sections = Object.entries(data).filter(
     ([key, value]) =>
@@ -133,10 +187,25 @@ export const ArtifactCard = memo(function ArtifactCard({
   return (
     <Card className={cn("max-w-lg", className)}>
       <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
-          {artifact.title}
-        </CardTitle>
+        <div className="flex items-start justify-between gap-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
+            {artifact.title}
+          </CardTitle>
+          <button
+            type="button"
+            onClick={() => copy(artifactToText(artifact))}
+            className="inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={copied ? "Copied" : "Copy as text"}
+          >
+            {copied ? (
+              <Check className="h-3 w-3 text-green-500" aria-hidden="true" />
+            ) : (
+              <Copy className="h-3 w-3" aria-hidden="true" />
+            )}
+            {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
         {artifact.subtitle && <CardDescription>{artifact.subtitle}</CardDescription>}
         <div className="flex flex-wrap items-center gap-1.5 pt-1">
           {needsApproval && (

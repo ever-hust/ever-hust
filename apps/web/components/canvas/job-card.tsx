@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect, memo } from "react";
-import { Heart, ExternalLink, MapPin, Building2, Clock, FileText, Share2, Check, EyeOff } from "lucide-react";
+import { Heart, ExternalLink, MapPin, Building2, Clock, FileText, Share2, Check, EyeOff, AlertTriangle } from "lucide-react";
 import { Badge } from "@ever-hust/ui/badge";
 import { Button } from "@ever-hust/ui/button";
 import { cn } from "@ever-hust/ui/lib/utils";
@@ -11,6 +11,7 @@ import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { safeExternalUrl } from "@/lib/safe-url";
 import { computeFreshness, isCaution, type LivenessSignal } from "@/lib/freshness";
 import { assessLegitimacy, type LegitimacyLevel } from "@/lib/legitimacy";
+import { applyCaution } from "@/lib/apply-caution";
 
 export interface JobCardData {
   id: number;
@@ -109,6 +110,8 @@ export const JobCard = memo(function JobCard({
   // Only show the positive "Verified" badge when the corpus explicitly verified the
   // posting — never infer "verified" from the local heuristic (which never returns it).
   const corpusVerified = job.legitimacy === "verified";
+  // Non-blocking pre-apply caution (spec #4/#7): warn, never disable Apply.
+  const caution = applyCaution({ freshness: freshness.state, legitimacy: legitimacy.level });
   const safeLogo = safeExternalUrl(job.companyLogo);
   const applyLink = safeExternalUrl(job.applyUrl) ?? safeExternalUrl(job.jobUrl) ?? null;
 
@@ -399,8 +402,21 @@ export const JobCard = memo(function JobCard({
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:underline"
                   onClick={(e) => e.stopPropagation()}
-                  aria-label={`Apply for ${job.title} (opens in new tab)`}
+                  aria-label={
+                    caution.warn
+                      ? `Apply for ${job.title} (opens in new tab). Caution: ${caution.reasons.join(" ")}`
+                      : `Apply for ${job.title} (opens in new tab)`
+                  }
                 >
+                  {caution.warn && (
+                    <span
+                      className="inline-flex"
+                      title={caution.reasons.join(" ")}
+                      data-testid="apply-caution"
+                    >
+                      <AlertTriangle className="h-3 w-3 text-amber-500" aria-hidden="true" />
+                    </span>
+                  )}
                   Apply
                   <ExternalLink className="h-3 w-3" aria-hidden="true" />
                 </a>

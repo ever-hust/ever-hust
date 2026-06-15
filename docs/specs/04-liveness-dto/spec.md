@@ -89,8 +89,10 @@ above covers the acceptance criteria more cheaply. Still open for a future enhan
   `/api/jobs/search`, `/api/jobs/[id]`, `/api/user/favorites/list`) select it so the card's
   freshness badge can prefer the explicit signal over the date heuristic. `checked_at` is not
   persisted separately (the `expiresAt` column, now also mapped, plus `datePosted` suffice).
-- **Apply-flow tool warning** — `packages/ai/src/tools/apply-job.ts`, the orchestrator prompt, and
-  the `tool-approval` card do **not** yet emit a `livenessWarning`; the caution today lives on the
-  job card. A non-blocking pre-apply warning remains a follow-up.
+- **Apply-flow caution (now shipped on the card)** — `apps/web/lib/apply-caution.ts`
+  (`applyCaution`, composing freshness #4 + legitimacy #7) drives a non-blocking amber warning icon
+  next to the job card's Apply action (tooltip explains why; Apply is never disabled). Unit-tested
+  in `apply-caution.test.ts`. Still open: surfacing the same `livenessWarning` through the AI
+  `apply-job` tool / `tool-approval` card path.
 - **Dedicated detail-surface badge** — no standalone `liveness-badge.tsx` component; the badge is
   inlined in the job card only (job detail surfaces are a future enhancement).

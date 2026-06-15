@@ -137,8 +137,19 @@ competitor-free.
 | 19a | Apply copilot | ✅ shipped | `apply_draft` artifact + `applyCopilot` (drafts all fields, opens approval gate, **never submits**) |
 | 19b | Localized comp packs | ✅ shipped | `getCompPack` (US/DE/UK/IN + generic). *Wiring into #3 Comp dim deferred.* |
 
-**MVP-deferred enhancements** (additive follow-ups, none blocking): real PDF rendering for
-#10/#11 (needs a render service), Trigger.dev background fan-out for #19, bespoke canvas cards for
-the advisory tools (today they narrate via chat, like #3's card), and applying #19b packs inside
-the #3 Comp dimension. New DB tables (`evaluations`, `approval_gates`) + additive columns are
-push-based; apply them to stage/prod with `pnpm db:push` before the features go live there.
+**Post-MVP enhancements — now also shipped:**
+- ✅ **Canvas surfacing** — a generic reflective `ArtifactCard` renders every advisory tool's
+  structured output on the canvas (cover letter, résumé, negotiation, company brief, outreach,
+  interview prep, growth plan, application draft) with grounded / needs-approval / flagged badges.
+- ✅ **Document export (#10/#11)** — a Copy action exports any artifact as a clean Markdown-ish
+  document (paste into Docs/Word → PDF).
+- ✅ **Background batch (#19)** — Trigger.dev `batch-evaluate` task fans out `runEvaluateJob`
+  off the request path, cost-gated.
+- ✅ **#19b → #3** — localized comp packs feed the evaluation Comp/Demand reasoning.
+- ✅ **Go-live schema applied** — the additive migration (`0001`: `evaluations`, `approval_gates`,
+  `applications` columns) is committed AND applied to the live database.
+
+**Remaining v2 (deliberate, non-blocking):** a full **server-side HTML→PDF render service** for
+#10/#11 (a renderer-library / serverless-compatibility decision — the Copy export covers the need
+today). One ops note: if the Vercel **prod** project uses a database other than the one in
+`apps/web/.env.local`, apply the committed `0001` migration there too.

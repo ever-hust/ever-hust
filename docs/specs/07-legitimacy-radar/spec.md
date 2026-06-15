@@ -78,17 +78,25 @@ The tier vocabulary shipped as `verified` / `likely` / `uncertain` (not the spec
   (folds in the liveness off-platform-redirect signal when liveness ran first). Tested in
   `apps/api/__tests__/jobs/corpus-signals.spec.ts`.
 
-**Hust — trust badge:**
+**Hust — trust badge + corpus consumption (now wired end-to-end):**
+- `packages/jobs-api/src/index.ts` — the client opts into `?legitimacy=true` (alongside
+  `?liveness=true`) by default; per-call `signals:false` or `EVER_JOBS_REQUEST_SIGNALS=false` opt out.
 - `packages/jobs-api/src/types.ts` — DTO carries the optional corpus signal
   `legitimacy?: { state, reasons[] }` (forward-compatible; Hust derives a heuristic when absent).
+- `packages/db/src/schema/jobs.ts` — nullable `legitimacy` + `legitimacy_reasons` columns
+  (migration `drizzle/0002_jittery_talisman.sql`); `packages/triggers/src/map-job.ts` persists them.
 - `apps/web/lib/legitimacy.ts` — `assessLegitimacy()` + `LegitimacyLevel` / `LegitimacyAssessment`;
-  an explicit corpus signal overrides the Hust-side heuristic. Tested in `apps/web/lib/legitimacy.test.ts`.
-- `apps/web/components/canvas/job-card.tsx` — renders a benign "Verify posting" outline badge only
-  when the assessment is `uncertain`, with the contributing reasons in the tooltip; never auto-hides.
-
-**Deferred (intentional):**
-- Spec §4's nullable `jobs.legitimacy*` persistence columns did **not** ship — Hust computes the
-  assessment at render time from fields it already has and reads the corpus signal when the Ever
-  Jobs DTO supplies it, so no `packages/db` schema column was added.
-- The explicit #3 evaluation **Block G** renderer is not yet wired; the badge currently surfaces on
-  the job card only.
+  an explicit corpus signal (with reasons) overrides the Hust-side heuristic. Tested in
+  `apps/web/lib/legitimacy.test.ts`.
+- Read paths select the signal: AI `searchJobs`, `/api/jobs/search`, `/api/jobs/[id]`,
+  `/api/user/favorites/list`.
+- `apps/web/components/canvas/job-card.tsx` — "Verify posting" outline badge when the assessment is
+  `uncertain` (reasons in tooltip) **and** a positive "Verified" badge when the corpus confirms;
+  never auto-hides.
+- **Block G** (evaluation drawer) — `packages/ai/src/evaluation/legitimacy.ts` +
+  `assembleEvaluation` attach an optional `blocks.legitimacy` (level/reasons + a fixed
+  "orthogonal to fit" note); `apps/web/components/canvas/evaluation-card.tsx` renders the
+  "Posting legitimacy" section (auto-open when uncertain). Tests assert legitimacy never moves
+  the fit score/band.
+- E2E: `tests/e2e/corpus-signals.spec.ts` asserts the signal reaches the read endpoints; the seed
+  (`packages/db/src/seed.ts`) populates a deterministic spread.

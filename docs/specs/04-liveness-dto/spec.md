@@ -81,9 +81,14 @@ liveness computation + DTO field) is produced upstream by Ever Jobs.
 The richer plan in `tasks.md` (T03–T11) was **not** shipped as drafted; the freshness approach
 above covers the acceptance criteria more cheaply. Still open for a future enhancement:
 
-- **Persisted liveness columns** — no `liveness_verdict` / `liveness_code` / `liveness_checked_at`
-  columns were added to `packages/db/src/schema/jobs.ts`; freshness is derived at render time from
-  dates already stored, so the search route and sync mapping are unchanged.
+- **Persisted liveness column (now shipped, simplified)** — rather than the planned
+  `liveness_verdict` / `liveness_code` / `liveness_checked_at` triple, a single nullable
+  `jobs.liveness` text column now persists the corpus verdict (migration
+  `drizzle/0002_jittery_talisman.sql`). The jobs-api client requests `?liveness=true` by default,
+  `packages/triggers/src/map-job.ts` persists it, and the read paths (`searchJobs`,
+  `/api/jobs/search`, `/api/jobs/[id]`, `/api/user/favorites/list`) select it so the card's
+  freshness badge can prefer the explicit signal over the date heuristic. `checked_at` is not
+  persisted separately (the `expiresAt` column, now also mapped, plus `datePosted` suffice).
 - **Apply-flow tool warning** — `packages/ai/src/tools/apply-job.ts`, the orchestrator prompt, and
   the `tool-approval` card do **not** yet emit a `livenessWarning`; the caution today lives on the
   job card. A non-blocking pre-apply warning remains a follow-up.

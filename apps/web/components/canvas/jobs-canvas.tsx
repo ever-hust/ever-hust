@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useMemo, useEffect, memo } from "react";
-import { Briefcase, Loader2, GitCompareArrows, X, SearchX, List, Map, LayoutGrid } from "lucide-react";
+import { Briefcase, Loader2, GitCompareArrows, X, SearchX, List, Map, LayoutGrid, Sparkles } from "lucide-react";
 import { Button } from "@ever-hust/ui/button";
 import { Badge } from "@ever-hust/ui/badge";
 import { JobCard, type JobCardData } from "./job-card";
@@ -41,6 +41,9 @@ interface JobsCanvasProps {
   onToggleCompareMode?: () => void;
   onToggleJobCompare?: (jobId: number) => void;
   onHideJob?: (jobId: number) => void;
+  /** Optional personalised-sort control (spec #3). When provided, a "Best for me" toggle renders. */
+  sortMode?: "recent" | "best_for_me";
+  onSortModeChange?: (mode: "recent" | "best_for_me") => void;
 }
 
 export const JobsCanvas = memo(function JobsCanvas({
@@ -59,6 +62,8 @@ export const JobsCanvas = memo(function JobsCanvas({
   onToggleCompareMode,
   onToggleJobCompare,
   onHideJob,
+  sortMode,
+  onSortModeChange,
 }: JobsCanvasProps) {
   // Internal compare state — used when controlled props are not provided
   const [internalCompareMode, setInternalCompareMode] = useState(false);
@@ -169,6 +174,27 @@ export const JobsCanvas = memo(function JobsCanvas({
             "No jobs found"
           )}
         </p>
+
+        {onSortModeChange && (
+          <Button
+            variant={sortMode === "best_for_me" ? "secondary" : "ghost"}
+            size="sm"
+            className="h-7 gap-1.5 text-xs"
+            onClick={() =>
+              onSortModeChange(sortMode === "best_for_me" ? "recent" : "best_for_me")
+            }
+            aria-pressed={sortMode === "best_for_me"}
+            aria-label={
+              sortMode === "best_for_me"
+                ? "Sort by most recent"
+                : "Sort by best fit for me"
+            }
+            title="Rank by your job-fit evaluation scores"
+          >
+            <Sparkles className="h-3 w-3" aria-hidden="true" />
+            {sortMode === "best_for_me" ? "Best for me" : "Best for me"}
+          </Button>
+        )}
 
         {jobs.length >= 2 && (
           <Button

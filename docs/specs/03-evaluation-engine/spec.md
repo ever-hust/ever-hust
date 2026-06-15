@@ -275,11 +275,16 @@ Landed in `ever-hust`. Verified file paths:
   band pill, and the expandable A–F breakdown; rendered via the dashboard page and wired through
   `apps/web/hooks/use-canvas-sync.ts`.
 
+**"Best for me" sort (shipped):** `apps/web/app/api/user/recommended-jobs/route.ts` (authenticated)
+LEFT JOINs the signed-in user's `evaluations` and ranks the corpus by fit score (evaluated jobs
+first, highest first; the rest by recency). The jobs canvas exposes a "Best for me" toggle
+(`JobsCanvas` `sortMode`/`onSortModeChange`) wired in `apps/web/app/(dashboard)/jobs/page.tsx`.
+Covered by `tests/e2e/authed/recommended.authed.spec.ts` (seeded high-fit eval ranks first).
+
 **Deferred (per the spec's "Out (later epics)" scope):**
 
-- Block **G** posting-legitimacy data is still owned by #7 (Ever Jobs-side); this engine only
-  renders the badge if the signal is present.
 - Batch/background evaluation (#19) — only the pure planner
   (`packages/ai/src/evaluation/batch.ts`, `planBatchEvaluation`) shipped; the scheduled batch run
   is not wired.
-- The **"Best for me"** canvas sort option is not yet implemented (no code surface for it).
+- Block **G** is now rendered + the legitimacy signal attached by this engine (see #7); the upstream
+  corpus production stays owned by Ever Jobs (Spec 740).

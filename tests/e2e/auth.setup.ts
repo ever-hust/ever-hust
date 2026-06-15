@@ -1,5 +1,5 @@
 import { test as setup, expect } from "@playwright/test";
-import { db, users, applications } from "@ever-hust/db";
+import { db, users, applications, evaluations } from "@ever-hust/db";
 import { eq } from "drizzle-orm";
 
 /**
@@ -58,6 +58,32 @@ setup("authenticate", async ({ request }) => {
         { userId, jobId: 1, status: "submitted", pipelineStage: "applied" },
         { userId, jobId: 2, status: "submitted", pipelineStage: "interviewing" },
       ])
+      .onConflictDoNothing();
+
+    // 2c. Seed a high-fit evaluation for job 2 so the "Best for me" ranking (spec #3) has a
+    //     deterministic top result to assert against. Idempotent (unique on user+job).
+    await db
+      .insert(evaluations)
+      .values({
+        userId,
+        jobId: 2,
+        score: 95,
+        score5: 4.8,
+        band: "apply_now",
+        jobFamily: "Software Engineering",
+        archetype: "Backend",
+        dimensions: [
+          { key: "north_star", weight: 20, score5: 5, rationale: "Bullseye.", source: "llm" as const },
+        ],
+        blocks: {
+          roleSummary: "Seeded for E2E ranking.",
+          cvMatch: { evidence: [], gaps: [] },
+          levelStrategy: "Seeded.",
+          compDemand: { summary: "Seeded.", budgetFit: "good_fit" as const },
+          customization: "Seeded.",
+        },
+        recommendation: "Seeded high-fit evaluation for E2E.",
+      })
       .onConflictDoNothing();
   }
 

@@ -18,6 +18,7 @@ export default function JobsPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
+  const [sortMode, setSortMode] = useState<"recent" | "best_for_me">("recent");
   const loadMoreAbortRef = useRef<AbortController | null>(null);
   const pageRef = useRef(1);
 
@@ -33,15 +34,22 @@ export default function JobsPage() {
     async function loadJobs() {
       setIsLoading(true);
       try {
-        const params = new URLSearchParams({ page: "1", limit: "25" });
-        if (filters.keywords) params.set("keywords", filters.keywords);
-        if (filters.location) params.set("location", filters.location);
-        if (filters.isRemote) params.set("isRemote", "true");
-        if (filters.jobType) params.set("jobType", filters.jobType);
-        if (filters.salaryMin) params.set("salaryMin", String(filters.salaryMin));
-        if (filters.salaryMax) params.set("salaryMax", String(filters.salaryMax));
+        let endpoint: string;
+        if (sortMode === "best_for_me") {
+          // Personalised ranking by the user's fit scores (spec #3); filters don't apply.
+          endpoint = `/api/user/recommended-jobs?limit=25`;
+        } else {
+          const params = new URLSearchParams({ page: "1", limit: "25" });
+          if (filters.keywords) params.set("keywords", filters.keywords);
+          if (filters.location) params.set("location", filters.location);
+          if (filters.isRemote) params.set("isRemote", "true");
+          if (filters.jobType) params.set("jobType", filters.jobType);
+          if (filters.salaryMin) params.set("salaryMin", String(filters.salaryMin));
+          if (filters.salaryMax) params.set("salaryMax", String(filters.salaryMax));
+          endpoint = `/api/jobs/search?${params.toString()}`;
+        }
 
-        const res = await fetch(`/api/jobs/search?${params.toString()}`, { signal: controller.signal });
+        const res = await fetch(endpoint, { signal: controller.signal });
         if (!res.ok) throw new Error("Failed to load jobs");
         const data = (await res.json()) as {
           jobs: JobCardData[];
@@ -63,7 +71,7 @@ export default function JobsPage() {
     }
     loadJobs();
     return () => controller.abort();
-  }, [filters]);
+  }, [filters, sortMode]);
 
   // Abort any pending load-more request on unmount
   useEffect(() => {
@@ -78,15 +86,21 @@ export default function JobsPage() {
     const nextPage = pageRef.current + 1;
     setIsLoading(true);
     try {
-      const params = new URLSearchParams({ page: String(nextPage), limit: "25" });
-      if (filters.keywords) params.set("keywords", filters.keywords);
-      if (filters.location) params.set("location", filters.location);
-      if (filters.isRemote) params.set("isRemote", "true");
-      if (filters.jobType) params.set("jobType", filters.jobType);
-      if (filters.salaryMin) params.set("salaryMin", String(filters.salaryMin));
-      if (filters.salaryMax) params.set("salaryMax", String(filters.salaryMax));
+      let endpoint: string;
+      if (sortMode === "best_for_me") {
+        endpoint = `/api/user/recommended-jobs?limit=25&offset=${(nextPage - 1) * 25}`;
+      } else {
+        const params = new URLSearchParams({ page: String(nextPage), limit: "25" });
+        if (filters.keywords) params.set("keywords", filters.keywords);
+        if (filters.location) params.set("location", filters.location);
+        if (filters.isRemote) params.set("isRemote", "true");
+        if (filters.jobType) params.set("jobType", filters.jobType);
+        if (filters.salaryMin) params.set("salaryMin", String(filters.salaryMin));
+        if (filters.salaryMax) params.set("salaryMax", String(filters.salaryMax));
+        endpoint = `/api/jobs/search?${params.toString()}`;
+      }
 
-      const res = await fetch(`/api/jobs/search?${params.toString()}`, {
+      const res = await fetch(endpoint, {
         signal: controller.signal,
       });
       if (res.ok) {
@@ -111,7 +125,13 @@ export default function JobsPage() {
         setIsLoading(false);
       }
     }
-  }, [filters]);
+  }, [filters, sortMode]);
+
+  const handleSortModeChange = useCallback((mode: "recent" | "best_for_me") => {
+    pageRef.current = 1;
+    loadMoreAbortRef.current?.abort();
+    setSortMode(mode);
+  }, []);
 
   const handleViewDetails = useCallback(
     (jobId: number) => {
@@ -139,6 +159,8 @@ export default function JobsPage() {
       onFavorite={toggleFavorite}
       onViewDetails={handleViewDetails}
       onHideJob={hideJob}
+      sortMode={sortMode}
+      onSortModeChange={handleSortModeChange}
     />
   );
 }

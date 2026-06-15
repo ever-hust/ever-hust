@@ -1,0 +1,65 @@
+name: Build and Publish Hust Web Image (Prod)
+
+# Builds the Next.js web app container and pushes it to the DigitalOcean
+# Container Registry (registry.digitalocean.com/ever/hust-web), which the
+# k8s-gauzy cluster pulls. Vercel is unaffected (it builds from vercel.json).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/**"
+      - "packages/**"
+      - ".deploy/web/**"
+      - ".github/workflows/docker-build-publish-prod.yml"
+      - "pnpm-lock.yaml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Log in to DigitalOcean Container Registry
+        run: doctl registry login --expiry-seconds 1200
+
+      - name: Materialise build-time NEXT_PUBLIC_* env
+        env:
+          HUST_PROD_ENV: ${{ secrets.HUST_PROD_ENV }}
+        run: |
+          printf '%s' "$HUST_PROD_ENV" > /tmp/hust.env
+          # Export only the NEXT_PUBLIC_* lines (the build args Next inlines).
+          grep -E '^NEXT_PUBLIC_' /tmp/hust.env >> "$GITHUB_ENV" || true
+
+      - name: Build and push (DOCR)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./.deploy/web/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: |
+            registry.digitalocean.com/ever/hust-web:latest
+            registry.digitalocean.com/ever/hust-web:${{ github.sha }}
+          cache-from: type=registry,ref=registry.digitalocean.com/ever/hust-web:latest
+          cache-to: type=inline
+          build-args: |
+            NEXT_PUBLIC_APP_URL=${{ env.NEXT_PUBLIC_APP_URL }}
+            NEXT_PUBLIC_APP_NAME=${{ env.NEXT_PUBLIC_APP_NAME }}
+            NEXT_PUBLIC_SUPABASE_URL=${{ env.NEXT_PUBLIC_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=${{ env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY }}
+            NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${{ env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}

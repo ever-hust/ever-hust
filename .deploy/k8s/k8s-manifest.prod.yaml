@@ -1,0 +1,109 @@
+# Ever Hust web app — production manifest for DigitalOcean k8s (do-sfo2-k8s-gauzy).
+# Host: app.hust.so (the conversational web app). The hust.so root is a separate
+# public landing site and is NOT served by this deployment.
+#
+# Runtime env comes from the Secret `hust-prod-web-env`, which the deploy workflow
+# (re)creates from GitHub Actions secrets — so no secret values live in this file.
+# Image is pushed to registry.digitalocean.com/ever/hust-web:latest by the build workflow.
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: hust-prod-web-lb
+spec:
+  type: ClusterIP
+  selector:
+    app: hust-prod-web
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 3000
+---
+kind: Ingress
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: hust-prod-web-ingress
+  namespace: default
+  annotations:
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "12m"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: app.hust.so
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hust-prod-web-lb
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - app.hust.so
+      secretName: app.hust.so-tls
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hust-prod-web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: hust-prod-web
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: hust-prod-web
+    spec:
+      containers:
+        - name: hust-prod-web
+          image: registry.digitalocean.com/ever/hust-web:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              protocol: TCP
+          # Non-secret runtime config; all secrets come from the Secret below.
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "3000"
+            - name: HOSTNAME
+              value: "0.0.0.0"
+          envFrom:
+            - secretRef:
+                name: hust-prod-web-env
+          resources:
+            requests:
+              cpu: "150m"
+              memory: "320Mi"
+            limits:
+              memory: "1Gi"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 40
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+      # No imagePullSecrets: the cluster's DOCR↔DOKS integration injects the
+      # registry pull secret automatically (same pattern as gauzy-ai).

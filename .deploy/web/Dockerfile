@@ -35,7 +35,9 @@ ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL \
     HUSKY=0
 
 # Install with the full lockfile for deterministic, cache-friendly builds.
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
+# .npmrc carries `node-linker=hoisted` — required so the workspace resolves the
+# same flat node_modules layout as CI/local (else e.g. `resend` won't resolve).
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json .npmrc ./
 COPY apps ./apps
 COPY packages ./packages
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \

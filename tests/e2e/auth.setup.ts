@@ -1,5 +1,5 @@
 import { test as setup, expect } from "@playwright/test";
-import { db, users } from "@ever-hust/db";
+import { db, users, applications } from "@ever-hust/db";
 import { eq } from "drizzle-orm";
 
 /**
@@ -42,6 +42,24 @@ setup("authenticate", async ({ request }) => {
       },
     })
     .where(eq(users.email, TEST_EMAIL));
+
+  // 2b. Seed a couple of tracked applications (against the seeded jobs corpus) so authenticated
+  //     pipeline / funnel / follow-up specs have real data to exercise. Idempotent across re-runs.
+  const rows = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, TEST_EMAIL))
+    .limit(1);
+  const userId = rows[0]?.id;
+  if (userId) {
+    await db
+      .insert(applications)
+      .values([
+        { userId, jobId: 1, status: "submitted", pipelineStage: "applied" },
+        { userId, jobId: 2, status: "submitted", pipelineStage: "interviewing" },
+      ])
+      .onConflictDoNothing();
+  }
 
   // 3. Sign in for a valid signed session cookie.
   const signIn = await request.post("/api/auth/sign-in/email", {

@@ -45,9 +45,14 @@ export async function GET() {
         salaryCurrency: jobs.salaryCurrency,
         skills: jobs.skills,
         datePosted: jobs.datePosted,
+        expiresAt: jobs.expiresAt,
         jobLevel: jobs.jobLevel,
         latitude: jobs.latitude,
         longitude: jobs.longitude,
+        // Corpus signals (spec #4 liveness / #7 legitimacy) — null when absent.
+        liveness: jobs.liveness,
+        legitimacy: jobs.legitimacy,
+        legitimacyReasons: jobs.legitimacyReasons,
       })
       .from(userJobs)
       .innerJoin(jobs, eq(userJobs.jobId, jobs.id))

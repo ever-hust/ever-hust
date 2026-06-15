@@ -62,6 +62,13 @@ export const jobs = pgTable(
     datePosted: timestamp("date_posted"),
     expiresAt: timestamp("expires_at"),
 
+    // Corpus signals from the Ever Jobs API (spec #4 liveness / #7 legitimacy).
+    // Opt-in on the upstream search; nullable here because most rows predate the
+    // signal and Hust falls back to its own date/field heuristics when absent.
+    liveness: text("liveness"), // "active" | "expired" | "uncertain"
+    legitimacy: text("legitimacy"), // "verified" | "likely" | "uncertain"
+    legitimacyReasons: jsonb("legitimacy_reasons").$type<string[]>(),
+
     // Raw API response
     rawData: jsonb("raw_data"),
 

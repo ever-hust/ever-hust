@@ -67,6 +67,10 @@ export async function GET(
         salarySource: jobs.salarySource,
         datePosted: jobs.datePosted,
         expiresAt: jobs.expiresAt,
+        // Corpus signals (spec #4 liveness / #7 legitimacy) — null when absent.
+        liveness: jobs.liveness,
+        legitimacy: jobs.legitimacy,
+        legitimacyReasons: jobs.legitimacyReasons,
         createdAt: jobs.createdAt,
         updatedAt: jobs.updatedAt,
         latitude: jobs.latitude,

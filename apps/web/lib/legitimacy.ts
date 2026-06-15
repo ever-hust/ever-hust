@@ -18,9 +18,15 @@ export function assessLegitimacy(job: {
   descriptionLength?: number;
   /** Explicit signal from the Ever Jobs corpus, if present — overrides the heuristic. */
   corpusSignal?: LegitimacyLevel | null;
+  /** Reasons reported alongside the corpus signal, surfaced verbatim when present. */
+  corpusReasons?: string[] | null;
 }): LegitimacyAssessment {
   if (job.corpusSignal) {
-    return { level: job.corpusSignal, reasons: ["Source-corpus legitimacy signal."] };
+    const reasons =
+      job.corpusReasons && job.corpusReasons.length > 0
+        ? job.corpusReasons
+        : ["Source-corpus legitimacy signal."];
+    return { level: job.corpusSignal, reasons };
   }
 
   const reasons: string[] = [];

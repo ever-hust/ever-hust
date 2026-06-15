@@ -145,8 +145,13 @@ export const searchJobsTool = tool({
           skills: jobs.skills,
           site: jobs.site,
           datePosted: jobs.datePosted,
+          expiresAt: jobs.expiresAt,
           jobLevel: jobs.jobLevel,
           companyIndustry: jobs.companyIndustry,
+          // Corpus signals (spec #4 liveness / #7 legitimacy) — null when absent.
+          liveness: jobs.liveness,
+          legitimacy: jobs.legitimacy,
+          legitimacyReasons: jobs.legitimacyReasons,
         })
         .from(jobs)
         .where(where)

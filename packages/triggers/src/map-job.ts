@@ -37,6 +37,11 @@ export function mapJobToDb(dto: JobPostDto) {
     companyNumEmployees: dto.companyNumEmployees ?? null,
     companyDescription: dto.companyDescription ?? null,
     datePosted: safeDate(dto.datePosted),
+    expiresAt: safeDate(dto.expiresAt),
+    // Corpus signals (spec #4 / #7) — opt-in upstream; null when the source omits them.
+    liveness: dto.liveness?.state ?? null,
+    legitimacy: dto.legitimacy?.state ?? null,
+    legitimacyReasons: dto.legitimacy?.reasons ?? null,
     rawData: dto as unknown as Record<string, unknown>,
     updatedAt: new Date(),
   };

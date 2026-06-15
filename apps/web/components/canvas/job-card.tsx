@@ -10,7 +10,7 @@ import { formatSalary, formatLocation, timeAgo } from "@/lib/format-date";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { safeExternalUrl } from "@/lib/safe-url";
 import { computeFreshness, isCaution, type LivenessSignal } from "@/lib/freshness";
-import { assessLegitimacy } from "@/lib/legitimacy";
+import { assessLegitimacy, type LegitimacyLevel } from "@/lib/legitimacy";
 
 export interface JobCardData {
   id: number;
@@ -41,6 +41,9 @@ export interface JobCardData {
   // Freshness / liveness (spec #4) — optional, forward-compatible.
   expiresAt?: string | Date | null;
   liveness?: LivenessSignal | null;
+  // Posting-legitimacy / ghost-job radar (spec #7) — optional corpus signal from Ever Jobs.
+  legitimacy?: LegitimacyLevel | null;
+  legitimacyReasons?: string[] | null;
 }
 
 interface JobCardProps {
@@ -95,11 +98,17 @@ export const JobCard = memo(function JobCard({
     expiresAt: job.expiresAt,
     liveness: job.liveness ?? null,
   });
-  // Posting-legitimacy radar (spec #7) — orthogonal to fit; only flags "uncertain".
+  // Posting-legitimacy radar (spec #7) — orthogonal to fit. An explicit corpus
+  // signal from the Ever Jobs API wins; otherwise we fall back to the Hust heuristic.
   const legitimacy = assessLegitimacy({
     hasSalary: !!(job.salaryMin || job.salaryMax),
     descriptionLength: job.description?.length ?? 0,
+    corpusSignal: job.legitimacy ?? null,
+    corpusReasons: job.legitimacyReasons ?? null,
   });
+  // Only show the positive "Verified" badge when the corpus explicitly verified the
+  // posting — never infer "verified" from the local heuristic (which never returns it).
+  const corpusVerified = job.legitimacy === "verified";
   const safeLogo = safeExternalUrl(job.companyLogo);
   const applyLink = safeExternalUrl(job.applyUrl) ?? safeExternalUrl(job.jobUrl) ?? null;
 
@@ -300,6 +309,15 @@ export const JobCard = memo(function JobCard({
                 title={`Possible ghost job — ${legitimacy.reasons.join(" ")}`}
               >
                 Verify posting
+              </Badge>
+            )}
+            {corpusVerified && (
+              <Badge
+                variant="outline"
+                className="h-4 px-1.5 text-[10px] border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
+                title={`Verified posting — ${legitimacy.reasons.join(" ")}`}
+              >
+                Verified
               </Badge>
             )}
             {job.jobLevel && (

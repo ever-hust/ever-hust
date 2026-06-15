@@ -153,7 +153,7 @@ export class EverJobsClient {
 
   async searchJobs(
     input: ScraperInput,
-    options?: { page?: number; pageSize?: number }
+    options?: { page?: number; pageSize?: number; signals?: boolean }
   ): Promise<JobSearchResponse> {
     return this.execute(async () => {
       const params = new URLSearchParams({
@@ -161,6 +161,17 @@ export class EverJobsClient {
         page: String(options?.page ?? 1),
         page_size: String(options?.pageSize ?? 25),
       });
+
+      // Opt into the Ever Jobs corpus signals (spec #4 liveness / #7 legitimacy).
+      // On by default; the server treats unknown flags as no-ops, so this stays
+      // forward-compatible against an API that hasn't deployed the feature yet.
+      // Ops can disable globally with EVER_JOBS_REQUEST_SIGNALS=false.
+      const wantSignals =
+        options?.signals ?? process.env.EVER_JOBS_REQUEST_SIGNALS !== "false";
+      if (wantSignals) {
+        params.set("liveness", "true");
+        params.set("legitimacy", "true");
+      }
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), this.fetchTimeoutMs);

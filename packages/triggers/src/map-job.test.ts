@@ -378,6 +378,58 @@ describe("mapJobToDb", () => {
   });
 
   // -------------------------------------------------------------------------
+  // expiresAt
+  // -------------------------------------------------------------------------
+
+  describe("expiresAt", () => {
+    it("converts an ISO expiresAt to a Date", () => {
+      const result = mapJobToDb(makeDto({ expiresAt: "2024-05-01T00:00:00Z" }));
+      expect(result.expiresAt).toBeInstanceOf(Date);
+      expect(result.expiresAt!.toISOString()).toBe("2024-05-01T00:00:00.000Z");
+    });
+
+    it("returns null when expiresAt is absent", () => {
+      expect(mapJobToDb(makeDto()).expiresAt).toBeNull();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Corpus signals (spec #4 liveness / #7 legitimacy)
+  // -------------------------------------------------------------------------
+
+  describe("corpus signals", () => {
+    it("maps liveness state when present", () => {
+      const result = mapJobToDb(
+        makeDto({ liveness: { state: "expired", checkedAt: "2024-04-01T00:00:00Z" } })
+      );
+      expect(result.liveness).toBe("expired");
+    });
+
+    it("maps legitimacy state and reasons when present", () => {
+      const result = mapJobToDb(
+        makeDto({
+          legitimacy: { state: "uncertain", reasons: ["No compensation disclosed."] },
+        })
+      );
+      expect(result.legitimacy).toBe("uncertain");
+      expect(result.legitimacyReasons).toEqual(["No compensation disclosed."]);
+    });
+
+    it("defaults all three signal fields to null when the source omits them", () => {
+      const result = mapJobToDb(makeDto());
+      expect(result.liveness).toBeNull();
+      expect(result.legitimacy).toBeNull();
+      expect(result.legitimacyReasons).toBeNull();
+    });
+
+    it("tolerates a legitimacy signal with no reasons", () => {
+      const result = mapJobToDb(makeDto({ legitimacy: { state: "verified" } }));
+      expect(result.legitimacy).toBe("verified");
+      expect(result.legitimacyReasons).toBeNull();
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // Metadata fields
   // -------------------------------------------------------------------------
 

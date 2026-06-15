@@ -418,6 +418,28 @@ describe("EverJobsClient -- searchJobs", () => {
     expect(urlStr).toContain("page_size=25");
   });
 
+  it("requests the corpus signals (liveness + legitimacy) by default", async () => {
+    const client = createClient();
+    fetchMock.mockImplementation(() => Promise.resolve(RESP_OK()));
+
+    await client.searchJobs(SEARCH_INPUT);
+
+    const urlStr = String(fetchMock.mock.calls[0]![0]);
+    expect(urlStr).toContain("liveness=true");
+    expect(urlStr).toContain("legitimacy=true");
+  });
+
+  it("omits the signal flags when signals:false is passed", async () => {
+    const client = createClient();
+    fetchMock.mockImplementation(() => Promise.resolve(RESP_OK()));
+
+    await client.searchJobs(SEARCH_INPUT, { signals: false });
+
+    const urlStr = String(fetchMock.mock.calls[0]![0]);
+    expect(urlStr).not.toContain("liveness=");
+    expect(urlStr).not.toContain("legitimacy=");
+  });
+
   it("returns the parsed JSON response", async () => {
     const client = createClient();
     fetchMock.mockImplementation(() => Promise.resolve(RESP_OK()));

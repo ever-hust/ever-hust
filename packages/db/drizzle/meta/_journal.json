@@ -15,6 +15,13 @@
       "when": 1781482154026,
       "tag": "0001_magical_meggan",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781532757808,
+      "tag": "0002_jittery_talisman",
+      "breakpoints": true
     }
   ]
 }

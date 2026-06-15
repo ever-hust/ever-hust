@@ -127,6 +127,10 @@ harvests the corpus Hust already syncs from the Ever Jobs API. Real implementati
 - **Live `/api/jobs/analyze` in the tool** — `getMarketInsights` aggregates the synced `jobs` table
   rather than calling the live `analyzeJobs()` endpoint; the client method exists but is not yet
   wired into the tool or a scheduled cache (`market_analytics` table not added).
-- **`companySlug` through sync/tools** and a **dedicated market-panel UI component** are typed/usable
-  at the client layer but not yet threaded into the sync task or rendered as a standalone canvas
-  panel.
+- **`companySlug` through sync/tools** is typed/usable at the client layer but not yet threaded into
+  the sync task.
+- **Dedicated market-panel UI (now shipped)** — the `marketInsights` tool result renders as a
+  standalone, dismissible canvas card via `apps/web/components/canvas/market-insights-card.tsx`
+  (demand, remote %, pay spread, top skills/locations/companies, seniority mix), wired through
+  `useCanvasSync` (`marketInsights` slot + `clearMarketInsights`) and the dashboard overlay, mirroring
+  the salary-insights card.

@@ -151,7 +151,9 @@ nearly every artifact-producing AI tool. All paths are relative to the repo root
   `outreach.ts`, `career-growth.ts`, `apply-draft.ts` — consumed by `tailor-resume.ts`,
   `prep-interview.ts`, `negotiation-brief.ts`, `draft-outreach.ts`, `draft-cover-letter.ts`,
   `company-deep-dive.ts`, `career-advisor.ts`, `apply-copilot.ts`, `resume-builder.ts`.
-- **Deferred** — the standalone "test/ESLint guard that fails when a new artifact tool omits a schema"
-  (tasks T07) did **not** ship: there is no `packages/ai/src/structured/guard.test.ts` and no ESLint
-  rule. The convention is enforced today by `STRUCTURED_OUTPUT.md` + per-kind unit tests + the
-  `@ever-hust/ai/structured` typed surface, not by an automated guard. Left as a future enhancement.
+- **Schema guard (shipped)** — `packages/ai/src/structured/registry.test.ts` enumerates every
+  `*Artifact` object exported from the structured barrel and asserts each is a fully-formed
+  `defineArtifact` registration (string `kind`, `version ≥ 1`, a real Zod `schema` that rejects
+  junk) with a unique discriminant. A new artifact added without a proper schema/version, or one
+  that collides on `kind`, fails the test (the automated guard tasks T07 had left open). An ESLint
+  rule was not added — the runtime test covers the same intent more directly.

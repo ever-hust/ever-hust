@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import type { JobCardData } from "@/components/canvas/job-card";
 import type { JobFilters } from "@/components/canvas/filter-bar";
 import type { SalaryInsightsData } from "@/components/canvas/salary-insights-card";
+import type { MarketInsightsData } from "@/components/canvas/market-insights-card";
 import type { EvaluationView } from "@/components/canvas/evaluation-card";
 import type { ArtifactView } from "@/components/canvas/artifact-card";
 
@@ -34,6 +35,7 @@ interface CanvasState {
   favoritedJobIds: Set<number>;
   coverLetterContext: CoverLetterContext | null;
   salaryInsights: SalaryInsightsData | null;
+  marketInsights: MarketInsightsData | null;
   evaluation: EvaluationView | null;
   artifact: ArtifactView | null;
   /** When true, show the DashboardCanvas instead of JobsCanvas */
@@ -59,6 +61,7 @@ export function useCanvasSync() {
     favoritedJobIds: new Set(),
     coverLetterContext: null,
     salaryInsights: null,
+    marketInsights: null,
     evaluation: null,
     artifact: null,
     showDashboard: true,
@@ -203,6 +206,18 @@ export function useCanvasSync() {
           break;
         }
 
+        case "marketInsights": {
+          const marketResult = result as MarketInsightsData;
+          // Surface the card when there's data, or an error worth showing.
+          if (marketResult.demandCount > 0 || marketResult.error) {
+            setState((prev) => ({
+              ...prev,
+              marketInsights: marketResult,
+            }));
+          }
+          break;
+        }
+
         case "evaluateJob": {
           const evalResult = result as { evaluated?: boolean } & EvaluationView;
           // Only surface a successful evaluation; errors are narrated by the AI.
@@ -283,6 +298,10 @@ export function useCanvasSync() {
     setState((prev) => ({ ...prev, salaryInsights: null }));
   }, []);
 
+  const clearMarketInsights = useCallback(() => {
+    setState((prev) => ({ ...prev, marketInsights: null }));
+  }, []);
+
   const clearEvaluation = useCallback(() => {
     setState((prev) => ({ ...prev, evaluation: null }));
   }, []);
@@ -313,6 +332,7 @@ export function useCanvasSync() {
     setFavorites,
     clearCoverLetter,
     clearSalaryInsights,
+    clearMarketInsights,
     clearEvaluation,
     clearArtifact,
     addRealtimeJob,

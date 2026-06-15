@@ -23,6 +23,14 @@ const SalaryInsightsCard = dynamic(
   { ssr: false },
 );
 
+const MarketInsightsCard = dynamic(
+  () =>
+    import("@/components/canvas/market-insights-card").then(
+      (mod) => mod.MarketInsightsCard,
+    ),
+  { ssr: false },
+);
+
 const EvaluationCard = dynamic(
   () =>
     import("@/components/canvas/evaluation-card").then(
@@ -236,6 +244,25 @@ export default function DashboardPage() {
               </button>
             </div>
             <SalaryInsightsCard data={canvas.salaryInsights} />
+          </div>
+        )}
+        {/* Market insights overlay (spec #1 — demand, skills, locations, pay spread) */}
+        {canvas.marketInsights && (
+          <div className="border-b p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-muted-foreground font-medium">
+                Market Insights
+              </span>
+              <button
+                type="button"
+                onClick={canvas.clearMarketInsights}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+                aria-label="Dismiss market insights"
+              >
+                Dismiss
+              </button>
+            </div>
+            <MarketInsightsCard data={canvas.marketInsights} />
           </div>
         )}
         {/* Job-fit evaluation overlay */}

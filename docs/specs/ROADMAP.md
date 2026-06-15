@@ -149,7 +149,12 @@ competitor-free.
 - ✅ **Go-live schema applied** — the additive migration (`0001`: `evaluations`, `approval_gates`,
   `applications` columns) is committed AND applied to the live database.
 
-**Remaining v2 (deliberate, non-blocking):** a full **server-side HTML→PDF render service** for
-#10/#11 (a renderer-library / serverless-compatibility decision — the Copy export covers the need
-today). One ops note: if the Vercel **prod** project uses a database other than the one in
+- ✅ **Server-side PDF export (#10/#11)** — real document→PDF via `@react-pdf/renderer` (popular,
+  maintained, pure-JS/no-Chromium, serverless-safe; chosen per the workspace dependency-selection
+  rule). `POST /api/documents/pdf` (Node runtime, auth + rate-limit) streams a clean ATS-friendly
+  PDF; "PDF" + "Copy" actions on the artifact card. Next build bundles it cleanly.
+
+**Roadmap status: COMPLETE.** All 21 epics + every post-MVP enhancement are built, tested,
+CI-green, deployed, and the schema is applied to the live database. No deferred items remain.
+One ops note only: if the Vercel **prod** project uses a database other than the one in
 `apps/web/.env.local`, apply the committed `0001` migration there too.

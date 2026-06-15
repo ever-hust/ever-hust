@@ -11,8 +11,19 @@ export {
 } from "./require-approval";
 export type { OutwardActionTool } from "./require-approval";
 
-export { assertNoInvented } from "./assert-no-invented";
-export type { NoInventedResult } from "./assert-no-invented";
+export {
+  assertNoInvented,
+  evaluateNoInvent,
+  assertGrounded,
+  NoInventError,
+  DEFAULT_NO_INVENT_POLICY,
+} from "./assert-no-invented";
+export type {
+  NoInventedResult,
+  NoInventPolicy,
+  NoInventMode,
+  NoInventDecision,
+} from "./assert-no-invented";
 
 export { evaluateCostGate, withCostGate } from "./cost-gate";
 export type { CostGateInput, CostGateDecision, CostGateReason } from "./cost-gate";

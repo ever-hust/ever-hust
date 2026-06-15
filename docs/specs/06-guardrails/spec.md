@@ -93,7 +93,13 @@ route + chat UI.
 - **Tests** — `packages/ai/src/policy/policy.test.ts` covers no-invent, cost-gate, follow-up caps,
   and the `OUTWARD_ACTION_TOOLS` invariant.
 
-**Deferred / partial:** the no-invent validator is shipped as an advisory check (flags claims; does
-not hard-block generation) by design. Wiring `assertApproved` into each outward-action tool's
-side-effecting path and consuming `withCostGate` / `canSendFollowUp` are owned by their respective
-feature epics (#9, #10/#11/#12, #19) — this epic ships the reusable primitives those epics call.
+**No-invent enforcement (opt-in, shipped):** the advisory `assertNoInvented` remains the default
+(flags claims; never blocks), but `packages/ai/src/policy/assert-no-invented.ts` now also exposes an
+opt-in enforcement layer — `NoInventPolicy` (`mode: advisory|enforce`, `maxFlaggedClaims` tolerance),
+`evaluateNoInvent()` (returns `{ allowed, reason, flaggedClaims }`), and `assertGrounded()` (throws
+`NoInventError` in enforce mode). Default policy is advisory, so existing callers are unchanged; a
+flow can now hard-gate ungrounded prose when it chooses. Tested in `policy.test.ts`.
+
+**Deferred / partial:** wiring `assertApproved` into each outward-action tool's side-effecting path
+and consuming `withCostGate` / `canSendFollowUp` are owned by their respective feature epics (#9,
+#10/#11/#12, #19) — this epic ships the reusable primitives those epics call.

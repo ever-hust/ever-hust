@@ -1,4 +1,9 @@
-import { assertNoInvented } from "./assert-no-invented";
+import {
+  assertNoInvented,
+  evaluateNoInvent,
+  assertGrounded,
+  NoInventError,
+} from "./assert-no-invented";
 import { evaluateCostGate } from "./cost-gate";
 import { canSendFollowUp, DEFAULT_FOLLOW_UP_POLICY } from "./follow-up-policy";
 import { isOutwardAction, OUTWARD_ACTION_TOOLS } from "./require-approval";
@@ -37,6 +42,45 @@ describe("assertNoInvented", () => {
       allowedFacts: [],
     });
     expect(r.grounded).toBe(true);
+  });
+});
+
+describe("evaluateNoInvent / assertGrounded (opt-in enforcement)", () => {
+  const ungrounded = { text: "Led teams at Globex Industries.", allowedFacts: ["Acme Corp"] };
+  const grounded = { text: "Led teams at Acme Corp.", allowedFacts: ["Acme Corp"] };
+
+  it("advisory mode (default) never blocks, even with flagged claims", () => {
+    const d = evaluateNoInvent(ungrounded);
+    expect(d.allowed).toBe(true);
+    expect(d.reason).toBe("advisory");
+    expect(d.flaggedClaims.length).toBeGreaterThan(0);
+  });
+
+  it("enforce mode blocks ungrounded prose past the tolerance", () => {
+    const d = evaluateNoInvent(ungrounded, { mode: "enforce", maxFlaggedClaims: 0 });
+    expect(d.allowed).toBe(false);
+    expect(d.reason).toBe("too_many_claims");
+  });
+
+  it("enforce mode allows fully grounded prose", () => {
+    const d = evaluateNoInvent(grounded, { mode: "enforce", maxFlaggedClaims: 0 });
+    expect(d.allowed).toBe(true);
+    expect(d.reason).toBe("grounded");
+  });
+
+  it("enforce mode honours a tolerance", () => {
+    const d = evaluateNoInvent(ungrounded, { mode: "enforce", maxFlaggedClaims: 5 });
+    expect(d.allowed).toBe(true);
+  });
+
+  it("assertGrounded throws NoInventError when an enforce policy rejects", () => {
+    expect(() => assertGrounded(ungrounded, { mode: "enforce", maxFlaggedClaims: 0 })).toThrow(
+      NoInventError,
+    );
+  });
+
+  it("assertGrounded never throws in advisory mode", () => {
+    expect(() => assertGrounded(ungrounded)).not.toThrow();
   });
 });
 

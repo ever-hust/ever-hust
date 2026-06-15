@@ -47,3 +47,77 @@ export function assertNoInvented(input: {
 
   return { grounded: flagged.length === 0, flaggedClaims: flagged };
 }
+
+// ---------------------------------------------------------------------------
+// Opt-in enforcement layer (spec #6 — "advisory → enforcing" hardening).
+//
+// `assertNoInvented` stays advisory and is the default everywhere. Flows that want to *block*
+// ungrounded prose (rather than merely flag it) can opt into `evaluateNoInvent` / `assertGrounded`
+// with an enforce policy. Default policy is advisory, so importing this changes nothing until a
+// caller explicitly enforces. A small `maxFlaggedClaims` tolerance avoids over-blocking on the
+// heuristic's known false positives (e.g. common multi-word phrases).
+// ---------------------------------------------------------------------------
+
+export type NoInventMode = "advisory" | "enforce";
+
+export interface NoInventPolicy {
+  mode: NoInventMode;
+  /** In enforce mode, allow up to this many flagged claims before blocking. */
+  maxFlaggedClaims: number;
+}
+
+export const DEFAULT_NO_INVENT_POLICY: NoInventPolicy = {
+  mode: "advisory",
+  maxFlaggedClaims: 0,
+};
+
+export interface NoInventDecision extends NoInventedResult {
+  /** Whether the prose is allowed to ship under the policy. Always true in advisory mode. */
+  allowed: boolean;
+  reason: "grounded" | "advisory" | "too_many_claims";
+}
+
+export function evaluateNoInvent(
+  input: { text: string; allowedFacts: string[] },
+  policy: NoInventPolicy = DEFAULT_NO_INVENT_POLICY,
+): NoInventDecision {
+  const result = assertNoInvented(input);
+
+  if (result.grounded) {
+    return { ...result, allowed: true, reason: "grounded" };
+  }
+  if (policy.mode === "advisory") {
+    return { ...result, allowed: true, reason: "advisory" };
+  }
+  // enforce mode
+  const allowed = result.flaggedClaims.length <= policy.maxFlaggedClaims;
+  return {
+    ...result,
+    allowed,
+    reason: allowed ? "grounded" : "too_many_claims",
+  };
+}
+
+/** Thrown by {@link assertGrounded} when an enforce-mode policy rejects ungrounded prose. */
+export class NoInventError extends Error {
+  constructor(public readonly flaggedClaims: string[]) {
+    super(
+      `Generated text contains ${flaggedClaims.length} ungrounded claim(s): ${flaggedClaims.join(", ")}`,
+    );
+    this.name = "NoInventError";
+  }
+}
+
+/**
+ * Enforce-or-pass: returns the decision in advisory mode (never throws), but throws
+ * {@link NoInventError} when an enforce-mode policy rejects the prose. Callers that want a hard
+ * gate use this; everyone else keeps using the advisory {@link assertNoInvented}.
+ */
+export function assertGrounded(
+  input: { text: string; allowedFacts: string[] },
+  policy: NoInventPolicy = DEFAULT_NO_INVENT_POLICY,
+): NoInventDecision {
+  const decision = evaluateNoInvent(input, policy);
+  if (!decision.allowed) throw new NoInventError(decision.flaggedClaims);
+  return decision;
+}

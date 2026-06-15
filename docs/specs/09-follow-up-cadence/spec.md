@@ -57,8 +57,12 @@ task and visual Kanban badges are intentionally deferred (see "Deferred" below).
 - **DB columns** — `packages/db/src/schema/applications.ts`: `followUpCount` (`follow_up_count`, `integer NOT NULL DEFAULT 0`) and `lastFollowUpAt` (`last_follow_up_at`, `timestamp`). Migration: `packages/db/drizzle/0001_magical_meggan.sql`.
 - **Tests** — `packages/ai/src/cadence/follow-ups.test.ts` (urgency/anchor/cap/stage-skip transitions, `now` injected) and `packages/ai/src/tools/follow-up-tools.test.ts` (auth gating + `applicationId` validation).
 
+### Shipped follow-on (visual surface)
+
+- **Per-row follow-up badge** — `followUpUrgency(app, now, policy)` (`packages/ai/src/cadence/follow-ups.ts`, exported via the `@ever-hust/ai/cadence/follow-ups` subpath) classifies each application as `overdue` / `due` / `waiting` / `capped` / `none` (anchored on `lastFollowUpAt ?? stageChangedAt`, honouring the #6 cap). `/api/user/applications` computes it server-side per row, and `apps/web/app/(dashboard)/applications/page.tsx` renders a "Follow up" / "Due" badge for the actionable states. Unit-tested in `follow-ups.test.ts`; covered by `tests/e2e/authed/account.authed.spec.ts`.
+
 ### Deferred (not in this ship)
 
-- **Email nudge task** — the planned `follow-up-nudges` Trigger.dev scheduled task (Resend) is **not** built (`packages/triggers/` has no follow-up task). Nudges currently surface conversationally through the `followUpSuggestions` AI tool rather than via email.
-- **Visual Kanban badges + dashboard action queue** — not implemented (`apps/web/` has no follow-up badge/queue UI). The `urgent/overdue/waiting/cold` badge taxonomy from §3 is deferred; the shipped engine exposes due-ness via the AI tool instead.
+- **Email nudge task** — the planned `follow-up-nudges` Trigger.dev scheduled task (Resend) is **not** built (`packages/triggers/` has no follow-up task). Nudges currently surface conversationally through the `followUpSuggestions` AI tool and now visually on the applications list.
+- **Dashboard action queue** — the dedicated cross-application "what needs a nudge today" queue view is still deferred; the per-row badge covers the urgent/overdue/waiting taxonomy from §3 inline instead.
 - **`follow_ups` log table** — not added; follow-up state is derived from the `applications.followUpCount` / `lastFollowUpAt` columns as the spec allowed.

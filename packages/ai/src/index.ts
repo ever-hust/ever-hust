@@ -82,3 +82,7 @@ export {
   isTerminalStage,
 } from "./pipeline/stages";
 export type { PipelineStage } from "./pipeline/stages";
+
+// Batch-evaluation planner (spec #19) — consumed by the Trigger.dev background task
+export { planBatchEvaluation } from "./evaluation/batch";
+export type { BatchPlan, BatchCandidate } from "./evaluation/batch";

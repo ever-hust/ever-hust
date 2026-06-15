@@ -15,3 +15,4 @@ export {
 } from "./cleanup";
 
 export { cleanupExpiredJobsTask } from "./cleanup-expired-jobs";
+export { batchEvaluateTask } from "./batch-evaluate";

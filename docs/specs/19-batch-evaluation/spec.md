@@ -1,6 +1,6 @@
 # Spec #19 — Batch Evaluation
 
-> Status: Draft · Owner: Hust · Effort: M–L · Phase 4 · Depends on: [#3](../03-evaluation-engine/spec.md) + cost gating ([#6](../06-guardrails/spec.md))
+> Status: Done (shipped 2026-06-15) · Owner: Hust · Effort: M–L · Phase 4 · Depends on: [#3](../03-evaluation-engine/spec.md) + cost gating ([#6](../06-guardrails/spec.md))
 
 ## 1. Problem & user value
 
@@ -32,3 +32,27 @@ surfaced when ready. **Out:** auto-applying to the batch (that's [#19a](../19a-a
 
 - A user batch-evaluates a result set; expensive evaluation is skipped below the floor / over quota;
   results appear without any auto-action; CI green; **zero competitor references**.
+
+## Implementation (shipped)
+
+- **Planner (pure, cost-gated):** `packages/ai/src/evaluation/batch.ts` — `planBatchEvaluation()`
+  decides which candidates to fully evaluate, applying a score-floor pre-filter and a hard cap;
+  returns `{ toEvaluate, skipped }`. Unit-tested in `packages/ai/src/evaluation/batch.test.ts`.
+- **Cost gate (reuses #6):** `packages/ai/src/policy/cost-gate.ts` (`evaluateCostGate` /
+  `withCostGate`) + caps in `packages/ai/src/policy/limits.ts` (`BATCH_EVAL_MAX_CONCURRENCY = 5`,
+  `DEFAULT_SCORE_FLOOR = 60`).
+- **AI tool:** `packages/ai/src/tools/batch-evaluate.ts` — `batchEvaluateTool` evaluates a bounded
+  set inline and ranks by fit (best first); registered in the orchestrator as the **`batchEvaluate`**
+  tool (`packages/ai/src/agents/orchestrator.ts`). Tested in `packages/ai/src/tools/batch-evaluate.test.ts`.
+- **Background fan-out:** `packages/triggers/src/batch-evaluate.ts` — Trigger.dev task id
+  **`batch-evaluate`** fans out the keystone `runEvaluateJob` (#3) over a candidate set,
+  cost-gated via `planBatchEvaluation`; exported from `packages/triggers/src/index.ts`.
+- **Persistence:** each evaluation upserts an `evaluations` row (`packages/db/src/schema/evaluations.ts`,
+  unique on `(userId, jobId)`) via `runEvaluateJob`'s `onConflictDoUpdate` — so re-runs are idempotent.
+- **Surfacing:** results land in the `evaluations` table and flow to the existing evaluation /
+  pipeline-funnel views (#3); the dedicated chat tool also returns ranked results inline.
+- **Public API:** `planBatchEvaluation`, `BatchPlan`, `BatchCandidate`, and `batchEvaluateTool`
+  are exported from the package barrel `packages/ai/src/index.ts`.
+- **Deferred:** a dedicated batch-evaluation **API route** and a standalone realtime "evaluated
+  view" progress UI component were not built — batch evaluation is surfaced through the chat
+  orchestrator tool + the background task, with results rendered by the existing evaluations UI.

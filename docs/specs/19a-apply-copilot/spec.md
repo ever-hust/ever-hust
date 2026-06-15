@@ -1,6 +1,6 @@
 # Spec #19a — Apply Copilot (HITL, never auto-submit)
 
-> Status: Draft · Owner: Hust · Effort: M (XL for assisted server-side apply) · Phase 4 · Depends on: [#3](../03-evaluation-engine/spec.md), [#10](../10-cover-letter-pipeline/spec.md), [#6](../06-guardrails/spec.md)
+> Status: Done (shipped 2026-06-15) · Owner: Hust · Effort: M (XL for assisted server-side apply) · Phase 4 · Depends on: [#3](../03-evaluation-engine/spec.md), [#10](../10-cover-letter-pipeline/spec.md), [#6](../06-guardrails/spec.md)
 
 ## 1. Problem & user value
 
@@ -40,3 +40,34 @@ server-side submission — that's the **optional Gauzy seam** (see below), an XL
 - A user gets a complete, editable application draft and must explicitly approve before any submit;
   Hust never auto-submits; the Gauzy seam is optional + flag-gated + still approval-gated; CI green;
   **zero competitor references**.
+
+## Implementation (shipped)
+
+- **AI tool** `applyCopilot` — `packages/ai/src/tools/apply-copilot.ts`. Assembles the full draft
+  (proposal + screening Q&A + optional suggested terms) grounded in the user's real profile + the
+  job row, runs the #6 no-invent audit, and opens the approval gate. NEVER submits.
+- **Structured schema / artifact** — `packages/ai/src/structured/schemas/apply-draft.ts`
+  (`applyDraftLlmPartSchema`, `applyDraftSummarySchema`, `applyDraftArtifact` = `apply_draft` v1,
+  built on the #5 `defineArtifact` contract; carries `grounded` + `flaggedClaims`).
+- **No-invent audit (#6)** — `packages/ai/src/policy/assert-no-invented.ts` (`assertNoInvented`),
+  invoked over the proposal + every Q&A answer against the candidate's `allowedFacts`.
+- **Approval gate (#6, structural HITL)** — `packages/ai/src/policy/require-approval.ts`
+  (`createApprovalGate` / `decideApprovalGate` / `assertApproved`). The tool opens a gate under the
+  reserved `applyCopilotSubmit` action in `OUTWARD_ACTION_TOOLS`; the gate is a server-side state
+  transition no prompt can skip.
+- **DB table** `approval_gates` — `packages/db/src/schema/approval-gates.ts` (pending →
+  approved/denied/expired, 24h TTL, per-user). This epic does not add its own table; it persists the
+  gate here and reuses the existing `applications` table (`packages/db/src/schema/applications.ts`).
+- **Orchestrator registration** — `packages/ai/src/agents/orchestrator.ts` wires `applyCopilot`,
+  injecting `userId` + `model` server-side.
+- **Review UI** — the draft surfaces in the jobs canvas via the generic `ArtifactCard`
+  (`apps/web/components/canvas/artifact-card.tsx`), which renders proposal / Q&A / terms as sections
+  and shows a "Needs your approval — not sent" badge plus the grounded / flagged-claims indicators;
+  wired through `apps/web/hooks/use-canvas-sync.ts` (the `applyCopilot` case, labelled
+  "Application Draft").
+- **Tests** — `packages/ai/src/tools/apply-copilot.test.ts` (auth/model guards) and the gate
+  invariant in `packages/ai/src/policy/policy.test.ts` (outward actions must route through a gate).
+- **Deferred (intentional):** server-side automated submission. There is no `applyCopilotSubmit`
+  *implementation* — the name is reserved as a gate action only — and the **optional Ever Gauzy
+  Seam-A auto-apply handoff** (plan task 4) remains unbuilt by design. Standalone Hust ends at the
+  reviewed, approved draft; the user submits manually or via deep-link.

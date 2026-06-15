@@ -1,6 +1,6 @@
 # Spec #9 — Follow-up Cadence Engine
 
-> Status: Draft · Owner: Hust · Effort: M · Phase 2 · Depends on: [#2](../02-applications-kanban/spec.md) (stage source), [#6](../06-guardrails/spec.md) (caps)
+> Status: Done (shipped 2026-06-15) · Owner: Hust · Effort: M · Phase 2 · Depends on: [#2](../02-applications-kanban/spec.md) (stage source), [#6](../06-guardrails/spec.md) (caps)
 
 ## 1. Problem & user value
 
@@ -43,3 +43,22 @@ contacts ([#17](../17-outreach/spec.md)).
 
 - An application past `applied_first` shows "overdue"; nudges respect the cap + opt-out; urgency is
   pure + unit-tested; CI green; **zero competitor references**.
+
+## Implementation (shipped)
+
+Shipped 2026-06-15. The cadence engine + caps + AI surfacing landed; the email/Trigger.dev nudge
+task and visual Kanban badges are intentionally deferred (see "Deferred" below).
+
+- **Pure cadence engine** — `packages/ai/src/cadence/follow-ups.ts`: `computeFollowUpSuggestions(apps, now, policy)` with `FOLLOWABLE_STAGES` (`applied`/`screening`/`interviewing`); `now` is injected (no `Date.now()` in the pure layer). Anchors on `lastFollowUpAt ?? stageChangedAt` and sorts by staleness.
+- **Cap policy (from #6)** — `packages/ai/src/policy/follow-up-policy.ts`: `canSendFollowUp()` + `DEFAULT_FOLLOW_UP_POLICY` (`maxFollowUps: 3`, `minIntervalDays: 3`); reasons `ok` / `max_reached` / `too_soon`.
+- **AI tool — suggestions** — `packages/ai/src/tools/follow-up-suggestions.ts` (`followUpSuggestionsTool`, registered as the `followUpSuggestions` tool): reads the signed-in user's active applications (`userId` injected server-side) and returns the ones due, capped.
+- **AI tool — record** — `packages/ai/src/tools/record-follow-up.ts` (`recordFollowUpTool`, registered as `recordFollowUp`): increments `followUpCount` + sets `lastFollowUpAt` on the user's own application so future nudges respect the cap. No approval gate (sending stays manual / HITL).
+- **Orchestrator wiring** — `packages/ai/src/agents/orchestrator.ts` registers both tools (with `userId` injected); exported via `packages/ai/src/index.ts` and `packages/ai/src/tools/index.ts`; documented in the system prompt (`packages/ai/src/prompts.ts`).
+- **DB columns** — `packages/db/src/schema/applications.ts`: `followUpCount` (`follow_up_count`, `integer NOT NULL DEFAULT 0`) and `lastFollowUpAt` (`last_follow_up_at`, `timestamp`). Migration: `packages/db/drizzle/0001_magical_meggan.sql`.
+- **Tests** — `packages/ai/src/cadence/follow-ups.test.ts` (urgency/anchor/cap/stage-skip transitions, `now` injected) and `packages/ai/src/tools/follow-up-tools.test.ts` (auth gating + `applicationId` validation).
+
+### Deferred (not in this ship)
+
+- **Email nudge task** — the planned `follow-up-nudges` Trigger.dev scheduled task (Resend) is **not** built (`packages/triggers/` has no follow-up task). Nudges currently surface conversationally through the `followUpSuggestions` AI tool rather than via email.
+- **Visual Kanban badges + dashboard action queue** — not implemented (`apps/web/` has no follow-up badge/queue UI). The `urgent/overdue/waiting/cold` badge taxonomy from §3 is deferred; the shipped engine exposes due-ness via the AI tool instead.
+- **`follow_ups` log table** — not added; follow-up state is derived from the `applications.followUpCount` / `lastFollowUpAt` columns as the spec allowed.

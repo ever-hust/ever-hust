@@ -1,6 +1,6 @@
 # Spec #3 — Job-Fit Evaluation & Scoring Engine (`evaluateJob`)
 
-> Status: Draft · Owner: Hust · Effort: L · Phase 1 (keystone) · Depends on: [#5 Structured-output](../05-structured-output/spec.md)
+> Status: Done (shipped 2026-06-15) · Owner: Hust · Effort: L · Phase 1 (keystone) · Depends on: [#5 Structured-output](../05-structured-output/spec.md)
 
 ## 1. Problem & user value
 
@@ -240,3 +240,46 @@ existing tools use (deterministic server work, LLM for narration).
 - Unit tests (scoring math, weight merge/validation, taxonomy detection, deterministic dims) +
   E2E (evaluate a synced job end-to-end, assert badge + drawer) green in CI.
 - **Zero competitor references** in any file or commit (verified per workspace `RULES.md`).
+
+## Implementation (shipped)
+
+Landed in `ever-hust`. Verified file paths:
+
+- **AI tool** — `packages/ai/src/tools/evaluate-job.ts`. Exposes the `evaluateJob` tool
+  (`evaluateJobTool`) plus the core `runEvaluateJob()` server function and `evaluateJobInput`
+  Zod schema (`jobId`, `weightOverride`, `includeInterviewPlan`); `userId` is injected
+  server-side, never LLM-provided.
+- **Orchestrator wiring** — registered as the `evaluateJob` tool in
+  `packages/ai/src/agents/orchestrator.ts`, so the agent can call it from natural language and
+  narrate the structured result.
+- **Deterministic scoring core** — `packages/ai/src/evaluation/scoring.ts`: the default
+  10-dimension matrix (`DEFAULT_DIMENSIONS`, weights sum to 100), weight resolution, the
+  server-computed Comp/Remote/Level dimensions + CV-overlap baseline, and the score→band map.
+- **Taxonomy (data, not code)** — `packages/ai/src/evaluation/taxonomy.ts`: the two-level
+  job-family → archetype keyword packs (`JOB_FAMILIES`) and JD-keyword detection.
+- **Assembly** — `packages/ai/src/evaluation/assemble.ts`: pure `assembleEvaluation()` that
+  merges deterministic + LLM dimensions, applies weights, computes the aggregate score/band,
+  and attaches the A–F blocks (missing LLM dims degrade to a neutral 3 rather than failing).
+- **Structured-output contract** — `packages/ai/src/structured/schemas/evaluation.ts`
+  (the `EvaluationSummary` / `EvaluationLlmPart` Zod schemas, per spec #5).
+- **Unit tests** — `scoring.test.ts`, `taxonomy.test.ts`, `assemble.test.ts` (and
+  `batch.test.ts`) alongside the evaluation modules; cover scoring math, weight merge, taxonomy
+  detection, deterministic dims, and assembly without the LLM.
+- **Database** — `evaluations` table in `packages/db/src/schema/evaluations.ts` (per (user, job),
+  unique `(userId, jobId)`, indexes on `(userId, band)` and `(userId, score)`), exported from the
+  `@ever-hust/db` schema barrel; migration in `packages/db/drizzle/0001_magical_meggan.sql`.
+- **API route** — `GET /api/evaluations/[jobId]`
+  (`apps/web/app/api/evaluations/[jobId]/route.ts`): read-only, session-authenticated, rate-limited
+  fetch of the persisted evaluation (the tool itself produces + upserts the row).
+- **UI** — `apps/web/components/canvas/evaluation-card.tsx` (`EvaluationCard`): score badge,
+  band pill, and the expandable A–F breakdown; rendered via the dashboard page and wired through
+  `apps/web/hooks/use-canvas-sync.ts`.
+
+**Deferred (per the spec's "Out (later epics)" scope):**
+
+- Block **G** posting-legitimacy data is still owned by #7 (Ever Jobs-side); this engine only
+  renders the badge if the signal is present.
+- Batch/background evaluation (#19) — only the pure planner
+  (`packages/ai/src/evaluation/batch.ts`, `planBatchEvaluation`) shipped; the scheduled batch run
+  is not wired.
+- The **"Best for me"** canvas sort option is not yet implemented (no code surface for it).

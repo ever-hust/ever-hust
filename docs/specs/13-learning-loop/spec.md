@@ -1,6 +1,6 @@
 # Spec #13 — Personalization & Continuous-Learning Loop
 
-> Status: Draft · Owner: Hust · Effort: M · Phase 2–3 · Depends on: [#3](../03-evaluation-engine/spec.md) (scores to dispute), [#5](../05-structured-output/spec.md)
+> Status: Done (shipped 2026-06-15) · Owner: Hust · Effort: M · Phase 2–3 · Depends on: [#3](../03-evaluation-engine/spec.md) (scores to dispute), [#5](../05-structured-output/spec.md)
 
 ## 1. Problem & user value
 
@@ -47,3 +47,44 @@ of this loop; cross-user model training (out of scope; per-user only).
 - Disputing a score / setting a phrasing preference persists and measurably changes the next
   evaluation/generation for that user; user data is never overwritten by a system pack update; CI
   green; **zero competitor references**.
+
+## Implementation (shipped)
+
+The MVP shipped as the **evaluation-weight personalization slice** of the loop: the user states
+what matters, it persists as their Layer-2 override, and future fit scores reflect it. The
+broader feedback-event surface is deferred (see below).
+
+- **`packages/ai/src/learning/reconcile.ts`** — pure, non-mutating two-layer merge
+  (`reconcile` + `reconcileWeights`); system layer is immutable and the user layer always wins on
+  key collisions, satisfying the two-layer contract (§3).
+- **`packages/ai/src/learning/reconcile.test.ts`** — unit tests for user-wins precedence and
+  input immutability.
+- **`packages/ai/src/tools/learn-preference.ts`** — `learnPreferenceTool` (AI tool name:
+  **`learnPreference`**); validates against the known evaluation dimensions and persists the
+  user's weight overrides to `users.preferences.evaluationWeights`. `userId` is injected
+  server-side.
+- **`packages/ai/src/tools/learn-preference.test.ts`** — guard tests (unauthenticated / unknown
+  dimensions) without a DB hit.
+- **Persistence** — stored in the existing **`users.preferences`** JSON column
+  (`evaluationWeights` key) in `packages/db/src/schema`; no new `user_feedback` / `user_overrides`
+  tables were introduced (the contract was satisfied via the existing column — see deferred note).
+- **Wiring into #3 (`resolveWeights`)** — `packages/ai/src/tools/evaluate-job.ts` reads
+  `prefs.evaluationWeights` and passes it as the `user` layer into `resolveWeights`
+  (`packages/ai/src/evaluation/scoring.ts`), whose precedence is override → user → org → default;
+  so a saved preference measurably shifts the next fit score.
+- **Orchestrator registration** — `packages/ai/src/agents/orchestrator.ts` exposes
+  `learnPreference` (with server-side `userId` injection); also exported from
+  `packages/ai/src/index.ts` and `packages/ai/src/tools/index.ts`.
+- **Prompt** — `packages/ai/src/prompts.ts` documents `learnPreference` so the agent invokes it
+  when the user says what matters to them.
+
+**Deferred (intentionally, not shipped):**
+
+- Dedicated **`user_feedback`** (event log) and **`user_overrides`** tables — folded into the
+  existing `users.preferences` JSON column for the MVP; standalone tables remain a future
+  enhancement once richer event capture is needed.
+- General **feedback-capture hooks** beyond weights (score disputes, accept/reject suggestions,
+  edit-an-artifact, record-outcome) and the **phrasing-preference** path feeding generation
+  defaults — not yet wired.
+- **UI affordances** (thumb / dispute control on scores and artifacts) — no dedicated component
+  yet; the loop is driven through the conversational `learnPreference` tool.

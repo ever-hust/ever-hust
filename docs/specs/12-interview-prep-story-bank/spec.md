@@ -1,6 +1,6 @@
 # Spec #12 — Interview Prep + STAR Story Bank
 
-> Status: Draft · Owner: Hust · Effort: M–L · Phase 2–3 · Depends on: [#3](../03-evaluation-engine/spec.md) (Block F → bank)
+> Status: Done (shipped 2026-06-15) · Owner: Hust · Effort: M–L · Phase 2–3 · Depends on: [#3](../03-evaluation-engine/spec.md) (Block F → bank)
 
 ## 1. Problem & user value
 
@@ -44,3 +44,14 @@ recruiter / hiring-manager / panel / exec); a persistent **story bank** of 5–1
 
 - A user gets audience-segmented prep for a job and can save/reuse STAR+Reflection stories across
   jobs; prep emits a structured artifact; CI green; **zero competitor references**.
+
+## Implementation (shipped)
+
+- **Artifact schema** — `packages/ai/src/structured/schemas/interview-prep.ts`: `interviewPrepDraftSchema` (themes + `starStories` STAR bank + `questionsToAsk`) and `interviewPrepSummarySchema` (adds `jobId`, `grounded`, `flaggedClaims`); registered as the `interview_prep` artifact (`INTERVIEW_PREP_SCHEMA_VERSION = 1`) on the #5 contract via `defineArtifact`.
+- **AI tool** — `packages/ai/src/tools/prep-interview.ts` exports `prepInterviewTool`: reads the job + the user's CV/skills from Postgres, calls `generateValidatedObject` to produce a STAR story bank seeded from the candidate's REAL experience, and returns the validated artifact summary.
+- **No-invent grounding** — the tool audits generated STAR prose with `assertNoInvented` (`packages/ai/src/policy/assert-no-invented.ts`, spec #6), surfacing `grounded` + `flaggedClaims` so fabricated employers/projects/numbers are flagged rather than presented as fact.
+- **Orchestrator wiring** — registered as the `prepInterview` tool in `packages/ai/src/agents/orchestrator.ts` (injects `userId` + `model` server-side); exported from `packages/ai/src/tools/index.ts` and described in the system prompt (`packages/ai/src/prompts.ts`).
+- **Coexists with legacy tool** — the lighter coaching tool `interviewPrep` (`packages/ai/src/tools/interview-prep.ts`) is retained; `prepInterview` is the structured, grounded kit that supersedes it for persisted output.
+- **Canvas / UI** — `prepInterview` results are surfaced on the jobs canvas via `apps/web/hooks/use-canvas-sync.ts` (routes the tool result to a generic artifact) rendered by the shape-agnostic `apps/web/components/canvas/artifact-card.tsx` (spec #5 surface; copy + export-to-PDF).
+- **Tests** — `packages/ai/src/tools/prep-interview.test.ts` covers the auth/model guards (no DB/LLM hit).
+- **Deferred (not shipped):** the persistent DB-backed **story bank** — `interview_stories` + `interview_sessions` tables, story-bank CRUD, seed-from-#3-Block-F flow, a dedicated story-bank manager UI, and **mock mode** (Q&A practice + structured feedback) — were not built. No `interview_stories`/`interview_sessions` schema exists under `packages/db/src/schema/`; the shipped STAR bank lives inside the per-job `interview_prep` artifact (regenerated per call), not as cross-job persisted, user-editable stories. Audience-segmentation is captured as prep `themes` rather than explicit recruiter/hiring-manager/panel/exec lanes.

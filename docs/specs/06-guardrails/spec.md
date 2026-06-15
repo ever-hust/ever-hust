@@ -1,6 +1,6 @@
 # Spec #6 — Ethical Guardrails as Policy
 
-> Status: Draft · Owner: Hust · Effort: S · Phase 1 · Depends on: —
+> Status: Done (shipped 2026-06-15) · Owner: Hust · Effort: S · Phase 1 · Depends on: —
 
 ## 1. Problem & user value
 
@@ -58,3 +58,42 @@ score-floor gating hooks; (e) the matching **ToS** language.
 - Cost-gate + follow-up-cap helpers exist and are unit-tested.
 - ToS reflects the HITL / no-auto-submit / advisory posture.
 - CI green; **zero competitor references** (per workspace `RULES.md`).
+
+## Implementation (shipped)
+
+The shared policy primitives live in a dedicated `packages/ai/src/policy/` module, re-exported from
+`@ever-hust/ai`, with the human-approval gate persisted server-side and surfaced through an API
+route + chat UI.
+
+- **Policy module** — `packages/ai/src/policy/` (barrel `index.ts`, re-exported from
+  `packages/ai/src/index.ts`).
+- **Structural approval gate** — `packages/ai/src/policy/require-approval.ts`: the
+  `OUTWARD_ACTION_TOOLS` registry (`applyJob`, `submitAnswers`, `sendOutreach`,
+  `applyCopilotSubmit`) plus `createApprovalGate` / `decideApprovalGate` / `assertApproved`. Approval
+  is a DB state transition (`pending → approved/denied/expired`), so no prompt can skip it; gates
+  auto-expire via `APPROVAL_TTL_MS` (24h).
+- **DB table** — `approval_gates` (`packages/db/src/schema/approval-gates.ts`, registered in
+  `schema/index.ts`): durable, auditable, indexed by user, user+status, and action.
+- **API route** — `POST apps/web/app/api/approvals/route.ts`: authenticated, rate-limited, Zod-validated;
+  records the human approve/deny decision an outward-action tool waits on.
+- **Approval UI** — `apps/web/components/chat/tool-approval.tsx` (`ToolApproval`): in-chat Approve/Deny
+  card; outward actions never auto-submit.
+- **No-invent validator** — `packages/ai/src/policy/assert-no-invented.ts` (`assertNoInvented`):
+  advisory grounding check that flags proper nouns / years / numbers not traceable to the supplied
+  `allowedFacts`. Non-throwing — composes with epic #5's structured summary.
+- **Cost gate** — `packages/ai/src/policy/cost-gate.ts` (`evaluateCostGate` + `withCostGate`):
+  score-floor / quota gating for expensive generation; consumed by #19 (batch) and the document epics.
+- **Follow-up caps** — `packages/ai/src/policy/follow-up-policy.ts` (`canSendFollowUp`,
+  `DEFAULT_FOLLOW_UP_POLICY` = 3 max / 3-day min); consumed by #9.
+- **Per-tier limits** — `packages/ai/src/policy/limits.ts`: re-exports `FREE_LIMITS` from
+  `@ever-hust/stripe` and adds eval/batch caps + `DEFAULT_SCORE_FLOOR`.
+- **ToS copy** — `apps/web/app/(marketing)/terms/page.tsx`: encodes the HITL / no-auto-submit /
+  advisory posture ("it never … takes action on your behalf without your explicit, per-action
+  approval … enforced structurally and cannot be skipped").
+- **Tests** — `packages/ai/src/policy/policy.test.ts` covers no-invent, cost-gate, follow-up caps,
+  and the `OUTWARD_ACTION_TOOLS` invariant.
+
+**Deferred / partial:** the no-invent validator is shipped as an advisory check (flags claims; does
+not hard-block generation) by design. Wiring `assertApproved` into each outward-action tool's
+side-effecting path and consuming `withCostGate` / `canSendFollowUp` are owned by their respective
+feature epics (#9, #10/#11/#12, #19) — this epic ships the reusable primitives those epics call.

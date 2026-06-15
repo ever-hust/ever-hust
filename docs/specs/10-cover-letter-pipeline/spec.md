@@ -1,6 +1,6 @@
 # Spec #10 — Cover-Letter Pipeline (HITL + PDF)
 
-> Status: Draft · Owner: Hust · Effort: L · Phase 2 · Depends on: render service, [#6](../06-guardrails/spec.md), [#3](../03-evaluation-engine/spec.md) (context)
+> Status: Done (shipped 2026-06-15) · Owner: Hust · Effort: L · Phase 2 · Depends on: render service, [#6](../06-guardrails/spec.md), [#3](../03-evaluation-engine/spec.md) (context)
 
 ## 1. Problem & user value
 
@@ -47,3 +47,44 @@ service** built here; writing-style matching ([#14](../14-writing-style/spec.md)
 
 - A letter can be drafted, edited, **explicitly approved** (un-skippable), and downloaded as an
   ATS-safe PDF; nothing is "sent"; versions persist; CI green; **zero competitor references**.
+
+## Implementation (shipped)
+
+What actually landed (verified against the code on 2026-06-15):
+
+- **AI tool — `draftCoverLetter`**: `packages/ai/src/tools/draft-cover-letter.ts` (exported via
+  `packages/ai/src/tools/index.ts` + `packages/ai/src/index.ts`; registered in the orchestrator at
+  `packages/ai/src/agents/orchestrator.ts`). Grounds the letter in the user's real CV/profile +
+  the job row, returns a structured artifact. The lighter `generateCoverLetter`
+  (`packages/ai/src/tools/generate-cover-letter.ts`) stays as the talking-points/draft step.
+- **Structured schema / artifact (#5 contract)**: `packages/ai/src/structured/schemas/cover-letter.ts`
+  — `coverLetterDraftSchema` (LLM output) + `coverLetterSummarySchema` (machine summary with
+  `grounded` / `flaggedClaims`) + `coverLetterArtifact` built on `packages/ai/src/structured/contract.ts`.
+- **No-invent audit (#6)**: `packages/ai/src/policy/assert-no-invented.ts` (`assertNoInvented`)
+  flags ungrounded proper nouns / years / numbers; the tool surfaces them as `grounded` +
+  `flaggedClaims` rather than hard-blocking generation.
+- **Server-side PDF render**: API route **`POST /api/documents/pdf`** at
+  `apps/web/app/api/documents/pdf/route.ts` (auth + `export`-tier rate-limit gated, Node runtime),
+  rendering `apps/web/lib/pdf/artifact-document.tsx` — a shape-agnostic, single-column ATS-friendly
+  `@react-pdf/renderer` document shared with résumé rendering (#11).
+- **UI surface**: `apps/web/components/canvas/artifact-card.tsx` — generic artifact card on the
+  jobs canvas with a **Download PDF** button (calls `/api/documents/pdf`), a Copy-as-text fallback,
+  and grounded / "needs approval — not sent" / flagged-claims badges. A
+  `apps/web/components/shared/cover-letter-modal.tsx` also exists.
+- **Approval-gate infrastructure (#6)**: `packages/ai/src/policy/require-approval.ts` +
+  `approval_gates` table (`packages/db/src/schema/approval-gates.ts`) provide the structural,
+  server-side, un-skippable gate enforced via `OUTWARD_ACTION_TOOLS` (apply / submit / outreach).
+- **Tests**: `packages/ai/src/tools/draft-cover-letter.test.ts` (auth/model guards) and
+  `packages/ai/src/structured/schemas/cover-letter.test.ts`.
+
+### Intentionally deferred (not yet shipped)
+
+- **Render service**: shipped as pure-JS `@react-pdf/renderer` (serverless-safe, no headless
+  Chromium), not the originally-planned Browserless/HTML→PDF render-service client.
+- **`documents` table + Supabase Storage versioning**: not implemented — there is no `documents`
+  table in `packages/db/src/schema/` and no stored artifact persistence. PDFs are rendered
+  on-demand and downloaded; letter text/version history is not persisted as standalone documents.
+- **Persisted `draft → user_review → approved → rendered` state machine**: the cover letter is an
+  advisory artifact (UX framing "needs approval — not sent"); it is **not** wired into
+  `OUTWARD_ACTION_TOOLS`, since drafting/exporting a letter performs no outward action. The
+  un-skippable structural gate covers the actual outward steps (apply / submit answers / outreach).

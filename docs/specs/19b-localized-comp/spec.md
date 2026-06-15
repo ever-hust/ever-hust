@@ -1,6 +1,6 @@
 # Spec #19b — Localized Comp / Benefit Knowledge Packs
 
-> Status: Draft · Owner: Hust · Effort: XL · Phase 4 · Depends on: [#1](../01-harvest-ever-jobs/spec.md) (non-US sync) + [#3](../03-evaluation-engine/spec.md)
+> Status: Done (shipped 2026-06-15) · Owner: Hust · Effort: XL · Phase 4 · Depends on: [#1](../01-harvest-ever-jobs/spec.md) (non-US sync) + [#3](../03-evaluation-engine/spec.md)
 
 ## 1. Problem & user value
 
@@ -34,3 +34,28 @@ translation (separate i18n); building packs for every market at once (start with
 
 - A non-US job is evaluated/negotiated using its market's comp semantics (not raw US assumptions);
   packs version independently of user data; CI green; **zero competitor references**.
+
+## Implementation (shipped)
+
+- **Pack module** — `packages/ai/src/comp/packs.ts`: the `CompPack` interface
+  (`market`, `version`, `currency`, `statutoryComponents`, `norms`, `equityConvention`) and the
+  `COMP_PACKS` registry seeded for **US, DE, UK, IN + a `GENERIC` fallback**.
+- **Loader + fallback** — `getCompPack(market)` normalizes the input (`normalizeMarket`, with
+  country-name aliases like `USA→US`, `Germany→DE`, `United Kingdom→UK`, `India→IN`) and returns
+  the matching pack or `GENERIC` for unknown/empty markets. `isKnownMarket(market)` reports coverage.
+- **Versioned data, not code-logic** — every pack carries `version: 1`; packs upgrade
+  independently of user data (the two-layer contract from #13).
+- **Wired into evaluation (#3 Comp/Demand)** — `packages/ai/src/tools/evaluate-job.ts` imports
+  `getCompPack` (line 25), resolves the pack from `job.locationCountry` (`getCompPack(job.locationCountry)`,
+  line 149), and injects the market's statutory components, norms, and equity convention into the
+  evaluation prompt's Comp/Demand block so scoring uses local semantics instead of US assumptions
+  (line 177).
+- **Tests** — `packages/ai/src/comp/packs.test.ts`: known-market load by ISO code, country-name
+  alias mapping, generic fallback for unknown/`null` markets, `isKnownMarket` coverage, and a
+  shape check that every pack has currency/statutory components/norms.
+- **Storage choice (intentional)** — packs are seeded as a versioned **code module**, not a
+  `comp_knowledge_packs` DB table. The spec permits either ("data, not code"); v1 ships the
+  in-code seed. The dedicated table + admin-editable rows is a **deferred** future enhancement.
+- **Deferred consumers** — only the #3 evaluation Comp dimension currently reads the pack. Wiring
+  into standalone **salary insights** and **#15 negotiation** is **deferred** (the shared loader
+  is ready for both to adopt).

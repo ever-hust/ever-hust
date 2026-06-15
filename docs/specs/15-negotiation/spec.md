@@ -1,6 +1,6 @@
 # Spec #15 — Negotiation Coaching
 
-> Status: Draft · Owner: Hust · Effort: M · Phase 3 · Depends on: [#3](../03-evaluation-engine/spec.md) + comp data ([#1](../01-harvest-ever-jobs/spec.md))
+> Status: Done (shipped 2026-06-15) · Owner: Hust · Effort: M · Phase 3 · Depends on: [#3](../03-evaluation-engine/spec.md) + comp data ([#1](../01-harvest-ever-jobs/spec.md))
 
 ## 1. Problem & user value
 
@@ -31,3 +31,31 @@ checklist. **Out:** doing the negotiation for the user; legal advice.
 
 - At the `offer` stage a user gets a cited target range + scripts; figures trace to market data;
   CI green; **zero competitor references**.
+
+## Implementation (shipped)
+
+- **AI tool** — `negotiationBriefTool` in `packages/ai/src/tools/negotiation-brief.ts`, exported via
+  `packages/ai/src/tools/index.ts`. Registered with the orchestrator as the `negotiationBrief` tool
+  (`packages/ai/src/agents/orchestrator.ts`), with `userId` + `model` injected server-side.
+- **Structured schema (#5)** — `packages/ai/src/structured/schemas/negotiation.ts` defines
+  `negotiationDraftSchema` / `negotiationSummarySchema` and the `negotiationArtifact`
+  (`defineArtifact("negotiation", v1)`); re-exported from `packages/ai/src/structured/index.ts`.
+- **Output shape** — market-anchored `targetRange` (low/high + cited `basis`), 3–5 leverage points,
+  2–3 scripts (`counter` / `competing_offer` / `non_comp_ask`), and pitfalls.
+- **Grounding / no-invent (#6)** — figures are derived only from grounded salary facts (job posting
+  `salaryMin`/`salaryMax`/`salaryInterval` + the user's `preferences.salaryMin/Max` + optional
+  `currentOffer`); the prose is audited via `assertNoInvented` (`packages/ai/src/policy/assert-no-invented.ts`),
+  setting `grounded` + `flaggedClaims`. No invented compensation numbers.
+- **Data source** — reads the `jobs` and `users` tables via Drizzle (`@ever-hust/db`); no new table
+  was added (the artifact is produced on demand, not persisted to its own table).
+- **UI surface** — the negotiation artifact renders on the jobs canvas through the generic,
+  shape-agnostic structured-artifact card `apps/web/components/canvas/artifact-card.tsx` (wired via
+  `apps/web/hooks/use-canvas-sync.ts`); also exportable to PDF via
+  `apps/web/lib/pdf/artifact-document.tsx`.
+- **Tests** — `packages/ai/src/tools/negotiation-brief.test.ts` and
+  `packages/ai/src/structured/schemas/negotiation.test.ts` (schema/range/no-invent coverage).
+- **Deferred / not yet wired**: the negotiation tool anchors on the posting salary + the user's
+  target directly; it does not yet consume the #3 Comp/Demand block or the #19b localized comp packs
+  (`packages/ai/src/comp/packs.ts`) for market-semantics anchoring. A dedicated offer-stage panel on
+  the Kanban `offer` stage (plan task 3) was not built — the brief surfaces through the shared
+  canvas artifact card instead.

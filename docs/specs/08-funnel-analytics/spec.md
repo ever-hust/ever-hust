@@ -1,6 +1,6 @@
 # Spec #8 — Funnel & Rejection-Pattern Analytics
 
-> Status: Draft · Owner: Hust · Effort: L · Phase 2 · Depends on: [#3](../03-evaluation-engine/spec.md), [#5](../05-structured-output/spec.md), [#2](../02-applications-kanban/spec.md)
+> Status: Done (shipped 2026-06-15) · Owner: Hust · Effort: L · Phase 2 · Depends on: [#3](../03-evaluation-engine/spec.md), [#5](../05-structured-output/spec.md), [#2](../02-applications-kanban/spec.md)
 
 ## 1. Problem & user value
 
@@ -48,3 +48,36 @@ defaults.
 - Funnel + by-segment conversion + score floor render for a user with fixture history; accepting
   the suggested floor updates preferences; aggregation is unit-tested; CI green; **zero competitor
   references**.
+
+## Implementation (shipped)
+
+Shipped as a leaner, chat-first slice: the funnel is computed by a pure function and surfaced
+conversationally through an orchestrator AI tool. The standalone Insights page, REST route, cache
+table, and opt-in auto-tune from the original plan are **deferred** (see below).
+
+- **Aggregation core:** `packages/ai/src/analytics/funnel.ts` — `computeFunnel(rows)` (pure, no
+  I/O): per-stage counts, conversion rates (`applied → screening → interviewing → offer` +
+  `overallOfferRate`), `avgScore`, and `avgScoreByOutcome` (offer vs rejected) as the
+  score-vs-outcome signal.
+- **Unit tests:** `packages/ai/src/analytics/funnel.test.ts` (aggregation math / edge cases).
+- **AI tool:** `packages/ai/src/tools/funnel-analytics.ts` — `funnelAnalyticsTool`; reads **this
+  user's** `applications` (`pipelineStage`) left-joined to `evaluations` (`score`) on
+  `(userId, jobId)`, then calls `computeFunnel`. `userId` is injected server-side, never from tool
+  input.
+- **Tool tests:** `packages/ai/src/tools/funnel-analytics.test.ts`.
+- **Tool export:** `packages/ai/src/tools/index.ts` (`funnelAnalyticsTool`).
+- **Orchestrator registration:** `packages/ai/src/agents/orchestrator.ts` — registered as the
+  `funnelAnalytics` tool with the server-side `userId`-injection wrapper.
+- **System prompt:** `packages/ai/src/prompts.ts` documents `funnelAnalytics` under the
+  orchestrator's capabilities.
+- **Stage taxonomy reused:** `packages/ai/src/pipeline/stages.ts` (`PipelineStage`); reads existing
+  tables `applications` (`packages/db/src/schema/applications.ts`, column `pipeline_stage`) and
+  `evaluations` (`packages/db/src/schema/evaluations.ts`, column `score`) — **no new tables**.
+
+**Intentionally deferred (not yet shipped):**
+- No conversion **by segment** (score band / family / source / comp / remote), no time-in-stage,
+  and no empirical **score floor** / opt-in "apply this threshold" auto-tune — `computeFunnel`
+  currently surfaces avg-score-by-outcome instead of a derived floor.
+- No `insights_cache` table, no `GET /api/insights/funnel` REST route, no `/insights` dashboard
+  page, and no dedicated `FunnelInsightsCard` canvas component — the funnel is delivered via the
+  chat tool only, not a standalone Insights UI.

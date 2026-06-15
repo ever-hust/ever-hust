@@ -1,6 +1,6 @@
 # Spec #5 — Structured-output / Machine-Summary Contract
 
-> Status: Draft · Owner: Hust (platform) · Effort: S–M · Phase 1 (trunk root) · Depends on: —
+> Status: Done (shipped 2026-06-15) · Owner: Hust (platform) · Effort: S–M · Phase 1 (trunk root) · Depends on: —
 
 ## 1. Problem & user value
 
@@ -105,3 +105,53 @@ boundary, (d) a convention that **new tools emit a machine summary, not just pro
 - **Acceptance:** `evaluateJob` emits a version-1 `evaluation` artifact that round-trips through
   `assertArtifact` and persists; invalid LLM output is retried then safely handled; unit tests green;
   **zero competitor references** (verified per workspace `RULES.md`).
+
+## Implementation (shipped)
+
+The contract module and its first adoption shipped; it has since grown into the shared envelope for
+nearly every artifact-producing AI tool. All paths are relative to the repo root and verified present.
+
+- **Contract core** — `packages/ai/src/structured/contract.ts`: the `Artifact<TKind, TSummary>`
+  envelope (`kind` / `schemaVersion` / `summary` / optional `prose`), the `defineArtifact(kind,
+  version, schema)` factory (`parse` / `safeParse` / `build`), and `assertArtifact(...)` with the
+  env-aware throw-in-dev / log-and-fallback-in-prod behavior plus `ArtifactValidationError`. Unit
+  tests in `contract.test.ts`.
+- **Generation harness** — `packages/ai/src/structured/generate.ts`: `generateValidatedObject(...)`
+  wrapping the Vercel AI SDK `generateObject` with bounded re-validation retries and Langfuse/OTEL
+  `experimental_telemetry` passthrough, over the pure, SDK-free `runValidatedGeneration(...)` core.
+  Unit tests in `generate.test.ts`. (Note: file is `generate.ts`, not the spec-draft `generate-object.ts`.)
+- **Public export surface** — `packages/ai/src/structured/index.ts` re-exports the contract, the
+  generation harness, and every per-kind artifact/schema/type. Surfaced as the `@ever-hust/ai/structured`
+  subpath export (`packages/ai/package.json` `exports["./structured"]`) and re-exported from the root
+  barrel `packages/ai/src/index.ts`.
+- **First concrete kind** — `packages/ai/src/structured/schemas/evaluation.ts`:
+  `evaluationArtifact` = `defineArtifact("evaluation", 1, …)`, `EVALUATION_SCHEMA_VERSION = 1`,
+  `evaluationSummarySchema` (whitelisted: `band` enum, weighted `dimensions[]` with
+  `deterministic`/`llm` provenance, A–F `blocks`, `budgetFit`), `EvaluationSummary` type. Tests in
+  `evaluation.test.ts`. (`jobId` is a positive integer, not the spec-draft UUID — follows the real
+  `jobs` integer-identity PK; decision recorded in spec #3 §10.)
+- **First adoption (`evaluateJob`)** — `packages/ai/src/tools/evaluate-job.ts` builds its result via
+  `evaluationArtifact.build(summary, …)` (deterministic dims validated, LLM dims/blocks via
+  `generateValidatedObject`) and runs `assertArtifact(evaluationArtifact, …)` as the last step before
+  persisting.
+- **Persistence** — `packages/db/src/schema/evaluations.ts`: the `evaluations` table stores the
+  validated summary as typed `jsonb` (`dimensions`, `blocks`, `weightsUsed`) with a `schemaVersion`
+  integer column, mirroring `@ever-hust/ai` `EvaluationDimension` / `EvaluationBlocks`. (Table owned by
+  spec #3; #5 defines the jsonb shape it stores.)
+- **Canvas surface** — `apps/web/hooks/use-canvas-sync.ts` handles `case "evaluateJob"`, reading the
+  validated `summary` into canvas state (typed via `EvaluationView` from
+  `apps/web/components/canvas/evaluation-card.tsx`); malformed/error results fall through gracefully.
+- **E2E** — `tests/e2e/evaluation.spec.ts` round-trips an evaluation artifact to the jobs canvas.
+- **Convention doc** — `packages/ai/STRUCTURED_OUTPUT.md` documents the envelope, the
+  `defineArtifact` / `assertArtifact` / `generateValidatedObject` usage, the whitelist + `schemaVersion`
+  discipline, and where per-kind schemas live (lives under the package, not the repo root).
+- **Broader adoption (beyond original scope)** — the contract is now the envelope for ~10 artifact
+  tools, each with its own `defineArtifact` schema under `packages/ai/src/structured/schemas/`:
+  `cover-letter.ts`, `resume.ts`, `interview-prep.ts`, `negotiation.ts`, `company-research.ts`,
+  `outreach.ts`, `career-growth.ts`, `apply-draft.ts` — consumed by `tailor-resume.ts`,
+  `prep-interview.ts`, `negotiation-brief.ts`, `draft-outreach.ts`, `draft-cover-letter.ts`,
+  `company-deep-dive.ts`, `career-advisor.ts`, `apply-copilot.ts`, `resume-builder.ts`.
+- **Deferred** — the standalone "test/ESLint guard that fails when a new artifact tool omits a schema"
+  (tasks T07) did **not** ship: there is no `packages/ai/src/structured/guard.test.ts` and no ESLint
+  rule. The convention is enforced today by `STRUCTURED_OUTPUT.md` + per-kind unit tests + the
+  `@ever-hust/ai/structured` typed surface, not by an automated guard. Left as a future enhancement.

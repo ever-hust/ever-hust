@@ -1,6 +1,6 @@
 # Spec #7 — Posting-Legitimacy / "Ghost-Job" Radar
 
-> Status: Draft · Owner: Ever Jobs (signal) → Hust (badge) · Effort: M (EJ) + S–M (Hust) · Phase 2 · Depends on: [#3](../03-evaluation-engine/spec.md) (renders alongside)
+> Status: Done (shipped 2026-06-15) · Owner: Ever Jobs (signal) → Hust (badge) · Effort: M (EJ) + S–M (Hust) · Phase 2 · Depends on: [#3](../03-evaluation-engine/spec.md) (renders alongside)
 
 ## 1. Problem & user value
 
@@ -62,3 +62,33 @@ evaluation (orthogonal — shown beside the fit score, not inside it).
 - A fixture posting with off-platform redirect + perpetual age yields `suspicious` with reasons;
   Hust shows a benign explained badge; the signal never alters the #3 fit number; CI green;
   **zero competitor references**.
+
+## Implementation (shipped)
+
+The tier vocabulary shipped as `verified` / `likely` / `uncertain` (not the spec's draft
+`active` / `caution` / `suspicious`). The signal stays strictly orthogonal to the #3 fit number.
+
+**Ever Jobs — corpus signal (Spec 740 `legitimacy-detector` plugin):**
+- `packages/plugins/legitimacy-detector/src/legitimacy-detector.service.ts` — deterministic,
+  pure/in-memory legitimacy scorer (+ `legitimacy-detector.module.ts`, `index.ts`).
+- `packages/models/src/interfaces/legitimacy-checker.interface.ts` — `ILegitimacyChecker`,
+  `LegitimacyInput`, and `LEGITIMACY_CHECKER_TOKEN` contract consumed by the API.
+- `apps/api/src/jobs/jobs.controller.ts` — opt-in `?legitimacy=true` query param;
+  `enrichLegitimacy()` attaches `legitimacy: { state, reasons[] }` to each `JobPostDto`
+  (folds in the liveness off-platform-redirect signal when liveness ran first). Tested in
+  `apps/api/__tests__/jobs/corpus-signals.spec.ts`.
+
+**Hust — trust badge:**
+- `packages/jobs-api/src/types.ts` — DTO carries the optional corpus signal
+  `legitimacy?: { state, reasons[] }` (forward-compatible; Hust derives a heuristic when absent).
+- `apps/web/lib/legitimacy.ts` — `assessLegitimacy()` + `LegitimacyLevel` / `LegitimacyAssessment`;
+  an explicit corpus signal overrides the Hust-side heuristic. Tested in `apps/web/lib/legitimacy.test.ts`.
+- `apps/web/components/canvas/job-card.tsx` — renders a benign "Verify posting" outline badge only
+  when the assessment is `uncertain`, with the contributing reasons in the tooltip; never auto-hides.
+
+**Deferred (intentional):**
+- Spec §4's nullable `jobs.legitimacy*` persistence columns did **not** ship — Hust computes the
+  assessment at render time from fields it already has and reads the corpus signal when the Ever
+  Jobs DTO supplies it, so no `packages/db` schema column was added.
+- The explicit #3 evaluation **Block G** renderer is not yet wired; the badge currently surfaces on
+  the job card only.

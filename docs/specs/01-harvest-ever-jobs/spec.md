@@ -1,6 +1,6 @@
 # Spec #1 — Harvest the Ever Jobs Backend
 
-> Status: Draft · Owner: Hust ← Ever Jobs · Effort: M (integration) · Phase 1 (independent quick win) · Depends on: —
+> Status: Done (shipped 2026-06-15) · Owner: Hust ← Ever Jobs · Effort: M (integration) · Phase 1 (independent quick win) · Depends on: —
 
 ## 1. Problem & user value
 
@@ -89,3 +89,44 @@ freshness, dedup, liveness, and market analytics for ~zero backend cost.
 - **Acceptance:** search returns results from more than the original 11 sites (incl. at least one
   ATS/company-direct via `companySlug`); non-USA jobs appear; `/api/jobs/analyze` is consumed and a
   market panel + salary insight render; CI green; **zero competitor references**.
+
+## Implementation (shipped)
+
+The market-analytics half of this epic shipped as an AI-native **market insights** capability that
+harvests the corpus Hust already syncs from the Ever Jobs API. Real implementation:
+
+- **AI tool** — `packages/ai/src/tools/market-insights.ts` exports `marketInsightsTool` (the
+  `getMarketInsights` capability) plus the pure, unit-tested aggregation core
+  `computeMarketInsights()`. It returns demand count, remote share, salary spread (p25/median/p75),
+  top in-demand skills, top hiring locations, top companies, and the seniority-level mix.
+- **Orchestrator wiring** — registered as the `marketInsights` tool in
+  `packages/ai/src/agents/orchestrator.ts`, re-exported via `packages/ai/src/tools/index.ts` and the
+  package barrel `packages/ai/src/index.ts`. Surfaced to users through the AI chat (no separate
+  route needed).
+- **Data source** — reads Hust's synced Postgres `jobs` table directly via Drizzle
+  (`@ever-hust/db`), filtering by role title (+ optional location) with `escapeIlike`-guarded
+  `ilike`. Complements the pay-only `salaryInsights` tool
+  (`packages/ai/src/tools/salary-insights.ts`); both share annualisation helpers in
+  `packages/ai/src/tools/salary-helpers.ts`.
+- **Ever Jobs client** — `analyzeJobs()` (the `/api/jobs/analyze` consumer) is implemented on
+  `EverJobsClient` in `packages/jobs-api/src/index.ts`, behind the same circuit-breaker/retry +
+  timeout path as `searchJobs()`.
+- **Typed `companySlug`** — added to `ScraperInputSchema` in `packages/jobs-api/src/types.ts`, so
+  ATS/company-direct depth is reachable through the client contract.
+- **Tests** — `packages/ai/src/tools/market-insights.test.ts` (aggregation core),
+  `packages/jobs-api/src/client.test.ts` (the `analyzeJobs` path), and
+  `packages/jobs-api/src/types.test.ts` (`SiteEnum` / `companySlug` schema).
+
+**Intentionally deferred (not shipped in this pass):**
+
+- **Widen `SiteEnum`** — still the original 11-value enum in `packages/jobs-api/src/types.ts`; the
+  full-corpus widening is not yet done.
+- **Drop the USA pin** — `packages/triggers/src/sync-jobs.ts` still hard-codes `country: "USA"`, and
+  `ScraperInputSchema.country` still defaults to `"USA"`; parameterising country/locale and
+  broadening sync breadth remains open.
+- **Live `/api/jobs/analyze` in the tool** — `getMarketInsights` aggregates the synced `jobs` table
+  rather than calling the live `analyzeJobs()` endpoint; the client method exists but is not yet
+  wired into the tool or a scheduled cache (`market_analytics` table not added).
+- **`companySlug` through sync/tools** and a **dedicated market-panel UI component** are typed/usable
+  at the client layer but not yet threaded into the sync task or rendered as a standalone canvas
+  panel.

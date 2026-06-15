@@ -1,6 +1,6 @@
 # Spec #2 — Applications Pipeline (Kanban)
 
-> Status: Draft · Owner: Hust · Effort: M · Phase 1 (quick win) · Depends on: — (extends existing `applications`)
+> Status: Done (shipped 2026-06-15) · Owner: Hust · Effort: M · Phase 1 (quick win) · Depends on: — (extends existing `applications`)
 
 ## 1. Problem & user value
 
@@ -79,3 +79,44 @@ the higher `STATUS_RANK` (and the earlier `appliedDate`). Pure, unit-tested func
 - Re-applying to a moved-URL same role merges into the existing card, keeping the advanced stage.
 - Column counts/aggregates/time-in-stage render; detail page shows the timeline.
 - Unit + E2E green; **zero competitor references** (per workspace `RULES.md`).
+
+## Implementation (shipped)
+
+Shipped the pipeline-stage state + the stage-move surfaces. The full drag-and-drop board, fuzzy
+dedup, and the detail/timeline view are deferred (see "Deferred" below).
+
+- **DB columns** — `applications` table gained `pipelineStage` (text enum `saved | applied |
+  screening | interviewing | offer | rejected | withdrawn`, `notNull`, default `applied`),
+  `stageChangedAt` (timestamp, default now), and `sortOrder` (integer, default 0), plus the
+  `applications_user_stage_idx` index on `(userId, pipelineStage)`. All additive — no column
+  removed. See `packages/db/src/schema/applications.ts`.
+- **Stage source of truth** — `packages/ai/src/pipeline/stages.ts` exports `PIPELINE_STAGES`,
+  `PipelineStage`, `STAGE_LABELS`, `TERMINAL_STAGES`, `ACTIVE_STAGES`, and the `isValidStage` /
+  `isTerminalStage` guards, shared by the tool, the API route, and the UI.
+- **AI tool** — `updateApplicationStageTool` (`packages/ai/src/tools/update-application-stage.ts`)
+  moves a tracked application to a new stage, scoped to the caller's `userId` (injected
+  server-side); validates the stage via the `PIPELINE_STAGES` enum and stamps `stageChangedAt`.
+- **Orchestrator wiring** — the tool is registered in
+  `packages/ai/src/agents/orchestrator.ts` (as `updateApplicationStage`) and re-exported from
+  `packages/ai/src/tools/index.ts` and `packages/ai/src/index.ts`.
+- **HTTP API (PATCH)** — `apps/web/app/api/user/applications/[id]/route.ts` exposes
+  `PATCH /api/user/applications/:id` — `requireSessionUser` + rate limit, Zod-free stage
+  validation via `isValidStage`, ownership-scoped update (`userId` in the `WHERE`), 404 when no row
+  matches.
+- **List API** — `apps/web/app/api/user/applications/route.ts` (GET) now returns `pipelineStage`
+  and `stageChangedAt` alongside each application.
+- **Applications UI** — `apps/web/app/(dashboard)/applications/page.tsx` renders the per-stage
+  badge (`PIPELINE_STAGE_LABELS`) on each `ApplicationCard`, in addition to the existing
+  apply-status badge and count tiles.
+- **Tests** — `packages/ai/src/pipeline/stages.test.ts` and
+  `packages/ai/src/tools/update-application-stage.test.ts` cover the stage helpers and the
+  stage-move tool.
+
+### Deferred (not in this ship)
+
+- **Drag-and-drop Kanban board** — the applications view is still the status-filtered list with a
+  stage badge; no drag library or column board is wired up yet (§3.3).
+- **Fuzzy dedup of a user's apps** — `mergeApplications` / `STATUS_RANK` / the `company::role`
+  matcher exist only in the spec/plan docs, not in source (§3.2).
+- **Application detail view** — the chronological activity timeline + stage-selector detail page is
+  not yet built (§3.3); stage changes today go through the AI tool and the PATCH route.

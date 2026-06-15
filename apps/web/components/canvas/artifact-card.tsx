@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useState } from "react";
 import {
   Sparkles,
   ShieldCheck,
@@ -8,6 +8,8 @@ import {
   CheckCircle2,
   Copy,
   Check,
+  FileDown,
+  Loader2,
 } from "lucide-react";
 import {
   Card,
@@ -177,6 +179,37 @@ export const ArtifactCard = memo(function ArtifactCard({
   const flaggedClaims = (data.flaggedClaims as string[] | undefined) ?? [];
   const needsApproval = data.needsApproval as boolean | undefined;
   const { copied, copy } = useCopyToClipboard();
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownloadPdf = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      const res = await fetch("/api/documents/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: artifact.title,
+          subtitle: artifact.subtitle,
+          data: artifact.data,
+        }),
+      });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${artifact.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      // Network/render failure — leave the Copy fallback available.
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const sections = Object.entries(data).filter(
     ([key, value]) =>
@@ -192,19 +225,35 @@ export const ArtifactCard = memo(function ArtifactCard({
             <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
             {artifact.title}
           </CardTitle>
-          <button
-            type="button"
-            onClick={() => copy(artifactToText(artifact))}
-            className="inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label={copied ? "Copied" : "Copy as text"}
-          >
-            {copied ? (
-              <Check className="h-3 w-3 text-green-500" aria-hidden="true" />
-            ) : (
-              <Copy className="h-3 w-3" aria-hidden="true" />
-            )}
-            {copied ? "Copied" : "Copy"}
-          </button>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => copy(artifactToText(artifact))}
+              className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={copied ? "Copied" : "Copy as text"}
+            >
+              {copied ? (
+                <Check className="h-3 w-3 text-green-500" aria-hidden="true" />
+              ) : (
+                <Copy className="h-3 w-3" aria-hidden="true" />
+              )}
+              {copied ? "Copied" : "Copy"}
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={downloading}
+              className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+              aria-label="Download PDF"
+            >
+              {downloading ? (
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+              ) : (
+                <FileDown className="h-3 w-3" aria-hidden="true" />
+              )}
+              PDF
+            </button>
+          </div>
         </div>
         {artifact.subtitle && <CardDescription>{artifact.subtitle}</CardDescription>}
         <div className="flex flex-wrap items-center gap-1.5 pt-1">

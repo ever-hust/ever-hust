@@ -2,6 +2,7 @@ import { task, schedules } from "@trigger.dev/sdk";
 import { db, applications, evaluations, funnelSnapshots } from "@ever-hust/db";
 import { and, eq } from "drizzle-orm";
 import { computeFunnel, type FunnelRow } from "@ever-hust/ai/analytics/funnel";
+import { runsOnTrigger, SKIPPED } from "./scheduler";
 
 /**
  * Persisted funnel snapshots (spec #8). For every user with applications, compute their funnel
@@ -66,6 +67,7 @@ export const funnelSnapshotsSchedule = schedules.task({
   id: "daily-funnel-snapshots",
   cron: "0 2 * * *",
   run: async () => {
+    if (!runsOnTrigger()) return SKIPPED;
     await processFunnelSnapshots();
   },
 });

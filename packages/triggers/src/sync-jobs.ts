@@ -2,6 +2,27 @@ import { task, schedules } from "@trigger.dev/sdk";
 import { db, jobs } from "@ever-hust/db";
 import { everJobsClient } from "@ever-hust/jobs-api";
 import { mapJobToDb, geocodeLocation, SEARCH_TERMS } from "./map-job";
+import { runsOnTrigger, SKIPPED } from "./scheduler";
+
+/**
+ * Portable sync trigger: POST the app's own /api/jobs/sync endpoint so the sync executes in the
+ * app's runtime — which can reach the Ever Jobs API (including an internal/ClusterIP one) wherever
+ * the app is deployed (k8s, Vercel, …). Used by the Trigger.dev schedule; an external scheduler
+ * (k8s CronJob / Vercel Cron) hits the same endpoint directly.
+ */
+async function triggerRemoteSync(): Promise<{ ok: boolean; status: number }> {
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:8443";
+  const secret = process.env.CRON_SECRET;
+  const res = await fetch(`${base}/api/jobs/sync`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
+    },
+    body: JSON.stringify({ resultsWanted: 80 }),
+  });
+  return { ok: res.ok, status: res.status };
+}
 
 async function syncJobs() {
   // Rotate through search terms
@@ -73,6 +94,7 @@ async function syncJobs() {
   return { searchTerm, totalUpserted };
 }
 
+// Direct in-process sync (kept for in-cluster/manual runs where this code can reach Ever Jobs).
 export const syncJobsTask = task({
   id: "sync-jobs",
   run: async () => {
@@ -80,11 +102,14 @@ export const syncJobsTask = task({
   },
 });
 
-// Run every 15 minutes
+// Scheduled sync. When Trigger.dev is the active scheduler it delegates to the app's HTTP
+// endpoint (portable — runs in the app's runtime, which can reach Ever Jobs); under SCHEDULER=cron
+// an external scheduler (k8s CronJob / Vercel Cron) hits the same endpoint and this no-ops.
 export const syncJobsSchedule = schedules.task({
   id: "sync-jobs-schedule",
   cron: "*/15 * * * *",
   run: async () => {
-    return syncJobs();
+    if (!runsOnTrigger()) return SKIPPED;
+    return triggerRemoteSync();
   },
 });

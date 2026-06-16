@@ -8,6 +8,7 @@ import {
   OVERDUE_AFTER_DAYS,
   type FollowUpApp,
 } from "@ever-hust/ai/cadence/follow-ups";
+import { runsOnTrigger, SKIPPED } from "./scheduler";
 
 /** Don't re-nudge the same user more often than this (days). */
 const NUDGE_COOLDOWN_DAYS = 3;
@@ -115,6 +116,7 @@ export const followUpNudgesSchedule = schedules.task({
   id: "daily-follow-up-nudges",
   cron: "0 9 * * *",
   run: async () => {
+    if (!runsOnTrigger()) return SKIPPED;
     await processFollowUpNudges();
   },
 });

@@ -1,6 +1,7 @@
 import { task, schedules } from "@trigger.dev/sdk";
 import { db, jobs, stripeWebhookEvents } from "@ever-hust/db";
 import { lt, and, or, isNotNull, isNull, sql } from "drizzle-orm";
+import { runsOnTrigger, SKIPPED } from "./scheduler";
 
 /**
  * Remove expired and stale job listings from the database.
@@ -102,6 +103,7 @@ export const cleanupSchedule = schedules.task({
   id: "daily-cleanup",
   cron: "0 3 * * *",
   run: async () => {
+    if (!runsOnTrigger()) return SKIPPED;
     return runCleanup();
   },
 });

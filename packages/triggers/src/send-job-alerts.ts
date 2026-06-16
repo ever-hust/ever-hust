@@ -2,6 +2,7 @@ import { task, schedules } from "@trigger.dev/sdk";
 import { db, escapeIlike, userAlerts, jobs, users } from "@ever-hust/db";
 import { sendJobAlertEmail } from "@ever-hust/email";
 import { eq, and, gte, ilike, or, sql } from "drizzle-orm";
+import { runsOnTrigger, SKIPPED } from "./scheduler";
 
 /**
  * Sends job alerts to users based on their alert frequency and criteria.
@@ -197,6 +198,7 @@ export const dailyAlertSchedule = schedules.task({
   id: "daily-job-alerts",
   cron: "0 8 * * *",
   run: async () => {
+    if (!runsOnTrigger()) return SKIPPED;
     await processAlerts("daily");
     await processAlerts("twice_daily");
   },
@@ -207,6 +209,7 @@ export const eveningAlertSchedule = schedules.task({
   id: "evening-job-alerts",
   cron: "0 18 * * *",
   run: async () => {
+    if (!runsOnTrigger()) return SKIPPED;
     await processAlerts("twice_daily");
   },
 });
@@ -216,6 +219,7 @@ export const weeklyAlertSchedule = schedules.task({
   id: "weekly-job-alerts",
   cron: "0 8 * * 1",
   run: async () => {
+    if (!runsOnTrigger()) return SKIPPED;
     await processAlerts("weekly");
   },
 });

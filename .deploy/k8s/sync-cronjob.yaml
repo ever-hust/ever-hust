@@ -1,12 +1,14 @@
-# In-cluster job-corpus sync (spec: keep Hust's job DB fresh from the internal Ever Jobs API).
-# Must run in-cluster: Ever Jobs is ClusterIP-only, so Trigger.dev cloud can't reach it. This
-# CronJob POSTs to Hust's sync route (which runs in a Hust pod → reaches ever-jobs-api). With no
-# searchTerms the route picks the current rotation term, so the corpus fills + refreshes over time.
+# In-cluster job-corpus sync — the `SCHEDULER=cron` FALLBACK. POSTs to Hust's sync route (runs in a
+# Hust pod → reaches the internal Ever Jobs). SUSPENDED by default because the active scheduler is
+# Trigger.dev (its sync-jobs schedule calls the same endpoint, portably). To use this instead of
+# Trigger.dev: set SCHEDULER=cron on the app and flip `suspend: false`. Kept (not deleted) for hosts
+# where Trigger.dev isn't configured.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: hust-jobs-sync
 spec:
+  suspend: true
   schedule: "*/15 * * * *"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 2

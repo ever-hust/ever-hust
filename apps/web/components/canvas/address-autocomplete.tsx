@@ -29,12 +29,23 @@ export function AddressAutocomplete({
   const sessionTokenRef = useRef<google.maps.places.AutocompleteSessionToken | null>(null);
   const autocompleteServiceRef = useRef<google.maps.places.AutocompleteService | null>(null);
 
-  // Initialize autocomplete service
+  // Initialize autocomplete service.
+  // Defensive: the page must never crash if Places is unavailable (missing API
+  // key, blocked script, or only the base "maps" lib loaded). If the service
+  // can't be created, `autocompleteServiceRef` stays null and the component
+  // silently degrades to a plain text input — `fetchSuggestions` already no-ops
+  // when the ref is null.
   useEffect(() => {
     if (!isLoaded) return;
-
-    autocompleteServiceRef.current = new google.maps.places.AutocompleteService();
-    sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
+    if (typeof google === "undefined" || !google.maps?.places?.AutocompleteService) {
+      return;
+    }
+    try {
+      autocompleteServiceRef.current = new google.maps.places.AutocompleteService();
+      sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
+    } catch (err) {
+      console.error("[AddressAutocomplete] Places init failed; falling back to text input:", err);
+    }
   }, [isLoaded]);
 
   // Fetch suggestions when input changes

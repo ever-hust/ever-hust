@@ -9,6 +9,9 @@ import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
  * Returns `{ isLoaded, loadError }`.
  * - When the API key is missing, `isLoaded` stays `false` (no error).
  * - Uses the v2 functional API: `setOptions()` then `importLibrary()`.
+ * - Loads BOTH the `maps` and `places` libraries — consumers use Places
+ *   (`AutocompleteService`) as well as the map, and `isLoaded` must not flip
+ *   true until `google.maps.places` actually exists.
  * - The first `importLibrary()` call triggers the actual script load.
  */
 
@@ -30,7 +33,10 @@ export function useGoogleMaps() {
       optionsSet = true;
     }
 
-    importLibrary("maps")
+    // Load both libraries before signalling readiness. `places` powers the
+    // location autocomplete; without it `google.maps.places` is undefined and
+    // consumers that touch it throw (which previously crashed the jobs page).
+    Promise.all([importLibrary("maps"), importLibrary("places")])
       .then(() => setIsLoaded(true))
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : "Failed to load Google Maps";

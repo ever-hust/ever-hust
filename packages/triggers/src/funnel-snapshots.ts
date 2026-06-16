@@ -1,4 +1,4 @@
-import { task, schedules } from "@trigger.dev/sdk/v3";
+import { task, schedules } from "@trigger.dev/sdk";
 import { db, applications, evaluations, funnelSnapshots } from "@ever-hust/db";
 import { and, eq } from "drizzle-orm";
 import { computeFunnel, type FunnelRow } from "@ever-hust/ai/analytics/funnel";

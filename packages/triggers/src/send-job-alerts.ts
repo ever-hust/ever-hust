@@ -1,4 +1,4 @@
-import { task, schedules } from "@trigger.dev/sdk/v3";
+import { task, schedules } from "@trigger.dev/sdk";
 import { db, escapeIlike, userAlerts, jobs, users } from "@ever-hust/db";
 import { sendJobAlertEmail } from "@ever-hust/email";
 import { eq, and, gte, ilike, or, sql } from "drizzle-orm";

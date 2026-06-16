@@ -15,7 +15,7 @@
     "@ever-hust/db": "workspace:*",
     "@ever-hust/email": "workspace:*",
     "@ever-hust/jobs-api": "workspace:*",
-    "@trigger.dev/sdk": "^3.0.0"
+    "@trigger.dev/sdk": "^4.4.6"
   },
   "devDependencies": {
     "@ever-hust/typescript-config": "workspace:*",

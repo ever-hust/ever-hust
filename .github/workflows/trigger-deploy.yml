@@ -1,0 +1,41 @@
+name: Deploy Trigger.dev Tasks
+
+# Deploys Hust's scheduled/background tasks (packages/triggers) to Trigger.dev.
+# Runs in CI (Linux, space-free path) — the local checkout lives under a path with
+# spaces ("Ever Gauzy AI") which the Trigger CLI build can't resolve.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/triggers/**"
+      - "trigger.config.ts"
+      - ".github/workflows/trigger-deploy.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: trigger-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Deploy to Trigger.dev
+        run: pnpm dlx trigger.dev@latest deploy
+        env:
+          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}

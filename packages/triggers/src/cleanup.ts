@@ -1,4 +1,4 @@
-import { task, schedules } from "@trigger.dev/sdk/v3";
+import { task, schedules } from "@trigger.dev/sdk";
 import { db, jobs, stripeWebhookEvents } from "@ever-hust/db";
 import { lt, and, or, isNotNull, isNull, sql } from "drizzle-orm";
 

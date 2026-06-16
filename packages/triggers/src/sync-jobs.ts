@@ -1,4 +1,4 @@
-import { task, schedules } from "@trigger.dev/sdk/v3";
+import { task, schedules } from "@trigger.dev/sdk";
 import { db, jobs } from "@ever-hust/db";
 import { everJobsClient } from "@ever-hust/jobs-api";
 import { mapJobToDb, geocodeLocation, SEARCH_TERMS } from "./map-job";

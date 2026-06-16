@@ -171,6 +171,43 @@ describe("chatRequestSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  // AI SDK v6 `DefaultChatTransport` sends `parts`, never `content`.
+  it("accepts a v6 parts-only message (no content)", () => {
+    const result = chatRequestSchema.safeParse({
+      messages: [
+        {
+          id: "msg-1",
+          role: "user",
+          parts: [{ type: "text", text: "are you alive?" }],
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a message with neither content nor parts", () => {
+    const result = chatRequestSchema.safeParse({
+      messages: [{ id: "1", role: "user" }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a message with empty content and empty parts", () => {
+    const result = chatRequestSchema.safeParse({
+      messages: [{ id: "1", role: "user", content: "", parts: [] }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("ignores extra top-level transport fields (id, trigger)", () => {
+    const result = chatRequestSchema.safeParse({
+      id: "chat-1",
+      trigger: "submit-user-message",
+      messages: [{ id: "1", role: "user", parts: [{ type: "text", text: "hi" }] }],
+    });
+    expect(result.success).toBe(true);
+  });
 });
 
 describe("checkoutSchema", () => {

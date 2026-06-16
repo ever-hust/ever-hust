@@ -38,11 +38,22 @@ export async function POST(req: Request) {
     return apiBadRequest("Invalid request body", parsed.error.flatten());
   }
 
+  // A message's text lives in `content` (legacy) or in its text `parts` (AI SDK v6).
+  const messageText = (m: {
+    content?: string;
+    parts?: Array<{ type: string; [k: string]: unknown }>;
+  }): string =>
+    m.content ??
+    (m.parts ?? [])
+      .filter((p) => p.type === "text" && typeof p.text === "string")
+      .map((p) => p.text as string)
+      .join("");
+
   // Guard against oversized payloads: individual messages are capped at 50K chars
   // by the schema, but 100 messages × 50K = 5MB total. Cap aggregate at 500K chars
   // (~500KB) to avoid excessive memory and token costs.
   const totalChars = parsed.data.messages.reduce(
-    (sum, m) => sum + m.content.length,
+    (sum, m) => sum + messageText(m).length,
     0
   );
   if (totalChars > MAX_CHAT_PAYLOAD_CHARS) {
@@ -56,7 +67,7 @@ export async function POST(req: Request) {
   // `content` (no `parts`) would crash at runtime despite the `as UIMessage[]` cast.
   const uiMessages = parsed.data.messages.map((m) => ({
     ...m,
-    parts: m.parts ?? [{ type: "text" as const, text: m.content }],
+    parts: m.parts ?? (m.content ? [{ type: "text" as const, text: m.content }] : []),
   })) as UIMessage[];
 
   try {
@@ -144,7 +155,12 @@ export async function POST(req: Request) {
       isSubscribed: gate.isActive,
     });
 
-    return result.toUIMessageStreamResponse({ headers: responseHeaders });
+    // UUID message ids so persisted assistant messages satisfy the chat_messages
+    // UUID primary key (and the save route's id.uuid() schema).
+    return result.toUIMessageStreamResponse({
+      headers: responseHeaders,
+      generateMessageId: () => crypto.randomUUID(),
+    });
   } catch (error) {
     console.error(
       "[api/ai/chat] Error processing chat request:",

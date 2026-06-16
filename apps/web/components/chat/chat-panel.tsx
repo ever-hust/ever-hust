@@ -102,6 +102,9 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
 
   const { messages, sendMessage, stop, setMessages, status, error } = useChat({
     transport,
+    // UUID ids so persisted user messages satisfy the chat_messages UUID primary
+    // key and the save route's id.uuid() schema (AI SDK's default ids aren't UUIDs).
+    generateId: () => crypto.randomUUID(),
     onToolCall: ({ toolCall }) => {
       // Show which tool is running in the status indicator
       setAgentState("tool-running");

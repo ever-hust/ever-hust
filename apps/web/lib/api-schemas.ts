@@ -4,12 +4,22 @@ import { z } from "zod";
 export const chatRequestSchema = z.object({
   messages: z
     .array(
-      z.object({
-        id: z.string(),
-        role: z.enum(["user", "assistant"]),
-        content: z.string().min(1).max(50_000),
-        parts: z.array(z.object({ type: z.string().max(100) }).passthrough()).max(200).optional(),
-      })
+      z
+        .object({
+          id: z.string(),
+          role: z.enum(["user", "assistant", "system"]),
+          // AI SDK v6 UIMessages carry their text in `parts`, not `content` — the
+          // `DefaultChatTransport` never sends `content`. Accept EITHER the legacy
+          // `content` string OR v6 `parts`; the route normalises to `parts`.
+          content: z.string().max(50_000).optional(),
+          parts: z.array(z.object({ type: z.string().max(100) }).passthrough()).max(200).optional(),
+        })
+        .refine(
+          (m) =>
+            (typeof m.content === "string" && m.content.length > 0) ||
+            (Array.isArray(m.parts) && m.parts.length > 0),
+          { message: "message must include non-empty content or parts" },
+        )
     )
     .min(1)
     .max(100),

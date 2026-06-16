@@ -4,7 +4,10 @@ export type { ScraperInput, JobPostDto, JobSearchResponse } from "./types";
 
 const API_URL = process.env.EVER_JOBS_API_URL ?? "https://api.everjobs.ai";
 const API_KEY = process.env.EVER_JOBS_API_KEY;
-const DEFAULT_FETCH_TIMEOUT_MS = 15_000; // 15 seconds
+// Ever Jobs aggregates 160+ company/ATS sources per search, which routinely takes ~60s+.
+// This client is only used by the background sync (runtime search reads Hust's own DB), so a
+// generous timeout is safe and necessary to avoid spurious sync timeouts.
+const DEFAULT_FETCH_TIMEOUT_MS = 120_000; // 120 seconds
 
 /** Typed error carrying the HTTP status code — used by withRetry to skip retries on 4xx. */
 class ApiError extends Error {

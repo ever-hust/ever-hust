@@ -48,6 +48,10 @@ export const users = pgTable("users", {
   // Onboarding
   onboardingCompleted: boolean("onboarding_completed").notNull().default(false),
 
+  // Last time the follow-up-nudge digest email was sent (spec #9) — drives the cooldown so the
+  // scheduled nudge never spams. Opt-out lives in `preferences.followUpNudges === false`.
+  lastFollowUpNudgeAt: timestamp("last_follow_up_nudge_at"),
+
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

@@ -16,3 +16,15 @@ export {
 
 export { cleanupExpiredJobsTask } from "./cleanup-expired-jobs";
 export { batchEvaluateTask } from "./batch-evaluate";
+
+export {
+  processFollowUpNudges,
+  followUpNudgesTask,
+  followUpNudgesSchedule,
+} from "./follow-up-nudges";
+
+export {
+  processFunnelSnapshots,
+  funnelSnapshotsTask,
+  funnelSnapshotsSchedule,
+} from "./funnel-snapshots";

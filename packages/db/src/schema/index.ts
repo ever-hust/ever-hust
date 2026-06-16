@@ -8,6 +8,7 @@ export { agentInstances } from "./agents";
 export { subscriptions } from "./subscriptions";
 export { applications } from "./applications";
 export { evaluations } from "./evaluations";
+export { funnelSnapshots } from "./funnel-snapshots";
 export { approvalGates } from "./approval-gates";
 export type {
   EvaluationDimensionRow,

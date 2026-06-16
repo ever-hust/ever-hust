@@ -1,6 +1,7 @@
 import { getResend, EMAIL_FROM, getAppUrl } from "./index";
 import { render } from "@react-email/components";
 import { JobAlertEmail } from "./templates/job-alert";
+import { FollowUpNudgeEmail } from "./templates/follow-up-nudge";
 import { WelcomeEmail } from "./templates/welcome";
 import { SubscriptionConfirmedEmail } from "./templates/subscription-confirmed";
 import { VerificationEmail } from "./templates/verification-email";
@@ -133,6 +134,58 @@ export async function sendJobAlertEmail({
 
     return data;
   }, "sendJobAlertEmail");
+}
+
+// ── Follow-up Nudge Email (spec #9) ───────────────────────────────────────────
+
+interface SendFollowUpNudgeParams {
+  to: string;
+  userName: string;
+  items: {
+    jobTitle: string;
+    companyName: string;
+    stage: string;
+    daysSinceActivity: number;
+    overdue: boolean;
+  }[];
+  pipelineUrl?: string;
+  settingsUrl?: string;
+}
+
+export async function sendFollowUpNudgeEmail({
+  to,
+  userName,
+  items,
+  pipelineUrl,
+  settingsUrl,
+}: SendFollowUpNudgeParams) {
+  const appUrl = getAppUrl();
+  const element = FollowUpNudgeEmail({
+    userName,
+    items,
+    pipelineUrl: pipelineUrl ?? `${appUrl}/applications`,
+    settingsUrl: settingsUrl ?? `${appUrl}/settings`,
+  }) as React.ReactElement;
+
+  const html = await render(element);
+  const n = items.length;
+  const subject = `${n} application${n !== 1 ? "s" : ""} ready for a follow-up`;
+
+  return withRetry(async () => {
+    const { data, error } = await getResend().emails.send({
+      from: EMAIL_FROM,
+      to,
+      subject,
+      html,
+    });
+    if (error) {
+      throw new EmailSendError(
+        `Failed to send follow-up nudge email: ${error.message ?? "Unknown error"}`,
+        (error as { statusCode?: number }).statusCode,
+      );
+    }
+    return data;
+  }, "sendFollowUpNudgeEmail");
 }
 
 // ── Welcome Email ───────────────────────────────────────────────────────────

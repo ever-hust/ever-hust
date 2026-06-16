@@ -15,7 +15,8 @@
     "./structured": "./src/structured/index.ts",
     "./policy": "./src/policy/index.ts",
     "./pipeline/stages": "./src/pipeline/stages.ts",
-    "./cadence/follow-ups": "./src/cadence/follow-ups.ts"
+    "./cadence/follow-ups": "./src/cadence/follow-ups.ts",
+    "./analytics/funnel": "./src/analytics/funnel.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit"

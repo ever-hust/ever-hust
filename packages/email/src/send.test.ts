@@ -32,9 +32,13 @@ jest.mock("./templates/welcome", () => ({
 jest.mock("./templates/subscription-confirmed", () => ({
   SubscriptionConfirmedEmail: jest.fn(() => "mock-subscription-element"),
 }));
+jest.mock("./templates/follow-up-nudge", () => ({
+  FollowUpNudgeEmail: jest.fn(() => "mock-follow-up-nudge-element"),
+}));
 
 import {
   sendJobAlertEmail,
+  sendFollowUpNudgeEmail,
   sendWelcomeEmail,
   sendSubscriptionConfirmedEmail,
 } from "./send";
@@ -80,6 +84,28 @@ describe("sendJobAlertEmail", () => {
         from: "test@hust.so",
         to: "user@example.com",
         subject: '1 new job matching "React developer in NYC"',
+      }),
+    );
+  });
+
+  it("sends a follow-up nudge digest with a pluralized subject", async () => {
+    mockSend.mockResolvedValueOnce({ data: { id: "nudge_1" }, error: null });
+    const promise = sendFollowUpNudgeEmail({
+      to: "user@example.com",
+      userName: "Jane",
+      items: [
+        { jobTitle: "Backend Engineer", companyName: "Acme", stage: "applied", daysSinceActivity: 9, overdue: true },
+        { jobTitle: "Platform Engineer", companyName: "Globex", stage: "screening", daysSinceActivity: 4, overdue: false },
+      ],
+    });
+    await jest.runAllTimersAsync();
+    const result = await promise;
+    expect(result).toEqual({ id: "nudge_1" });
+    expect(mockSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: "test@hust.so",
+        to: "user@example.com",
+        subject: "2 applications ready for a follow-up",
       }),
     );
   });

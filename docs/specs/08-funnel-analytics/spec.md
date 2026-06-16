@@ -74,10 +74,13 @@ table, and opt-in auto-tune from the original plan are **deferred** (see below).
   tables `applications` (`packages/db/src/schema/applications.ts`, column `pipeline_stage`) and
   `evaluations` (`packages/db/src/schema/evaluations.ts`, column `score`) — **no new tables**.
 
-**Intentionally deferred (not yet shipped):**
-- No conversion **by segment** (score band / family / source / comp / remote), no time-in-stage,
-  and no empirical **score floor** / opt-in "apply this threshold" auto-tune — `computeFunnel`
-  currently surfaces avg-score-by-outcome instead of a derived floor.
-- No `insights_cache` table, no `GET /api/insights/funnel` REST route, no `/insights` dashboard
-  page, and no dedicated `FunnelInsightsCard` canvas component — the funnel is delivered via the
-  chat tool only, not a standalone Insights UI.
+**Persisted snapshots (shipped):** `funnel_snapshots` table (`packages/db/src/schema/funnel-snapshots.ts`,
+migration `0003`) + the `funnel-snapshots` scheduled Trigger.dev task
+(`packages/triggers/src/funnel-snapshots.ts`, `processFunnelSnapshots`, daily 02:00 UTC) compute each
+user's funnel and persist a row — turning the on-demand funnel into a **time series**. Read via
+`GET /api/user/funnel/history` (authed; covered by `tests/e2e/authed/funnel-history.authed.spec.ts`).
+
+**Still deferred:**
+- Conversion **by segment** (score band / family / source / comp / remote), time-in-stage, and the
+  empirical **score floor** / opt-in "apply this threshold" auto-tune.
+- No `/insights` dashboard page / `FunnelInsightsCard` yet — history is exposed via the API + chat tool.

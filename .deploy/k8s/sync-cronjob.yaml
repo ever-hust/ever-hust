@@ -21,10 +21,17 @@ spec:
           containers:
             - name: sync
               image: curlimages/curl:8.11.1
+              env:
+                - name: CRON_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: hust-prod-web-env
+                      key: CRON_SECRET
               command:
                 - sh
                 - -c
                 - >-
                   curl -fsS -m 280 -X POST http://hust-prod-web-lb/api/jobs/sync
+                  -H "Authorization: Bearer $CRON_SECRET"
                   -H 'Content-Type: application/json'
                   -d '{"resultsWanted":80}'

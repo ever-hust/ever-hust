@@ -14,6 +14,19 @@ import { apiSuccess, apiError } from "../../../../lib/api-response";
  *   - resultsWanted: number of results per search term (default 50)
  */
 export async function POST(req: Request) {
+  // Guard: this triggers expensive 160+-source scraping, so it must not be open in prod.
+  // When CRON_SECRET is set, require it via `Authorization: Bearer <secret>` (or x-cron-secret);
+  // when unset (local dev), stay open for convenience.
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    const provided =
+      req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ??
+      req.headers.get("x-cron-secret") ??
+      "";
+    if (provided !== cronSecret) {
+      return apiError("Unauthorized", 401);
+    }
+  }
   try {
     let requestedTerms: string[] | undefined;
     let resultsWanted = 50;

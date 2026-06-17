@@ -1,5 +1,6 @@
 import { db, users } from "@ever-hust/db";
 import { FREE_LIMITS } from "@ever-hust/stripe";
+import { getRateLimiter, MemoryRateLimiter, type RateLimiter } from "@ever-hust/rate-limit";
 import { eq } from "drizzle-orm";
 import { ONE_DAY_MS, ONE_WEEK_MS } from "./constants";
 
@@ -39,101 +40,49 @@ export async function checkSubscription(
 }
 
 // ---------------------------------------------------------------------------
-// In-memory rate limiting — fixed-window counter.
-// Note: this is a fixed-window algorithm, not a true sliding window.
-// A user can burst up to 2× the limit across a window boundary.
-// For stricter enforcement, use the Redis-backed sliding-window in
-// lib/rate-limit.ts or Upstash.
-// In production with multiple instances, consider using Redis (Upstash).
+// Rate limiting — delegates to @ever-hust/rate-limit (fixed-window counter).
+//
+// Default driver is **in-memory** (per-pod), preserving the historical
+// behaviour: a user can burst up to 2× the limit across a window boundary, and
+// counts are not shared across pods. To make the daily caps distributed, set
+// `RATE_LIMIT_REDIS_URL` (DigitalOcean Redis, self-hosted, …) — see
+// packages/rate-limit/README.md. The limiter switches with no code change.
 // ---------------------------------------------------------------------------
 
-const memoryCounters = new Map<string, { count: number; resetAt: number }>();
-
-/** Max entries before triggering cleanup to prevent unbounded memory growth. */
-const MAX_COUNTER_ENTRIES = 10_000;
+/** Shared limiter for the free-tier message cap. In-memory unless Redis is configured. */
+const limiter: RateLimiter = getRateLimiter();
 
 /**
- * Remove expired entries from the in-memory rate limit map.
- * Called automatically when the map exceeds MAX_COUNTER_ENTRIES.
+ * In-memory limiter used by the synchronous `peek*` helpers (the usage-stats
+ * endpoint). When the shared limiter is in-memory — the default — this IS the
+ * same instance, so peeks and checks stay consistent. Under the Redis driver,
+ * these peeks reflect only this pod's local view (the stats endpoint is
+ * non-critical; the authoritative count lives in Redis).
  */
-function cleanupExpiredCounters(): void {
-  const now = Date.now();
-  for (const [key, entry] of memoryCounters) {
-    if (now > entry.resetAt) {
-      memoryCounters.delete(key);
-    }
-  }
-}
-
-function checkMemoryRateLimit(
-  key: string,
-  limit: number,
-  windowMs: number,
-): { allowed: boolean; remaining: number } {
-  const now = Date.now();
-
-  // Prevent unbounded memory growth
-  if (memoryCounters.size > MAX_COUNTER_ENTRIES) {
-    cleanupExpiredCounters();
-  }
-
-  const entry = memoryCounters.get(key);
-
-  if (!entry || now > entry.resetAt) {
-    memoryCounters.set(key, { count: 1, resetAt: now + windowMs });
-    return { allowed: true, remaining: limit - 1 };
-  }
-
-  if (entry.count >= limit) {
-    return { allowed: false, remaining: 0 };
-  }
-
-  entry.count++;
-  return { allowed: true, remaining: limit - entry.count };
-}
+const peekLimiter: MemoryRateLimiter =
+  limiter instanceof MemoryRateLimiter ? limiter : new MemoryRateLimiter();
 
 /**
- * Check rate limit — uses in-memory fixed-window counter.
- */
-async function checkRateLimit(
-  key: string,
-  limit: number,
-  windowMs: number,
-): Promise<{ allowed: boolean; remaining: number }> {
-  return checkMemoryRateLimit(key, limit, windowMs);
-}
-
-/**
- * Read-only version of checkRateLimit — peeks at current usage without incrementing.
+ * Read-only peek at a counter's current usage without incrementing it.
  */
 export function peekRateLimit(
   key: string,
   limit: number,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  windowMs: number
+  windowMs: number,
 ): { used: number; remaining: number; limit: number } {
-  const now = Date.now();
-  const entry = memoryCounters.get(key);
-
-  if (!entry || now > entry.resetAt) {
-    return { used: 0, remaining: limit, limit };
-  }
-
-  return {
-    used: entry.count,
-    remaining: Math.max(0, limit - entry.count),
-    limit,
-  };
+  return peekLimiter.peek(key, { limit, windowMs });
 }
-
 
 /**
  * Check if a free user has exceeded their daily message limit.
  */
-export function checkMessageLimit(
+export async function checkMessageLimit(
   userId: string,
 ): Promise<{ allowed: boolean; remaining: number }> {
-  return checkRateLimit(`msg:${userId}`, FREE_LIMITS.messagesPerDay, ONE_DAY_MS);
+  return limiter.consume(`msg:${userId}`, {
+    limit: FREE_LIMITS.messagesPerDay,
+    windowMs: ONE_DAY_MS,
+  });
 }
 
 // -- Read-only peek functions for usage stats endpoint --

@@ -9,8 +9,10 @@ import { ChatEmptyState } from "./chat-empty-state";
 import { ChatHistory } from "./chat-history";
 import { AgentStatus, type AgentState } from "./agent-status";
 import { useChatPersistence } from "@/hooks/use-chat-persistence";
-import { MessageSquarePlus, RefreshCcw, ArrowDown } from "lucide-react";
+import { createLimitAwareFetch, classifyChatError } from "@/lib/chat-error";
+import { MessageSquarePlus, RefreshCcw, ArrowDown, Sparkles } from "lucide-react";
 import { Button } from "@ever-hust/ui/button";
+import Link from "next/link";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -27,37 +29,6 @@ const SHOW_SCROLL_BUTTON_PX = 100;
 
 /** Duration of the "done" flash before returning to idle (ms). */
 const DONE_FLASH_MS = 1_500;
-
-// ---------------------------------------------------------------------------
-// Error classification — replaces fragile substring matching
-// ---------------------------------------------------------------------------
-
-type ChatErrorKind = "auth" | "rate-limit" | "network" | "unknown";
-
-function classifyError(error: Error): ChatErrorKind {
-  const msg = (error.message ?? "").toLowerCase();
-  if (msg.includes("401") || msg.includes("sign in") || msg.includes("unauthorized"))
-    return "auth";
-  if (msg.includes("429") || msg.includes("rate") || msg.includes("limit") || msg.includes("too many"))
-    return "rate-limit";
-  if (msg.includes("fetch") || msg.includes("network") || msg.includes("econnrefused") || msg.includes("failed to fetch"))
-    return "network";
-  return "unknown";
-}
-
-const ERROR_TITLES: Record<ChatErrorKind, string> = {
-  auth: "Session expired",
-  "rate-limit": "Rate limit reached",
-  network: "Connection error",
-  unknown: "Something went wrong",
-};
-
-const ERROR_DESCRIPTIONS: Record<ChatErrorKind, string> = {
-  auth: "Please refresh the page to sign in again.",
-  "rate-limit": "You\u2019ve sent too many messages. Wait a moment and try again.",
-  network: "Check your internet connection and try again.",
-  unknown: "An unexpected error occurred. Please try again.",
-};
 
 // ---------------------------------------------------------------------------
 // Component
@@ -96,7 +67,13 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
   } = useChatPersistence();
 
   const transport = useMemo(
-    () => new DefaultChatTransport({ api: "/api/ai/chat" }),
+    () =>
+      new DefaultChatTransport({
+        api: "/api/ai/chat",
+        // Surface the server's real error body (e.g. the daily message-limit
+        // 429) instead of the AI SDK's generic failure.
+        fetch: createLimitAwareFetch(),
+      }),
     []
   );
 
@@ -303,8 +280,8 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
     [loadMessages, setMessages]
   );
 
-  // Classify error once for cleaner rendering
-  const errorKind = error ? classifyError(error) : null;
+  // Classify error once for cleaner rendering (prefers the server's real message)
+  const errorInfo = error ? classifyChatError(error) : null;
 
   return (
     <div className="flex h-full flex-col">
@@ -348,29 +325,39 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
           <ChatMessages messages={messages} isLoading={isLoading} />
         )}
 
-        {error && errorKind && (
+        {error && errorInfo && (
           <div role="alert" className="mt-2 rounded-md border border-destructive/50 bg-destructive/10 p-3">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="text-sm font-medium text-destructive">
-                  {ERROR_TITLES[errorKind]}
+                  {errorInfo.title}
                 </p>
                 <p className="mt-0.5 text-xs text-destructive/80">
-                  {ERROR_DESCRIPTIONS[errorKind]}
+                  {errorInfo.description}
                 </p>
               </div>
-              {lastUserMessage.current && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRetry}
-                  disabled={isLoading}
-                  className="shrink-0 gap-1.5 border-destructive/30 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
-                >
-                  <RefreshCcw className="h-3 w-3" aria-hidden="true" />
-                  Retry
-                </Button>
-              )}
+              <div className="flex shrink-0 items-center gap-2">
+                {errorInfo.upgradeHref && (
+                  <Button size="sm" asChild className="gap-1.5">
+                    <Link href={errorInfo.upgradeHref}>
+                      <Sparkles className="h-3 w-3" aria-hidden="true" />
+                      Upgrade to Pro
+                    </Link>
+                  </Button>
+                )}
+                {errorInfo.canRetry && lastUserMessage.current && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRetry}
+                    disabled={isLoading}
+                    className="gap-1.5 border-destructive/30 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <RefreshCcw className="h-3 w-3" aria-hidden="true" />
+                    Retry
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         )}

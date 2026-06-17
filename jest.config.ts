@@ -16,6 +16,7 @@ const rootDir = __dirname.replace(/\\/g, "/");
 // Map workspace packages to their source dirs for ts-jest resolution
 const workspaceModuleMapper: Record<string, string> = {
   "^@ever-hust/stripe(.*)$": `${rootDir}/packages/stripe/src$1`,
+  "^@ever-hust/rate-limit(.*)$": `${rootDir}/packages/rate-limit/src$1`,
   "^@ever-hust/db(.*)$": `${rootDir}/packages/db/src$1`,
   "^@ever-hust/utils(.*)$": `${rootDir}/packages/utils/src$1`,
   "^@ever-hust/ai(.*)$": `${rootDir}/packages/ai/src$1`,
@@ -56,6 +57,12 @@ const config: Config = {
       displayName: "stripe",
       rootDir,
       testMatch: [`${rootDir}/packages/stripe/src/**/*.test.ts`],
+      ...sharedConfig,
+    },
+    {
+      displayName: "rate-limit",
+      rootDir,
+      testMatch: [`${rootDir}/packages/rate-limit/src/**/*.test.ts`],
       ...sharedConfig,
     },
     {

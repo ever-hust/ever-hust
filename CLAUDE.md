@@ -69,7 +69,7 @@ ANALYZE=true pnpm build   # Generate bundle analysis report
 - **Langfuse** for AI observability (OTEL-based tracing, prompt management)
 - **Stripe** for subscriptions, **Resend** + React Email for transactional email
 - **Trigger.dev v3** for scheduled background tasks
-- **Upstash Redis** for rate limiting
+- **In-memory rate limiting by default** (per-pod), with a Redis-ready path via `@ever-hust/rate-limit` (off unless `RATE_LIMIT_REDIS_URL` is set) and an Upstash path for AI search/cover-letter caps
 - **Playwright** (E2E) + **Jest** with ts-jest (unit tests)
 
 ## Architecture
@@ -119,7 +119,7 @@ Prompts are managed through Langfuse with local fallbacks. The orchestrator syst
 
 - Free tier: Haiku model, 5 searches/day, 1 cover letter/week, daily message limit
 - Pro tier (Stripe): Configurable model, unlimited searches/cover letters/messages, job alerts, interview prep, application agent
-- Rate limiting uses Upstash Redis (`@upstash/ratelimit`) at both API route level and AI tool level
+- Rate limiting is **in-memory (per-pod) by default**; there are three limiters with different backends. The daily message cap (`apps/web/lib/subscription-gate.ts`) goes through `@ever-hust/rate-limit` and is **Redis-ready but off by default** (set `RATE_LIMIT_REDIS_URL`). The per-route API limiter (`apps/web/lib/rate-limit.ts`) is in-memory only. The AI search/cover-letter caps (`packages/ai/src/rate-limit.ts`) use Upstash when `UPSTASH_REDIS_REST_URL` is set. Full map + enable steps: `docs/internal/RATE_LIMITING.md`.
 
 ### Database Schema
 
@@ -132,7 +132,7 @@ The DB client (`packages/db/src/client.ts`) is a lazy singleton using a Proxy pa
 API routes in `apps/web/app/api/` follow a consistent pattern:
 
 - Authenticate with `requireSessionUser()` (throws NextResponse on failure)
-- Apply rate limiting with `applyRateLimit(key, tier)` from `apps/web/lib/rate-limit.ts`. Available tiers: `authenticated` (100 req/min), `public` (20 req/min), `publicHighThroughput` (100 req/min), `chat` (30 req/min), `admin` (60 req/min), `adminWrite` (30 req/min), `export` (5 req/min). Uses in-memory sliding window; swap to Redis/Upstash for distributed deployments.
+- Apply rate limiting with `applyRateLimit(key, tier)` from `apps/web/lib/rate-limit.ts`. Available tiers: `authenticated` (100 req/min), `public` (20 req/min), `publicHighThroughput` (100 req/min), `chat` (30 req/min), `admin` (60 req/min), `adminWrite` (30 req/min), `export` (5 req/min). Uses in-memory sliding window (per-pod); not yet distributed — see `docs/internal/RATE_LIMITING.md` for the deferred Redis migration of this limiter.
 - Validate request body with Zod schemas from `apps/web/lib/api-schemas.ts`
 - Return errors via `apiBadRequest()` / `apiError()` helpers from `apps/web/lib/api-response.ts` (including the Stripe webhook route, which uses these standardized helpers for consistent error responses)
 - All API responses include default `Cache-Control: private, no-cache, no-store, must-revalidate` headers to prevent sensitive data caching

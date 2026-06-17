@@ -1,0 +1,71 @@
+name: Deploy Hust Web to DigitalOcean (Stage)
+
+# Deploys the web app to the k8s-gauzy cluster (host: stage.hust.so) in the
+# `hust-stage` namespace, after the stage image build completes. Same cluster as
+# prod, isolated namespace. Uses the cluster kubeconfig (HUST_KUBECONFIG) and
+# materialises stage runtime env + TLS from GitHub Actions secrets.
+on:
+  workflow_run:
+    workflows: ["Build and Publish Hust Web Image (Stage)"]
+    branches: [stage]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  deploy-web:
+    # Only deploy for a successful stage build (or a manual dispatch).
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'stage') }}
+    runs-on: ubuntu-latest
+    environment: stage
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure kubeconfig
+        env:
+          HUST_KUBECONFIG: ${{ secrets.HUST_KUBECONFIG }}
+        run: |
+          mkdir -p "$HOME/.kube"
+          printf '%s' "$HUST_KUBECONFIG" > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+          kubectl config use-context do-sfo2-k8s-gauzy
+
+      - name: Ensure namespace
+        run: kubectl create namespace hust-stage --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Materialise runtime env Secret (hust-stage-web-env)
+        env:
+          HUST_STAGE_ENV: ${{ secrets.HUST_STAGE_ENV }}
+        run: |
+          printf '%s' "$HUST_STAGE_ENV" > /tmp/hust.env
+          kubectl create secret generic hust-stage-web-env -n hust-stage \
+            --from-env-file=/tmp/hust.env --dry-run=client -o yaml | kubectl apply -f -
+          rm -f /tmp/hust.env
+
+      - name: Materialise TLS Secret (stage.hust.so-tls)
+        env:
+          INGRESS_CERT: ${{ secrets.HUST_STAGE_INGRESS_CERT }}
+          INGRESS_CERT_KEY: ${{ secrets.HUST_STAGE_INGRESS_CERT_KEY }}
+        run: |
+          if [ -z "$INGRESS_CERT" ]; then
+            echo "HUST_STAGE_INGRESS_CERT not set — skipping TLS secret (ingress will lack a cert until provided)."
+            exit 0
+          fi
+          crt="${HOME}/stage.hust.so.crt"; key="${HOME}/stage.hust.so.key"
+          printf '%s' "$INGRESS_CERT" | base64 --decode > "$crt"
+          printf '%s' "$INGRESS_CERT_KEY" | base64 --decode > "$key"
+          kubectl create secret tls stage.hust.so-tls -n hust-stage \
+            --cert="$crt" --key="$key" --dry-run=client -o yaml | kubectl apply -f -
+          rm -f "$crt" "$key"
+
+      - name: Apply k8s manifest
+        run: kubectl apply -f .deploy/k8s/k8s-manifest.stage.yaml
+
+      - name: Roll the deployment
+        run: |
+          kubectl rollout restart deployment/hust-stage-web -n hust-stage
+          kubectl rollout status deployment/hust-stage-web -n hust-stage --timeout=240s

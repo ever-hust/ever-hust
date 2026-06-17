@@ -34,14 +34,22 @@ jobs:
           chmod 600 "$HOME/.kube/config"
           kubectl config use-context do-sfo2-k8s-gauzy
 
-      - name: Self-signed origin TLS secret (docs.hust.so-tls)
+      - name: Origin TLS secret (keep existing; self-sign only if absent)
+        # The cluster holds a Cloudflare Origin CA wildcard cert (*.hust.so) for
+        # docs.hust.so-tls — valid under Cloudflare "Full (strict)". Never overwrite
+        # it with a self-signed cert (that triggers CF error 526); only mint a
+        # self-signed fallback if the secret is missing (fresh cluster).
         run: |
-          openssl req -x509 -nodes -newkey rsa:2048 -days 825 \
-            -keyout /tmp/docs.key -out /tmp/docs.crt \
-            -subj "/CN=docs.hust.so" -addext "subjectAltName=DNS:docs.hust.so" 2>/dev/null
-          kubectl create secret tls docs.hust.so-tls \
-            --cert=/tmp/docs.crt --key=/tmp/docs.key --dry-run=client -o yaml | kubectl apply -f -
-          rm -f /tmp/docs.key /tmp/docs.crt
+          if kubectl get secret docs.hust.so-tls >/dev/null 2>&1; then
+            echo "docs.hust.so-tls already present — keeping it."
+          else
+            openssl req -x509 -nodes -newkey rsa:2048 -days 825 \
+              -keyout /tmp/docs.key -out /tmp/docs.crt \
+              -subj "/CN=docs.hust.so" -addext "subjectAltName=DNS:docs.hust.so" 2>/dev/null
+            kubectl create secret tls docs.hust.so-tls \
+              --cert=/tmp/docs.crt --key=/tmp/docs.key --dry-run=client -o yaml | kubectl apply -f -
+            rm -f /tmp/docs.key /tmp/docs.crt
+          fi
 
       - name: Apply k8s manifest
         run: kubectl apply -f .deploy/k8s/docs.prod.yaml

@@ -133,6 +133,17 @@ export default function DashboardPage() {
     ),
   });
 
+  // Handle ?m= deep link — frictionless trial from the marketing site. The
+  // anonymous session is created at /try; here we drop the message into the
+  // chat and auto-send it so the guest sees the AI respond immediately.
+  useEffect(() => {
+    if (deepLinkHandled.current) return;
+    const m = searchParams.get("m");
+    if (!m) return;
+    deepLinkHandled.current = true;
+    setInitialPrompt(m, true);
+  }, [searchParams, setInitialPrompt]);
+
   // Handle ?job= deep link — fetch job info and build initial prompt
   useEffect(() => {
     if (deepLinkHandled.current) return;

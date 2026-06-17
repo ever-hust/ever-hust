@@ -48,6 +48,11 @@ export const users = pgTable("users", {
   // Onboarding
   onboardingCompleted: boolean("onboarding_completed").notNull().default(false),
 
+  // Anonymous trial users (BetterAuth anonymous plugin). A frictionless "try it"
+  // session created from the marketing site; converted to a real account on
+  // sign-up (see packages/auth onLinkAccount).
+  isAnonymous: boolean("is_anonymous").notNull().default(false),
+
   // Last time the follow-up-nudge digest email was sent (spec #9) — drives the cooldown so the
   // scheduled nudge never spams. Opt-out lives in `preferences.followUpNudges === false`.
   lastFollowUpNudgeAt: timestamp("last_follow_up_nudge_at"),

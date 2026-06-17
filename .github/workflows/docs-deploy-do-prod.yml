@@ -1,0 +1,52 @@
+name: Deploy Hust Docs to DigitalOcean (Prod)
+
+# Deploys the documentation site to the k8s-gauzy cluster (host: docs.hust.so) after
+# the docs image build completes. Uses the cluster kubeconfig (HUST_KUBECONFIG) — the
+# same secret the app deploy uses. This deployment (hust-docs) is independent of the
+# app (hust-prod-web): rolling it never touches app.hust.so. Origin TLS is self-signed
+# (Cloudflare "Full" sits in front). The ingress is gated by the shared hust-basic-auth.
+on:
+  workflow_run:
+    workflows: ["Build and Publish Hust Docs Image (Prod)"]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  deploy-docs:
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure kubeconfig
+        env:
+          HUST_KUBECONFIG: ${{ secrets.HUST_KUBECONFIG }}
+        run: |
+          mkdir -p "$HOME/.kube"
+          printf '%s' "$HUST_KUBECONFIG" > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+          kubectl config use-context do-sfo2-k8s-gauzy
+
+      - name: Self-signed origin TLS secret (docs.hust.so-tls)
+        run: |
+          openssl req -x509 -nodes -newkey rsa:2048 -days 825 \
+            -keyout /tmp/docs.key -out /tmp/docs.crt \
+            -subj "/CN=docs.hust.so" -addext "subjectAltName=DNS:docs.hust.so" 2>/dev/null
+          kubectl create secret tls docs.hust.so-tls \
+            --cert=/tmp/docs.crt --key=/tmp/docs.key --dry-run=client -o yaml | kubectl apply -f -
+          rm -f /tmp/docs.key /tmp/docs.crt
+
+      - name: Apply k8s manifest
+        run: kubectl apply -f .deploy/k8s/docs.prod.yaml
+
+      - name: Roll the deployment
+        run: |
+          kubectl rollout restart deployment/hust-docs
+          kubectl rollout status deployment/hust-docs --timeout=240s

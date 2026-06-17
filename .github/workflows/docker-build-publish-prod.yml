@@ -11,6 +11,10 @@ on:
     branches: [main]
     paths:
       - "apps/**"
+      # The docs site (apps/docs) has its own build+deploy pipeline
+      # (docs-build-publish-prod.yml). Exclude it so a docs change never
+      # rebuilds/redeploys the web app (which would restart app.hust.so).
+      - "!apps/docs/**"
       - "packages/**"
       - ".deploy/web/**"
       - ".github/workflows/docker-build-publish-prod.yml"

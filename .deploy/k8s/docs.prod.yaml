@@ -1,0 +1,97 @@
+# Hust documentation site — production manifest for DigitalOcean k8s (do-sfo2-k8s-gauzy).
+# Host: docs.hust.so. Static Docusaurus build served by nginx from the image
+# ghcr.io/ever-hust/hust-docs:latest (built by the docs build workflow). This is a
+# SEPARATE deployment from the app (hust-prod-web) — a docs change never restarts the app.
+# Private preview: gated by the shared nginx basic-auth secret `hust-basic-auth`.
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: hust-docs-lb
+spec:
+  type: ClusterIP
+  selector:
+    app: hust-docs
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 80
+---
+kind: Ingress
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: hust-docs-ingress
+  namespace: default
+  annotations:
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    # Private-preview basic-auth gate (shared secret hust-basic-auth: user "hust").
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: hust-basic-auth
+    nginx.ingress.kubernetes.io/auth-realm: "Hust - private preview"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: docs.hust.so
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hust-docs-lb
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - docs.hust.so
+      secretName: docs.hust.so-tls
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hust-docs
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: hust-docs
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: hust-docs
+    spec:
+      containers:
+        - name: hust-docs
+          image: ghcr.io/ever-hust/hust-docs:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "20m"
+              memory: "32Mi"
+            limits:
+              memory: "128Mi"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3

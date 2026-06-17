@@ -1,0 +1,53 @@
+name: Build and Publish Hust Docs Image (Prod)
+
+# Builds the Docusaurus documentation site (docs.hust.so) into a static nginx image
+# and pushes it to GHCR (ghcr.io/ever-hust/hust-docs), which the k8s-gauzy cluster
+# pulls. Self-contained: no server secrets, no build args. Triggers ONLY on docs
+# sources — never on app code — so a docs change never rebuilds/redeploys the app.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/docs/**"
+      - "docs/**"
+      - ".deploy/docs/**"
+      - ".github/workflows/docs-build-publish-prod.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push (GHCR)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./.deploy/docs/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ghcr.io/ever-hust/hust-docs:latest
+            ghcr.io/ever-hust/hust-docs:${{ github.sha }}
+          cache-from: type=registry,ref=ghcr.io/ever-hust/hust-docs:latest
+          cache-to: type=inline

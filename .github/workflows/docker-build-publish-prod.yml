@@ -19,6 +19,7 @@ on:
       - ".deploy/web/**"
       - ".github/workflows/docker-build-publish-prod.yml"
       - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
   workflow_dispatch:
 
 concurrency:

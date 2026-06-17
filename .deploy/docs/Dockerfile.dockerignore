@@ -1,0 +1,20 @@
+# Ignore-file specific to the docs image build (.deploy/docs/Dockerfile).
+# BuildKit uses `<dockerfile-path>.dockerignore` in preference to the repo-root
+# .dockerignore. Unlike the app build, the docs site MUST include the top-level
+# docs/ folder (the Docusaurus config renders ../../docs from it), so docs/ is
+# intentionally NOT excluded here.
+**/node_modules
+**/.next
+**/.turbo
+**/dist
+**/build
+**/coverage
+**/.git
+**/.github
+**/*.log
+**/.env*
+!**/.env.example
+**/.DS_Store
+**/.vscode
+**/.idea
+OTHERS

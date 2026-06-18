@@ -72,19 +72,20 @@ jobs:
           cache: "pnpm"
       - name: Install deps (for migrations)
         run: pnpm install --frozen-lockfile --ignore-scripts
-      - name: Run DB migrations
+      - name: Ensure anonymous-trial schema column
         env:
           HUST_PROD_ENV: ${{ secrets.HUST_PROD_ENV }}
         run: |
-          # Pull DATABASE_URL out of the prod env bundle (same value the app uses;
-          # prior migrations 0000–0003 were applied this way).
+          # The prod DB is drizzle-kit *push*-managed (empty migration journal), so
+          # `drizzle-kit migrate` would replay 0000_* against existing tables and fail.
+          # Apply just the additive, idempotent column the new code needs.
           db_url=$(printf '%s\n' "$HUST_PROD_ENV" | grep -E '^DATABASE_URL=' | head -1 | cut -d= -f2-)
           db_url="${db_url%\"}"; db_url="${db_url#\"}"; db_url="${db_url%\'}"; db_url="${db_url#\'}"
           if [ -z "$db_url" ]; then
             echo "::error::DATABASE_URL not found in HUST_PROD_ENV" >&2
             exit 1
           fi
-          DATABASE_URL="$db_url" pnpm --filter @ever-hust/db db:migrate
+          cd packages/db && DATABASE_URL="$db_url" node scripts/ensure-anonymous-column.cjs
 
       - name: Apply k8s manifest
         run: kubectl apply -f .deploy/k8s/k8s-manifest.prod.yaml

@@ -141,7 +141,7 @@ test.describe("Authentication - API Endpoint Protection", () => {
 
 test.describe("Authentication - Security Headers", () => {
   test("public pages include security headers", async ({ page }) => {
-    const response = await page.goto("/");
+    const response = await page.goto("/login");
     expect(response).not.toBeNull();
 
     const headers = response!.headers();
@@ -154,7 +154,7 @@ test.describe("Authentication - Security Headers", () => {
   });
 
   test("CSP header is present on responses", async ({ page }) => {
-    const response = await page.goto("/");
+    const response = await page.goto("/login");
     expect(response).not.toBeNull();
 
     const headers = response!.headers();

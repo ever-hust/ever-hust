@@ -8,6 +8,7 @@ import { Skeleton } from "@ever-hust/ui/skeleton";
 import { ScrollToTop } from "@/components/shared/scroll-to-top";
 import { PageHeader } from "@/components/shared/page-header";
 import { SubscriptionCard } from "@/components/settings/subscription-card";
+import { CreditsCard } from "@/components/settings/credits-card";
 
 export default function SubscriptionsPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -80,7 +81,10 @@ export default function SubscriptionsPage() {
     <div className="flex flex-1 flex-col overflow-hidden">
       <PageHeader icon={CreditCard} title="Subscriptions" />
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 sm:p-6">
-        <SubscriptionCard subscriptionStatus={subscriptionStatus} />
+        <div className="space-y-6">
+          <SubscriptionCard subscriptionStatus={subscriptionStatus} />
+          <CreditsCard />
+        </div>
         <ScrollToTop containerRef={scrollRef} />
       </div>
     </div>

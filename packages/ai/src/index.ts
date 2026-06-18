@@ -1,6 +1,21 @@
 export { getModelForUser } from "./model-router";
 export { createOrchestratorStream } from "./agents/orchestrator";
 export { checkSearchLimit, checkCoverLetterLimit } from "./rate-limit";
+export {
+  CREDITS_PER_USD,
+  PLAN_MONTHLY_CREDITS,
+  CREDIT_PACKS,
+  costInCredits,
+  creditsToUsd,
+  currentPeriodKey,
+  getCreditBalance,
+  recordChatUsage,
+  ensureMonthlyGrant,
+  grantCredits,
+  getRecentCreditTransactions,
+  getCreditsSpentThisPeriod,
+} from "./credits";
+export type { CreditPackId } from "./credits";
 export { getOrchestratorPrompt, getPrompt } from "./prompts";
 export type { PromptMeta } from "./prompts";
 export { getOrgAiConfig, mergeOrgConfig } from "./org-config";

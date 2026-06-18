@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const protectedRoutes = ["/chat", "/dashboard", "/jobs", "/companies", "/profile", "/settings", "/applications", "/favorites", "/admin", "/organizations"];
+const protectedRoutes = ["/chat", "/dashboard", "/jobs", "/companies", "/inbox", "/profile", "/settings", "/applications", "/favorites", "/admin", "/organizations"];
 
 // ---------------------------------------------------------------------------
 // Security headers applied to all responses

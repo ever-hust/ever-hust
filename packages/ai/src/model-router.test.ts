@@ -41,23 +41,23 @@ describe("getModelForUser", () => {
   });
 
   it("should return paid-tier default (sonnet) for paid users with no preferences", () => {
-    // PAID_MODEL_ID resolves at module load: process.env.DEFAULT_AI_MODEL ?? "claude-sonnet-4-5-20250929"
+    // PAID_MODEL_ID resolves at module load: process.env.DEFAULT_AI_MODEL ?? "claude-sonnet-4-6"
     const model = getModelForUser({
       subscriptionStatus: "active",
       preferences: null,
     });
     expect((model as { modelId: string }).modelId).toBe(
-      "claude-sonnet-4-5-20250929"
+      "claude-sonnet-4-6"
     );
   });
 
   it("should use user-selected model when set in preferences", () => {
     const model = getModelForUser({
       subscriptionStatus: "active",
-      preferences: { aiModel: "claude-sonnet-4-5-20250929" },
+      preferences: { aiModel: "claude-sonnet-4-6" },
     });
     expect((model as { modelId: string }).modelId).toBe(
-      "claude-sonnet-4-5-20250929"
+      "claude-sonnet-4-6"
     );
   });
 
@@ -72,11 +72,11 @@ describe("getModelForUser", () => {
   it("should reject unlisted model IDs and fall back to paid default", () => {
     const model = getModelForUser({
       subscriptionStatus: "active",
-      preferences: { aiModel: "gpt-4o-mini" },
+      preferences: { aiModel: "totally-not-a-real-model" },
     });
-    // Falls through to PAID_MODEL_ID since "gpt-4o-mini" is not in ALLOWED_MODELS
+    // Not in the catalog → falls through to the platform PAID default.
     expect((model as { modelId: string }).modelId).toBe(
-      "claude-sonnet-4-5-20250929"
+      "claude-sonnet-4-6"
     );
   });
 
@@ -87,7 +87,7 @@ describe("getModelForUser", () => {
         apiKeys: { anthropic: "sk-ant-123" },
       },
     });
-    expect((model as { modelId: string }).modelId).toBe("claude-opus-4-6");
+    expect((model as { modelId: string }).modelId).toBe("claude-opus-4-8");
   });
 
   it("should use BYOK with user's preferred model", () => {
@@ -112,19 +112,19 @@ describe("getModelForUser", () => {
       },
     });
     // BYOK without model preference defaults to opus
-    expect((model as { modelId: string }).modelId).toBe("claude-opus-4-6");
+    expect((model as { modelId: string }).modelId).toBe("claude-opus-4-8");
   });
 
   it("should use PAID_MODEL_ID resolved at module load for paid users", () => {
     // NOTE: PAID_MODEL_ID is a module-level const, so changing process.env
     // after import has no effect.  This test verifies the default path uses
-    // the resolved PAID_MODEL_ID ("claude-sonnet-4-5-20250929").
+    // the resolved PAID_MODEL_ID ("claude-sonnet-4-6").
     const model = getModelForUser({
       subscriptionStatus: "active",
       preferences: null,
     });
     expect((model as { modelId: string }).modelId).toBe(
-      "claude-sonnet-4-5-20250929"
+      "claude-sonnet-4-6"
     );
   });
 
@@ -144,14 +144,14 @@ describe("getModelForUser", () => {
     });
     // Empty preferences → no aiModel set → falls through to PAID_MODEL_ID default
     expect((model as { modelId: string }).modelId).toBe(
-      "claude-sonnet-4-5-20250929"
+      "claude-sonnet-4-6"
     );
   });
 
   it("should ignore model preference for free users (prevent cost bypass)", () => {
     const model = getModelForUser({
       subscriptionStatus: "free",
-      preferences: { aiModel: "claude-opus-4-6" },
+      preferences: { aiModel: "claude-opus-4-8" },
     });
     // Free users always get haiku regardless of model preference
     expect((model as { modelId: string }).modelId).toBe(
@@ -162,11 +162,11 @@ describe("getModelForUser", () => {
   it("should treat past_due users as paid tier (grace period)", () => {
     const model = getModelForUser({
       subscriptionStatus: "past_due",
-      preferences: { aiModel: "claude-sonnet-4-5-20250929" },
+      preferences: { aiModel: "claude-sonnet-4-6" },
     });
     // past_due users retain Pro access during Stripe's grace period
     expect((model as { modelId: string }).modelId).toBe(
-      "claude-sonnet-4-5-20250929"
+      "claude-sonnet-4-6"
     );
   });
 
@@ -225,7 +225,7 @@ describe("getModelForUser", () => {
       },
     });
     // BYOK with invalid model preference → should use opus default
-    expect((model as { modelId: string }).modelId).toBe("claude-opus-4-6");
+    expect((model as { modelId: string }).modelId).toBe("claude-opus-4-8");
   });
 
   // ===========================================================================
@@ -245,7 +245,7 @@ describe("getModelForUser", () => {
       });
       // Should get paid model (active subscription) instead of trying BYOK
       expect((model as { modelId: string }).modelId).toBe(
-        "claude-sonnet-4-5-20250929"
+        "claude-sonnet-4-6"
       );
     });
 
@@ -270,7 +270,7 @@ describe("getModelForUser", () => {
         },
       });
       // Plaintext key (no colons) → decryptApiKey returns it as-is → use BYOK
-      expect((model as { modelId: string }).modelId).toBe("claude-opus-4-6");
+      expect((model as { modelId: string }).modelId).toBe("claude-opus-4-8");
       expect((model as { provider: string }).provider).toBe("anthropic-byok");
     });
   });

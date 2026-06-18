@@ -6,6 +6,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import {
   LayoutDashboard,
   Briefcase,
+  Inbox,
   User,
   Settings,
   LogOut,
@@ -209,6 +210,7 @@ function LanguageDropdown({
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/jobs", label: "Jobs", icon: Briefcase },
+  { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/applications", label: "Applications", icon: ClipboardList },
   { href: "/favorites", label: "Saved Jobs", icon: Heart },
   { href: "/alerts", label: "Alerts", icon: Bell },

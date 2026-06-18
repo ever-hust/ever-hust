@@ -39,9 +39,11 @@ interface ChatPanelProps {
   onCoverLetter?: (text: string) => void;
   /** Optional initial prompt to pre-fill the input (e.g. from ?job= deep link) */
   initialPrompt?: string;
+  /** When true, auto-send the initialPrompt instead of just pre-filling (frictionless trial via ?m=). */
+  initialPromptAutoSend?: boolean;
 }
 
-export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPanelProps) {
+export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt, initialPromptAutoSend }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
   const [agentState, setAgentState] = useState<AgentState>("idle");
@@ -108,13 +110,21 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt }: ChatPa
       initialPrompt !== lastConsumedPrompt.current
     ) {
       lastConsumedPrompt.current = initialPrompt;
+      if (initialPromptAutoSend) {
+        // Frictionless trial (?m= from the marketing site): send immediately,
+        // after a short delay so the panel/session can mount.
+        const t = setTimeout(() => {
+          void sendMessage({ text: initialPrompt });
+        }, 400);
+        return () => clearTimeout(t);
+      }
       setInput(initialPrompt);
       // Focus the chat input after a frame so the textarea renders
       requestAnimationFrame(() => {
         document.getElementById("chat-input")?.focus();
       });
     }
-  }, [initialPrompt]);
+  }, [initialPrompt, initialPromptAutoSend, sendMessage]);
 
   // Sync agent state with chat status — read agentState via ref to avoid
   // re-running the effect when agentState itself changes (feedback loop).

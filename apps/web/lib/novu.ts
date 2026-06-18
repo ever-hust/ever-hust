@@ -1,4 +1,5 @@
 import { Novu } from "@novu/api";
+import { notifyNovu } from "@ever-hust/notifications";
 
 let novuClient: Novu | null = null;
 
@@ -30,27 +31,20 @@ export async function triggerNotification(
   payload: Record<string, unknown>,
   overrides?: Record<string, unknown>
 ) {
-  const client = getNovuClient();
-  if (!client) {
+  // Routes through the Novu notification plugin (@ever-hust/plugin-notify-novu)
+  // so notification providers stay pluggable rather than hardcoded here.
+  const res = await notifyNovu({
+    event: workflowId,
+    recipient: { subscriberId },
+    payload,
+    ...(overrides ? { overrides } : {}),
+  });
+  if (!res.ok && !res.skipped) {
+    console.error("[novu] Failed to trigger notification:", res.error);
+  } else if (res.skipped) {
     console.warn("[novu] NOVU_API_KEY not configured — skipping notification");
-    return null;
   }
-
-  try {
-    const result = await client.trigger({
-      workflowId,
-      to: { subscriberId },
-      payload,
-      ...(overrides ? { overrides } : {}),
-    });
-    return result;
-  } catch (err) {
-    console.error(
-      "[novu] Failed to trigger notification:",
-      err instanceof Error ? err.message : err
-    );
-    return null;
-  }
+  return res.ok ? res : null;
 }
 
 /**

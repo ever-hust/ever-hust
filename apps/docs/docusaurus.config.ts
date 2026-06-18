@@ -125,6 +125,33 @@ const config: Config = {
 			theme: prismThemes.github,
 			darkTheme: prismThemes.dracula
 		}
+	},
+	// Consumed by the swizzled custom Footer (src/theme/Footer): description,
+	// social links, live status pill, and the legal/company bottom bar.
+	customFields: {
+		footerData: {
+			description:
+				'Hust — the open, AI-native Anti-Hustle Career OS. Find, evaluate, tailor, apply, and track, end to end.',
+			socialLinks: [
+				{ title: 'GitHub', href: 'https://github.com/ever-hust', icon: 'github' },
+				{ title: 'LinkedIn', href: 'https://www.linkedin.com/company/ever-co', icon: 'linkedin' }
+			],
+			systemStatus: {
+				status: 'normal',
+				message: 'All systems operational'
+			},
+			companyInfo: {
+				copyright: `Copyright © ${new Date().getFullYear()} Ever Co. LTD. — Hust is open source (AGPL-3.0).`,
+				disclaimer:
+					'Hust is built on the open-source Ever Jobs engine. All product names, logos, and brands are property of their respective owners.',
+				legalLinks: [
+					{ text: 'Privacy', href: 'https://hust.so/privacy' },
+					{ text: 'Terms', href: 'https://hust.so/tos' },
+					{ text: 'Website', href: 'https://hust.so' },
+					{ text: 'Open the app', href: 'https://app.hust.so' }
+				]
+			}
+		}
 	}
 };
 

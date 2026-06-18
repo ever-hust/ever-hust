@@ -33,10 +33,17 @@ export function useGoogleMaps() {
       optionsSet = true;
     }
 
-    // Load both libraries before signalling readiness. `places` powers the
-    // location autocomplete; without it `google.maps.places` is undefined and
-    // consumers that touch it throw (which previously crashed the jobs page).
-    Promise.all([importLibrary("maps"), importLibrary("places")])
+    // Load all libraries the consumers touch before signalling readiness:
+    //  - `maps`   — the map itself
+    //  - `places` — location autocomplete (`AutocompleteService`)
+    //  - `marker` — `AdvancedMarkerElement` used by the map markers
+    // If any is missing, consumers throw on first access (`google.maps.marker`
+    // undefined previously crashed the jobs page in split/map view).
+    Promise.all([
+      importLibrary("maps"),
+      importLibrary("places"),
+      importLibrary("marker"),
+    ])
       .then(() => setIsLoaded(true))
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : "Failed to load Google Maps";

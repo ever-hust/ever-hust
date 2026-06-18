@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Favorites",
+  title: "Saved Jobs",
   description: "Your saved jobs and bookmarks",
 };
 

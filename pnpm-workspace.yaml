@@ -6,3 +6,5 @@ packages:
   # root frozen-lockfile install (and the web image build) green.
   - "!apps/docs"
   - "packages/*"
+  # Pluggable feature packages (AI providers today; more surfaces later).
+  - "packages/plugins/*"

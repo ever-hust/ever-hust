@@ -49,6 +49,7 @@ export default function SettingsPage() {
       : "claude-haiku-4-5-20251001");
 
   const initialApiKeys = {
+    openrouter: !!prefs?.apiKeys?.openrouter,
     anthropic: !!prefs?.apiKeys?.anthropic,
     openai: !!prefs?.apiKeys?.openai,
     google: !!prefs?.apiKeys?.google,

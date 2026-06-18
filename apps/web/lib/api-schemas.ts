@@ -170,6 +170,7 @@ export const userPreferencesSchema = z.object({
   /** BYOK API keys */
   apiKeys: z
     .object({
+      openrouter: z.string().max(500).optional(),
       anthropic: z.string().max(500).optional(),
       openai: z.string().max(500).optional(),
       google: z.string().max(500).optional(),

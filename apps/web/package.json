@@ -20,6 +20,7 @@
     "@ever-hust/db": "workspace:*",
     "@ever-hust/email": "workspace:^",
     "@ever-hust/jobs-api": "workspace:*",
+    "@ever-hust/plugin": "workspace:*",
     "@ever-hust/rate-limit": "workspace:*",
     "@ever-hust/stripe": "workspace:*",
     "@ever-hust/supabase": "workspace:*",

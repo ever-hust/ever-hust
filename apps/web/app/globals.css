@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/*
+ * Scan the shared UI package so Tailwind 4 generates the classes used by the
+ * ShadCN components in @ever-hust/ui (they live outside this app's tree and are
+ * otherwise missed — which left avatars, icon buttons, etc. unstyled because
+ * classes like `size-full`/`size-9`/`overflow-hidden` never reached the CSS).
+ */
+@source "../../../packages/ui/src/**/*.{ts,tsx}";
+
 @theme {
   /* Colors - Light mode defaults */
   --color-background: oklch(1 0 0);

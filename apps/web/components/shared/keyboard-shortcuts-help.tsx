@@ -35,7 +35,7 @@ const SHORTCUT_SECTIONS: {
       { keys: ["g", "c"], description: "Go to Chat" },
       { keys: ["g", "j"], description: "Go to Jobs" },
       { keys: ["g", "a"], description: "Go to Applications" },
-      { keys: ["g", "f"], description: "Go to Favorites" },
+      { keys: ["g", "f"], description: "Go to Saved Jobs" },
       { keys: ["g", "p"], description: "Go to Profile" },
       { keys: ["g", "s"], description: "Go to Settings" },
       { keys: ["?"], description: "Show keyboard shortcuts" },

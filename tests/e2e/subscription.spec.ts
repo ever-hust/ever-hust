@@ -1,51 +1,7 @@
 import { test, expect } from "@playwright/test";
 
-test.describe("Pricing Page", () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto("/pricing");
-  });
-
-  test("renders pricing page heading", async ({ page }) => {
-    await expect(
-      page.getByRole("heading", { name: /pricing/i })
-    ).toBeVisible();
-  });
-
-  test("shows three pricing tiers", async ({ page }) => {
-    // Free tier
-    await expect(page.getByText("$0")).toBeVisible();
-    // Quarterly plan
-    await expect(page.getByText("$12")).toBeVisible();
-    // Annual plan
-    await expect(page.getByText("$7")).toBeVisible();
-  });
-
-  test("pricing cards have CTA buttons", async ({ page }) => {
-    const ctaButtons = page.getByRole("link", { name: /get started/i });
-    const count = await ctaButtons.count();
-    expect(count).toBeGreaterThanOrEqual(1);
-  });
-
-  test("CTA buttons link to login page", async ({ page }) => {
-    const firstCta = page.getByRole("link", { name: /get started/i }).first();
-    const href = await firstCta.getAttribute("href");
-    expect(href).toBe("/login");
-  });
-
-  test("pricing page has proper page structure", async ({ page }) => {
-    // Has header
-    await expect(page.locator("header")).toBeVisible();
-    // Has main content
-    await expect(page.locator("main#main-content")).toBeVisible();
-    // Has footer
-    await expect(page.locator('footer[role="contentinfo"]')).toBeVisible();
-  });
-
-  test("pricing page has skip-to-content link", async ({ page }) => {
-    const skipLink = page.locator('a[href="#main-content"]');
-    await expect(skipLink).toHaveCount(1);
-  });
-});
+// The public Pricing/landing pages moved to the marketing site (hust.so); their
+// tests live there. This spec now covers the in-app Stripe API + settings surface.
 
 test.describe("Stripe API Endpoints", () => {
   test("checkout endpoint requires authentication", async ({ request }) => {
@@ -73,29 +29,6 @@ test.describe("Stripe API Endpoints", () => {
     const response = await request.get("/api/stripe/webhook");
     // Should return 405 (Method Not Allowed) or 404
     expect([404, 405]).toContain(response.status());
-  });
-});
-
-test.describe("Subscription Flow (Landing Page)", () => {
-  test("landing page pricing section links to login", async ({ page }) => {
-    await page.goto("/");
-    const pricingSection = page.locator("#pricing");
-    await expect(pricingSection).toBeVisible();
-
-    const getStartedBtn = pricingSection
-      .getByRole("link", { name: /get started/i })
-      .first();
-    await expect(getStartedBtn).toHaveAttribute("href", "/login");
-  });
-
-  test("clicking pricing CTA navigates to login", async ({ page }) => {
-    await page.goto("/pricing");
-    const firstCta = page
-      .getByRole("link", { name: /get started/i })
-      .first();
-    await firstCta.click();
-    await page.waitForURL(/\/login/);
-    await expect(page).toHaveURL(/\/login/);
   });
 });
 

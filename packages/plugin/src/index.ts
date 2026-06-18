@@ -165,3 +165,49 @@ export interface AIProviderPlugin extends Plugin {
   id: ByokProviderId;
   createModel(apiKey: string, modelId: string): LanguageModel;
 }
+
+// ── Notification providers (email / push / in-app) ───────────────────────────
+// Notifications are pluggable too (workspace rule: "pluggable features =
+// plugins"). Implementations live in packages/plugins/notify-* and are
+// dispatched by @ever-hust/notifications.
+
+export type NotificationChannel = "email" | "push" | "in_app" | "sms";
+
+export interface NotificationRecipient {
+  /** Stable recipient id (use the Hust user id) — required by workflow providers. */
+  subscriberId: string;
+  email?: string;
+  name?: string;
+}
+
+export interface NotificationMessage {
+  recipient: NotificationRecipient;
+  /** Provider-agnostic event key (maps to a Novu workflow id). */
+  event: string;
+  subject?: string;
+  /** Pre-rendered HTML for direct email providers (e.g. Resend). */
+  html?: string;
+  text?: string;
+  /** Structured data for template/workflow interpolation. */
+  payload?: Record<string, unknown>;
+  /** Restrict to these channels; defaults to the provider's channels. */
+  channels?: NotificationChannel[];
+  /** Provider-specific overrides (passed through verbatim). */
+  overrides?: Record<string, unknown>;
+}
+
+export interface NotificationSendResult {
+  ok: boolean;
+  id?: string | null;
+  skipped?: boolean;
+  error?: string;
+}
+
+export interface NotificationProviderPlugin extends Plugin {
+  kind: "notification-provider";
+  id: "resend" | "novu";
+  channels: NotificationChannel[];
+  /** True when the provider has the env/config it needs. */
+  isConfigured(): boolean;
+  send(message: NotificationMessage): Promise<NotificationSendResult>;
+}

@@ -62,6 +62,9 @@ importers:
       '@ever-hust/jobs-api':
         specifier: workspace:*
         version: link:../../packages/jobs-api
+      '@ever-hust/notifications':
+        specifier: workspace:*
+        version: link:../../packages/notifications
       '@ever-hust/plugin':
         specifier: workspace:*
         version: link:../../packages/plugin
@@ -516,6 +519,28 @@ importers:
         specifier: 5.9.2
         version: 5.9.2
 
+  packages/notifications:
+    dependencies:
+      '@ever-hust/plugin':
+        specifier: workspace:*
+        version: link:../plugin
+      '@ever-hust/plugin-notify-novu':
+        specifier: workspace:*
+        version: link:../plugins/notify-novu
+      '@ever-hust/plugin-notify-resend':
+        specifier: workspace:*
+        version: link:../plugins/notify-resend
+    devDependencies:
+      '@ever-hust/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.19.11
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+
   packages/plugin:
     dependencies:
       ai:
@@ -565,6 +590,44 @@ importers:
       ai:
         specifier: ^6.0.86
         version: 6.0.86(zod@4.3.6)
+    devDependencies:
+      '@ever-hust/typescript-config':
+        specifier: workspace:*
+        version: link:../../typescript-config
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.19.11
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+
+  packages/plugins/notify-novu:
+    dependencies:
+      '@ever-hust/plugin':
+        specifier: workspace:*
+        version: link:../../plugin
+      '@novu/api':
+        specifier: ^3.11.0
+        version: 3.13.0
+    devDependencies:
+      '@ever-hust/typescript-config':
+        specifier: workspace:*
+        version: link:../../typescript-config
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.19.11
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+
+  packages/plugins/notify-resend:
+    dependencies:
+      '@ever-hust/plugin':
+        specifier: workspace:*
+        version: link:../../plugin
+      resend:
+        specifier: ^4.0.0
+        version: 4.8.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
     devDependencies:
       '@ever-hust/typescript-config':
         specifier: workspace:*

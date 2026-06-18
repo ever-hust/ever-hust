@@ -10,7 +10,7 @@ const LABEL_MAP: Record<string, string> = {
   chat: "Chat",
   jobs: "Jobs",
   applications: "Applications",
-  favorites: "Favorites",
+  favorites: "Saved Jobs",
   profile: "Profile",
   settings: "Settings",
 };

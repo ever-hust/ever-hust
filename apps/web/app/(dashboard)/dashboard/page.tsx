@@ -11,7 +11,6 @@ import { useChatContext } from "@/components/chat/chat-context";
 import { useHiddenJobs } from "@/hooks/use-hidden-jobs";
 import { useRealtimeJobs, type RealtimeJob } from "@/hooks/use-realtime-jobs";
 import { useKeyboardShortcuts, getChatShortcuts } from "@/hooks/use-keyboard-shortcuts";
-import { DashboardStats } from "@/components/shared/dashboard-stats";
 import { toast } from "sonner";
 
 // Lazy-load components that are only rendered conditionally
@@ -234,10 +233,6 @@ export default function DashboardPage() {
   return (
     <>
       <div className="flex h-full flex-col">
-        {/* Quick stats bar */}
-        <div className="border-b p-3">
-          <DashboardStats />
-        </div>
         {/* Salary insights overlay */}
         {canvas.salaryInsights && (
           <div className="border-b p-3">

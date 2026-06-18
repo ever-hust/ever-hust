@@ -41,6 +41,7 @@ import {
   DialogFooter,
 } from "@ever-hust/ui/dialog";
 import { UsageQuota } from "@/components/shared/usage-quota";
+import { AnonymousReminder } from "@/components/shared/anonymous-reminder";
 import { useChatContext } from "@/components/chat/chat-context";
 import { signOut, useSession } from "@ever-hust/auth/client";
 import { cn } from "@ever-hust/ui/lib/utils";
@@ -209,7 +210,7 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/jobs", label: "Jobs", icon: Briefcase },
   { href: "/applications", label: "Applications", icon: ClipboardList },
-  { href: "/favorites", label: "Favorites", icon: Heart },
+  { href: "/favorites", label: "Saved Jobs", icon: Heart },
   { href: "/alerts", label: "Alerts", icon: Bell },
   { href: "/profile", label: "My Profile", icon: User },
   { href: "/settings", label: "Settings", icon: Settings },
@@ -749,6 +750,7 @@ export function Sidebar() {
 
             {/* Mobile user section */}
             <div ref={userMenuRef} className="relative px-3">
+              <AnonymousReminder />
               {renderUserButton(true)}
               {userMenuOpen && renderUserMenu()}
             </div>
@@ -809,6 +811,7 @@ export function Sidebar() {
           ref={!mobileOpen ? userMenuRef : undefined}
           className={cn("relative", collapsed ? "px-1" : "px-2")}
         >
+          <AnonymousReminder collapsed={collapsed} />
           {renderUserButton(!collapsed)}
           {userMenuOpen && !mobileOpen && renderUserMenu()}
         </div>

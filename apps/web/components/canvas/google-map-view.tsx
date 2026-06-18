@@ -138,39 +138,49 @@ export const GoogleMapView = memo(function GoogleMapView({
 
     if (geoJobs.length === 0) return;
 
-    // Create markers
-    const newMarkers = geoJobs.map((job) => {
-      const marker = new google.maps.marker.AdvancedMarkerElement({
-        position: { lat: job.latitude!, lng: job.longitude! },
+    // The `marker` library must be loaded for AdvancedMarkerElement. Guard +
+    // try/catch so a maps hiccup degrades to a marker-less map instead of
+    // throwing and tripping the jobs-page error boundary.
+    if (!google.maps?.marker?.AdvancedMarkerElement) {
+      console.warn("[GoogleMapView] marker library unavailable; rendering map without markers");
+      return;
+    }
+
+    try {
+      // Create markers
+      const newMarkers = geoJobs.map((job) => {
+        const marker = new google.maps.marker.AdvancedMarkerElement({
+          position: { lat: job.latitude!, lng: job.longitude! },
+          map,
+          title: job.title,
+        });
+
+        marker.addListener("click", () => {
+          if (infoWindowRef.current) {
+            infoWindowRef.current.setContent(buildInfoContent(job));
+            infoWindowRef.current.open({ anchor: marker, map });
+          }
+        });
+
+        return marker;
+      });
+
+      markersRef.current = newMarkers;
+
+      // Cluster markers
+      clustererRef.current = new MarkerClusterer({
         map,
-        title: job.title,
+        markers: newMarkers,
       });
 
-      marker.addListener("click", () => {
-        if (infoWindowRef.current) {
-          infoWindowRef.current.setContent(buildInfoContent(job));
-          infoWindowRef.current.open({ anchor: marker, map });
-        }
-      });
-
-      return marker;
-    });
-
-    markersRef.current = newMarkers;
-
-    // Cluster markers
-    clustererRef.current = new MarkerClusterer({
-      map,
-      markers: newMarkers,
-    });
-
-    // Auto-fit bounds if we have markers
-    if (geoJobs.length > 0) {
+      // Auto-fit bounds if we have markers
       const bounds = new google.maps.LatLngBounds();
       for (const job of geoJobs) {
         bounds.extend({ lat: job.latitude!, lng: job.longitude! });
       }
       map.fitBounds(bounds, { top: 50, right: 50, bottom: 50, left: 50 });
+    } catch (err) {
+      console.error("[GoogleMapView] failed to render markers", err);
     }
   }, [jobs, mapReady, buildInfoContent]);
 

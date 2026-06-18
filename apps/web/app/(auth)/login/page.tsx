@@ -452,13 +452,9 @@ export default function LoginPage() {
 
           <Card className="shadow-lg">
             <CardHeader className="text-center">
-              <CardTitle className="text-xl">
-                {mode === "signup" ? `Create your ${APP_NAME} account` : "Welcome back"}
-              </CardTitle>
+              <CardTitle className="text-xl">Welcome back</CardTitle>
               <CardDescription>
-                {mode === "signup"
-                  ? "Start your job search in minutes"
-                  : "Sign in to continue your job search"}
+                Sign in or create your account to continue
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

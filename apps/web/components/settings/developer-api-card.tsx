@@ -26,7 +26,6 @@ import {
   AlertDialogTitle,
 } from "@ever-hust/ui/alert-dialog";
 import { toast } from "sonner";
-import Link from "next/link";
 import { APP_NAME } from "@ever-hust/utils";
 
 interface ApiKeyRecord {
@@ -284,12 +283,22 @@ export function DeveloperApiCard() {
               Authorization: Bearer ej_live_...
             </code>
           </p>
-          <div className="mt-3">
+          <div className="mt-3 flex flex-wrap gap-2">
             <Button variant="outline" size="sm" asChild>
-              <Link href="/settings/api-docs">
+              <a href="https://docs.hust.so" target="_blank" rel="noopener noreferrer">
                 <Book className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
                 View API Docs
-              </Link>
+              </a>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <a href="/api/docs" target="_blank" rel="noopener noreferrer">
+                API Reference
+              </a>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <a href="/api/swg" target="_blank" rel="noopener noreferrer">
+                Swagger UI
+              </a>
             </Button>
           </div>
         </div>

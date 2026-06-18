@@ -63,7 +63,7 @@ const JobDetailPanel = dynamic(
 export default function DashboardPage() {
   const searchParams = useSearchParams();
   const canvas = useCanvasSync();
-  const { setOnToolResult, setOnCoverLetter, setInitialPrompt, focusChatInput } = useChatContext();
+  const { setOnToolResult, setOnCoverLetter, setInitialPrompt } = useChatContext();
   const [coverLetterText, setCoverLetterText] = useState("");
   const [coverLetterOpen, setCoverLetterOpen] = useState(false);
   const [detailJobId, setDetailJobId] = useState<number | null>(null);
@@ -168,17 +168,20 @@ export default function DashboardPage() {
         if (isRemote) locationParts.push("remote");
         const locationStr = locationParts.length > 0 ? ` (${locationParts.join(", ")})` : "";
 
+        // Open the job in the canvas, then fill chat and auto-send.
+        setDetailJobId(jobId);
+        setDetailOpen(true);
         setInitialPrompt(
-          `Write me a cover letter for the "${title}" position at ${company}${locationStr}. Make it professional and tailored.`
+          `Write me a cover letter for the "${title}" position at ${company}${locationStr}. Make it professional and tailored.`,
+          true,
         );
-        focusChatInput();
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
       }
     }
     fetchJobAndBuildPrompt();
     return () => { controller.abort(); };
-  }, [searchParams, setInitialPrompt, focusChatInput]);
+  }, [searchParams, setInitialPrompt]);
 
   // Destructure stable refs
   const { handleToolResult } = canvas;
@@ -229,6 +232,29 @@ export default function DashboardPage() {
     setDetailJobId(jobId);
     setDetailOpen(true);
   }, []);
+
+  // Cover Letter from a job card: open the job in the canvas, then drop a
+  // tailored prompt into chat and auto-send it so the AI starts responding.
+  const buildCoverLetterPrompt = useCallback((jobId: number): string => {
+    const job = canvas.jobs.find((j) => j.id === jobId);
+    if (!job) {
+      return "Write me a professional, tailored cover letter for the job I just opened.";
+    }
+    const company = job.companyName ?? "the company";
+    const parts: string[] = [];
+    if (job.locationCity) parts.push(job.locationCity);
+    if (job.isRemote) parts.push("remote");
+    const locationStr = parts.length > 0 ? ` (${parts.join(", ")})` : "";
+    return `Write me a cover letter for the "${job.title}" position at ${company}${locationStr}. Make it professional and tailored.`;
+  }, [canvas.jobs]);
+
+  const handleGenerateCoverLetter = useCallback(
+    (jobId: number) => {
+      handleViewDetails(jobId);
+      setInitialPrompt(buildCoverLetterPrompt(jobId), true);
+    },
+    [handleViewDetails, setInitialPrompt, buildCoverLetterPrompt],
+  );
 
   return (
     <>
@@ -325,6 +351,7 @@ export default function DashboardPage() {
               onFavorite={handleFavorite}
               onViewDetails={handleViewDetails}
               onHideJob={hideJob}
+              onGenerateCoverLetter={handleGenerateCoverLetter}
             />
           )}
         </div>

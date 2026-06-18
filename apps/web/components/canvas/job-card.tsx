@@ -56,6 +56,12 @@ interface JobCardProps {
   onViewDetails?: (jobId: number) => void;
   onToggleCompare?: (jobId: number) => void;
   onHide?: (jobId: number) => void;
+  /**
+   * Generate a cover letter for this job inline (open it in the canvas, drop a
+   * prompt into chat and auto-send). When provided, the Cover Letter action runs
+   * this instead of navigating to /dashboard?job=ID.
+   */
+  onGenerateCoverLetter?: (jobId: number) => void;
 }
 
 /** Duration of the favorite-button bounce animation (ms). */
@@ -70,6 +76,7 @@ export const JobCard = memo(function JobCard({
   onViewDetails,
   onToggleCompare,
   onHide,
+  onGenerateCoverLetter,
 }: JobCardProps) {
   const [animating, setAnimating] = useState(false);
   const animTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -373,15 +380,30 @@ export const JobCard = memo(function JobCard({
 
             {/* Action buttons */}
             <div className="flex items-center gap-2">
-              <Link
-                href={`/dashboard?job=${job.id}`}
-                className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:underline"
-                onClick={(e) => e.stopPropagation()}
-                aria-label={`Generate cover letter for ${job.title}`}
-              >
-                <FileText className="h-3 w-3" aria-hidden="true" />
-                <span className="hidden sm:inline">Cover Letter</span>
-              </Link>
+              {onGenerateCoverLetter ? (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:underline"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onGenerateCoverLetter(job.id);
+                  }}
+                  aria-label={`Generate cover letter for ${job.title}`}
+                >
+                  <FileText className="h-3 w-3" aria-hidden="true" />
+                  <span className="hidden sm:inline">Cover Letter</span>
+                </button>
+              ) : (
+                <Link
+                  href={`/dashboard?job=${job.id}`}
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:underline"
+                  onClick={(e) => e.stopPropagation()}
+                  aria-label={`Generate cover letter for ${job.title}`}
+                >
+                  <FileText className="h-3 w-3" aria-hidden="true" />
+                  <span className="hidden sm:inline">Cover Letter</span>
+                </Link>
+              )}
               <button
                 type="button"
                 className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:underline"

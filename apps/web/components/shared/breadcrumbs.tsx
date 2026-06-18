@@ -9,6 +9,7 @@ import { cn } from "@ever-hust/ui/lib/utils";
 const LABEL_MAP: Record<string, string> = {
   chat: "Chat",
   jobs: "Jobs",
+  companies: "Companies",
   applications: "Applications",
   favorites: "Saved Jobs",
   profile: "Profile",

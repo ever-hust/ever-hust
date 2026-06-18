@@ -22,9 +22,12 @@ import {
   Calendar,
 } from "lucide-react";
 import { FavoriteButton } from "@/components/jobs/favorite-button";
+import { JobDescription } from "@/components/jobs/job-description";
+import { JobLocationMap } from "@/components/jobs/job-location-map";
 import { Breadcrumbs } from "@/components/shared/breadcrumbs";
 import { formatSalary, formatLocation, timeAgo } from "@/lib/format-date";
 import { safeExternalUrl } from "@/lib/safe-url";
+import { companySlug } from "@/lib/company-slug";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -41,70 +44,6 @@ function formatLongDate(date: Date | string | null) {
     year: "numeric",
     month: "long",
     day: "numeric",
-  });
-}
-
-function renderDescription(text: string) {
-  // Split on double newlines for paragraphs, single newlines become <br />
-  const paragraphs = text.split(/\n{2,}/);
-  return paragraphs.map((para, i) => {
-    // Strip basic markdown formatting characters for cleaner display
-    const cleaned = para.trim();
-    if (!cleaned) return null;
-
-    // Detect heading-like lines (starting with #)
-    const headingMatch = cleaned.match(/^(#{1,3})\s+(.+)/);
-    if (headingMatch) {
-      const level = headingMatch[1]!.length;
-      const content = headingMatch[2]!;
-      if (level === 1)
-        return (
-          <h3 key={i} className="mb-3 mt-6 text-lg font-semibold first:mt-0">
-            {content}
-          </h3>
-        );
-      if (level === 2)
-        return (
-          <h4 key={i} className="mb-2 mt-5 text-base font-semibold first:mt-0">
-            {content}
-          </h4>
-        );
-      return (
-        <h4 key={i} className="mb-2 mt-4 text-sm font-semibold first:mt-0">
-          {content}
-        </h4>
-      );
-    }
-
-    // Detect list items (lines starting with - or *)
-    const lines = cleaned.split("\n");
-    const isList = lines.every(
-      (line) => line.trim().startsWith("- ") || line.trim().startsWith("* ")
-    );
-    if (isList) {
-      return (
-        <ul key={i} className="mb-4 list-disc space-y-1 pl-6 text-sm leading-relaxed text-muted-foreground">
-          {lines.map((line, j) => (
-            <li key={j}>{line.replace(/^[\s]*[-*]\s+/, "")}</li>
-          ))}
-        </ul>
-      );
-    }
-
-    // Regular paragraph
-    return (
-      <p
-        key={i}
-        className="mb-4 text-sm leading-relaxed text-muted-foreground"
-      >
-        {lines.map((line, j) => (
-          <span key={j}>
-            {j > 0 && <br />}
-            {line}
-          </span>
-        ))}
-      </p>
-    );
   });
 }
 
@@ -175,6 +114,10 @@ export default async function JobDetailPage({ params }: PageProps) {
   const postedAgo = timeAgo(job.datePosted);
   const safeLogo = safeExternalUrl(job.companyLogo);
   const applyLink = safeExternalUrl(job.applyUrl) ?? safeExternalUrl(job.jobUrl) ?? safeExternalUrl(job.jobUrlDirect) ?? null;
+  // Mini-map coordinates — only render a map when the location is actually known.
+  const lat = job.latitude != null ? Number(job.latitude) : null;
+  const lng = job.longitude != null ? Number(job.longitude) : null;
+  const hasCoords = lat != null && lng != null && Number.isFinite(lat) && Number.isFinite(lng);
 
   // Check if any structured job details exist for the sidebar card
   const hasJobDetails =
@@ -385,9 +328,7 @@ export default async function JobDetailPage({ params }: PageProps) {
               </CardHeader>
               <CardContent>
                 {job.description ? (
-                  <div className="prose prose-sm max-w-none">
-                    {renderDescription(job.description)}
-                  </div>
+                  <JobDescription content={job.description} />
                 ) : (
                   <p className="text-sm text-muted-foreground italic">
                     No description available for this position. Visit the
@@ -424,13 +365,13 @@ export default async function JobDetailPage({ params }: PageProps) {
                 <CardTitle className="text-lg">Job Details</CardTitle>
               </CardHeader>
               <CardContent>
-                {!hasJobDetails ? (
+                {!hasJobDetails && !hasCoords ? (
                   <p className="text-sm text-muted-foreground italic">
                     No additional details available. Check the original listing
                     for more information.
                   </p>
                 ) : (
-                <dl className="space-y-4">
+                <dl className="space-y-3 [&_dd]:mt-0 [&_dt]:w-32 [&_dt]:shrink-0">
                   {job.jobType && job.jobType.length > 0 && (
                     <div className="flex items-start gap-3">
                       <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -525,6 +466,14 @@ export default async function JobDetailPage({ params }: PageProps) {
                   )}
                 </dl>
                 )}
+                {hasCoords && (
+                  <JobLocationMap
+                    latitude={lat!}
+                    longitude={lng!}
+                    title={job.title}
+                    label={location}
+                  />
+                )}
               </CardContent>
             </Card>
 
@@ -558,7 +507,7 @@ export default async function JobDetailPage({ params }: PageProps) {
             {(job.companyName || job.companyDescription || job.companyIndustry || job.companyNumEmployees) && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">About the Company</CardTitle>
+                  <CardTitle className="text-lg">Company</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
@@ -577,27 +526,32 @@ export default async function JobDetailPage({ params }: PageProps) {
                         </div>
                         <div>
                           <p className="text-sm font-medium">
-                            {(() => {
-                              const companyLink = safeExternalUrl(job.companyUrl);
-                              return companyLink ? (
-                                <a
-                                  href={companyLink}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="hover:underline"
-                                >
-                                  {job.companyName}
-                                </a>
-                              ) : (
-                                job.companyName
-                              );
-                            })()}
+                            <Link
+                              href={`/companies/${companySlug(job.companyName)}`}
+                              className="hover:underline"
+                            >
+                              {job.companyName}
+                            </Link>
                           </p>
                           {job.companyIndustry && (
                             <p className="text-xs text-muted-foreground">
                               {job.companyIndustry}
                             </p>
                           )}
+                          {(() => {
+                            const companyLink = safeExternalUrl(job.companyUrl);
+                            return companyLink ? (
+                              <a
+                                href={companyLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="mt-0.5 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                              >
+                                Visit website
+                                <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                              </a>
+                            ) : null;
+                          })()}
                         </div>
                       </div>
                     )}

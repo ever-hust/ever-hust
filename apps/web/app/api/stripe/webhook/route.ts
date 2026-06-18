@@ -4,6 +4,7 @@ export const maxDuration = 30;
 import { db, users, subscriptions, stripeWebhookEvents } from "@ever-hust/db";
 import { getStripe, parseWebhookEvent } from "@ever-hust/stripe";
 import { sendSubscriptionConfirmedEmail } from "@ever-hust/email";
+import { grantCredits } from "@ever-hust/ai";
 import { eq, and, ne } from "drizzle-orm";
 import { apiBadRequest, apiError, apiSuccess } from "../../../../lib/api-response";
 
@@ -88,6 +89,31 @@ export async function POST(req: Request) {
   const isNew = await claimEvent(event.id);
   if (!isNew) {
     return apiSuccess({ received: true, deduplicated: true });
+  }
+
+  // Credit top-up (one-time payment) — handled before the subscription parser,
+  // which only understands subscription checkouts.
+  if (event.type === "checkout.session.completed") {
+    const session = event.data.object as {
+      metadata?: Record<string, string> | null;
+      payment_status?: string;
+    };
+    const meta = session.metadata ?? {};
+    if (meta.type === "credits") {
+      try {
+        const amount = parseInt(meta.credits ?? "0", 10);
+        if (session.payment_status === "paid" && meta.userId && Number.isFinite(amount) && amount > 0) {
+          await grantCredits(meta.userId, amount, "topup");
+        }
+      } catch (error) {
+        console.error(
+          "[stripe/webhook] Failed to grant top-up credits:",
+          error instanceof Error ? error.message : error,
+        );
+        return apiError("Webhook handler failed");
+      }
+      return apiSuccess({ received: true, credited: true });
+    }
   }
 
   const parsed = parseWebhookEvent(event);

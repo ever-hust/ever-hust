@@ -4,7 +4,8 @@ export const maxDuration = 60;
 
 import { MAX_CHAT_PAYLOAD_CHARS } from "@/lib/constants";
 
-import { createOrchestratorStream, getModelForUser, getOrgAiConfig, mergeOrgConfig } from "@ever-hust/ai";
+import { createOrchestratorStream, getModelForUser, getOrgAiConfig, mergeOrgConfig, ensureMonthlyGrant, getCreditBalance } from "@ever-hust/ai";
+import { findModelByKey, DEFAULT_HUST_FREE_KEY, DEFAULT_HUST_PRO_KEY } from "@ever-hust/plugin";
 import { db, users, organizationMembers } from "@ever-hust/db";
 import { convertToModelMessages, type UIMessage } from "ai";
 import { eq } from "drizzle-orm";
@@ -147,12 +148,47 @@ export async function POST(req: Request) {
       preferences: mergedPreferences,
     });
 
+    // ── Credit metering (item 14) ────────────────────────────────────────────
+    // Meter platform (Hust) model calls; BYOK calls (user's own key) are free.
+    const selected = mergedPreferences?.aiModel
+      ? findModelByKey(mergedPreferences.aiModel)
+      : undefined;
+    const apiKeys = (mergedPreferences?.apiKeys ?? {}) as Record<string, string | undefined>;
+    const usingByok =
+      !!selected && selected.provider !== "hust" && !!apiKeys[selected.provider];
+    const meterCredits = !usingByok;
+    const modelKey =
+      mergedPreferences?.aiModel ??
+      (gate.isActive ? DEFAULT_HUST_PRO_KEY : DEFAULT_HUST_FREE_KEY);
+
+    if (meterCredits) {
+      // Idempotent monthly free-credit grant for this user/tier.
+      await ensureMonthlyGrant(userId, gate.isActive).catch(() => {});
+      // Optional hard enforcement (off by default — track first, enforce when
+      // confident). Set CREDITS_ENFORCED=true to block at zero balance.
+      if (process.env.CREDITS_ENFORCED === "true") {
+        const balance = await getCreditBalance(userId).catch(() => null);
+        if (balance !== null && balance <= 0) {
+          return NextResponse.json(
+            {
+              error:
+                "You're out of credits. Upgrade to Pro or top up to keep using Hust AI.",
+              code: "INSUFFICIENT_CREDITS",
+            },
+            { status: 402 },
+          );
+        }
+      }
+    }
+
     // createOrchestratorStream is now async (fetches prompt from Langfuse)
     const result = await createOrchestratorStream({
       model,
       messages,
       userId,
       isSubscribed: gate.isActive,
+      modelKey,
+      meterCredits,
     });
 
     // UUID message ids so persisted assistant messages satisfy the chat_messages

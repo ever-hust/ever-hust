@@ -29,6 +29,13 @@
       "when": 1781608166487,
       "tag": "0003_broad_frog_thor",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781770976915,
+      "tag": "0004_add_is_anonymous",
+      "breakpoints": true
     }
   ]
 }

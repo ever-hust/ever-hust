@@ -72,6 +72,7 @@ export async function GET() {
       safePreferences = {
         ...prefs,
         apiKeys: {
+          openrouter: !!prefs.apiKeys.openrouter,
           anthropic: !!prefs.apiKeys.anthropic,
           openai: !!prefs.apiKeys.openai,
           google: !!prefs.apiKeys.google,

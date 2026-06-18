@@ -17,6 +17,12 @@ import { ConnectedAccountsCard } from "@/components/settings/connected-accounts-
 import { SetPasswordCard } from "@/components/settings/set-password-card";
 import type { UserSettings } from "@/components/settings/types";
 import type { UserPreferences } from "@/lib/api-schemas";
+import {
+  BYOK_PROVIDER_IDS,
+  DEFAULT_HUST_FREE_KEY,
+  DEFAULT_HUST_PRO_KEY,
+  type ByokProviderId,
+} from "@ever-hust/plugin";
 
 export default function SettingsPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -42,18 +48,20 @@ export default function SettingsPage() {
   const subscriptionStatus = user?.subscriptionStatus ?? "free";
   const prefs = user?.preferences as UserPreferences | null;
 
+  const isPaid =
+    subscriptionStatus === "active" || subscriptionStatus === "past_due";
   const initialModel =
-    prefs?.aiModel ??
-    (subscriptionStatus === "active" || subscriptionStatus === "past_due"
-      ? "claude-opus-4-6"
-      : "claude-haiku-4-5-20251001");
+    prefs?.aiModel ?? (isPaid ? DEFAULT_HUST_PRO_KEY : DEFAULT_HUST_FREE_KEY);
 
-  const initialApiKeys = {
+  const initialApiKeys: Record<ByokProviderId, boolean> = {
     openrouter: !!prefs?.apiKeys?.openrouter,
     anthropic: !!prefs?.apiKeys?.anthropic,
     openai: !!prefs?.apiKeys?.openai,
     google: !!prefs?.apiKeys?.google,
   };
+  const connectedProviders: ByokProviderId[] = BYOK_PROVIDER_IDS.filter(
+    (id) => initialApiKeys[id],
+  );
 
   if (isLoading) {
     return (
@@ -99,6 +107,7 @@ export default function SettingsPage() {
           <AIModelCard
             subscriptionStatus={subscriptionStatus}
             initialModel={initialModel}
+            connectedProviders={connectedProviders}
           />
           <ApiKeysCard initialKeys={initialApiKeys} />
           <ConnectedAccountsCard />

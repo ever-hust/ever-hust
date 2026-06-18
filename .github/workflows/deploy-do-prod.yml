@@ -61,6 +61,31 @@ jobs:
             --cert="$crt" --key="$key" --dry-run=client -o yaml | kubectl apply -f -
           rm -f "$crt" "$key"
 
+      # Apply pending Drizzle migrations to the prod DB BEFORE rolling new pods,
+      # so schema changes (e.g. users.is_anonymous) exist when the app boots.
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+      - name: Install deps (for migrations)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Run DB migrations
+        env:
+          HUST_PROD_ENV: ${{ secrets.HUST_PROD_ENV }}
+        run: |
+          # Pull DATABASE_URL out of the prod env bundle (same value the app uses;
+          # prior migrations 0000–0003 were applied this way).
+          db_url=$(printf '%s\n' "$HUST_PROD_ENV" | grep -E '^DATABASE_URL=' | head -1 | cut -d= -f2-)
+          db_url="${db_url%\"}"; db_url="${db_url#\"}"; db_url="${db_url%\'}"; db_url="${db_url#\'}"
+          if [ -z "$db_url" ]; then
+            echo "::error::DATABASE_URL not found in HUST_PROD_ENV" >&2
+            exit 1
+          fi
+          DATABASE_URL="$db_url" pnpm --filter @ever-hust/db db:migrate
+
       - name: Apply k8s manifest
         run: kubectl apply -f .deploy/k8s/k8s-manifest.prod.yaml
 

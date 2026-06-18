@@ -1,4 +1,5 @@
 import type { UserPreferences, AlertCriteria } from "@/lib/api-schemas";
+import { MODEL_CATALOG, PROVIDER_META, type ProviderId } from "@ever-hust/plugin";
 
 export interface UserSettings {
   name: string;
@@ -18,17 +19,28 @@ export interface Alert {
   createdAt: string;
 }
 
-export const AI_MODELS = [
-  {
-    id: "claude-haiku-4-5-20251001",
-    name: "Claude Haiku 4.5",
-    desc: "Fast, efficient. Great for basic queries.",
-    free: true,
-  },
-  {
-    id: "claude-opus-4-6",
-    name: "Claude Opus 4.6",
-    desc: "Most capable. Best for complex tasks.",
-    free: false,
-  },
-] as const;
+export interface AIModelOption {
+  id: string;
+  name: string;
+  desc: string;
+  free: boolean;
+  provider: ProviderId;
+  providerLabel: string;
+  /** Non-platform providers require the user's own API key (see API Keys card). */
+  byokOnly: boolean;
+}
+
+/**
+ * Selectable AI models, derived from the shared plugin catalog so Settings and
+ * the model router never drift. Anthropic models run on the platform; OpenAI /
+ * Google models require a BYOK key; OpenRouter routes via a BYOK OpenRouter key.
+ */
+export const AI_MODELS: AIModelOption[] = MODEL_CATALOG.map((m) => ({
+  id: m.id,
+  name: m.name,
+  desc: m.desc,
+  free: m.tier === "free",
+  provider: m.provider,
+  providerLabel: PROVIDER_META[m.provider].label,
+  byokOnly: m.provider !== "anthropic",
+}));

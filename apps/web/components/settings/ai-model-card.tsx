@@ -85,8 +85,18 @@ export function AIModelCard({ subscriptionStatus, initialModel }: AIModelCardPro
                 } ${isLocked ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
               >
                 <div>
-                  <p className="text-sm font-medium">{model.name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium">{model.name}</p>
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                      {model.providerLabel}
+                    </span>
+                  </div>
                   <p className="text-xs text-muted-foreground">{model.desc}</p>
+                  {model.byokOnly && (
+                    <p className="mt-0.5 text-[11px] text-muted-foreground/70">
+                      Requires your own {model.providerLabel} API key (set it in API Keys below).
+                    </p>
+                  )}
                 </div>
                 {isLocked ? (
                   <Badge variant="secondary">Pro only</Badge>

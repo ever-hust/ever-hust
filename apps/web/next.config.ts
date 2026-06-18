@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: join(import.meta.dirname, "../../"),
 
   // Instrumentation (apps/web/instrumentation.ts) is auto-detected by Next.js 16+
-  transpilePackages: ["@ever-hust/ui", "@ever-hust/auth", "@ever-hust/db", "@ever-hust/utils", "@ever-hust/cv-parser", "@ever-hust/supabase"],
+  transpilePackages: ["@ever-hust/ui", "@ever-hust/auth", "@ever-hust/db", "@ever-hust/utils", "@ever-hust/cv-parser", "@ever-hust/supabase", "@ever-hust/plugin"],
 
   // Enable response compression (gzip/brotli)
   compress: true,

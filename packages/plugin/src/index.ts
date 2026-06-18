@@ -1,80 +1,69 @@
 /**
  * @ever-hust/plugin — the base plugin contract for the Hust platform.
  *
- * Hust features that are meant to be swappable/extensible are modelled as
- * "plugins": a small, typed package under `packages/plugins/<name>` that
- * implements a contract defined here. The first family is **AI providers**
- * (Anthropic, OpenAI, OpenRouter, Google), but the same pattern is intended for
- * future pluggable surfaces (apply automation, job sources, parsers, …).
+ * Hust features meant to be swappable/extensible are modelled as "plugins" (see
+ * workspace knowledge: "Pluggable features = plugins"). The first family is AI
+ * providers. This module is runtime-dependency-free (only a type-only import
+ * from `ai`) so client components (Settings) can import the catalog + provider
+ * metadata without pulling any provider SDK into the browser bundle.
  *
- * This module is intentionally **runtime-dependency-free** (only a type-only
- * import from `ai`) so it is safe to import from client components — e.g. the
- * Settings UI consumes {@link MODEL_CATALOG} and {@link PROVIDER_META} without
- * pulling any provider SDK into the browser bundle. The actual model
- * construction lives in the per-provider plugin packages (server-only).
+ * Model selection model:
+ *  - **"hust"** is the default provider — Hust's platform AI (served via Hust's
+ *    own OpenRouter key). A small curated set of the best models; no BYOK needed
+ *    (the user pays Hust / hits plan limits).
+ *  - The **BYOK** providers (openrouter / anthropic / openai / google) only
+ *    surface their models once the user saves their own key for that provider.
+ *  - Each catalog entry has a provider-qualified `key` (what we persist in
+ *    `preferences.aiModel`) so two providers can expose the same underlying
+ *    `modelId` without ambiguity.
  */
 import type { LanguageModel } from "ai";
 
 /** Generic base every Hust plugin satisfies. */
 export interface Plugin {
-  /** Stable unique id within its kind. */
   id: string;
-  /** Plugin family, e.g. "ai-provider". */
   kind: string;
-  /** Human-readable label. */
   label: string;
 }
 
-/** The AI providers Hust can talk to (BYOK or platform). */
-export type ProviderId = "anthropic" | "openai" | "openrouter" | "google";
+/** All providers (incl. the virtual "hust" platform provider). */
+export type ProviderId = "hust" | "openrouter" | "anthropic" | "openai" | "google";
+/** Providers the user can bring their own key for. */
+export type ByokProviderId = Exclude<ProviderId, "hust">;
+
+export const BYOK_PROVIDER_IDS: ByokProviderId[] = [
+  "openrouter",
+  "anthropic",
+  "openai",
+  "google",
+];
+
+export const PROVIDER_LABELS: Record<ProviderId, string> = {
+  hust: "Hust",
+  openrouter: "OpenRouter",
+  anthropic: "Anthropic",
+  openai: "OpenAI",
+  google: "Google AI",
+};
 
 export type ModelTier = "free" | "pro";
 
-/** A model a provider exposes (pure metadata — safe for the client). */
-export interface ProviderModelDef {
-  /** Provider-native model id passed to the SDK. */
-  id: string;
-  /** Display name. */
-  name: string;
-  /** Short description. */
-  desc: string;
-  /** Lowest plan tier that may select this model. */
-  tier: ModelTier;
-}
-
-/** BYOK / display metadata for a provider (pure data — safe for the client). */
-export interface ProviderMeta {
-  id: ProviderId;
+/** BYOK key-input metadata (pure data — client-safe). */
+export interface ByokProviderMeta {
+  id: ByokProviderId;
   label: string;
-  /** Placeholder for the API-key input. */
   keyPlaceholder: string;
-  /** Short hint shown under the key input. */
   keyHint: string;
-  /** Where the user gets a key. */
   getKeyUrl: string;
 }
 
-/**
- * The runtime contract a provider plugin implements (server-only — the
- * implementation imports the provider's `@ai-sdk/*` package).
- */
-export interface AIProviderPlugin extends Plugin {
-  kind: "ai-provider";
-  id: ProviderId;
-  meta: ProviderMeta;
-  /** Models this provider exposes in the catalog. */
-  models: ProviderModelDef[];
-  /** Build a Vercel-AI-SDK `LanguageModel` from a decrypted BYOK key + model id. */
-  createModel(apiKey: string, modelId: string): LanguageModel;
-}
-
-/** Provider display + BYOK metadata. Order = the order shown in Settings. */
-export const PROVIDER_META: Record<ProviderId, ProviderMeta> = {
+/** Order = the order shown in the API-keys provider picker. */
+export const BYOK_PROVIDER_META: Record<ByokProviderId, ByokProviderMeta> = {
   openrouter: {
     id: "openrouter",
     label: "OpenRouter",
     keyPlaceholder: "sk-or-v1-...",
-    keyHint: "One key, many models. Routes to Anthropic/OpenAI/Google and more.",
+    keyHint: "One key, many models — your own OpenRouter account.",
     getKeyUrl: "https://openrouter.ai/keys",
   },
   anthropic: {
@@ -100,97 +89,76 @@ export const PROVIDER_META: Record<ProviderId, ProviderMeta> = {
   },
 };
 
-/** Ordered provider ids (matches PROVIDER_META display order). */
-export const PROVIDER_IDS: ProviderId[] = ["openrouter", "anthropic", "openai", "google"];
-
-/**
- * The full model catalog across providers (pure metadata). The Settings model
- * picker and the router's allow-list both derive from this single source.
- * Keep model ids in sync with each provider plugin's `models`.
- */
-export const MODEL_CATALOG: (ProviderModelDef & { provider: ProviderId })[] = [
-  // Anthropic (Claude)
-  {
-    provider: "anthropic",
-    id: "claude-opus-4-8",
-    name: "Claude Opus 4.8",
-    desc: "Anthropic's most capable model. Best for complex reasoning.",
-    tier: "pro",
-  },
-  {
-    provider: "anthropic",
-    id: "claude-sonnet-4-6",
-    name: "Claude Sonnet 4.6",
-    desc: "Balanced speed and capability. Great default.",
-    tier: "pro",
-  },
-  {
-    provider: "anthropic",
-    id: "claude-haiku-4-5-20251001",
-    name: "Claude Haiku 4.5",
-    desc: "Fast and efficient. Great for everyday queries.",
-    tier: "free",
-  },
-  // OpenAI
-  {
-    provider: "openai",
-    id: "gpt-4o",
-    name: "GPT-4o",
-    desc: "OpenAI's multimodal flagship.",
-    tier: "pro",
-  },
-  {
-    provider: "openai",
-    id: "gpt-4o-mini",
-    name: "GPT-4o mini",
-    desc: "Fast, low-cost OpenAI model.",
-    tier: "free",
-  },
-  // Google (Gemini)
-  {
-    provider: "google",
-    id: "gemini-2.0-flash",
-    name: "Gemini 2.0 Flash",
-    desc: "Google's fast multimodal model.",
-    tier: "pro",
-  },
-  {
-    provider: "google",
-    id: "gemini-1.5-flash",
-    name: "Gemini 1.5 Flash",
-    desc: "Fast, low-cost Google model.",
-    tier: "free",
-  },
-  // OpenRouter (one key → many models)
-  {
-    provider: "openrouter",
-    id: "anthropic/claude-opus-4",
-    name: "Claude Opus 4 (via OpenRouter)",
-    desc: "Anthropic Opus routed through OpenRouter.",
-    tier: "pro",
-  },
-  {
-    provider: "openrouter",
-    id: "openai/gpt-4o",
-    name: "GPT-4o (via OpenRouter)",
-    desc: "OpenAI GPT-4o routed through OpenRouter.",
-    tier: "pro",
-  },
-  {
-    provider: "openrouter",
-    id: "google/gemini-2.0-flash-001",
-    name: "Gemini 2.0 Flash (via OpenRouter)",
-    desc: "Google Gemini routed through OpenRouter.",
-    tier: "pro",
-  },
-];
-
-/** Find a model's metadata by id. */
-export function findModel(modelId: string) {
-  return MODEL_CATALOG.find((m) => m.id === modelId);
+/** A selectable model. `key` is persisted; `modelId` is passed to the SDK. */
+export interface CatalogModel {
+  /** Stable, provider-qualified selection key (stored in preferences.aiModel). */
+  key: string;
+  provider: ProviderId;
+  /** Native model id passed to the provider SDK / platform. */
+  modelId: string;
+  name: string;
+  desc: string;
+  tier: ModelTier;
 }
 
-/** Which provider owns a given model id (or undefined). */
-export function providerForModel(modelId: string): ProviderId | undefined {
-  return findModel(modelId)?.provider;
+function m(
+  provider: ProviderId,
+  modelId: string,
+  name: string,
+  desc: string,
+  tier: ModelTier,
+): CatalogModel {
+  return { key: `${provider}:${modelId}`, provider, modelId, name, desc, tier };
+}
+
+/**
+ * The model catalog. "hust" models are served via Hust's platform OpenRouter key
+ * (their `modelId` is an OpenRouter route); BYOK models use the user's key.
+ * Curated to the current best models per provider — no legacy/low-end ids.
+ */
+export const MODEL_CATALOG: CatalogModel[] = [
+  // ── Hust (default platform provider — no BYOK needed) ──────────────────────
+  m("hust", "anthropic/claude-haiku-4.5", "Hust · Fast", "Quick everyday answers. Included free.", "free"),
+  m("hust", "anthropic/claude-opus-4.8", "Hust · Claude Opus 4.8", "Anthropic's best — deep reasoning.", "pro"),
+  m("hust", "openai/gpt-5.5", "Hust · GPT-5.5", "OpenAI's flagship.", "pro"),
+  m("hust", "google/gemini-3.1-pro", "Hust · Gemini 3.1 Pro", "Google's flagship — huge context.", "pro"),
+
+  // ── Anthropic (BYOK) ───────────────────────────────────────────────────────
+  m("anthropic", "claude-opus-4-8", "Claude Opus 4.8", "Anthropic's most capable model.", "pro"),
+  m("anthropic", "claude-sonnet-4-6", "Claude Sonnet 4.6", "Balanced speed and capability.", "pro"),
+
+  // ── OpenAI (BYOK) ──────────────────────────────────────────────────────────
+  m("openai", "gpt-5.5", "GPT-5.5", "OpenAI's flagship model.", "pro"),
+  m("openai", "gpt-5.5-pro", "GPT-5.5 Pro", "OpenAI's top-tier reasoning model.", "pro"),
+
+  // ── Google (BYOK) ──────────────────────────────────────────────────────────
+  m("google", "gemini-3.1-pro", "Gemini 3.1 Pro", "Google's flagship reasoning model.", "pro"),
+  m("google", "gemini-3.5-flash", "Gemini 3.5 Flash", "Google's fast, newest model.", "pro"),
+
+  // ── OpenRouter (BYOK — your own OpenRouter key, many models) ────────────────
+  m("openrouter", "anthropic/claude-opus-4.8", "Claude Opus 4.8 (OpenRouter)", "Via your OpenRouter key.", "pro"),
+  m("openrouter", "openai/gpt-5.5", "GPT-5.5 (OpenRouter)", "Via your OpenRouter key.", "pro"),
+  m("openrouter", "google/gemini-3.1-pro", "Gemini 3.1 Pro (OpenRouter)", "Via your OpenRouter key.", "pro"),
+];
+
+export function findModelByKey(key: string): CatalogModel | undefined {
+  return MODEL_CATALOG.find((x) => x.key === key);
+}
+
+export function modelsByProvider(provider: ProviderId): CatalogModel[] {
+  return MODEL_CATALOG.filter((x) => x.provider === provider);
+}
+
+/** Default model key for a tier (used when the user hasn't picked one). */
+export const DEFAULT_HUST_FREE_KEY = "hust:anthropic/claude-haiku-4.5";
+export const DEFAULT_HUST_PRO_KEY = "hust:anthropic/claude-opus-4.8";
+
+/**
+ * Runtime contract for a BYOK provider plugin (server-only; the implementation
+ * imports the provider's `@ai-sdk/*` package).
+ */
+export interface AIProviderPlugin extends Plugin {
+  kind: "ai-provider";
+  id: ByokProviderId;
+  createModel(apiKey: string, modelId: string): LanguageModel;
 }

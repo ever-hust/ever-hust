@@ -1,6 +1,7 @@
 import { getModelForUser } from "./model-router";
 
-// Mock the @ai-sdk/anthropic module
+// Mock the @ai-sdk/anthropic module (used for both the platform degraded
+// fallback and the Anthropic BYOK plugin).
 jest.mock("@ai-sdk/anthropic", () => ({
   anthropic: (modelId: string) => ({
     modelId,
@@ -13,265 +14,207 @@ jest.mock("@ai-sdk/anthropic", () => ({
   }),
 }));
 
-// Mock the @openrouter/ai-sdk-provider module
+// Platform OpenRouter is not configured in the test env → getPlatformModel
+// takes the direct-Anthropic fallback path.
 jest.mock("@openrouter/ai-sdk-provider", () => ({
-  createOpenRouter: () => null, // Not configured in test env
+  createOpenRouter: () => null,
 }));
+
+type M = { modelId: string; provider?: string; apiKey?: string };
 
 describe("getModelForUser", () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
     process.env = { ...originalEnv };
-    delete process.env.DEFAULT_AI_MODEL;
+    delete process.env.OPENROUTER_API_KEY;
   });
 
   afterAll(() => {
     process.env = originalEnv;
   });
 
-  it("should return haiku for free users with no preferences", () => {
-    const model = getModelForUser({
-      subscriptionStatus: "free",
-      preferences: null,
-    });
-    expect((model as { modelId: string }).modelId).toBe(
-      "claude-haiku-4-5-20251001"
-    );
+  // ── Defaults (no model selected) ───────────────────────────────────────────
+
+  it("free user, no preferences → Hust free default (haiku)", () => {
+    const model = getModelForUser({ subscriptionStatus: "free", preferences: null }) as M;
+    expect(model.modelId).toBe("claude-haiku-4-5-20251001");
   });
 
-  it("should return paid-tier default (sonnet) for paid users with no preferences", () => {
-    // PAID_MODEL_ID resolves at module load: process.env.DEFAULT_AI_MODEL ?? "claude-sonnet-4-6"
-    const model = getModelForUser({
-      subscriptionStatus: "active",
-      preferences: null,
-    });
-    expect((model as { modelId: string }).modelId).toBe(
-      "claude-sonnet-4-6"
-    );
+  it("paid user, no preferences → Hust pro default (opus)", () => {
+    const model = getModelForUser({ subscriptionStatus: "active", preferences: null }) as M;
+    expect(model.modelId).toBe("claude-opus-4-8");
   });
 
-  it("should use user-selected model when set in preferences", () => {
-    const model = getModelForUser({
-      subscriptionStatus: "active",
-      preferences: { aiModel: "claude-sonnet-4-6" },
-    });
-    expect((model as { modelId: string }).modelId).toBe(
-      "claude-sonnet-4-6"
-    );
+  it("past_due retains pro default (grace period)", () => {
+    const model = getModelForUser({ subscriptionStatus: "past_due", preferences: null }) as M;
+    expect(model.modelId).toBe("claude-opus-4-8");
   });
 
-  it("should accept claude-sonnet-4-6 as a valid model choice", () => {
-    const model = getModelForUser({
-      subscriptionStatus: "active",
-      preferences: { aiModel: "claude-sonnet-4-6" },
-    });
-    expect((model as { modelId: string }).modelId).toBe("claude-sonnet-4-6");
-  });
-
-  it("should reject unlisted model IDs and fall back to paid default", () => {
-    const model = getModelForUser({
-      subscriptionStatus: "active",
-      preferences: { aiModel: "totally-not-a-real-model" },
-    });
-    // Not in the catalog → falls through to the platform PAID default.
-    expect((model as { modelId: string }).modelId).toBe(
-      "claude-sonnet-4-6"
-    );
-  });
-
-  it("should use BYOK key and return opus when anthropic key is provided", () => {
-    const model = getModelForUser({
-      subscriptionStatus: "free",
-      preferences: {
-        apiKeys: { anthropic: "sk-ant-123" },
-      },
-    });
-    expect((model as { modelId: string }).modelId).toBe("claude-opus-4-8");
-  });
-
-  it("should use BYOK with user's preferred model", () => {
-    const model = getModelForUser({
-      subscriptionStatus: "free",
-      preferences: {
-        aiModel: "claude-haiku-4-5-20251001",
-        apiKeys: { anthropic: "sk-ant-123" },
-      },
-    });
-    // BYOK uses user's own key but respects their model preference
-    expect((model as { modelId: string }).modelId).toBe(
-      "claude-haiku-4-5-20251001"
-    );
-  });
-
-  it("should use BYOK with opus when no model preference set", () => {
-    const model = getModelForUser({
-      subscriptionStatus: "free",
-      preferences: {
-        apiKeys: { anthropic: "sk-ant-123" },
-      },
-    });
-    // BYOK without model preference defaults to opus
-    expect((model as { modelId: string }).modelId).toBe("claude-opus-4-8");
-  });
-
-  it("should use PAID_MODEL_ID resolved at module load for paid users", () => {
-    // NOTE: PAID_MODEL_ID is a module-level const, so changing process.env
-    // after import has no effect.  This test verifies the default path uses
-    // the resolved PAID_MODEL_ID ("claude-sonnet-4-6").
-    const model = getModelForUser({
-      subscriptionStatus: "active",
-      preferences: null,
-    });
-    expect((model as { modelId: string }).modelId).toBe(
-      "claude-sonnet-4-6"
-    );
-  });
-
-  it("should handle undefined preferences gracefully", () => {
-    const model = getModelForUser({
-      subscriptionStatus: "free",
-    });
-    expect((model as { modelId: string }).modelId).toBe(
-      "claude-haiku-4-5-20251001"
-    );
-  });
-
-  it("should handle empty preferences object", () => {
-    const model = getModelForUser({
-      subscriptionStatus: "active",
-      preferences: {},
-    });
-    // Empty preferences → no aiModel set → falls through to PAID_MODEL_ID default
-    expect((model as { modelId: string }).modelId).toBe(
-      "claude-sonnet-4-6"
-    );
-  });
-
-  it("should ignore model preference for free users (prevent cost bypass)", () => {
-    const model = getModelForUser({
-      subscriptionStatus: "free",
-      preferences: { aiModel: "claude-opus-4-8" },
-    });
-    // Free users always get haiku regardless of model preference
-    expect((model as { modelId: string }).modelId).toBe(
-      "claude-haiku-4-5-20251001"
-    );
-  });
-
-  it("should treat past_due users as paid tier (grace period)", () => {
-    const model = getModelForUser({
-      subscriptionStatus: "past_due",
-      preferences: { aiModel: "claude-sonnet-4-6" },
-    });
-    // past_due users retain Pro access during Stripe's grace period
-    expect((model as { modelId: string }).modelId).toBe(
-      "claude-sonnet-4-6"
-    );
-  });
-
-  it("should treat null subscriptionStatus as free tier", () => {
+  it("null subscriptionStatus → free tier", () => {
     const model = getModelForUser({
       subscriptionStatus: null as unknown as string,
       preferences: null,
-    });
-    expect((model as { modelId: string }).modelId).toBe(
-      "claude-haiku-4-5-20251001"
-    );
+    }) as M;
+    expect(model.modelId).toBe("claude-haiku-4-5-20251001");
   });
 
-  it("should treat undefined subscriptionStatus as free tier", () => {
+  it("undefined subscriptionStatus → free tier", () => {
     const model = getModelForUser({
       subscriptionStatus: undefined as unknown as string,
       preferences: null,
-    });
-    expect((model as { modelId: string }).modelId).toBe(
-      "claude-haiku-4-5-20251001"
-    );
+    }) as M;
+    expect(model.modelId).toBe("claude-haiku-4-5-20251001");
   });
 
-  it("should not use empty string BYOK key as valid API key", () => {
+  it("undefined preferences handled gracefully", () => {
+    const model = getModelForUser({ subscriptionStatus: "free" }) as M;
+    expect(model.modelId).toBe("claude-haiku-4-5-20251001");
+  });
+
+  it("empty preferences object → tier default", () => {
+    const model = getModelForUser({ subscriptionStatus: "active", preferences: {} }) as M;
+    expect(model.modelId).toBe("claude-opus-4-8");
+  });
+
+  // ── Hust platform model selection ───────────────────────────────────────────
+
+  it("free user selecting the Hust free model gets it", () => {
+    const model = getModelForUser({
+      subscriptionStatus: "free",
+      preferences: { aiModel: "hust:anthropic/claude-haiku-4.5" },
+    }) as M;
+    expect(model.modelId).toBe("claude-haiku-4-5-20251001");
+  });
+
+  it("paid user selecting a Hust pro model gets it", () => {
+    const model = getModelForUser({
+      subscriptionStatus: "active",
+      preferences: { aiModel: "hust:anthropic/claude-opus-4.8" },
+    }) as M;
+    expect(model.modelId).toBe("claude-opus-4-8");
+  });
+
+  it("free user selecting a Hust PRO model is denied → free default (no cost bypass)", () => {
+    const model = getModelForUser({
+      subscriptionStatus: "free",
+      preferences: { aiModel: "hust:anthropic/claude-opus-4.8" },
+    }) as M;
+    expect(model.modelId).toBe("claude-haiku-4-5-20251001");
+  });
+
+  it("unknown / legacy model id → tier default", () => {
+    const model = getModelForUser({
+      subscriptionStatus: "active",
+      preferences: { aiModel: "gpt-4o" },
+    }) as M;
+    expect(model.modelId).toBe("claude-opus-4-8");
+  });
+
+  // ── BYOK (user's own key — works on any tier, requires a model selection) ────
+
+  it("BYOK Anthropic model + key works for a FREE user (own key, any tier)", () => {
     const model = getModelForUser({
       subscriptionStatus: "free",
       preferences: {
+        aiModel: "anthropic:claude-opus-4-8",
+        apiKeys: { anthropic: "sk-ant-123" },
+      },
+    }) as M;
+    expect(model.modelId).toBe("claude-opus-4-8");
+    expect(model.provider).toBe("anthropic-byok");
+    expect(model.apiKey).toBe("sk-ant-123");
+  });
+
+  it("BYOK respects the selected Anthropic model id", () => {
+    const model = getModelForUser({
+      subscriptionStatus: "active",
+      preferences: {
+        aiModel: "anthropic:claude-sonnet-4-6",
+        apiKeys: { anthropic: "sk-ant-123" },
+      },
+    }) as M;
+    expect(model.modelId).toBe("claude-sonnet-4-6");
+    expect(model.provider).toBe("anthropic-byok");
+  });
+
+  it("BYOK model selected but NO key → falls back to Hust tier default", () => {
+    const model = getModelForUser({
+      subscriptionStatus: "free",
+      preferences: { aiModel: "anthropic:claude-opus-4-8" },
+    }) as M;
+    // No usable key → not BYOK → Hust free default.
+    expect(model.modelId).toBe("claude-haiku-4-5-20251001");
+  });
+
+  it("a saved key without selecting that provider's model stays on Hust default", () => {
+    const model = getModelForUser({
+      subscriptionStatus: "active",
+      preferences: { apiKeys: { anthropic: "sk-ant-123" } },
+    }) as M;
+    // Hust is the default; switching requires selecting a BYOK model.
+    expect(model.modelId).toBe("claude-opus-4-8");
+    expect(model.provider).toBe("anthropic");
+  });
+
+  it("empty-string BYOK key is ignored", () => {
+    const model = getModelForUser({
+      subscriptionStatus: "free",
+      preferences: {
+        aiModel: "anthropic:claude-opus-4-8",
         apiKeys: { anthropic: "" },
       },
-    });
-    // Empty string is falsy — should fall through to free tier haiku
-    expect((model as { modelId: string }).modelId).toBe(
-      "claude-haiku-4-5-20251001"
-    );
+    }) as M;
+    expect(model.modelId).toBe("claude-haiku-4-5-20251001");
   });
 
-  it("should not use whitespace-only BYOK key as valid API key", () => {
+  it("whitespace-only BYOK key is ignored", () => {
     const model = getModelForUser({
       subscriptionStatus: "free",
       preferences: {
+        aiModel: "anthropic:claude-opus-4-8",
         apiKeys: { anthropic: "   " },
       },
-    });
-    // Whitespace-only key should fall through to free tier haiku
-    expect((model as { modelId: string }).modelId).toBe(
-      "claude-haiku-4-5-20251001"
-    );
+    }) as M;
+    expect(model.modelId).toBe("claude-haiku-4-5-20251001");
   });
 
-  it("should use BYOK but fall back to opus when model preference is invalid", () => {
-    const model = getModelForUser({
-      subscriptionStatus: "free",
-      preferences: {
-        aiModel: "gpt-4o-turbo",
-        apiKeys: { anthropic: "sk-ant-valid-key" },
-      },
-    });
-    // BYOK with invalid model preference → should use opus default
-    expect((model as { modelId: string }).modelId).toBe("claude-opus-4-8");
-  });
-
-  // ===========================================================================
-  // BYOK ciphertext fallback (when BYOK_ENCRYPTION_KEY is missing)
-  // ===========================================================================
+  // ── BYOK ciphertext fallback (when BYOK_ENCRYPTION_KEY is missing) ───────────
 
   describe("BYOK ciphertext fallback", () => {
-    it("should fall back to platform model when encrypted key has colons and decryption returns null", () => {
-      // Simulate encrypted ciphertext format: iv:authTag:ciphertext
-      // When BYOK_ENCRYPTION_KEY is missing, decryptApiKey() throws → returns null
-      // The model router should detect this and fall through to platform model
+    it("ciphertext that fails to decrypt is skipped → Hust pro default for paid", () => {
       const model = getModelForUser({
         subscriptionStatus: "active",
         preferences: {
+          aiModel: "anthropic:claude-opus-4-8",
           apiKeys: { anthropic: "dGVzdA==:dGVzdA==:Y2lwaGVy" },
         },
-      });
-      // Should get paid model (active subscription) instead of trying BYOK
-      expect((model as { modelId: string }).modelId).toBe(
-        "claude-sonnet-4-6"
-      );
+      }) as M;
+      expect(model.modelId).toBe("claude-opus-4-8");
+      expect(model.provider).toBe("anthropic");
     });
 
-    it("should fall back to free model for non-active user with encrypted ciphertext", () => {
+    it("ciphertext skipped → Hust free default for free user", () => {
       const model = getModelForUser({
         subscriptionStatus: "free",
         preferences: {
+          aiModel: "anthropic:claude-opus-4-8",
           apiKeys: { anthropic: "dGVzdA==:dGVzdA==:Y2lwaGVy" },
         },
-      });
-      // Free user + ciphertext fallback → free model
-      expect((model as { modelId: string }).modelId).toBe(
-        "claude-haiku-4-5-20251001"
-      );
+      }) as M;
+      expect(model.modelId).toBe("claude-haiku-4-5-20251001");
     });
 
-    it("should use plaintext BYOK key when it has no colons (backwards compat)", () => {
+    it("plaintext key (no colons) is used as-is for backwards compat", () => {
       const model = getModelForUser({
         subscriptionStatus: "free",
         preferences: {
+          aiModel: "anthropic:claude-opus-4-8",
           apiKeys: { anthropic: "sk-ant-plain-text-key-123" },
         },
-      });
-      // Plaintext key (no colons) → decryptApiKey returns it as-is → use BYOK
-      expect((model as { modelId: string }).modelId).toBe("claude-opus-4-8");
-      expect((model as { provider: string }).provider).toBe("anthropic-byok");
+      }) as M;
+      expect(model.modelId).toBe("claude-opus-4-8");
+      expect(model.provider).toBe("anthropic-byok");
     });
   });
 });

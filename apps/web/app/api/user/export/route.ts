@@ -140,6 +140,7 @@ export async function GET() {
         (profileData as Record<string, unknown>).preferences = {
           ...prefs,
           apiKeys: {
+            openrouter: !!prefs.apiKeys.openrouter,
             anthropic: !!prefs.apiKeys.anthropic,
             openai: !!prefs.apiKeys.openai,
             google: !!prefs.apiKeys.google,

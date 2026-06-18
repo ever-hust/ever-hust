@@ -31,7 +31,7 @@ import {
 import { useTheme } from "next-themes";
 import { Button } from "@ever-hust/ui/button";
 import { Separator } from "@ever-hust/ui/separator";
-import { Avatar, AvatarFallback } from "@ever-hust/ui/avatar";
+import { UserAvatar } from "@/components/shared/user-avatar";
 import {
   Dialog,
   DialogContent,
@@ -441,13 +441,10 @@ export function Sidebar() {
   );
 
   const userName = session?.user?.name ?? "User";
-  const userInitials = userName
-    .split(" ")
-    .map((n: string) => n[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-  const userImage = session?.user?.image;
+  const userImage = session?.user?.image ?? null;
+  const userEmail = session?.user?.email ?? null;
+  const userPhotoUrl =
+    (session?.user as { photoUrl?: string | null } | undefined)?.photoUrl ?? null;
 
   // Check if a nav item is active
   const isNavActive = useCallback(
@@ -537,19 +534,14 @@ export function Sidebar() {
         >
         {/* User info with avatar */}
         <div className="flex items-center gap-2.5 px-2 py-2 mb-1">
-          <Avatar className="h-9 w-9 shrink-0">
-            {userImage ? (
-              <img
-                src={userImage}
-                alt=""
-                className="h-9 w-9 rounded-full object-cover"
-              />
-            ) : (
-              <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">
-                {userInitials}
-              </AvatarFallback>
-            )}
-          </Avatar>
+          <UserAvatar
+            name={userName}
+            email={userEmail}
+            image={userImage}
+            photoUrl={userPhotoUrl}
+            className="h-9 w-9 shrink-0"
+            fallbackClassName="bg-primary/10 text-sm font-medium text-primary"
+          />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium truncate">{userName}</p>
             {session?.user?.email && (
@@ -661,19 +653,14 @@ export function Sidebar() {
         aria-haspopup="menu"
         aria-label="User menu"
       >
-        <Avatar className="h-7 w-7 shrink-0">
-          {userImage ? (
-            <img
-              src={userImage}
-              alt=""
-              className="h-7 w-7 rounded-full object-cover"
-            />
-          ) : (
-            <AvatarFallback className="bg-primary/10 text-xs font-medium text-primary">
-              {userInitials}
-            </AvatarFallback>
-          )}
-        </Avatar>
+        <UserAvatar
+          name={userName}
+          email={userEmail}
+          image={userImage}
+          photoUrl={userPhotoUrl}
+          className="h-7 w-7 shrink-0"
+          fallbackClassName="bg-primary/10 text-xs font-medium text-primary"
+        />
         {showLabel && (
           <>
             <span className="flex-1 truncate text-left text-sm font-medium">

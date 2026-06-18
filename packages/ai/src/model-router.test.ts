@@ -36,9 +36,9 @@ describe("getModelForUser", () => {
 
   // ── Defaults (no model selected) ───────────────────────────────────────────
 
-  it("free user, no preferences → Hust free default (haiku)", () => {
+  it("free user, no preferences → Hust free default (sonnet)", () => {
     const model = getModelForUser({ subscriptionStatus: "free", preferences: null }) as M;
-    expect(model.modelId).toBe("claude-haiku-4-5-20251001");
+    expect(model.modelId).toBe("claude-sonnet-4-6");
   });
 
   it("paid user, no preferences → Hust pro default (opus)", () => {
@@ -56,7 +56,7 @@ describe("getModelForUser", () => {
       subscriptionStatus: null as unknown as string,
       preferences: null,
     }) as M;
-    expect(model.modelId).toBe("claude-haiku-4-5-20251001");
+    expect(model.modelId).toBe("claude-sonnet-4-6");
   });
 
   it("undefined subscriptionStatus → free tier", () => {
@@ -64,12 +64,12 @@ describe("getModelForUser", () => {
       subscriptionStatus: undefined as unknown as string,
       preferences: null,
     }) as M;
-    expect(model.modelId).toBe("claude-haiku-4-5-20251001");
+    expect(model.modelId).toBe("claude-sonnet-4-6");
   });
 
   it("undefined preferences handled gracefully", () => {
     const model = getModelForUser({ subscriptionStatus: "free" }) as M;
-    expect(model.modelId).toBe("claude-haiku-4-5-20251001");
+    expect(model.modelId).toBe("claude-sonnet-4-6");
   });
 
   it("empty preferences object → tier default", () => {
@@ -100,7 +100,7 @@ describe("getModelForUser", () => {
       subscriptionStatus: "free",
       preferences: { aiModel: "hust:anthropic/claude-opus-4.8" },
     }) as M;
-    expect(model.modelId).toBe("claude-haiku-4-5-20251001");
+    expect(model.modelId).toBe("claude-sonnet-4-6");
   });
 
   it("unknown / legacy model id → tier default", () => {
@@ -144,7 +144,7 @@ describe("getModelForUser", () => {
       preferences: { aiModel: "anthropic:claude-opus-4-8" },
     }) as M;
     // No usable key → not BYOK → Hust free default.
-    expect(model.modelId).toBe("claude-haiku-4-5-20251001");
+    expect(model.modelId).toBe("claude-sonnet-4-6");
   });
 
   it("a saved key without selecting that provider's model stays on Hust default", () => {
@@ -165,7 +165,7 @@ describe("getModelForUser", () => {
         apiKeys: { anthropic: "" },
       },
     }) as M;
-    expect(model.modelId).toBe("claude-haiku-4-5-20251001");
+    expect(model.modelId).toBe("claude-sonnet-4-6");
   });
 
   it("whitespace-only BYOK key is ignored", () => {
@@ -176,7 +176,7 @@ describe("getModelForUser", () => {
         apiKeys: { anthropic: "   " },
       },
     }) as M;
-    expect(model.modelId).toBe("claude-haiku-4-5-20251001");
+    expect(model.modelId).toBe("claude-sonnet-4-6");
   });
 
   // ── BYOK ciphertext fallback (when BYOK_ENCRYPTION_KEY is missing) ───────────
@@ -202,7 +202,7 @@ describe("getModelForUser", () => {
           apiKeys: { anthropic: "dGVzdA==:dGVzdA==:Y2lwaGVy" },
         },
       }) as M;
-      expect(model.modelId).toBe("claude-haiku-4-5-20251001");
+      expect(model.modelId).toBe("claude-sonnet-4-6");
     });
 
     it("plaintext key (no colons) is used as-is for backwards compat", () => {

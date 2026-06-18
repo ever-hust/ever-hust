@@ -118,10 +118,13 @@ function m(
  */
 export const MODEL_CATALOG: CatalogModel[] = [
   // ── Hust (default platform provider — no BYOK needed) ──────────────────────
-  m("hust", "anthropic/claude-haiku-4.5", "Hust · Fast", "Quick everyday answers. Included free.", "free"),
-  m("hust", "anthropic/claude-opus-4.8", "Hust · Claude Opus 4.8", "Anthropic's best — deep reasoning.", "pro"),
+  // Names always state the real underlying model. Routes are OpenRouter slugs
+  // verified against the live catalog.
+  m("hust", "anthropic/claude-sonnet-4.6", "Hust · Claude Sonnet 4.6", "Balanced speed and reasoning — recommended default.", "free"),
+  m("hust", "anthropic/claude-haiku-4.5", "Hust · Claude Haiku 4.5", "Fastest, lightweight everyday answers.", "free"),
+  m("hust", "anthropic/claude-opus-4.8", "Hust · Claude Opus 4.8", "Anthropic's most capable — deep reasoning.", "pro"),
   m("hust", "openai/gpt-5.5", "Hust · GPT-5.5", "OpenAI's flagship.", "pro"),
-  m("hust", "google/gemini-3.1-pro", "Hust · Gemini 3.1 Pro", "Google's flagship — huge context.", "pro"),
+  m("hust", "google/gemini-3.1-pro-preview", "Hust · Gemini 3.1 Pro", "Google's flagship — huge context.", "pro"),
 
   // ── Anthropic (BYOK) ───────────────────────────────────────────────────────
   m("anthropic", "claude-opus-4-8", "Claude Opus 4.8", "Anthropic's most capable model.", "pro"),
@@ -132,13 +135,13 @@ export const MODEL_CATALOG: CatalogModel[] = [
   m("openai", "gpt-5.5-pro", "GPT-5.5 Pro", "OpenAI's top-tier reasoning model.", "pro"),
 
   // ── Google (BYOK) ──────────────────────────────────────────────────────────
-  m("google", "gemini-3.1-pro", "Gemini 3.1 Pro", "Google's flagship reasoning model.", "pro"),
+  m("google", "gemini-3.1-pro-preview", "Gemini 3.1 Pro", "Google's flagship reasoning model.", "pro"),
   m("google", "gemini-3.5-flash", "Gemini 3.5 Flash", "Google's fast, newest model.", "pro"),
 
   // ── OpenRouter (BYOK — your own OpenRouter key, many models) ────────────────
   m("openrouter", "anthropic/claude-opus-4.8", "Claude Opus 4.8 (OpenRouter)", "Via your OpenRouter key.", "pro"),
   m("openrouter", "openai/gpt-5.5", "GPT-5.5 (OpenRouter)", "Via your OpenRouter key.", "pro"),
-  m("openrouter", "google/gemini-3.1-pro", "Gemini 3.1 Pro (OpenRouter)", "Via your OpenRouter key.", "pro"),
+  m("openrouter", "google/gemini-3.1-pro-preview", "Gemini 3.1 Pro (OpenRouter)", "Via your OpenRouter key.", "pro"),
 ];
 
 export function findModelByKey(key: string): CatalogModel | undefined {
@@ -150,7 +153,7 @@ export function modelsByProvider(provider: ProviderId): CatalogModel[] {
 }
 
 /** Default model key for a tier (used when the user hasn't picked one). */
-export const DEFAULT_HUST_FREE_KEY = "hust:anthropic/claude-haiku-4.5";
+export const DEFAULT_HUST_FREE_KEY = "hust:anthropic/claude-sonnet-4.6";
 export const DEFAULT_HUST_PRO_KEY = "hust:anthropic/claude-opus-4.8";
 
 /**

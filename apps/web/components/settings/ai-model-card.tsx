@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Bot, Check, Loader2, Lock, KeyRound } from "lucide-react";
+import { Bot, Check, Loader2, Lock } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { Badge } from "@ever-hust/ui/badge";
 import { Card } from "@ever-hust/ui/card";
@@ -75,9 +75,8 @@ export function AIModelCard({
       </h2>
       <div className="mt-4 space-y-5">
         <p className="text-sm text-muted-foreground">
-          Hust provides AI out of the box — pick from the models below. To use another provider,
-          add your own API key under <span className="font-medium">API Keys</span> and its models
-          unlock here.
+          Hust provides AI out of the box — pick from the models below. Add your own API key under{" "}
+          <span className="font-medium">API Keys</span> and that provider&apos;s models appear here too.
         </p>
 
         {groups.map((provider) => {
@@ -85,6 +84,8 @@ export function AIModelCard({
           if (models.length === 0) return null;
           const isByok = provider !== "hust";
           const providerConnected = !isByok || connected.has(provider as ByokProviderId);
+          // Only show a BYOK provider's group once the user has connected a key.
+          if (isByok && !providerConnected) return null;
 
           return (
             <div key={provider} className="space-y-2">
@@ -92,20 +93,14 @@ export function AIModelCard({
                 <h3 className="text-sm font-semibold">{PROVIDER_LABELS[provider]}</h3>
                 {provider === "hust" ? (
                   <Badge variant="secondary" className="text-[10px]">Default</Badge>
-                ) : providerConnected ? (
+                ) : (
                   <Badge variant="outline" className="text-[10px] text-emerald-600 dark:text-emerald-400">
                     Connected
                   </Badge>
-                ) : (
-                  <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                    <KeyRound className="h-3 w-3" aria-hidden="true" />
-                    Add a key in API Keys to unlock
-                  </span>
                 )}
               </div>
 
-              {providerConnected &&
-                models.map((model) => {
+              {models.map((model) => {
                   const isSelected = selectedModel === model.key;
                   // Hust pro models need a paid plan; BYOK models use the user's
                   // own key, so they're allowed on any tier once connected.

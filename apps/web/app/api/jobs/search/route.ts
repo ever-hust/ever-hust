@@ -1,9 +1,14 @@
-import { db, escapeIlike } from "@ever-hust/db";
+import { db } from "@ever-hust/db";
 import { jobs } from "@ever-hust/db";
-import { and, eq, ilike, desc, sql } from "drizzle-orm";
+import { and, desc, sql } from "drizzle-orm";
 import { jobSearchParamsSchema } from "../../../../lib/api-schemas";
 import { applyRateLimit } from "../../../../lib/rate-limit";
 import { apiSuccess, apiBadRequest, apiError } from "../../../../lib/api-response";
+import { getSessionUser } from "../../../../lib/get-session-user";
+import {
+  buildJobFilterConditions,
+  hiddenJobsExclusion,
+} from "../../../../lib/job-search-filters";
 
 export async function GET(req: Request) {
   // Rate limit by IP for public search endpoint (20 req/min)
@@ -27,46 +32,19 @@ export async function GET(req: Request) {
     parsed.data;
 
   try {
-    // Drop NaN salary values instead of passing them to SQL
-    const safeSalaryMin = salaryMin !== undefined && Number.isFinite(salaryMin) ? salaryMin : undefined;
-    const safeSalaryMax = salaryMax !== undefined && Number.isFinite(salaryMax) ? salaryMax : undefined;
+    // Exclude jobs the signed-in user has hidden (item 8). Optional auth — the
+    // endpoint stays public for anonymous visitors.
+    const user = await getSessionUser();
 
-    const conditions = [];
-
-    if (keywords) {
-      const kw = `%${escapeIlike(keywords)}%`;
-      conditions.push(
-        sql`(${ilike(jobs.title, kw)} OR ${ilike(jobs.companyName, kw)})`
-      );
-    }
-
-    if (location) {
-      const loc = `%${escapeIlike(location)}%`;
-      conditions.push(
-        sql`(${ilike(jobs.locationCity, loc)} OR ${ilike(jobs.locationState, loc)} OR ${ilike(jobs.locationCountry, loc)})`
-      );
-    }
-
-    if (isRemote) {
-      conditions.push(eq(jobs.isRemote, true));
-    }
-
-    if (jobType) {
-      // jobType is stored as a JSONB string array — check if the array contains the value
-      conditions.push(
-        sql`${jobs.jobType}::jsonb @> ${JSON.stringify([jobType])}::jsonb`
-      );
-    }
-
-    if (safeSalaryMin !== undefined) {
-      // Overlap: job's max salary must be at or above the user's minimum
-      conditions.push(sql`${jobs.salaryMax}::numeric >= ${safeSalaryMin}`);
-    }
-
-    if (safeSalaryMax !== undefined) {
-      // Overlap: job's min salary must be at or below the user's maximum
-      conditions.push(sql`${jobs.salaryMin}::numeric <= ${safeSalaryMax}`);
-    }
+    const conditions = buildJobFilterConditions({
+      keywords,
+      location,
+      isRemote,
+      jobType,
+      salaryMin,
+      salaryMax,
+    });
+    if (user) conditions.push(hiddenJobsExclusion(user.id));
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -119,7 +97,8 @@ export async function GET(req: Request) {
 
     const total = Number(countResult[0]?.count ?? 0);
 
-    // Search results are semi-dynamic — cache for 2 minutes at the edge
+    // Anonymous results are identical per query → cache 2 min at the edge.
+    // Authenticated results are user-filtered (hidden jobs) → never shared-cache.
     return apiSuccess(
       {
         jobs: result,
@@ -128,7 +107,7 @@ export async function GET(req: Request) {
         limit,
         hasMore: offset + result.length < total,
       },
-      { cacheSeconds: 120 },
+      user ? undefined : { cacheSeconds: 120 },
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

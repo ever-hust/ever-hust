@@ -87,6 +87,7 @@ jobs:
           fi
           cd packages/db && DATABASE_URL="$db_url" node scripts/ensure-anonymous-column.cjs
           DATABASE_URL="$db_url" node scripts/ensure-credit-tables.cjs
+          DATABASE_URL="$db_url" node scripts/ensure-email-tables.cjs
 
       - name: Apply k8s manifest
         run: kubectl apply -f .deploy/k8s/k8s-manifest.prod.yaml

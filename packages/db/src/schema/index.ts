@@ -26,3 +26,4 @@ export { brandingConfigs } from "./branding";
 export { organizationAiConfigs } from "./org-ai-config";
 export { stripeWebhookEvents } from "./stripe-webhook-events";
 export { creditTransactions } from "./credit-transactions";
+export { emailAccounts, emailMessages } from "./email";

@@ -13,9 +13,22 @@ full PRD. Each phase is independently shippable behind a feature flag
 - [ ] New `packages/mail` (or extend `packages/ai`) registry/dispatcher.
 - [ ] Token encryption helper (reuse `BYOK_ENCRYPTION_KEY` crypto).
 
-## Phase 1 — Connect-your-own (Gmail)
-- [ ] `packages/plugins/mail-gmail`: OAuth (getAuthUrl/exchangeCode), `listThreads`,
-      `getMessage`, `sendMessage`, Gmail `watch` → Pub/Sub push → `history.list`.
+## Phase 1 — Connect-your-own (SHIPPED via IMAP/SMTP)
+> Implemented as **IMAP (read) + SMTP (send)** rather than Gmail OAuth so users can
+> connect ANY existing mailbox (Gmail/Outlook/Yahoo/iCloud auto-detected; custom
+> hosts supported) with an app password — no Google OAuth-app verification gate.
+> `@jobs.hust.so` dedicated address is deprioritized. Corporate mailboxes are a
+> later Gauzy seam.
+- [x] `email_accounts` + `email_messages` tables (+ ensure-email-tables.cjs, prod-wired).
+- [x] `apps/web/lib/mail.ts` — IMAP fetch (imapflow + mailparser) + SMTP send (nodemailer)
+      + provider presets + connection verify. Password encrypted at rest.
+- [x] API: `/api/inbox/account` (GET/POST/DELETE, verifies before save),
+      `/api/inbox/sync`, `/api/inbox/messages` (threaded), `/api/inbox/send`.
+- [x] Inbox UI: connect form + setup instructions; thread list + reader + reply composer.
+- [ ] Background auto-sync (Trigger.dev) — currently on-demand "Sync" + on page load.
+- [ ] AI: classify/summarize/draft-reply + link a thread to an application.
+- [ ] OAuth providers (Gmail/Graph) as an alternative to app passwords; TipTap rich composer.
+- [ ] (superseded) `packages/plugins/mail-gmail` OAuth — kept for a future OAuth path.
 - [ ] OAuth connect/callback routes + Settings "Connected mailboxes" card
       (scopes shown, disconnect + purge).
 - [ ] Sync worker (Trigger.dev) → upsert threads/messages; Supabase realtime push.

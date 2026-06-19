@@ -41,7 +41,6 @@ interface JobsCanvasProps {
   onToggleCompareMode?: () => void;
   onToggleJobCompare?: (jobId: number) => void;
   onHideJob?: (jobId: number) => void;
-  onGenerateCoverLetter?: (jobId: number) => void;
   /** Optional personalised-sort control (spec #3). When provided, a "Best for me" toggle renders. */
   sortMode?: "recent" | "best_for_me";
   onSortModeChange?: (mode: "recent" | "best_for_me") => void;
@@ -63,7 +62,6 @@ export const JobsCanvas = memo(function JobsCanvas({
   onToggleCompareMode,
   onToggleJobCompare,
   onHideJob,
-  onGenerateCoverLetter,
   sortMode,
   onSortModeChange,
 }: JobsCanvasProps) {
@@ -314,7 +312,6 @@ export const JobsCanvas = memo(function JobsCanvas({
                     onViewDetails={onViewDetails}
                     onToggleCompare={handleToggleJobCompare}
                     onHide={onHideJob}
-                    onGenerateCoverLetter={onGenerateCoverLetter}
                   />
                 </div>
               ))}
@@ -374,7 +371,6 @@ export const JobsCanvas = memo(function JobsCanvas({
                   onViewDetails={onViewDetails}
                   onToggleCompare={handleToggleJobCompare}
                   onHide={onHideJob}
-                  onGenerateCoverLetter={onGenerateCoverLetter}
                 />
               </div>
             ))}

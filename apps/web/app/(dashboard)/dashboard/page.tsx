@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useCallback, useState, useMemo, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { JobsCanvas } from "@/components/canvas/jobs-canvas";
 import { DashboardCanvas } from "@/components/canvas/dashboard-canvas";
@@ -62,6 +62,7 @@ const JobDetailPanel = dynamic(
 
 export default function DashboardPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const canvas = useCanvasSync();
   const { setOnToolResult, setOnCoverLetter, setInitialPrompt } = useChatContext();
   const [coverLetterText, setCoverLetterText] = useState("");
@@ -161,27 +162,22 @@ export default function DashboardPage() {
         const data = (await res.json()) as {
           job: { title: string; companyName?: string | null; locationCity?: string | null; isRemote?: boolean };
         };
-        const { title, companyName, locationCity, isRemote } = data.job;
-        const company = companyName ?? "the company";
-        const locationParts: string[] = [];
-        if (locationCity) locationParts.push(locationCity);
-        if (isRemote) locationParts.push("remote");
-        const locationStr = locationParts.length > 0 ? ` (${locationParts.join(", ")})` : "";
-
-        // Open the job in the canvas, then fill chat and auto-send.
-        setDetailJobId(jobId);
-        setDetailOpen(true);
+        const { title, companyName } = data.job;
+        const company = companyName ? ` at ${companyName}` : "";
+        // Route to the job page (rendered in the canvas; chat is global), then
+        // auto-send a prompt that always carries the job ID.
         setInitialPrompt(
-          `Write me a cover letter for the "${title}" position at ${company}${locationStr}. Make it professional and tailored.`,
+          `Write a tailored cover letter for the job with ID ${jobId}: "${title}"${company}. Fetch its details using job ID ${jobId}.`,
           true,
         );
+        router.push(`/jobs/${jobId}`);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
       }
     }
     fetchJobAndBuildPrompt();
     return () => { controller.abort(); };
-  }, [searchParams, setInitialPrompt]);
+  }, [searchParams, setInitialPrompt, router]);
 
   // Destructure stable refs
   const { handleToolResult } = canvas;
@@ -227,34 +223,12 @@ export default function DashboardPage() {
     }
   }, [handleToolResult]);
 
-  // Open job detail panel
+  // Open job detail panel (normal card click — not the Cover Letter action,
+  // which routes to the job page; see JobCard).
   const handleViewDetails = useCallback((jobId: number) => {
     setDetailJobId(jobId);
     setDetailOpen(true);
   }, []);
-
-  // Cover Letter from a job card: open the job in the canvas, then drop a
-  // tailored prompt into chat and auto-send it so the AI starts responding.
-  const buildCoverLetterPrompt = useCallback((jobId: number): string => {
-    const job = canvas.jobs.find((j) => j.id === jobId);
-    if (!job) {
-      return "Write me a professional, tailored cover letter for the job I just opened.";
-    }
-    const company = job.companyName ?? "the company";
-    const parts: string[] = [];
-    if (job.locationCity) parts.push(job.locationCity);
-    if (job.isRemote) parts.push("remote");
-    const locationStr = parts.length > 0 ? ` (${parts.join(", ")})` : "";
-    return `Write me a cover letter for the "${job.title}" position at ${company}${locationStr}. Make it professional and tailored.`;
-  }, [canvas.jobs]);
-
-  const handleGenerateCoverLetter = useCallback(
-    (jobId: number) => {
-      handleViewDetails(jobId);
-      setInitialPrompt(buildCoverLetterPrompt(jobId), true);
-    },
-    [handleViewDetails, setInitialPrompt, buildCoverLetterPrompt],
-  );
 
   return (
     <>
@@ -351,7 +325,6 @@ export default function DashboardPage() {
               onFavorite={handleFavorite}
               onViewDetails={handleViewDetails}
               onHideJob={hideJob}
-              onGenerateCoverLetter={handleGenerateCoverLetter}
             />
           )}
         </div>

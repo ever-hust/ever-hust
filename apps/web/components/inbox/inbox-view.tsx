@@ -11,6 +11,7 @@ import { Badge } from "@ever-hust/ui/badge";
 import { toast } from "sonner";
 import { useChatContext } from "@/components/chat/chat-context";
 import { CATEGORY_LABELS, type EmailCategory } from "@/lib/email-classify";
+import { TipTapComposer } from "./tiptap-composer";
 
 /** Display order / significance for picking a thread's headline category. */
 const CATEGORY_RANK: EmailCategory[] = ["offer", "interview", "scheduling", "rejection", "recruiter", "application", "other"];
@@ -90,6 +91,7 @@ export function InboxView({ account, onDisconnected }: { account: AccountView; o
   const [to, setTo] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  const [bodyHtml, setBodyHtml] = useState("");
 
   const { data, isLoading } = useQuery<{ threads: Thread[] }>({
     queryKey: ["inbox-messages"],
@@ -143,7 +145,7 @@ export function InboxView({ account, onDisconnected }: { account: AccountView; o
   });
 
   const send = useMutation({
-    mutationFn: async (payload: { to: string; subject: string; body: string; inReplyTo?: string }) => {
+    mutationFn: async (payload: { to: string; subject: string; body: string; html?: string; inReplyTo?: string }) => {
       const res = await fetch("/api/inbox/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -154,7 +156,7 @@ export function InboxView({ account, onDisconnected }: { account: AccountView; o
     },
     onSuccess: () => {
       toast.success("Email sent");
-      setComposeOpen(false); setTo(""); setSubject(""); setBody("");
+      setComposeOpen(false); setTo(""); setSubject(""); setBody(""); setBodyHtml("");
       qc.invalidateQueries({ queryKey: ["inbox-messages"] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Send failed"),
@@ -164,7 +166,7 @@ export function InboxView({ account, onDisconnected }: { account: AccountView; o
     const lastInbound = [...t.messages].reverse().find((m) => m.direction === "inbound") ?? t.messages[t.messages.length - 1];
     setTo(emailOf(lastInbound?.fromAddr ?? null));
     setSubject(t.subject?.toLowerCase().startsWith("re:") ? t.subject : `Re: ${t.subject ?? ""}`);
-    setBody("");
+    setBody(""); setBodyHtml("");
     setComposeOpen(true);
   }
 
@@ -202,7 +204,7 @@ export function InboxView({ account, onDisconnected }: { account: AccountView; o
             {sync.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
             Sync
           </Button>
-          <Button size="sm" onClick={() => { setTo(""); setSubject(""); setBody(""); setComposeOpen(true); setSelectedKey(null); }}>
+          <Button size="sm" onClick={() => { setTo(""); setSubject(""); setBody(""); setBodyHtml(""); setComposeOpen(true); setSelectedKey(null); }}>
             <Plus className="mr-1.5 h-3.5 w-3.5" /> New
           </Button>
           <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => disconnect.mutate()} disabled={disconnect.isPending} aria-label="Disconnect mailbox">
@@ -255,14 +257,13 @@ export function InboxView({ account, onDisconnected }: { account: AccountView; o
               </div>
               <Input placeholder="To" value={to} onChange={(e) => setTo(e.target.value)} />
               <Input placeholder="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
-              <textarea
+              <TipTapComposer
+                value={bodyHtml}
+                onChange={(html, text) => { setBodyHtml(html); setBody(text); }}
                 placeholder="Write your message…"
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                className="min-h-[200px] flex-1 rounded-md border bg-background p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
               <div>
-                <Button onClick={() => send.mutate({ to, subject, body, inReplyTo: lastMessageId })} disabled={send.isPending || !to.includes("@")}>
+                <Button onClick={() => send.mutate({ to, subject, body, html: bodyHtml, inReplyTo: lastMessageId })} disabled={send.isPending || !to.includes("@")}>
                   {send.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Send className="mr-1.5 h-4 w-4" />}
                   Send
                 </Button>

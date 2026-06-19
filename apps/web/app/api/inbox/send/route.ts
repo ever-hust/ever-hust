@@ -26,6 +26,9 @@ export async function POST(req: Request) {
   const to = typeof b.to === "string" ? b.to.trim() : "";
   const subject = typeof b.subject === "string" ? b.subject.trim() : "";
   const text = typeof b.body === "string" ? b.body : "";
+  // Rich HTML from the composer; ignore empty TipTap output.
+  const rawHtml = typeof b.html === "string" ? b.html : "";
+  const html = rawHtml && rawHtml.replace(/<[^>]*>/g, "").trim() ? rawHtml : undefined;
   const inReplyTo = typeof b.inReplyTo === "string" ? b.inReplyTo : undefined;
   if (!to || !to.includes("@")) return apiBadRequest("A valid recipient is required");
   if (!subject && !text) return apiBadRequest("Add a subject or a message");
@@ -40,6 +43,7 @@ export async function POST(req: Request) {
       to,
       subject: subject || "(no subject)",
       text,
+      html,
       inReplyTo,
       references: inReplyTo,
     });
@@ -55,6 +59,7 @@ export async function POST(req: Request) {
       subject: subject || "(no subject)",
       snippet: text.replace(/\s+/g, " ").trim().slice(0, 200),
       bodyText: text,
+      bodyHtml: html ?? null,
       sentAt: new Date(),
       seen: true,
     });

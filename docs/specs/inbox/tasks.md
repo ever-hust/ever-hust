@@ -27,8 +27,12 @@ full PRD. Each phase is independently shippable behind a feature flag
 - [x] Inbox UI: connect form + setup instructions; thread list + reader + reply composer.
 - [ ] Background auto-sync (Trigger.dev) — currently on-demand "Sync" + on page load.
 - [ ] AI: classify/summarize/draft-reply + link a thread to an application.
-- [ ] OAuth providers (Gmail/Graph) as an alternative to app passwords; TipTap rich composer.
-- [ ] (superseded) `packages/plugins/mail-gmail` OAuth — kept for a future OAuth path.
+- [x] Gmail one-click **OAuth** (XOAUTH2) as an alternative to app passwords — gated
+      behind `GMAIL_INBOX_CLIENT_ID/SECRET` + `NEXT_PUBLIC_GMAIL_INBOX_ENABLED`; works
+      in Google "testing" mode (≤100 testers) without CASA. Refresh token encrypted.
+- [x] TipTap rich composer.
+- [ ] Microsoft Graph (Outlook) OAuth — same pattern, later.
+- [ ] CASA verification to publish the Gmail OAuth app past 100 users.
 - [ ] OAuth connect/callback routes + Settings "Connected mailboxes" card
       (scopes shown, disconnect + purge).
 - [ ] Sync worker (Trigger.dev) → upsert threads/messages; Supabase realtime push.

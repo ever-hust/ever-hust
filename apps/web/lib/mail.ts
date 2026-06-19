@@ -12,8 +12,10 @@ import { simpleParser } from "mailparser";
 export interface MailConfig {
   email: string;
   username: string;
-  /** Decrypted password / app password. */
-  password: string;
+  /** Decrypted app password (password auth). Omit when using OAuth. */
+  password?: string;
+  /** Fresh OAuth access token (XOAUTH2). When set, used instead of password. */
+  accessToken?: string;
   imapHost: string;
   imapPort: number;
   imapSecure: boolean;
@@ -65,21 +67,28 @@ export function threadKeyFor(subject: string | null | undefined): string {
 }
 
 function imapClient(cfg: MailConfig): ImapFlow {
+  const user = cfg.username || cfg.email;
   return new ImapFlow({
     host: cfg.imapHost,
     port: cfg.imapPort,
     secure: cfg.imapSecure,
-    auth: { user: cfg.username || cfg.email, pass: cfg.password },
+    // XOAUTH2 when an access token is present, else password.
+    auth: cfg.accessToken
+      ? { user, accessToken: cfg.accessToken }
+      : { user, pass: cfg.password ?? "" },
     logger: false,
   });
 }
 
 function smtpTransport(cfg: MailConfig) {
+  const user = cfg.username || cfg.email;
   return nodemailer.createTransport({
     host: cfg.smtpHost,
     port: cfg.smtpPort,
     secure: cfg.smtpSecure,
-    auth: { user: cfg.username || cfg.email, pass: cfg.password },
+    auth: cfg.accessToken
+      ? { type: "OAuth2", user, accessToken: cfg.accessToken }
+      : { user, pass: cfg.password ?? "" },
   });
 }
 

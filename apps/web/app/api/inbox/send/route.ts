@@ -3,7 +3,7 @@ import type { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { applyRateLimit } from "../../../../lib/rate-limit";
 import { apiSuccess, apiBadRequest, apiError, safeJsonParse } from "../../../../lib/api-response";
-import { loadAccount, toMailConfig } from "../../../../lib/inbox";
+import { loadAccount, resolveMailConfig } from "../../../../lib/inbox";
 import { sendMail, threadKeyFor } from "../../../../lib/mail";
 
 export const maxDuration = 30;
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
 
   const account = await loadAccount(user.id);
   if (!account) return apiError("No email account connected", 400);
-  const cfg = toMailConfig(account);
+  const cfg = await resolveMailConfig(account);
   if (!cfg) return apiError("Email encryption is not configured on the server.", 500);
 
   try {

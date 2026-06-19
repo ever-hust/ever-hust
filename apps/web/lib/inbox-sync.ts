@@ -3,6 +3,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { toMailConfig, type EmailAccountRow } from "./inbox";
 import { fetchRecent } from "./mail";
 import { classifyEmail, senderDomain, urlDomain } from "./email-classify";
+import { advanceApplicationStage } from "./application-pipeline";
 
 interface JobMatch {
   id: number;
@@ -60,6 +61,8 @@ export async function syncAccount(userId: string, account: EmailAccountRow): Pro
 
     let stored = 0;
     for (const m of messages) {
+      const category = classifyEmail(m.subject, m.bodyText ?? m.snippet);
+      const jobId = matchJob(candidates, m.fromAddr, m.subject, m.bodyText ?? m.snippet);
       const res = await db
         .insert(emailMessages)
         .values({
@@ -69,8 +72,8 @@ export async function syncAccount(userId: string, account: EmailAccountRow): Pro
           messageId: m.messageId,
           threadKey: m.threadKey,
           direction: "inbound",
-          category: classifyEmail(m.subject, m.bodyText ?? m.snippet),
-          jobId: matchJob(candidates, m.fromAddr, m.subject, m.bodyText ?? m.snippet),
+          category,
+          jobId,
           fromAddr: m.fromAddr,
           toAddrs: m.toAddrs,
           subject: m.subject,
@@ -81,7 +84,13 @@ export async function syncAccount(userId: string, account: EmailAccountRow): Pro
         })
         .onConflictDoNothing()
         .returning({ id: emailMessages.id });
-      if (res.length > 0) stored++;
+      if (res.length > 0) {
+        stored++;
+        // Advance the linked application's pipeline stage on a meaningful,
+        // newly-stored reply (interview/offer/rejection). Advance-only; only
+        // touches an existing application row.
+        if (jobId) await advanceApplicationStage(userId, jobId, category);
+      }
     }
 
     await db

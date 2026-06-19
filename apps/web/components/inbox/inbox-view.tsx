@@ -1,13 +1,28 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { RefreshCw, Loader2, Send, Plus, Inbox as InboxIcon, Trash2, ArrowLeft } from "lucide-react";
+import { RefreshCw, Loader2, Send, Plus, Inbox as InboxIcon, Trash2, ArrowLeft, Sparkles, Briefcase } from "lucide-react";
 import { Card } from "@ever-hust/ui/card";
 import { Button } from "@ever-hust/ui/button";
 import { Input } from "@ever-hust/ui/input";
 import { Badge } from "@ever-hust/ui/badge";
 import { toast } from "sonner";
+import { useChatContext } from "@/components/chat/chat-context";
+import { CATEGORY_LABELS, type EmailCategory } from "@/lib/email-classify";
+
+/** Display order / significance for picking a thread's headline category. */
+const CATEGORY_RANK: EmailCategory[] = ["offer", "interview", "scheduling", "rejection", "recruiter", "application", "other"];
+const CATEGORY_VARIANT: Partial<Record<EmailCategory, string>> = {
+  offer: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+  interview: "bg-blue-500/15 text-blue-700 dark:text-blue-400",
+  scheduling: "bg-blue-500/15 text-blue-700 dark:text-blue-400",
+  rejection: "bg-destructive/15 text-destructive",
+  recruiter: "bg-violet-500/15 text-violet-700 dark:text-violet-400",
+  application: "bg-muted text-muted-foreground",
+  other: "bg-muted text-muted-foreground",
+};
 
 interface Message {
   id: number;
@@ -18,6 +33,8 @@ interface Message {
   snippet: string | null;
   bodyText: string | null;
   messageId: string | null;
+  category: string | null;
+  jobId: number | null;
   sentAt: string | null;
   createdAt: string;
 }
@@ -44,8 +61,30 @@ function fmt(ts: string | null): string {
   try { return new Date(ts).toLocaleString(); } catch { return ""; }
 }
 
+/** Headline category for a thread: the most significant inbound category. */
+function threadCategory(t: Thread): EmailCategory | null {
+  const cats = t.messages
+    .filter((m) => m.direction === "inbound" && m.category)
+    .map((m) => m.category as EmailCategory);
+  for (const c of CATEGORY_RANK) if (cats.includes(c)) return c;
+  return null;
+}
+function threadJobId(t: Thread): number | null {
+  return t.messages.find((m) => m.jobId)?.jobId ?? null;
+}
+
+function CategoryBadge({ category }: { category: EmailCategory | null }) {
+  if (!category || category === "other") return null;
+  return (
+    <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${CATEGORY_VARIANT[category] ?? ""}`}>
+      {CATEGORY_LABELS[category]}
+    </span>
+  );
+}
+
 export function InboxView({ account, onDisconnected }: { account: AccountView; onDisconnected: () => void }) {
   const qc = useQueryClient();
+  const { setInitialPrompt } = useChatContext();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
   const [to, setTo] = useState("");
@@ -113,6 +152,23 @@ export function InboxView({ account, onDisconnected }: { account: AccountView; o
     setComposeOpen(true);
   }
 
+  // Ask the AI (global chat) to draft a reply for this thread. Always includes
+  // the linked job ID when known so the AI can pull the job's details.
+  function draftWithAI(t: Thread) {
+    const lastInbound = [...t.messages].reverse().find((m) => m.direction === "inbound") ?? t.messages[t.messages.length - 1];
+    const jobId = threadJobId(t);
+    const jobRef = jobId ? ` This relates to job ID ${jobId} — use its details.` : "";
+    setInitialPrompt(
+      `Draft a professional reply to this email so I can send it from my inbox.\n\n` +
+        `Subject: ${t.subject ?? "(no subject)"}\n` +
+        `From: ${lastInbound?.fromAddr ?? "unknown"}\n` +
+        `Their message: """${(lastInbound?.bodyText ?? lastInbound?.snippet ?? "").slice(0, 1500)}"""${jobRef}\n\n` +
+        `Keep it concise and friendly; output only the reply body.`,
+      true,
+    );
+    toast.success("Drafting a reply in chat…");
+  }
+
   const lastMessageId = selected?.messages[selected.messages.length - 1]?.messageId ?? undefined;
 
   return (
@@ -157,9 +213,15 @@ export function InboxView({ account, onDisconnected }: { account: AccountView; o
                     onClick={() => { setSelectedKey(t.threadKey); setComposeOpen(false); }}
                     className={`flex w-full flex-col items-start gap-0.5 border-b px-4 py-3 text-left hover:bg-accent/50 ${selectedKey === t.threadKey ? "bg-accent/50" : ""}`}
                   >
-                    <span className="line-clamp-1 text-sm font-medium">{t.subject || "(no subject)"}</span>
+                    <span className="flex w-full items-center gap-1.5">
+                      <span className="line-clamp-1 flex-1 text-sm font-medium">{t.subject || "(no subject)"}</span>
+                      <CategoryBadge category={threadCategory(t)} />
+                    </span>
                     <span className="line-clamp-1 text-xs text-muted-foreground">{t.messages[t.messages.length - 1]?.snippet}</span>
-                    <span className="text-[11px] text-muted-foreground/70">{fmt(t.lastAt)} · {t.count} msg</span>
+                    <span className="flex items-center gap-1 text-[11px] text-muted-foreground/70">
+                      {fmt(t.lastAt)} · {t.count} msg
+                      {threadJobId(t) && <Briefcase className="h-3 w-3" aria-hidden="true" />}
+                    </span>
                   </button>
                 </li>
               ))}
@@ -192,9 +254,24 @@ export function InboxView({ account, onDisconnected }: { account: AccountView; o
             </div>
           ) : selected ? (
             <div className="flex flex-1 flex-col overflow-y-auto p-4">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <h2 className="text-base font-semibold">{selected.subject || "(no subject)"}</h2>
-                <Button size="sm" variant="outline" onClick={() => startReply(selected)}>Reply</Button>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <h2 className="truncate text-base font-semibold">{selected.subject || "(no subject)"}</h2>
+                  <CategoryBadge category={threadCategory(selected)} />
+                </div>
+                <div className="flex items-center gap-2">
+                  {threadJobId(selected) && (
+                    <Button size="sm" variant="ghost" asChild>
+                      <Link href={`/jobs/${threadJobId(selected)}`}>
+                        <Briefcase className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> View job
+                      </Link>
+                    </Button>
+                  )}
+                  <Button size="sm" variant="outline" onClick={() => draftWithAI(selected)}>
+                    <Sparkles className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> Draft with AI
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => startReply(selected)}>Reply</Button>
+                </div>
               </div>
               <div className="space-y-3">
                 {selected.messages.map((m) => (

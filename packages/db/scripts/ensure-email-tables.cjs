@@ -59,9 +59,13 @@ const sql = postgres(url, { max: 1 });
       "created_at" timestamp NOT NULL DEFAULT now()
     )
   `;
+  // Additive columns (inbox AI assist) — safe if the table predates them.
+  await sql`ALTER TABLE "email_messages" ADD COLUMN IF NOT EXISTS "category" text`;
+  await sql`ALTER TABLE "email_messages" ADD COLUMN IF NOT EXISTS "job_id" integer REFERENCES "jobs"("id") ON DELETE SET NULL`;
   await sql`CREATE INDEX IF NOT EXISTS "email_messages_user_idx" ON "email_messages" ("user_id")`;
   await sql`CREATE INDEX IF NOT EXISTS "email_messages_account_idx" ON "email_messages" ("account_id")`;
   await sql`CREATE INDEX IF NOT EXISTS "email_messages_thread_idx" ON "email_messages" ("user_id","thread_key")`;
+  await sql`CREATE INDEX IF NOT EXISTS "email_messages_job_idx" ON "email_messages" ("job_id")`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS "email_messages_msgid_unique" ON "email_messages" ("account_id","message_id")`;
 
   console.log("ok: email_accounts + email_messages ensured");

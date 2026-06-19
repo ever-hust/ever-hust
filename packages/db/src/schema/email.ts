@@ -8,6 +8,7 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 import { users } from "./users";
+import { jobs } from "./jobs";
 
 /**
  * A connected email account (the user's EXISTING mailbox, e.g. Gmail) accessed
@@ -58,6 +59,10 @@ export const emailMessages = pgTable(
     /** Normalized subject for grouping a conversation. */
     threadKey: text("thread_key"),
     direction: text("direction", { enum: ["inbound", "outbound"] }).notNull(),
+    /** Heuristic category for inbound mail (interview/rejection/offer/...). */
+    category: text("category"),
+    /** Linked job (the application this thread relates to), when matched. */
+    jobId: integer("job_id").references(() => jobs.id, { onDelete: "set null" }),
     fromAddr: text("from_addr"),
     toAddrs: text("to_addrs"),
     subject: text("subject"),
@@ -72,6 +77,7 @@ export const emailMessages = pgTable(
     index("email_messages_user_idx").on(t.userId),
     index("email_messages_account_idx").on(t.accountId),
     index("email_messages_thread_idx").on(t.userId, t.threadKey),
+    index("email_messages_job_idx").on(t.jobId),
     unique("email_messages_msgid_unique").on(t.accountId, t.messageId),
   ],
 );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw, Loader2, Send, Plus, Inbox as InboxIcon, Trash2, ArrowLeft, Sparkles, Briefcase } from "lucide-react";
@@ -116,6 +116,22 @@ export function InboxView({ account, onDisconnected }: { account: AccountView; o
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Sync failed"),
   });
+
+  // Auto-sync on open: quietly pull new mail once if it hasn't synced in 5 min,
+  // so replies show up without the user clicking Sync. (Background hourly sync
+  // for everyone runs via Trigger.dev → /api/inbox/cron-sync.)
+  const autoSyncedRef = useRef(false);
+  useEffect(() => {
+    if (autoSyncedRef.current) return;
+    autoSyncedRef.current = true;
+    const last = account.lastSyncedAt ? new Date(account.lastSyncedAt).getTime() : 0;
+    if (Date.now() - last <= 5 * 60 * 1000) return;
+    fetch("/api/inbox/sync", { method: "POST" })
+      .then((res) => {
+        if (res.ok) qc.invalidateQueries({ queryKey: ["inbox-messages"] });
+      })
+      .catch(() => {});
+  }, [account.lastSyncedAt, qc]);
 
   const disconnect = useMutation({
     mutationFn: async () => {

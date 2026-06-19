@@ -6,6 +6,7 @@ export {
 } from "./send-job-alerts";
 
 export { syncJobsTask, syncJobsSchedule } from "./sync-jobs";
+export { inboxSyncTask, inboxSyncSchedule } from "./inbox-sync";
 export { mapJobToDb, geocodeLocation, SEARCH_TERMS } from "./map-job";
 
 export {

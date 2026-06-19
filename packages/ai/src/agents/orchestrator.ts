@@ -38,6 +38,8 @@ import {
   prepInterviewTool,
   batchEvaluateTool,
   applyCopilotTool,
+  getInboxThreadsTool,
+  getInboxThreadTool,
 } from "../tools";
 import { checkSearchLimit, checkCoverLetterLimit } from "../rate-limit";
 import { getOrchestratorPrompt } from "../prompts";
@@ -252,6 +254,18 @@ export async function createOrchestratorStream({
         ...recordFollowUpTool,
         execute: async (params: any, execOptions: any) => {
           return recordFollowUpTool.execute!({ ...params, userId }, execOptions);
+        },
+      },
+      getInboxThreads: {
+        ...getInboxThreadsTool,
+        execute: async (params: any, execOptions: any) => {
+          return getInboxThreadsTool.execute!({ ...params, userId }, execOptions);
+        },
+      },
+      getInboxThread: {
+        ...getInboxThreadTool,
+        execute: async (params: any, execOptions: any) => {
+          return getInboxThreadTool.execute!({ ...params, userId }, execOptions);
         },
       },
       learnPreference: {

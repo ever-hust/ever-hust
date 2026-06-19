@@ -38,6 +38,11 @@ const sql = postgres(url, { max: 1 });
     )
   `;
   await sql`CREATE INDEX IF NOT EXISTS "email_accounts_user_idx" ON "email_accounts" ("user_id")`;
+  // OAuth support (Gmail XOAUTH2) — additive. password_enc becomes optional for
+  // OAuth accounts.
+  await sql`ALTER TABLE "email_accounts" ADD COLUMN IF NOT EXISTS "auth_type" text NOT NULL DEFAULT 'password'`;
+  await sql`ALTER TABLE "email_accounts" ADD COLUMN IF NOT EXISTS "oauth_refresh_token_enc" text`;
+  await sql`ALTER TABLE "email_accounts" ALTER COLUMN "password_enc" DROP NOT NULL`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS "email_messages" (

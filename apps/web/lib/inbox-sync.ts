@@ -1,6 +1,6 @@
 import { db, emailAccounts, emailMessages, userJobs, jobs } from "@ever-hust/db";
 import { and, eq, inArray } from "drizzle-orm";
-import { toMailConfig, type EmailAccountRow } from "./inbox";
+import { resolveMailConfig, type EmailAccountRow } from "./inbox";
 import { fetchRecent } from "./mail";
 import { classifyEmail, senderDomain, urlDomain } from "./email-classify";
 import { advanceApplicationStage } from "./application-pipeline";
@@ -44,7 +44,7 @@ export interface SyncResult {
  * the background cron-sync.
  */
 export async function syncAccount(userId: string, account: EmailAccountRow): Promise<SyncResult> {
-  const cfg = toMailConfig(account);
+  const cfg = await resolveMailConfig(account);
   if (!cfg) return { fetched: 0, stored: 0, error: "encryption not configured" };
 
   try {

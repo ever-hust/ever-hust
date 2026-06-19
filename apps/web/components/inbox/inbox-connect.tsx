@@ -71,6 +71,19 @@ export function InboxConnect({ onConnected }: { onConnected: () => void }) {
             Gauzy.)
           </p>
 
+          {process.env.NEXT_PUBLIC_GMAIL_INBOX_ENABLED === "true" && (
+            <div className="mt-5">
+              <Button variant="outline" className="w-full" asChild>
+                <a href="/api/inbox/oauth/google/start">Connect with Google</a>
+              </Button>
+              <div className="my-3 flex items-center gap-3 text-xs text-muted-foreground">
+                <span className="h-px flex-1 bg-border" />
+                or connect with an app password
+                <span className="h-px flex-1 bg-border" />
+              </div>
+            </div>
+          )}
+
           <div className="mt-5 space-y-3">
             <div>
               <label className="text-sm font-medium" htmlFor="inbox-email">Email address</label>

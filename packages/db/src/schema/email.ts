@@ -25,7 +25,12 @@ export const emailAccounts = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     email: text("email").notNull(),
     username: text("username").notNull(),
-    passwordEnc: text("password_enc").notNull(),
+    /** How we authenticate: an app password, or Google OAuth (XOAUTH2). */
+    authType: text("auth_type", { enum: ["password", "oauth"] }).notNull().default("password"),
+    /** Encrypted app password (password auth). Null for OAuth accounts. */
+    passwordEnc: text("password_enc"),
+    /** Encrypted OAuth refresh token (oauth auth). Null for password accounts. */
+    oauthRefreshTokenEnc: text("oauth_refresh_token_enc"),
     imapHost: text("imap_host").notNull(),
     imapPort: integer("imap_port").notNull().default(993),
     imapSecure: boolean("imap_secure").notNull().default(true),

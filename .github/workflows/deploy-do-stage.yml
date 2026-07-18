@@ -18,7 +18,7 @@ concurrency:
 jobs:
   deploy-web:
     # Only deploy for a successful stage build (or a manual dispatch).
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'stage') }}
+    if: ${{ vars.DO_ENABLED == 'true' && (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'stage')) }}
     runs-on: ubuntu-latest
     environment: stage
     steps:

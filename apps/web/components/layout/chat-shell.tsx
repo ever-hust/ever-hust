@@ -9,6 +9,7 @@ import {
 import { cn } from "@ever-hust/ui/lib/utils";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { useChatContext } from "@/components/chat/chat-context";
+import { AnonymousBanner } from "@/components/shared/anonymous-banner";
 
 // ---------------------------------------------------------------------------
 // Component
@@ -19,8 +20,14 @@ interface ChatShellProps {
 }
 
 export function ChatShell({ children }: ChatShellProps) {
-  const { chatOpen, toggleChat, onToolResult, onCoverLetter, initialPrompt } =
-    useChatContext();
+  const {
+    chatOpen,
+    toggleChat,
+    onToolResult,
+    onCoverLetter,
+    initialPrompt,
+    initialPromptAutoSend,
+  } = useChatContext();
 
   // Track if component has mounted (for initial animation prevention)
   const mounted = useRef(false);
@@ -61,6 +68,7 @@ export function ChatShell({ children }: ChatShellProps) {
           onToolResult={onToolResult}
           onCoverLetter={onCoverLetter}
           initialPrompt={initialPrompt}
+          initialPromptAutoSend={initialPromptAutoSend}
         />
       </div>
 
@@ -89,6 +97,7 @@ export function ChatShell({ children }: ChatShellProps) {
 
       {/* ── Canvas (page content) ─────────────────────────────── */}
       <div className="flex flex-1 flex-col overflow-hidden">
+        <AnonymousBanner />
         {children}
       </div>
 
@@ -141,6 +150,7 @@ export function ChatShell({ children }: ChatShellProps) {
               onToolResult={onToolResult}
               onCoverLetter={onCoverLetter}
               initialPrompt={initialPrompt}
+              initialPromptAutoSend={initialPromptAutoSend}
             />
           </div>
         </>

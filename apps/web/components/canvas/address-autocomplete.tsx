@@ -23,6 +23,7 @@ export function AddressAutocomplete({
   className,
 }: AddressAutocompleteProps) {
   const { isLoaded } = useGoogleMaps();
+  const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [suggestions, setSuggestions] = useState<google.maps.places.AutocompletePrediction[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -109,10 +110,13 @@ export function AddressAutocomplete({
     [onChange]
   );
 
-  // Close dropdown on outside click
+  // Close dropdown on outside click. Check against the whole component root
+  // (which contains BOTH the input and the dropdown) — checking against the
+  // input's parent alone closed the dropdown on mousedown before a suggestion's
+  // click could register, so selections never applied.
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (inputRef.current && !inputRef.current.parentElement?.contains(e.target as Node)) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setShowDropdown(false);
       }
     };
@@ -121,7 +125,7 @@ export function AddressAutocomplete({
   }, []);
 
   return (
-    <div className="relative">
+    <div ref={containerRef} className="relative">
       <div className="relative">
         <MapPin className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input

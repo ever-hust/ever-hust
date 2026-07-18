@@ -3,12 +3,12 @@ name: Claude Code Review
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
-    # Optional: Only run on specific file changes
-    # paths:
-    #   - "src/**/*.ts"
-    #   - "src/**/*.tsx"
-    #   - "src/**/*.js"
-    #   - "src/**/*.jsx"
+    # DISABLED for now: the Claude Code GitHub App is not installed on this repo,
+    # so the action fails on every real PR. Scoped to a `temp` base branch (which
+    # no normal PR targets) so it effectively never runs. Re-enable by restoring
+    # `branches: [main, develop]` (or removing this filter) once the GitHub App is
+    # installed at https://github.com/apps/claude.
+    branches: [temp]
 
 jobs:
   claude-review:
@@ -18,7 +18,7 @@ jobs:
     #   github.event.pull_request.user.login == 'new-developer' ||
     #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
 
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNNER_LINUX_X64_4 || 'ubuntu-latest' }}
     permissions:
       contents: read
       pull-requests: read

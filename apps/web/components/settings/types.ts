@@ -1,4 +1,9 @@
 import type { UserPreferences, AlertCriteria } from "@/lib/api-schemas";
+import {
+  MODEL_CATALOG,
+  PROVIDER_LABELS,
+  type ByokProviderId,
+} from "@ever-hust/plugin";
 
 export interface UserSettings {
   name: string;
@@ -18,17 +23,31 @@ export interface Alert {
   createdAt: string;
 }
 
-export const AI_MODELS = [
-  {
-    id: "claude-haiku-4-5-20251001",
-    name: "Claude Haiku 4.5",
-    desc: "Fast, efficient. Great for basic queries.",
-    free: true,
-  },
-  {
-    id: "claude-opus-4-6",
-    name: "Claude Opus 4.6",
-    desc: "Most capable. Best for complex tasks.",
-    free: false,
-  },
-] as const;
+export interface AIModelOption {
+  /** Provider-qualified selection key (persisted in preferences.aiModel). */
+  id: string;
+  name: string;
+  desc: string;
+  free: boolean;
+  provider: string;
+  providerLabel: string;
+  /** Non-"hust" providers need the user's own API key to be usable. */
+  byokOnly: boolean;
+}
+
+/**
+ * Flat model list (kept for the org AI-config card). The user-facing model
+ * picker uses the grouped, connection-aware catalog directly (see
+ * ai-model-card.tsx). `id` is the catalog selection key.
+ */
+export const AI_MODELS: AIModelOption[] = MODEL_CATALOG.map((m) => ({
+  id: m.key,
+  name: m.name,
+  desc: m.desc,
+  free: m.tier === "free",
+  provider: m.provider,
+  providerLabel: PROVIDER_LABELS[m.provider],
+  byokOnly: m.provider !== "hust",
+}));
+
+export type { ByokProviderId };

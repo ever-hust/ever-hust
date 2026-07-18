@@ -27,7 +27,9 @@ interface ChatContextValue {
 
   /** Initial prompt to pre-fill the chat input (e.g. from deep link or compare). */
   initialPrompt: string | undefined;
-  setInitialPrompt: (prompt: string | undefined) => void;
+  /** When true, ChatPanel auto-sends the initialPrompt (frictionless trial via ?m=). */
+  initialPromptAutoSend: boolean;
+  setInitialPrompt: (prompt: string | undefined, autoSend?: boolean) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -93,7 +95,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     useState<((toolName: string, result: unknown) => void) | undefined>();
   const [onCoverLetter, setOnCoverLetter] =
     useState<((text: string) => void) | undefined>();
-  const [initialPrompt, setInitialPrompt] = useState<string | undefined>();
+  const [initialPrompt, setInitialPromptRaw] = useState<string | undefined>();
+  const [initialPromptAutoSend, setInitialPromptAutoSend] = useState(false);
+  const setInitialPrompt = useCallback(
+    (prompt: string | undefined, autoSend = false) => {
+      setInitialPromptRaw(prompt);
+      setInitialPromptAutoSend(autoSend);
+    },
+    []
+  );
 
   // Prevent flash: don't render children until hydrated
   if (!hydrated) return null;
@@ -110,6 +120,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         onCoverLetter,
         setOnCoverLetter,
         initialPrompt,
+        initialPromptAutoSend,
         setInitialPrompt,
       }}
     >

@@ -17,7 +17,10 @@ concurrency:
 
 jobs:
   deploy-web:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    # Prod deploys ONLY from main: the workflow_run `branches: [main]` filter above
+    # already restricts the trigger; this guard makes the intent explicit and
+    # survives any future change to the build trigger.
+    if: ${{ vars.DO_ENABLED == 'true' && (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')) }}
     runs-on: ubuntu-latest
     environment: prod
     steps:
@@ -57,6 +60,34 @@ jobs:
           kubectl create secret tls app.hust.so-tls \
             --cert="$crt" --key="$key" --dry-run=client -o yaml | kubectl apply -f -
           rm -f "$crt" "$key"
+
+      # Apply pending Drizzle migrations to the prod DB BEFORE rolling new pods,
+      # so schema changes (e.g. users.is_anonymous) exist when the app boots.
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: "pnpm"
+      - name: Install deps (for migrations)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Ensure anonymous-trial schema column
+        env:
+          HUST_PROD_ENV: ${{ secrets.HUST_PROD_ENV }}
+        run: |
+          # The prod DB is drizzle-kit *push*-managed (empty migration journal), so
+          # `drizzle-kit migrate` would replay 0000_* against existing tables and fail.
+          # Apply just the additive, idempotent column the new code needs.
+          db_url=$(printf '%s\n' "$HUST_PROD_ENV" | grep -E '^DATABASE_URL=' | head -1 | cut -d= -f2-)
+          db_url="${db_url%\"}"; db_url="${db_url#\"}"; db_url="${db_url%\'}"; db_url="${db_url#\'}"
+          if [ -z "$db_url" ]; then
+            echo "::error::DATABASE_URL not found in HUST_PROD_ENV" >&2
+            exit 1
+          fi
+          cd packages/db && DATABASE_URL="$db_url" node scripts/ensure-anonymous-column.cjs
+          DATABASE_URL="$db_url" node scripts/ensure-credit-tables.cjs
+          DATABASE_URL="$db_url" node scripts/ensure-email-tables.cjs
 
       - name: Apply k8s manifest
         run: kubectl apply -f .deploy/k8s/k8s-manifest.prod.yaml

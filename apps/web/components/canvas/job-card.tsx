@@ -5,7 +5,8 @@ import { Heart, ExternalLink, MapPin, Building2, Clock, FileText, Share2, Check,
 import { Badge } from "@ever-hust/ui/badge";
 import { Button } from "@ever-hust/ui/button";
 import { cn } from "@ever-hust/ui/lib/utils";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useChatContext } from "@/components/chat/chat-context";
 import { formatSalary, formatLocation, timeAgo } from "@/lib/format-date";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { safeExternalUrl } from "@/lib/safe-url";
@@ -71,6 +72,8 @@ export const JobCard = memo(function JobCard({
   onToggleCompare,
   onHide,
 }: JobCardProps) {
+  const router = useRouter();
+  const { setInitialPrompt } = useChatContext();
   const [animating, setAnimating] = useState(false);
   const animTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -156,6 +159,22 @@ export const JobCard = memo(function JobCard({
       }
     },
     [job.id, job.title, job.companyName, copy]
+  );
+
+  // Cover Letter: route to the job page (rendered in the canvas; the chat panel
+  // is global so it persists), then drop a prompt into chat and auto-send it.
+  // The prompt always carries the job ID so the AI can fetch the exact job.
+  const handleCoverLetter = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      const company = job.companyName ? ` at ${job.companyName}` : "";
+      setInitialPrompt(
+        `Write a tailored cover letter for the job with ID ${job.id}: "${job.title}"${company}. Fetch its details using job ID ${job.id}.`,
+        true,
+      );
+      router.push(`/jobs/${job.id}`);
+    },
+    [job.id, job.title, job.companyName, router, setInitialPrompt]
   );
 
   return (
@@ -373,15 +392,15 @@ export const JobCard = memo(function JobCard({
 
             {/* Action buttons */}
             <div className="flex items-center gap-2">
-              <Link
-                href={`/dashboard?job=${job.id}`}
+              <button
+                type="button"
                 className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:underline"
-                onClick={(e) => e.stopPropagation()}
+                onClick={handleCoverLetter}
                 aria-label={`Generate cover letter for ${job.title}`}
               >
                 <FileText className="h-3 w-3" aria-hidden="true" />
                 <span className="hidden sm:inline">Cover Letter</span>
-              </Link>
+              </button>
               <button
                 type="button"
                 className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:underline"

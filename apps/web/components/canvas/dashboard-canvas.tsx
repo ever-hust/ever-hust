@@ -7,6 +7,7 @@ import {
   ClipboardList,
   Heart,
   TrendingUp,
+  CircleUser,
   Loader2,
 } from "lucide-react";
 import { Card } from "@ever-hust/ui/card";
@@ -15,10 +16,13 @@ import { cn } from "@ever-hust/ui/lib/utils";
 interface StatCard {
   label: string;
   count: number | null;
+  /** Optional formatted value (e.g. "80%") that overrides the numeric display. */
+  display?: string | null;
   icon: typeof Briefcase;
   href: string;
   color: string;
   bgColor: string;
+  barColor: string;
 }
 
 export function DashboardCanvas() {
@@ -28,6 +32,7 @@ export function DashboardCanvas() {
     jobs: null as number | null,
     applications: null as number | null,
     favorites: null as number | null,
+    profile: null as number | null,
   });
 
   useEffect(() => {
@@ -37,10 +42,11 @@ export function DashboardCanvas() {
       const signal = controller.signal;
 
       try {
-        const [jobsRes, appsRes, favsRes] = await Promise.allSettled([
+        const [jobsRes, appsRes, favsRes, profileRes] = await Promise.allSettled([
           fetch("/api/jobs/search?page=1&limit=1", { signal }),
           fetch("/api/user/applications?limit=1", { signal }),
           fetch("/api/user/favorites/list", { signal }),
+          fetch("/api/user/profile", { signal }),
         ]);
 
         if (signal.aborted) return;
@@ -48,6 +54,7 @@ export function DashboardCanvas() {
         let jobsCount = 0;
         let appsCount = 0;
         let favsCount = 0;
+        let profileCompleteness = 0;
 
         if (jobsRes.status === "fulfilled" && jobsRes.value.ok) {
           const data = await jobsRes.value.json();
@@ -61,12 +68,25 @@ export function DashboardCanvas() {
           const data = await favsRes.value.json();
           favsCount = data.favorites?.length ?? 0;
         }
+        if (profileRes.status === "fulfilled" && profileRes.value.ok) {
+          const data = await profileRes.value.json();
+          const user = data.user;
+          let filled = 0;
+          const total = 5;
+          if (user?.name) filled++;
+          if (user?.headline) filled++;
+          if (user?.location) filled++;
+          if (user?.skills?.length > 0) filled++;
+          if (user?.photoUrl) filled++;
+          profileCompleteness = Math.round((filled / total) * 100);
+        }
 
         if (!signal.aborted) {
           setStats({
             jobs: jobsCount,
             applications: appsCount,
             favorites: favsCount,
+            profile: profileCompleteness,
           });
         }
       } catch {
@@ -88,6 +108,16 @@ export function DashboardCanvas() {
       href: "/jobs",
       color: "text-blue-600 dark:text-blue-400",
       bgColor: "bg-blue-500/10",
+      barColor: "bg-blue-500",
+    },
+    {
+      label: "Saved Jobs",
+      count: stats.favorites,
+      icon: Heart,
+      href: "/favorites",
+      color: "text-rose-600 dark:text-rose-400",
+      bgColor: "bg-rose-500/10",
+      barColor: "bg-rose-500",
     },
     {
       label: "Applications",
@@ -96,14 +126,17 @@ export function DashboardCanvas() {
       href: "/applications",
       color: "text-emerald-600 dark:text-emerald-400",
       bgColor: "bg-emerald-500/10",
+      barColor: "bg-emerald-500",
     },
     {
-      label: "Favorites",
-      count: stats.favorites,
-      icon: Heart,
-      href: "/favorites",
-      color: "text-rose-600 dark:text-rose-400",
-      bgColor: "bg-rose-500/10",
+      label: "Profile",
+      count: stats.profile,
+      display: stats.profile === null ? null : `${stats.profile}%`,
+      icon: CircleUser,
+      href: "/profile",
+      color: "text-violet-600 dark:text-violet-400",
+      bgColor: "bg-violet-500/10",
+      barColor: "bg-violet-500",
     },
   ];
 
@@ -121,7 +154,7 @@ export function DashboardCanvas() {
       </div>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {cards.map((card) => (
           <Card
             key={card.label}
@@ -139,7 +172,7 @@ export function DashboardCanvas() {
                 router.push(card.href);
               }
             }}
-            aria-label={`${card.label}: ${card.count ?? 0}. Click to view.`}
+            aria-label={`${card.label}: ${card.display ?? card.count ?? 0}. Click to view.`}
           >
             {/* Background decoration */}
             <div
@@ -162,7 +195,7 @@ export function DashboardCanvas() {
                     />
                   ) : (
                     <span className="text-3xl font-bold tabular-nums">
-                      {card.count?.toLocaleString() ?? 0}
+                      {card.display ?? card.count?.toLocaleString() ?? 0}
                     </span>
                   )}
                 </div>
@@ -184,11 +217,7 @@ export function DashboardCanvas() {
             <div
               className={cn(
                 "absolute bottom-0 left-0 h-0.5 w-0 transition-all duration-300 group-hover:w-full",
-                card.color.includes("blue")
-                  ? "bg-blue-500"
-                  : card.color.includes("emerald")
-                    ? "bg-emerald-500"
-                    : "bg-rose-500"
+                card.barColor
               )}
             />
           </Card>
@@ -198,7 +227,10 @@ export function DashboardCanvas() {
       {/* Tip */}
       <div className="mt-8 rounded-lg border border-dashed p-4 text-center">
         <p className="text-sm text-muted-foreground">
-          💡 Use the chat to search for jobs, generate cover letters, or get salary insights.
+          💡 Two ways to work: use the <span className="font-medium text-foreground">chat</span> to
+          search jobs, generate cover letters, or get salary insights — or use the{" "}
+          <span className="font-medium text-foreground">sidebar</span> to browse Jobs, Saved Jobs,
+          Applications, and your Profile directly. Use whichever you prefer.
         </p>
       </div>
     </div>

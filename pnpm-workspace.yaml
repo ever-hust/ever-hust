@@ -1,3 +1,10 @@
 packages:
   - "apps/*"
+  # The docs site (apps/docs) is intentionally NOT a workspace member: it has its
+  # own lockfile + .npmrc and builds standalone (pnpm --ignore-workspace). Keeping
+  # it out avoids pulling Docusaurus into the app's dependency graph and keeps the
+  # root frozen-lockfile install (and the web image build) green.
+  - "!apps/docs"
   - "packages/*"
+  # Pluggable feature packages (AI providers today; more surfaces later).
+  - "packages/plugins/*"

@@ -29,3 +29,4 @@ export { captureWritingStyleTool } from "./capture-writing-style";
 export { prepInterviewTool } from "./prep-interview";
 export { batchEvaluateTool } from "./batch-evaluate";
 export { applyCopilotTool } from "./apply-copilot";
+export { getInboxThreadsTool, getInboxThreadTool } from "./inbox-tools";

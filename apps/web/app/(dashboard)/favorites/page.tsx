@@ -136,7 +136,7 @@ export default function FavoritesPage() {
     <div className="flex flex-1 flex-col overflow-hidden">
       <PageHeader
         icon={Heart}
-        title="Favorites"
+        title="Saved Jobs"
         description="Jobs you've saved for later. Click the heart icon on any job to add it here."
         count={!loading ? favorites.length : undefined}
         iconClassName="text-red-500"
@@ -158,7 +158,7 @@ export default function FavoritesPage() {
         ) : favorites.length === 0 ? (
           <EmptyState
             icon={Heart}
-            title="No favorites yet"
+            title="No saved jobs yet"
             description="Browse jobs and click the heart icon to save them here for easy access later."
           >
             <Button size="sm" className="gap-1.5" asChild>

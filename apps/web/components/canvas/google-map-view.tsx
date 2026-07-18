@@ -4,16 +4,33 @@ import { useRef, useEffect, useCallback, useState, memo } from "react";
 import { MapPin } from "lucide-react";
 import { MarkerClusterer } from "@googlemaps/markerclusterer";
 import { useGoogleMaps } from "@/hooks/use-google-maps";
-import type { JobCardData } from "./job-card";
+import type { JobFilters } from "./filter-bar";
 import { formatSalary, formatLocation } from "@/lib/format-date";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
+/** Minimal geo point returned by /api/jobs/map for the full filtered set. */
+interface MapPoint {
+  id: number;
+  title: string;
+  companyName: string | null;
+  locationCity: string | null;
+  locationState: string | null;
+  locationCountry: string | null;
+  isRemote: boolean | null;
+  salaryMin: string | null;
+  salaryMax: string | null;
+  salaryCurrency: string | null;
+  salaryInterval: string | null;
+  latitude: number | string | null;
+  longitude: number | string | null;
+}
+
 interface GoogleMapViewProps {
-  jobs: JobCardData[];
-  favoritedJobIds: Set<number>;
+  /** Current search/filters — the map shows ALL matching jobs, not just a page. */
+  filters: JobFilters;
   onViewDetails: (jobId: number) => void;
 }
 
@@ -21,21 +38,72 @@ interface GoogleMapViewProps {
 const DEFAULT_CENTER = { lat: 39.8, lng: -98.5 };
 const DEFAULT_ZOOM = 4;
 
+// A real (Cloud-console) vector Map ID is required for AdvancedMarkerElement.
+// When it's absent we fall back to classic markers, which render on a plain
+// raster map without any Map ID — so pins always appear.
+const MAP_ID = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID;
+
+function buildMapQuery(filters: JobFilters): string {
+  const p = new URLSearchParams();
+  if (filters.keywords) p.set("keywords", filters.keywords);
+  if (filters.location) p.set("location", filters.location);
+  if (filters.isRemote) p.set("isRemote", "true");
+  if (filters.jobType) p.set("jobType", filters.jobType);
+  if (filters.salaryMin != null && filters.salaryMin > 0) p.set("salaryMin", String(filters.salaryMin));
+  if (filters.salaryMax != null && filters.salaryMax > 0) p.set("salaryMax", String(filters.salaryMax));
+  return p.toString();
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 export const GoogleMapView = memo(function GoogleMapView({
-  jobs,
+  filters,
   onViewDetails,
 }: GoogleMapViewProps) {
   const { isLoaded, loadError } = useGoogleMaps();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const clustererRef = useRef<MarkerClusterer | null>(null);
-  const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+  const markersRef = useRef<google.maps.Marker[] | google.maps.marker.AdvancedMarkerElement[]>([]);
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   const [mapReady, setMapReady] = useState(false);
+
+  const [points, setPoints] = useState<MapPoint[]>([]);
+  const [capped, setCapped] = useState(false);
+  const [fetching, setFetching] = useState(false);
+
+  // -----------------------------------------------------------------------
+  // Fetch the full filtered geo set whenever the filters change
+  // -----------------------------------------------------------------------
+  const query = buildMapQuery(filters);
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+    setFetching(true);
+    fetch(`/api/jobs/map?${query}`, { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
+      .then((json) => {
+        if (!active) return;
+        const data = json?.data ?? json;
+        setPoints(Array.isArray(data?.points) ? data.points : []);
+        setCapped(Boolean(data?.capped));
+      })
+      .catch((err) => {
+        if (active && err?.name !== "AbortError") {
+          console.error("[GoogleMapView] map fetch failed", err);
+          setPoints([]);
+        }
+      })
+      .finally(() => {
+        if (active) setFetching(false);
+      });
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [query]);
 
   // -----------------------------------------------------------------------
   // Initialize the map once the API is loaded
@@ -46,7 +114,7 @@ export const GoogleMapView = memo(function GoogleMapView({
     const map = new google.maps.Map(mapRef.current, {
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
-      mapId: "hust-jobs-map", // Required for AdvancedMarkerElement
+      ...(MAP_ID ? { mapId: MAP_ID } : {}),
       disableDefaultUI: false,
       zoomControl: true,
       streetViewControl: false,
@@ -68,38 +136,35 @@ export const GoogleMapView = memo(function GoogleMapView({
   // -----------------------------------------------------------------------
   // Build info window content
   // -----------------------------------------------------------------------
-  const buildInfoContent = useCallback(
-    (job: JobCardData): string => {
-      const salary = formatSalary(
-        job.salaryMin,
-        job.salaryMax,
-        job.salaryCurrency,
-        job.salaryInterval
-      );
-      const location = formatLocation(
-        job.locationCity,
-        job.locationState,
-        job.locationCountry,
-        job.isRemote
-      );
+  const buildInfoContent = useCallback((point: MapPoint): string => {
+    const salary = formatSalary(
+      point.salaryMin,
+      point.salaryMax,
+      point.salaryCurrency,
+      point.salaryInterval,
+    );
+    const location = formatLocation(
+      point.locationCity,
+      point.locationState,
+      point.locationCountry,
+      point.isRemote,
+    );
 
-      return `
-        <div style="max-width:280px;font-family:system-ui,sans-serif;font-size:13px;line-height:1.4">
-          <h3 style="margin:0 0 4px;font-size:14px;font-weight:600">${escapeHtml(job.title)}</h3>
-          <p style="margin:0 0 4px;color:#666">${escapeHtml(job.companyName ?? "Unknown Company")}</p>
-          ${location ? `<p style="margin:0 0 4px;color:#888;font-size:12px">📍 ${escapeHtml(location)}</p>` : ""}
-          ${salary ? `<p style="margin:0 0 8px;color:#16a34a;font-weight:500">${escapeHtml(salary)}</p>` : ""}
-          <button
-            onclick="window.__hustViewJobDetails(${job.id})"
-            style="padding:4px 12px;font-size:12px;font-weight:500;color:#fff;background:#2563eb;border:none;border-radius:6px;cursor:pointer"
-          >
-            View Details
-          </button>
-        </div>
-      `;
-    },
-    []
-  );
+    return `
+      <div style="max-width:280px;font-family:system-ui,sans-serif;font-size:13px;line-height:1.4">
+        <h3 style="margin:0 0 4px;font-size:14px;font-weight:600">${escapeHtml(point.title)}</h3>
+        <p style="margin:0 0 4px;color:#666">${escapeHtml(point.companyName ?? "Unknown Company")}</p>
+        ${location ? `<p style="margin:0 0 4px;color:#888;font-size:12px">📍 ${escapeHtml(location)}</p>` : ""}
+        ${salary ? `<p style="margin:0 0 8px;color:#16a34a;font-weight:500">${escapeHtml(salary)}</p>` : ""}
+        <button
+          onclick="window.__hustViewJobDetails(${point.id})"
+          style="padding:4px 12px;font-size:12px;font-weight:500;color:#fff;background:#2563eb;border:none;border-radius:6px;cursor:pointer"
+        >
+          View Details
+        </button>
+      </div>
+    `;
+  }, []);
 
   // -----------------------------------------------------------------------
   // Expose job details handler on window for info window "View Details" click
@@ -116,63 +181,66 @@ export const GoogleMapView = memo(function GoogleMapView({
   }, [onViewDetails]);
 
   // -----------------------------------------------------------------------
-  // Sync markers whenever jobs or map readiness changes
+  // Sync markers whenever points or map readiness changes
   // -----------------------------------------------------------------------
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current) return;
     const map = mapInstanceRef.current;
 
     // Clean up old markers
-    if (clustererRef.current) {
-      clustererRef.current.clearMarkers();
-    }
+    if (clustererRef.current) clustererRef.current.clearMarkers();
     for (const marker of markersRef.current) {
-      marker.map = null;
+      if ("setMap" in marker) marker.setMap(null);
+      else marker.map = null;
     }
     markersRef.current = [];
 
-    // Filter to geocoded jobs only
-    const geoJobs = jobs.filter(
-      (job) => job.latitude != null && job.longitude != null
-    );
+    const geoPoints = points
+      .map((p) => ({ ...p, lat: Number(p.latitude), lng: Number(p.longitude) }))
+      .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
 
-    if (geoJobs.length === 0) return;
+    if (geoPoints.length === 0) return;
 
-    // Create markers
-    const newMarkers = geoJobs.map((job) => {
-      const marker = new google.maps.marker.AdvancedMarkerElement({
-        position: { lat: job.latitude!, lng: job.longitude! },
-        map,
-        title: job.title,
-      });
+    const useAdvanced = Boolean(MAP_ID) && Boolean(google.maps?.marker?.AdvancedMarkerElement);
 
-      marker.addListener("click", () => {
-        if (infoWindowRef.current) {
-          infoWindowRef.current.setContent(buildInfoContent(job));
-          infoWindowRef.current.open({ anchor: marker, map });
+    try {
+      const newMarkers = geoPoints.map((point) => {
+        let marker: google.maps.Marker | google.maps.marker.AdvancedMarkerElement;
+        if (useAdvanced) {
+          marker = new google.maps.marker.AdvancedMarkerElement({
+            position: { lat: point.lat, lng: point.lng },
+            title: point.title,
+          });
+        } else {
+          marker = new google.maps.Marker({
+            position: { lat: point.lat, lng: point.lng },
+            title: point.title,
+          });
         }
+        marker.addListener("click", () => {
+          if (infoWindowRef.current) {
+            infoWindowRef.current.setContent(buildInfoContent(point));
+            infoWindowRef.current.open({ anchor: marker, map });
+          }
+        });
+        return marker;
       });
 
-      return marker;
-    });
+      // MarkerClusterer accepts either marker type; the array is homogeneous at
+      // runtime (all advanced or all classic) — cast to satisfy the overload.
+      markersRef.current = newMarkers as typeof markersRef.current;
+      clustererRef.current = new MarkerClusterer({
+        map,
+        markers: newMarkers as google.maps.Marker[],
+      });
 
-    markersRef.current = newMarkers;
-
-    // Cluster markers
-    clustererRef.current = new MarkerClusterer({
-      map,
-      markers: newMarkers,
-    });
-
-    // Auto-fit bounds if we have markers
-    if (geoJobs.length > 0) {
       const bounds = new google.maps.LatLngBounds();
-      for (const job of geoJobs) {
-        bounds.extend({ lat: job.latitude!, lng: job.longitude! });
-      }
+      for (const p of geoPoints) bounds.extend({ lat: p.lat, lng: p.lng });
       map.fitBounds(bounds, { top: 50, right: 50, bottom: 50, left: 50 });
+    } catch (err) {
+      console.error("[GoogleMapView] failed to render markers", err);
     }
-  }, [jobs, mapReady, buildInfoContent]);
+  }, [points, mapReady, buildInfoContent]);
 
   // -----------------------------------------------------------------------
   // Missing API key or load error — show placeholder
@@ -184,9 +252,7 @@ export const GoogleMapView = memo(function GoogleMapView({
       <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-muted/20 p-8 text-center">
         <MapPin className="h-10 w-10 text-muted-foreground/40" />
         <div>
-          <p className="text-sm font-medium text-muted-foreground">
-            Google Maps not configured
-          </p>
+          <p className="text-sm font-medium text-muted-foreground">Google Maps not configured</p>
           <p className="mt-1 text-xs text-muted-foreground/60">
             Set <code className="rounded bg-muted px-1 py-0.5 text-[11px]">NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code> in your environment to enable the map view.
           </p>
@@ -200,12 +266,8 @@ export const GoogleMapView = memo(function GoogleMapView({
       <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-muted/20 p-8 text-center">
         <MapPin className="h-10 w-10 text-destructive/40" />
         <div>
-          <p className="text-sm font-medium text-destructive">
-            Failed to load Google Maps
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground/60">
-            {loadError}
-          </p>
+          <p className="text-sm font-medium text-destructive">Failed to load Google Maps</p>
+          <p className="mt-1 text-xs text-muted-foreground/60">{loadError}</p>
         </div>
       </div>
     );
@@ -219,10 +281,6 @@ export const GoogleMapView = memo(function GoogleMapView({
     );
   }
 
-  const geoJobCount = jobs.filter(
-    (j) => j.latitude != null && j.longitude != null
-  ).length;
-
   return (
     <div className="relative flex flex-1 flex-col">
       {/* Map container */}
@@ -230,7 +288,9 @@ export const GoogleMapView = memo(function GoogleMapView({
 
       {/* Overlay badge showing how many jobs are on the map */}
       <div className="absolute bottom-3 left-3 rounded-full bg-background/90 px-3 py-1 text-xs font-medium shadow-sm backdrop-blur">
-        {geoJobCount} of {jobs.length} jobs on map
+        {fetching
+          ? "Loading map…"
+          : `${points.length.toLocaleString()} job${points.length === 1 ? "" : "s"} on map${capped ? " (showing first 5,000)" : ""}`}
       </div>
     </div>
   );

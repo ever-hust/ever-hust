@@ -5,6 +5,7 @@ import {
   type StreamTextResult,
 } from "ai";
 import type { LanguageModel } from "ai";
+import { recordChatUsage } from "../credits";
 import {
   searchJobsTool,
   updateFiltersTool,
@@ -37,6 +38,8 @@ import {
   prepInterviewTool,
   batchEvaluateTool,
   applyCopilotTool,
+  getInboxThreadsTool,
+  getInboxThreadTool,
 } from "../tools";
 import { checkSearchLimit, checkCoverLetterLimit } from "../rate-limit";
 import { getOrchestratorPrompt } from "../prompts";
@@ -50,6 +53,10 @@ interface OrchestratorOptions {
   userId: string;
   /** Whether the user has an active paid subscription (skips tool-level rate limits). */
   isSubscribed?: boolean;
+  /** Selected catalog model key (for credit pricing). */
+  modelKey?: string;
+  /** When true, debit credits for this call (platform/Hust model, not BYOK). */
+  meterCredits?: boolean;
 }
 
 export async function createOrchestratorStream({
@@ -57,6 +64,8 @@ export async function createOrchestratorStream({
   messages,
   userId,
   isSubscribed = false,
+  modelKey,
+  meterCredits = false,
 }: OrchestratorOptions): Promise<StreamTextResult<any, any>> {
   // Fetch system prompt from Langfuse (falls back to hardcoded default)
   const { text: systemPrompt, langfusePrompt } =
@@ -66,6 +75,25 @@ export async function createOrchestratorStream({
     model,
     system: systemPrompt,
     messages,
+    // Meter credit usage for platform (Hust) model calls. BYOK calls use the
+    // user's own key and are not charged. Never throws into the stream.
+    onFinish: meterCredits
+      ? async ({ usage }) => {
+          try {
+            const u = usage as
+              | { inputTokens?: number; outputTokens?: number; promptTokens?: number; completionTokens?: number }
+              | undefined;
+            const inputTokens = u?.inputTokens ?? u?.promptTokens ?? 0;
+            const outputTokens = u?.outputTokens ?? u?.completionTokens ?? 0;
+            await recordChatUsage({ userId, modelKey, inputTokens, outputTokens });
+          } catch (err) {
+            console.error(
+              "[credits] failed to record chat usage:",
+              err instanceof Error ? err.message : err,
+            );
+          }
+        }
+      : undefined,
     // Enable telemetry for Langfuse tracing (OTEL-based)
     experimental_telemetry: {
       isEnabled: true,
@@ -226,6 +254,18 @@ export async function createOrchestratorStream({
         ...recordFollowUpTool,
         execute: async (params: any, execOptions: any) => {
           return recordFollowUpTool.execute!({ ...params, userId }, execOptions);
+        },
+      },
+      getInboxThreads: {
+        ...getInboxThreadsTool,
+        execute: async (params: any, execOptions: any) => {
+          return getInboxThreadsTool.execute!({ ...params, userId }, execOptions);
+        },
+      },
+      getInboxThread: {
+        ...getInboxThreadTool,
+        execute: async (params: any, execOptions: any) => {
+          return getInboxThreadTool.execute!({ ...params, userId }, execOptions);
         },
       },
       learnPreference: {

@@ -140,28 +140,43 @@ function LoginButtons() {
     </Button>
   );
 
+  // Compact icon-only button for the secondary providers (keeps the card short).
+  const IconProviderButton = ({ provider, label, icon: Icon }: {
+    provider: "github" | "google" | "facebook" | "twitter";
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }) => (
+    <Button
+      variant="outline"
+      size="lg"
+      className="w-full"
+      onClick={() => handleSocialLogin(provider)}
+      disabled={loadingProvider !== null}
+      aria-label={`Continue with ${label}`}
+      title={`Continue with ${label}`}
+    >
+      {loadingProvider === provider ? (
+        <span className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+      ) : (
+        <Icon className="h-5 w-5" />
+      )}
+    </Button>
+  );
+
   return (
     <div className="space-y-3">
       <ProviderButton provider="linkedin" label="LinkedIn" icon={Linkedin} />
 
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <Separator />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-card px-2 text-muted-foreground">or</span>
-        </div>
+      {/* Secondary providers — compact icon row */}
+      <div className="grid grid-cols-4 gap-2">
+        <IconProviderButton provider="google" label="Google" icon={GoogleIcon} />
+        <IconProviderButton provider="github" label="GitHub" icon={Github} />
+        <IconProviderButton provider="facebook" label="Facebook" icon={FacebookIcon} />
+        <IconProviderButton provider="twitter" label="X (Twitter)" icon={Twitter} />
       </div>
 
-      <ProviderButton provider="google" label="Google" icon={GoogleIcon} />
-      <ProviderButton provider="github" label="GitHub" icon={Github} />
-      <ProviderButton provider="facebook" label="Facebook" icon={FacebookIcon} />
-      <ProviderButton provider="twitter" label="X (Twitter)" icon={Twitter} />
-
       <p className="text-[10px] text-center text-muted-foreground/70">
-        First time? Sign in with LinkedIn to create your account.
-        <br />
-        Already registered? You can sign in with any connected provider.
+        First time? Continue with LinkedIn to create your account.
       </p>
 
       {/* Email/Password separator */}
@@ -181,7 +196,10 @@ function LoginButtons() {
 
 /** Email/password sign-in / sign-up form with toggle */
 function EmailPasswordForm({ callbackUrl }: { callbackUrl: string }) {
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const searchParams = useSearchParams();
+  const [mode, setMode] = useState<"signin" | "signup">(
+    searchParams.get("mode") === "signup" ? "signup" : "signin",
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -385,71 +403,90 @@ function LoginButtonFallback() {
 
 export default function LoginPage() {
   return (
-    <div id="main-content" className="relative flex min-h-screen items-center justify-center px-4">
+    <div id="main-content" className="relative flex min-h-screen items-center justify-center px-4 py-10">
       {/* Dark mode toggle */}
       <div className="absolute right-4 top-4">
         <ThemeToggle />
       </div>
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="mb-8 text-center">
+
+      <div className="grid w-full max-w-5xl items-center gap-10 lg:grid-cols-2 lg:gap-16">
+        {/* Left: brand + value (desktop only) */}
+        <div className="hidden flex-col gap-8 lg:flex">
           <Link href="/" className="inline-flex items-center gap-2" aria-label={`${APP_NAME} home`}>
             <BriefcaseBusiness className="h-8 w-8 text-primary" aria-hidden="true" />
             <span className="text-2xl font-bold">{APP_NAME}</span>
           </Link>
+          <div>
+            <h1 className="text-3xl font-bold leading-tight tracking-tight xl:text-4xl">
+              Land your next role, with AI on your side.
+            </h1>
+            <p className="mt-3 text-muted-foreground">
+              Sign in to pick up your job search exactly where you left off.
+            </p>
+          </div>
+          <ul className="space-y-3">
+            {VALUE_PROPS.map((prop) => (
+              <li key={prop.text} className="flex items-center gap-3 text-sm">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                  <prop.icon className="h-4 w-4 text-primary" aria-hidden="true" />
+                </div>
+                <span>{prop.text}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Shield className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>We never post or apply on your behalf without your approval.</span>
+          </div>
         </div>
 
-        {/* Login card */}
-        <Card className="shadow-lg">
-          <CardHeader className="text-center">
-            <CardTitle className="text-xl">Welcome back</CardTitle>
-            <CardDescription>
-              Sign in to access your AI-powered job search assistant
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Suspense fallback={<LoginButtonFallback />}>
-              <LoginButtons />
-            </Suspense>
+        {/* Right: auth card */}
+        <div className="mx-auto w-full max-w-md">
+          {/* Mobile logo */}
+          <div className="mb-6 text-center lg:hidden">
+            <Link href="/" className="inline-flex items-center gap-2" aria-label={`${APP_NAME} home`}>
+              <BriefcaseBusiness className="h-7 w-7 text-primary" aria-hidden="true" />
+              <span className="text-xl font-bold">{APP_NAME}</span>
+            </Link>
+          </div>
 
-            <div className="flex items-center gap-1.5 justify-center text-[10px] text-muted-foreground">
-              <Shield className="h-3 w-3" aria-hidden="true" />
-              <span>We never post on your behalf</span>
-            </div>
+          <Card className="shadow-lg">
+            <CardHeader className="text-center">
+              <CardTitle className="text-xl">Welcome back</CardTitle>
+              <CardDescription>
+                Sign in or create your account to continue
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Suspense fallback={<LoginButtonFallback />}>
+                <LoginButtons />
+              </Suspense>
 
-            <Separator />
+              <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground lg:hidden">
+                <Shield className="h-3 w-3" aria-hidden="true" />
+                <span>We never post on your behalf</span>
+              </div>
 
-            {/* Value props */}
-            <div className="space-y-2.5">
-              {VALUE_PROPS.map((prop) => (
-                <div key={prop.text} className="flex items-center gap-2.5 text-xs text-muted-foreground">
-                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10">
-                    <prop.icon className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-                  </div>
-                  {prop.text}
-                </div>
-              ))}
-            </div>
+              <p className="pt-1 text-center text-[10px] text-muted-foreground/70">
+                By continuing, you agree to our{" "}
+                <Link href="/terms" className="underline hover:text-foreground">
+                  Terms of Service
+                </Link>{" "}
+                and{" "}
+                <Link href="/privacy" className="underline hover:text-foreground">
+                  Privacy Policy
+                </Link>
+                .
+              </p>
+            </CardContent>
+          </Card>
 
-            <p className="pt-2 text-center text-[10px] text-muted-foreground/70">
-              By continuing, you agree to our{" "}
-              <Link href="/terms" className="underline hover:text-foreground">
-                Terms of Service
-              </Link>{" "}
-              and{" "}
-              <Link href="/privacy" className="underline hover:text-foreground">
-                Privacy Policy
-              </Link>
-              .
-            </p>
-          </CardContent>
-        </Card>
-
-        <p className="mt-4 text-center text-sm text-muted-foreground">
-          <Link href="/" className="transition-colors hover:text-foreground">
-            &larr; Back to home
-          </Link>
-        </p>
+          <p className="mt-4 text-center text-sm text-muted-foreground">
+            <Link href="/" className="transition-colors hover:text-foreground">
+              &larr; Back to home
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );

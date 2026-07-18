@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useCallback, useState, useMemo, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { JobsCanvas } from "@/components/canvas/jobs-canvas";
 import { DashboardCanvas } from "@/components/canvas/dashboard-canvas";
@@ -11,7 +11,6 @@ import { useChatContext } from "@/components/chat/chat-context";
 import { useHiddenJobs } from "@/hooks/use-hidden-jobs";
 import { useRealtimeJobs, type RealtimeJob } from "@/hooks/use-realtime-jobs";
 import { useKeyboardShortcuts, getChatShortcuts } from "@/hooks/use-keyboard-shortcuts";
-import { DashboardStats } from "@/components/shared/dashboard-stats";
 import { toast } from "sonner";
 
 // Lazy-load components that are only rendered conditionally
@@ -63,8 +62,9 @@ const JobDetailPanel = dynamic(
 
 export default function DashboardPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const canvas = useCanvasSync();
-  const { setOnToolResult, setOnCoverLetter, setInitialPrompt, focusChatInput } = useChatContext();
+  const { setOnToolResult, setOnCoverLetter, setInitialPrompt } = useChatContext();
   const [coverLetterText, setCoverLetterText] = useState("");
   const [coverLetterOpen, setCoverLetterOpen] = useState(false);
   const [detailJobId, setDetailJobId] = useState<number | null>(null);
@@ -133,6 +133,17 @@ export default function DashboardPage() {
     ),
   });
 
+  // Handle ?m= deep link — frictionless trial from the marketing site. The
+  // anonymous session is created at /try; here we drop the message into the
+  // chat and auto-send it so the guest sees the AI respond immediately.
+  useEffect(() => {
+    if (deepLinkHandled.current) return;
+    const m = searchParams.get("m");
+    if (!m) return;
+    deepLinkHandled.current = true;
+    setInitialPrompt(m, true);
+  }, [searchParams, setInitialPrompt]);
+
   // Handle ?job= deep link — fetch job info and build initial prompt
   useEffect(() => {
     if (deepLinkHandled.current) return;
@@ -151,24 +162,22 @@ export default function DashboardPage() {
         const data = (await res.json()) as {
           job: { title: string; companyName?: string | null; locationCity?: string | null; isRemote?: boolean };
         };
-        const { title, companyName, locationCity, isRemote } = data.job;
-        const company = companyName ?? "the company";
-        const locationParts: string[] = [];
-        if (locationCity) locationParts.push(locationCity);
-        if (isRemote) locationParts.push("remote");
-        const locationStr = locationParts.length > 0 ? ` (${locationParts.join(", ")})` : "";
-
+        const { title, companyName } = data.job;
+        const company = companyName ? ` at ${companyName}` : "";
+        // Route to the job page (rendered in the canvas; chat is global), then
+        // auto-send a prompt that always carries the job ID.
         setInitialPrompt(
-          `Write me a cover letter for the "${title}" position at ${company}${locationStr}. Make it professional and tailored.`
+          `Write a tailored cover letter for the job with ID ${jobId}: "${title}"${company}. Fetch its details using job ID ${jobId}.`,
+          true,
         );
-        focusChatInput();
+        router.push(`/jobs/${jobId}`);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
       }
     }
     fetchJobAndBuildPrompt();
     return () => { controller.abort(); };
-  }, [searchParams, setInitialPrompt, focusChatInput]);
+  }, [searchParams, setInitialPrompt, router]);
 
   // Destructure stable refs
   const { handleToolResult } = canvas;
@@ -214,7 +223,8 @@ export default function DashboardPage() {
     }
   }, [handleToolResult]);
 
-  // Open job detail panel
+  // Open job detail panel (normal card click — not the Cover Letter action,
+  // which routes to the job page; see JobCard).
   const handleViewDetails = useCallback((jobId: number) => {
     setDetailJobId(jobId);
     setDetailOpen(true);
@@ -223,10 +233,6 @@ export default function DashboardPage() {
   return (
     <>
       <div className="flex h-full flex-col">
-        {/* Quick stats bar */}
-        <div className="border-b p-3">
-          <DashboardStats />
-        </div>
         {/* Salary insights overlay */}
         {canvas.salaryInsights && (
           <div className="border-b p-3">

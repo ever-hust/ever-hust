@@ -54,7 +54,8 @@ export const JobCompareDialog = memo(function JobCompareDialog({
     const jobSummaries = jobs.map((job, i) => {
       const salary = formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency, job.salaryInterval);
       const location = formatLocation(job.locationCity, job.locationState, job.locationCountry, job.isRemote) ?? "Unknown";
-      return `${i + 1}. "${job.title}" at ${job.companyName ?? "Unknown Company"} — ${location}${salary ? `, ${salary}` : ""}${job.isRemote ? " (Remote)" : ""}`;
+      // Always include the job ID so the AI can fetch the exact job if needed.
+      return `${i + 1}. [job ID ${job.id}] "${job.title}" at ${job.companyName ?? "Unknown Company"} — ${location}${salary ? `, ${salary}` : ""}${job.isRemote ? " (Remote)" : ""}`;
     }).join("\n");
 
     setInitialPrompt(

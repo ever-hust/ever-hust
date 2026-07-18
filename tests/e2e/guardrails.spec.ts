@@ -9,12 +9,5 @@ test.describe("Guardrails — structural approval gate", () => {
   });
 });
 
-test.describe("Guardrails — Terms posture", () => {
-  test("terms page states the human-in-the-loop / no-auto-submit posture", async ({
-    page,
-  }) => {
-    await page.goto("/terms");
-    await expect(page.getByText(/no automated submissions/i)).toBeVisible();
-    await expect(page.getByText(/you own your data/i)).toBeVisible();
-  });
-});
+// The Terms-of-Service posture (human-in-the-loop / no auto-submit) now lives on
+// the marketing site (hust.so/tos); its content test belongs with the website.

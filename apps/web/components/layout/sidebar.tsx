@@ -6,6 +6,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import {
   LayoutDashboard,
   Briefcase,
+  Inbox,
   User,
   Settings,
   LogOut,
@@ -31,7 +32,7 @@ import {
 import { useTheme } from "next-themes";
 import { Button } from "@ever-hust/ui/button";
 import { Separator } from "@ever-hust/ui/separator";
-import { Avatar, AvatarFallback } from "@ever-hust/ui/avatar";
+import { UserAvatar } from "@/components/shared/user-avatar";
 import {
   Dialog,
   DialogContent,
@@ -41,6 +42,7 @@ import {
   DialogFooter,
 } from "@ever-hust/ui/dialog";
 import { UsageQuota } from "@/components/shared/usage-quota";
+import { AnonymousReminder } from "@/components/shared/anonymous-reminder";
 import { useChatContext } from "@/components/chat/chat-context";
 import { signOut, useSession } from "@ever-hust/auth/client";
 import { cn } from "@ever-hust/ui/lib/utils";
@@ -208,8 +210,9 @@ function LanguageDropdown({
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/jobs", label: "Jobs", icon: Briefcase },
+  { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/applications", label: "Applications", icon: ClipboardList },
-  { href: "/favorites", label: "Favorites", icon: Heart },
+  { href: "/favorites", label: "Saved Jobs", icon: Heart },
   { href: "/alerts", label: "Alerts", icon: Bell },
   { href: "/profile", label: "My Profile", icon: User },
   { href: "/settings", label: "Settings", icon: Settings },
@@ -440,13 +443,10 @@ export function Sidebar() {
   );
 
   const userName = session?.user?.name ?? "User";
-  const userInitials = userName
-    .split(" ")
-    .map((n: string) => n[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-  const userImage = session?.user?.image;
+  const userImage = session?.user?.image ?? null;
+  const userEmail = session?.user?.email ?? null;
+  const userPhotoUrl =
+    (session?.user as { photoUrl?: string | null } | undefined)?.photoUrl ?? null;
 
   // Check if a nav item is active
   const isNavActive = useCallback(
@@ -536,19 +536,14 @@ export function Sidebar() {
         >
         {/* User info with avatar */}
         <div className="flex items-center gap-2.5 px-2 py-2 mb-1">
-          <Avatar className="h-9 w-9 shrink-0">
-            {userImage ? (
-              <img
-                src={userImage}
-                alt=""
-                className="h-9 w-9 rounded-full object-cover"
-              />
-            ) : (
-              <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">
-                {userInitials}
-              </AvatarFallback>
-            )}
-          </Avatar>
+          <UserAvatar
+            name={userName}
+            email={userEmail}
+            image={userImage}
+            photoUrl={userPhotoUrl}
+            className="h-9 w-9 shrink-0"
+            fallbackClassName="bg-primary/10 text-sm font-medium text-primary"
+          />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium truncate">{userName}</p>
             {session?.user?.email && (
@@ -660,19 +655,14 @@ export function Sidebar() {
         aria-haspopup="menu"
         aria-label="User menu"
       >
-        <Avatar className="h-7 w-7 shrink-0">
-          {userImage ? (
-            <img
-              src={userImage}
-              alt=""
-              className="h-7 w-7 rounded-full object-cover"
-            />
-          ) : (
-            <AvatarFallback className="bg-primary/10 text-xs font-medium text-primary">
-              {userInitials}
-            </AvatarFallback>
-          )}
-        </Avatar>
+        <UserAvatar
+          name={userName}
+          email={userEmail}
+          image={userImage}
+          photoUrl={userPhotoUrl}
+          className="h-7 w-7 shrink-0"
+          fallbackClassName="bg-primary/10 text-xs font-medium text-primary"
+        />
         {showLabel && (
           <>
             <span className="flex-1 truncate text-left text-sm font-medium">
@@ -749,6 +739,7 @@ export function Sidebar() {
 
             {/* Mobile user section */}
             <div ref={userMenuRef} className="relative px-3">
+              <AnonymousReminder />
               {renderUserButton(true)}
               {userMenuOpen && renderUserMenu()}
             </div>
@@ -809,6 +800,7 @@ export function Sidebar() {
           ref={!mobileOpen ? userMenuRef : undefined}
           className={cn("relative", collapsed ? "px-1" : "px-2")}
         >
+          <AnonymousReminder collapsed={collapsed} />
           {renderUserButton(!collapsed)}
           {userMenuOpen && !mobileOpen && renderUserMenu()}
         </div>

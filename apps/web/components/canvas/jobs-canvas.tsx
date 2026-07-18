@@ -292,11 +292,7 @@ export const JobsCanvas = memo(function JobsCanvas({
       {/* Job cards (list), map view, or split view */}
       {viewMode === "map" ? (
         <div className="flex-1 px-3 pb-3">
-          <GoogleMapView
-            jobs={jobs}
-            favoritedJobIds={favoritedJobIds}
-            onViewDetails={onViewDetails}
-          />
+          <GoogleMapView filters={filters} onViewDetails={onViewDetails} />
         </div>
       ) : viewMode === "split" ? (
         <div className="flex flex-1 gap-3 overflow-hidden px-3 pb-3">
@@ -330,11 +326,7 @@ export const JobsCanvas = memo(function JobsCanvas({
           </div>
           {/* Right: sticky map */}
           <div className="w-1/2">
-            <GoogleMapView
-              jobs={jobs}
-              favoritedJobIds={favoritedJobIds}
-              onViewDetails={onViewDetails}
-            />
+            <GoogleMapView filters={filters} onViewDetails={onViewDetails} />
           </div>
         </div>
       ) : (

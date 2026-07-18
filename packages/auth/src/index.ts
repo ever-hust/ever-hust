@@ -1,5 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { anonymous } from "better-auth/plugins";
+import { eq } from "drizzle-orm";
 import { db } from "@ever-hust/db/client";
 import * as schema from "@ever-hust/db/schema";
 
@@ -141,6 +143,9 @@ export const auth = betterAuth({
     user: {
       create: {
         after: async (user) => {
+          // Skip anonymous trial users — they carry a generated @hust.local email
+          // and receive their own welcome when they convert to a real account.
+          if ((user as { isAnonymous?: boolean }).isAnonymous) return;
           // Send welcome email to newly registered users (non-blocking)
           try {
             const { sendWelcomeEmail } = await import("@ever-hust/email");
@@ -159,6 +164,51 @@ export const auth = betterAuth({
       },
     },
   },
+
+  // ---------------------------------------------------------------------------
+  // Anonymous "try it" sessions — frictionless trial from the marketing site
+  // (hust.so). A guest gets a real session (generated <id>@hust.local email),
+  // can use the AI chat immediately, and is prompted to sign up. On sign-up the
+  // plugin links the account and we carry their work over before the guest is
+  // removed.
+  // ---------------------------------------------------------------------------
+  plugins: [
+    anonymous({
+      emailDomainName: "hust.local",
+      onLinkAccount: async ({ anonymousUser, newUser }) => {
+        try {
+          const pick = (v: { user?: { id?: string }; id?: string }) =>
+            v?.user?.id ?? v?.id;
+          const fromId = pick(anonymousUser as { user?: { id?: string }; id?: string });
+          const toId = pick(newUser as { user?: { id?: string }; id?: string });
+          if (!fromId || !toId || fromId === toId) return;
+          // Re-point the guest's user-owned rows to the permanent account.
+          await db
+            .update(schema.chatSessions)
+            .set({ userId: toId })
+            .where(eq(schema.chatSessions.userId, fromId));
+          await db
+            .update(schema.userJobs)
+            .set({ userId: toId })
+            .where(eq(schema.userJobs.userId, fromId));
+          await db
+            .update(schema.applications)
+            .set({ userId: toId })
+            .where(eq(schema.applications.userId, fromId));
+          await db
+            .update(schema.userAlerts)
+            .set({ userId: toId })
+            .where(eq(schema.userAlerts.userId, fromId));
+        } catch (error) {
+          // Best-effort — never block sign-up if the migration fails.
+          console.error(
+            "[Auth] Failed to migrate anonymous user data on link:",
+            error instanceof Error ? error.message : error
+          );
+        }
+      },
+    }),
+  ],
 });
 
 export type Auth = typeof auth;

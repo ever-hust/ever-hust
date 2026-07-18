@@ -20,7 +20,7 @@ jobs:
     # Prod deploys ONLY from main: the workflow_run `branches: [main]` filter above
     # already restricts the trigger; this guard makes the intent explicit and
     # survives any future change to the build trigger.
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
+    if: ${{ vars.DO_ENABLED == 'true' && (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')) }}
     runs-on: ubuntu-latest
     environment: prod
     steps:

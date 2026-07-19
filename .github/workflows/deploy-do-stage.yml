@@ -19,7 +19,7 @@ jobs:
   deploy-web:
     # Only deploy for a successful stage build (or a manual dispatch).
     if: ${{ vars.DO_ENABLED == 'true' && (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'stage')) }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNNER_LINUX_X64_4 || 'ubuntu-latest' }}
     environment: stage
     steps:
       - name: Checkout

@@ -18,6 +18,11 @@ concurrency:
 
 jobs:
   deploy:
+    # Gated (additive + reversible): when the self-hosted migration flag is on,
+    # the self-hosted workflow (trigger-selfhosted-deploy.yml) handles deploys and
+    # this legacy Trigger.dev-cloud deploy is skipped. Flip the repo variable
+    # TRIGGER_SELFHOSTED back to false/unset to restore the cloud path.
+    if: ${{ vars.TRIGGER_SELFHOSTED != 'true' }}
     runs-on: ${{ vars.RUNNER_LINUX_X64_8 || 'ubuntu-latest' }}
     steps:
       - name: Checkout

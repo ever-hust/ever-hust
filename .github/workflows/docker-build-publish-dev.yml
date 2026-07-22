@@ -1,18 +1,23 @@
-name: Build and Publish Hust Web Image (Stage)
+name: Build and Publish Hust Web Image (Dev)
 
 # Builds the Next.js web app container and pushes it to GHCR
-# (ghcr.io/ever-hust/hust-web:stage), which the k8s-gauzy cluster pulls for the
-# stage environment. Mirrors the prod build but for the `stage` branch — only
+# (ghcr.io/ever-hust/hust-web:dev), which the k8s-gauzy cluster pulls for the
+# dev environment. Mirrors the stage build but for the `develop` branch — only
 # public NEXT_PUBLIC_* are baked in; server secrets are injected by k8s at runtime.
 on:
   push:
-    branches: [stage]
+    branches: [develop]
     paths:
       - "apps/**"
+      # The docs site (apps/docs) has its own build+deploy pipeline
+      # (docs-build-publish-dev.yml). Exclude it so a docs change never
+      # rebuilds/redeploys the web app.
+      - "!apps/docs/**"
       - "packages/**"
       - ".deploy/web/**"
-      - ".github/workflows/docker-build-publish-stage.yml"
+      - ".github/workflows/docker-build-publish-dev.yml"
       - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
   workflow_dispatch:
 
 concurrency:
@@ -42,10 +47,11 @@ jobs:
 
       - name: Materialise build-time NEXT_PUBLIC_* env
         env:
-          HUST_STAGE_ENV: ${{ secrets.HUST_STAGE_ENV }}
+          HUST_DEV_ENV: ${{ secrets.HUST_DEV_ENV }}
         run: |
-          printf '%s' "$HUST_STAGE_ENV" > /tmp/hust.env
+          printf '%s' "$HUST_DEV_ENV" > /tmp/hust.env
           # Export only the NEXT_PUBLIC_* lines (the build args Next inlines).
+          # HUST_DEV_ENV may be unset/empty — tolerate it (|| true).
           grep -E '^NEXT_PUBLIC_' /tmp/hust.env >> "$GITHUB_ENV" || true
           rm -f /tmp/hust.env
 
@@ -57,14 +63,14 @@ jobs:
           push: true
           platforms: linux/amd64
           tags: |
-            ghcr.io/ever-hust/hust-web:stage
-            ghcr.io/ever-hust/hust-web:stage-${{ github.sha }}
+            ghcr.io/ever-hust/hust-web:dev
+            ghcr.io/ever-hust/hust-web:dev-${{ github.sha }}
           cache-from: type=registry,ref=ghcr.io/ever-hust/hust-web:latest
           cache-to: type=inline
           build-args: |
-            NEXT_PUBLIC_APP_URL=https://appstage.hust.so
-            NEXT_PUBLIC_DOCS_URL=https://docsstage.hust.so
-            NEXT_PUBLIC_MARKETING_URL=https://stage.hust.so
+            NEXT_PUBLIC_APP_URL=https://appdev.hust.so
+            NEXT_PUBLIC_DOCS_URL=https://docsdev.hust.so
+            NEXT_PUBLIC_MARKETING_URL=https://dev.hust.so
             NEXT_PUBLIC_APP_NAME=${{ env.NEXT_PUBLIC_APP_NAME }}
             NEXT_PUBLIC_SUPABASE_URL=${{ env.NEXT_PUBLIC_SUPABASE_URL }}
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}

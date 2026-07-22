@@ -1,0 +1,126 @@
+name: trigger-selfhosted-deploy
+
+# Deploy Ever Hust's Trigger.dev task bundle (packages/triggers) to our
+# SELF-HOSTED Trigger.dev instance (https://trigger.ever.co, org "Ever" /
+# ever-2a3b, project "Ever Hust" = proj_rncnpdbqfmmbzxaltqxn) instead of the
+# Trigger.dev cloud.
+#
+# Additive + reversible by design:
+#   * Gated behind the repo variable `TRIGGER_SELFHOSTED == 'true'`. Until that
+#     var is set the job is skipped, so this file is inert and the legacy cloud
+#     workflow (trigger-deploy.yml) keeps working. Flip the var back to roll back.
+#   * Deploying a task bundle needs a Docker daemon, so it runs on our
+#     self-hosted ARC runners (same pool as the app builds).
+#   * Auth: the self-hosted Personal Access Token is the repo Actions secret
+#     `TRIGGER_SELFHOSTED_ACCESS_TOKEN`; no cloud credentials are touched.
+#
+# Branch -> Trigger.dev environment mapping (mirrors the app's promotion flow):
+#   develop -> preview (branch=develop) | stage -> staging | main/master -> prod
+# The v4 CLI `deploy --env` only accepts prod | staging | preview, so the
+# develop line deploys to a "develop" preview branch environment.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Trigger.dev env: prod | staging | preview (blank = branch mapping)"
+        required: false
+        type: string
+  push:
+    branches: [develop, stage, main, master]
+    paths:
+      - "packages/triggers/**"
+      - "trigger.config.ts"
+      - ".github/workflows/trigger-selfhosted-deploy.yml"
+
+concurrency:
+  group: trigger-selfhosted-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    # Only runs once the self-hosted migration is switched on for this repo.
+    if: ${{ vars.TRIGGER_SELFHOSTED == 'true' }}
+    runs-on: ${{ vars.RUNNER_LINUX_X64_8 || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    env:
+      # Public origin of the self-hosted instance — used by the CLI to deploy.
+      TRIGGER_API_URL: https://trigger.ever.co
+      # Owner-minted Personal Access Token with deploy rights (repo secret).
+      TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_SELFHOSTED_ACCESS_TOKEN }}
+      # Self-hosted "Ever Hust" project ref (org "Ever" / ever-2a3b). Passed to
+      # the CLI via --project-ref so the shared trigger.config.ts (which still
+      # points at the old cloud ref) targets the self-hosted project instead.
+      TRIGGER_PROJECT_REF: proj_rncnpdbqfmmbzxaltqxn
+      # GHCR push token (evereq classic PAT, write:packages). Our instance has no
+      # remote builder, so the CLI builds the deploy image locally and pushes it
+      # with the runner's OWN docker login (the instance only mints registry
+      # creds for AWS ECR, not GHCR).
+      GHCR_DEPLOY_TOKEN: ${{ secrets.GHCR_DEPLOY_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        # trigger.config.ts imports @trigger.dev/sdk, so the CLI needs the
+        # workspace node_modules present to compile the config + task bundle.
+        # All @ever-hust/* workspace deps are src-pointed (exports -> ./src/*.ts),
+        # so esbuild bundles them straight from source — no prebuild step needed.
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve Trigger.dev environment
+        id: env
+        env:
+          INPUT_ENV: ${{ github.event.inputs.environment }}
+        run: |
+          if [ -n "$INPUT_ENV" ]; then
+            TRIGGER_ENV="$INPUT_ENV"
+          else
+            case "${GITHUB_REF_NAME}" in
+              main|master) TRIGGER_ENV="prod" ;;
+              stage)       TRIGGER_ENV="staging" ;;
+              develop)     TRIGGER_ENV="preview" ;;
+              *)           TRIGGER_ENV="preview" ;;
+            esac
+          fi
+          echo "env=$TRIGGER_ENV" >> "$GITHUB_OUTPUT"
+          echo "Resolved Trigger.dev env: $TRIGGER_ENV (branch=${GITHUB_REF_NAME})"
+
+      - name: Deploy task bundle to self-hosted Trigger.dev
+        env:
+          TARGET_ENV: ${{ steps.env.outputs.env }}
+        run: |
+          set -euo pipefail
+          echo "Deploying Hust tasks to ${TRIGGER_API_URL} (env=${TARGET_ENV}, project=${TRIGGER_PROJECT_REF})"
+          # Self-hosted push path: our instance provides no remote builder, so the
+          # CLI builds the image locally and PUSHES it using the runner's OWN
+          # docker login. Log in to GHCR first.
+          echo "${GHCR_DEPLOY_TOKEN}" | docker login ghcr.io -u evereq --password-stdin
+          # Pin the CLI to the INSTALLED @trigger.dev/sdk version — the v4 CLI
+          # aborts on any CLI/SDK mismatch. Fallback to the lockfile's 4.4.6.
+          CLI_VER="$(cd packages/triggers && node -e "console.log(require('@trigger.dev/sdk/package.json').version)" 2>/dev/null || true)"
+          CLI_VER="${CLI_VER:-4.4.6}"
+          echo "Using trigger.dev CLI ${CLI_VER}"
+          BRANCH_FLAG=""
+          if [ "${TARGET_ENV}" = "preview" ]; then
+            BRANCH_FLAG="--branch ${GITHUB_REF_NAME}"
+          fi
+          pnpm dlx "trigger.dev@${CLI_VER}" deploy \
+            --api-url "${TRIGGER_API_URL}" \
+            --env "${TARGET_ENV}" \
+            ${BRANCH_FLAG} \
+            --project-ref "${TRIGGER_PROJECT_REF}"

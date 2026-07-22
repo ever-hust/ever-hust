@@ -1,17 +1,19 @@
-name: Build and Publish Hust Docs Image (Prod)
+name: Build and Publish Hust Docs Image (Stage)
 
-# Builds the Docusaurus documentation site (docs.hust.so) into a static nginx image
-# and pushes it to GHCR (ghcr.io/ever-hust/hust-docs), which the k8s-gauzy cluster
-# pulls. Self-contained: no server secrets, no build args. Triggers ONLY on docs
-# sources — never on app code — so a docs change never rebuilds/redeploys the app.
+# Builds the Docusaurus documentation site (docsstage.hust.so) into a static nginx
+# image and pushes it to GHCR (ghcr.io/ever-hust/hust-docs:stage), which the
+# k8s-gauzy cluster pulls for the stage environment. Self-contained: no server
+# secrets, no build args. Triggers ONLY on docs sources — never on app code — so a
+# docs change never rebuilds/redeploys the app. Mirrors the prod docs build for the
+# `stage` branch.
 on:
   push:
-    branches: [main]
+    branches: [stage]
     paths:
       - "apps/docs/**"
       - "docs/**"
       - ".deploy/docs/**"
-      - ".github/workflows/docs-build-publish-prod.yml"
+      - ".github/workflows/docs-build-publish-stage.yml"
   workflow_dispatch:
 
 concurrency:
@@ -47,8 +49,7 @@ jobs:
           push: true
           platforms: linux/amd64
           tags: |
-            ghcr.io/ever-hust/hust-docs:latest
-            ghcr.io/ever-hust/hust-docs:prod
-            ghcr.io/ever-hust/hust-docs:${{ github.sha }}
+            ghcr.io/ever-hust/hust-docs:stage
+            ghcr.io/ever-hust/hust-docs:stage-${{ github.sha }}
           cache-from: type=registry,ref=ghcr.io/ever-hust/hust-docs:latest
           cache-to: type=inline

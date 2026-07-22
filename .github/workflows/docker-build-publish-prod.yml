@@ -65,11 +65,14 @@ jobs:
           platforms: linux/amd64
           tags: |
             ghcr.io/ever-hust/hust-web:latest
+            ghcr.io/ever-hust/hust-web:prod
             ghcr.io/ever-hust/hust-web:${{ github.sha }}
           cache-from: type=registry,ref=ghcr.io/ever-hust/hust-web:latest
           cache-to: type=inline
           build-args: |
-            NEXT_PUBLIC_APP_URL=${{ env.NEXT_PUBLIC_APP_URL }}
+            NEXT_PUBLIC_APP_URL=https://app.hust.so
+            NEXT_PUBLIC_DOCS_URL=https://docs.hust.so
+            NEXT_PUBLIC_MARKETING_URL=https://hust.so
             NEXT_PUBLIC_APP_NAME=${{ env.NEXT_PUBLIC_APP_NAME }}
             NEXT_PUBLIC_SUPABASE_URL=${{ env.NEXT_PUBLIC_SUPABASE_URL }}
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}

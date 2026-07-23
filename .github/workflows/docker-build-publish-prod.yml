@@ -81,6 +81,6 @@ jobs:
             # Error tracking + analytics (public keys, same value across envs).
             NEXT_PUBLIC_SENTRY_DSN=https://e3deaad715f494351a6f377e1d32b1ef@o51327.ingest.us.sentry.io/4511781940035584
             NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
-            # PostHog project key — sourced from HUST_PROD_ENV (add NEXT_PUBLIC_POSTHOG_KEY=phc_...
-            # to that secret once the Ever Hust PostHog project exists). No-op while empty.
-            NEXT_PUBLIC_POSTHOG_KEY=${{ env.NEXT_PUBLIC_POSTHOG_KEY }}
+            # PostHog project key — public phc_ key (Ever Hust project 525078), safe to inline
+            # into the client bundle (same value across all envs).
+            NEXT_PUBLIC_POSTHOG_KEY=phc_zy7MRvWMzTCSa9pwreMh72EfRHyRk9erTh6x6shu7EZY

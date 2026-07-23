@@ -89,11 +89,10 @@ export function proxy(request: NextRequest) {
       const dashboardUrl = new URL("/dashboard", request.url);
       return NextResponse.redirect(dashboardUrl);
     }
-    // The public marketing landing now lives on the website (hust.so); the app
-    // root is for authenticated use. Send logged-out visitors to the marketing site.
-    return NextResponse.redirect(
-      process.env.NEXT_PUBLIC_MARKETING_URL || "https://hust.so",
-    );
+    // Logged-out visitors to the app root land on the in-app login page —
+    // app.hust.so must be usable directly, not bounce to the marketing site.
+    const loginUrl = new URL("/login", request.url);
+    return NextResponse.redirect(loginUrl);
   }
 
   // Check if it's a protected route

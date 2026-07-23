@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 import { join } from "node:path";
 import withBundleAnalyzer from "@next/bundle-analyzer";
+import { withSentryConfig } from "@sentry/nextjs";
 import createNextIntlPlugin from "next-intl/plugin";
 
 const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
@@ -69,4 +70,16 @@ const analyzer = withBundleAnalyzer({
   enabled: process.env.ANALYZE === "true",
 });
 
-export default withNextIntl(analyzer(nextConfig));
+const configWithIntl = withNextIntl(analyzer(nextConfig));
+
+// Wrap with Sentry so @sentry/nextjs auto-loads sentry.{client,server,edge}.config.ts
+// (they are otherwise orphaned) and instruments the build. The client/server SDK
+// initialises from NEXT_PUBLIC_SENTRY_DSN (baked as a build-arg). Source-map upload
+// only runs when SENTRY_AUTH_TOKEN is present in the build env; without it the SDK
+// still reports errors, upload is simply skipped. No DSN => Sentry stays a no-op.
+export default withSentryConfig(configWithIntl, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: true,
+});

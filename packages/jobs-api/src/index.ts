@@ -7,7 +7,9 @@ const API_KEY = process.env.EVER_JOBS_API_KEY;
 // Ever Jobs aggregates 160+ company/ATS sources per search, which routinely takes ~60s+.
 // This client is only used by the background sync (runtime search reads Hust's own DB), so a
 // generous timeout is safe and necessary to avoid spurious sync timeouts.
-const DEFAULT_FETCH_TIMEOUT_MS = 120_000; // 120 seconds
+// Full multi-source scrapes take ~130s+; 120s aborted mid-search (0 jobs ingested).
+// Default 5 min, overridable via EVER_JOBS_FETCH_TIMEOUT_MS. Stays within the Trigger task maxDuration (600s).
+const DEFAULT_FETCH_TIMEOUT_MS = Number(process.env.EVER_JOBS_FETCH_TIMEOUT_MS) || 300_000;
 
 /** Typed error carrying the HTTP status code — used by withRetry to skip retries on 4xx. */
 class ApiError extends Error {

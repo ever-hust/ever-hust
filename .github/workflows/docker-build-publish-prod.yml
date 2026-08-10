@@ -86,10 +86,6 @@ jobs:
             NEXT_PUBLIC_SUPABASE_URL=${{ env.NEXT_PUBLIC_SUPABASE_URL }}
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
             NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=${{ env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY }}
-            # Browser Maps key: dedicated repo secret (auto-masked), NOT sieved out of
-            # the HUST_PROD_ENV blob. Referrer-restricted to the hust hostnames and
-            # API-restricted to Maps JS + Places. Server-side geocoding uses a SEPARATE
-            # IP-restricted key injected at runtime — never a NEXT_PUBLIC_ var.
             NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${{ secrets.HUST_MAPS_BROWSER_KEY }}
             # Error tracking + analytics (public keys, same value across envs).
             NEXT_PUBLIC_SENTRY_DSN=https://e3deaad715f494351a6f377e1d32b1ef@o51327.ingest.us.sentry.io/4511781940035584

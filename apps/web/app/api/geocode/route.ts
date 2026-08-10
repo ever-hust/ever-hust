@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { env } from "@/lib/env";
+import type { NextResponse as NextResponseType } from "next/server";
+import { requireRole } from "@/lib/auth-roles";
+import { applyRateLimit } from "@/lib/rate-limit";
+import { mapsServerKey } from "@/lib/maps-key";
 
 /**
  * POST /api/geocode
@@ -8,10 +11,13 @@ import { env } from "@/lib/env";
  * Server-side geocoding proxy. Takes { city, state, country } and returns
  * { lat, lng } using the Google Maps Geocoding REST API.
  *
- * The API key is kept server-side (not the NEXT_PUBLIC_ variant) so that
- * callers don't need a Maps API key of their own.
+ * Uses the server-only key (`GOOGLE_MAPS_SERVER_KEY`), never the NEXT_PUBLIC_
+ * browser key — the header comment here previously claimed that while the code
+ * did the opposite.
  *
- * Intended for batch-geocoding jobs in a background task.
+ * Every call costs a billed Google request, so this is authenticated and rate
+ * limited: an open proxy on a public hostname lets anyone spend the project's
+ * Maps quota through our own domain, which no key restriction can prevent.
  */
 
 const geocodeSchema = z.object({
@@ -21,7 +27,17 @@ const geocodeSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const apiKey = env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  let user;
+  try {
+    user = await requireRole("admin", "recruiter", "user");
+  } catch (response) {
+    return response as NextResponseType;
+  }
+
+  const rateLimited = applyRateLimit(user.id, "export");
+  if (rateLimited) return rateLimited;
+
+  const apiKey = mapsServerKey();
   if (!apiKey) {
     return NextResponse.json(
       { error: "Google Maps API key is not configured" },
@@ -54,15 +70,20 @@ export async function POST(request: Request) {
   url.searchParams.set("key", apiKey);
 
   try {
-    const res = await fetch(url.toString());
+    // Without a timeout a stalled Google connection pins a server worker.
+    const res = await fetch(url.toString(), { signal: AbortSignal.timeout(5000) });
     const data = (await res.json()) as {
       status: string;
+      error_message?: string;
       results?: Array<{
         geometry: { location: { lat: number; lng: number } };
       }>;
     };
 
     if (data.status !== "OK" || !data.results?.length) {
+      console.warn(
+        `[geocode] ${data.status} for "${address}"${data.error_message ? `: ${data.error_message}` : ""}`
+      );
       return NextResponse.json(
         { error: "Geocoding failed", status: data.status },
         { status: 404 }

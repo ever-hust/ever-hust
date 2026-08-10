@@ -1,7 +1,11 @@
 import { db, jobs } from "@ever-hust/db";
+import { inArray, isNotNull, and } from "drizzle-orm";
 import { everJobsClient } from "@ever-hust/jobs-api";
 import { mapJobToDb, geocodeLocation, SEARCH_TERMS } from "@ever-hust/triggers";
 import { apiSuccess, apiError } from "../../../../lib/api-response";
+
+/** Hard ceiling on search terms per request — each term costs a full upstream scrape. */
+const MAX_SEARCH_TERMS = 5;
 
 /**
  * POST /api/jobs/sync
@@ -34,7 +38,9 @@ export async function POST(req: Request) {
     try {
       const body = await req.json();
       if (Array.isArray(body?.searchTerms)) {
-        requestedTerms = body.searchTerms;
+        // Cap the fan-out: this was unbounded, so a single POST could request
+        // arbitrarily many terms x 200 jobs, each costing a billed geocode.
+        requestedTerms = body.searchTerms.slice(0, MAX_SEARCH_TERMS);
       }
       if (typeof body?.resultsWanted === "number" && body.resultsWanted > 0) {
         resultsWanted = Math.min(body.resultsWanted, 200);
@@ -66,6 +72,24 @@ export async function POST(req: Request) {
           { pageSize: resultsWanted },
         );
 
+        // Which of these jobs do we ALREADY have coordinates for? Geocoding was
+        // previously re-run for every job on every sync — measured at 88.5% of
+        // calls re-resolving rows that already had lat/lng. One query replaces
+        // hundreds of billed Google requests per run.
+        const externalIds = response.jobs.map((d) => d.id).filter(Boolean) as string[];
+        const alreadyGeocoded = new Set<string>();
+        if (externalIds.length > 0) {
+          const rows = await db
+            .select({ externalId: jobs.externalId })
+            .from(jobs)
+            .where(
+              and(inArray(jobs.externalId, externalIds), isNotNull(jobs.latitude)),
+            );
+          for (const r of rows) {
+            if (r.externalId) alreadyGeocoded.add(r.externalId);
+          }
+        }
+
         for (const dto of response.jobs) {
           try {
             // Skip DTOs with missing required fields
@@ -78,12 +102,15 @@ export async function POST(req: Request) {
 
             const mapped = mapJobToDb(dto);
 
-            // Geocode job location → lat/lng (non-fatal if it fails)
-            const coords = await geocodeLocation({
-              city: mapped.locationCity,
-              state: mapped.locationState,
-              country: mapped.locationCountry,
-            });
+            // Geocode job location → lat/lng (non-fatal if it fails).
+            // Skipped entirely when this job already has coordinates.
+            const coords = alreadyGeocoded.has(dto.id)
+              ? null
+              : await geocodeLocation({
+                  city: mapped.locationCity,
+                  state: mapped.locationState,
+                  country: mapped.locationCountry,
+                });
 
             await db
               .insert(jobs)

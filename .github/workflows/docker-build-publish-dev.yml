@@ -52,8 +52,17 @@ jobs:
           printf '%s' "$HUST_DEV_ENV" > /tmp/hust.env
           # Export only the NEXT_PUBLIC_* lines (the build args Next inlines).
           # HUST_DEV_ENV may be unset/empty — tolerate it (|| true).
-          grep -E '^NEXT_PUBLIC_' /tmp/hust.env >> "$GITHUB_ENV" || true
-          rm -f /tmp/hust.env
+          # GitHub masks the HUST_DEV_ENV blob as a whole, but NOT the individual
+          # values we sieve out of it — so register each one with ::add-mask::
+          # before it can reach the log. (A Maps key leaked this way from
+          # 2026-06-15 until 2026-08-11.)
+          grep -E '^NEXT_PUBLIC_' /tmp/hust.env > /tmp/hust.pub || true
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            printf '::add-mask::%s\n' "${line#*=}"
+            printf '%s\n' "$line" >> "$GITHUB_ENV"
+          done < /tmp/hust.pub
+          rm -f /tmp/hust.env /tmp/hust.pub
 
       - name: Build and push (GHCR)
         uses: docker/build-push-action@v7
@@ -75,7 +84,11 @@ jobs:
             NEXT_PUBLIC_SUPABASE_URL=${{ env.NEXT_PUBLIC_SUPABASE_URL }}
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
             NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=${{ env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY }}
-            NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${{ env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
+            # Browser Maps key: dedicated repo secret (auto-masked), NOT sieved out of
+            # the HUST_DEV_ENV blob. Referrer-restricted to the hust hostnames and
+            # API-restricted to Maps JS + Places. Server-side geocoding uses a SEPARATE
+            # IP-restricted key injected at runtime — never a NEXT_PUBLIC_ var.
+            NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${{ secrets.HUST_MAPS_BROWSER_KEY }}
             # Error tracking + analytics (public keys, same value across envs).
             NEXT_PUBLIC_SENTRY_DSN=https://e3deaad715f494351a6f377e1d32b1ef@o51327.ingest.us.sentry.io/4511781940035584
             NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com

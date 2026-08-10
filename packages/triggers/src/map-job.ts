@@ -74,7 +74,10 @@ export async function geocodeLocation(parts: {
   state?: string | null;
   country?: string | null;
 }): Promise<{ latitude: string; longitude: string } | null> {
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  // Server key ONLY. Never `NEXT_PUBLIC_*` — Next inlines that prefix into the
+  // client bundle at build time, which is how the previous key became public.
+  // See apps/web/lib/maps-key.ts for the full split.
+  const apiKey = process.env.GOOGLE_MAPS_SERVER_KEY;
   if (!apiKey) return null;
 
   const addressParts = [parts.city, parts.state, parts.country].filter(Boolean);
@@ -82,32 +85,74 @@ export async function geocodeLocation(parts: {
 
   const address = addressParts.join(", ");
 
+  const cached = geocodeCache.get(address);
+  if (cached !== undefined) return cached;
+
   try {
     const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
     url.searchParams.set("address", address);
     url.searchParams.set("key", apiKey);
 
     const res = await fetch(url.toString(), { signal: AbortSignal.timeout(5000) });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.warn(`[geocode] HTTP ${res.status} for "${address}"`);
+      cacheResult(address, null);
+      return null;
+    }
 
     const data = (await res.json()) as {
       status: string;
+      error_message?: string;
       results?: Array<{
         geometry: { location: { lat: number; lng: number } };
       }>;
     };
 
-    if (data.status !== "OK" || !data.results?.length) return null;
+    if (data.status !== "OK" || !data.results?.length) {
+      // Previously this returned null silently. Google's status is the ONLY
+      // signal distinguishing "no such place" (ZERO_RESULTS) from "your project
+      // is broken" (REQUEST_DENIED / OVER_QUERY_LIMIT) — swallowing it hid an
+      // 8-week, 100%-failure outage behind zero log lines.
+      console.warn(
+        `[geocode] ${data.status} for "${address}"${data.error_message ? `: ${data.error_message}` : ""}`
+      );
+      cacheResult(address, null);
+      return null;
+    }
 
     const { lat, lng } = data.results[0]!.geometry.location;
-    return { latitude: String(lat), longitude: String(lng) };
+    const result = { latitude: String(lat), longitude: String(lng) };
+    cacheResult(address, result);
+    return result;
   } catch (err) {
     console.warn(
       `[geocode] Failed to geocode "${address}":`,
       err instanceof Error ? err.message : err
     );
+    cacheResult(address, null);
     return null;
   }
+}
+
+/**
+ * Process-local address -> coords cache.
+ *
+ * The job corpus repeats the same "city, state, country" about 3.6x, and the
+ * sync loop previously issued one billed Google request per job with no reuse.
+ * Bounded so a long-lived worker cannot grow it without limit.
+ */
+const GEOCODE_CACHE_MAX = 5000;
+const geocodeCache = new Map<string, { latitude: string; longitude: string } | null>();
+
+function cacheResult(
+  address: string,
+  value: { latitude: string; longitude: string } | null
+): void {
+  if (geocodeCache.size >= GEOCODE_CACHE_MAX) {
+    const oldest = geocodeCache.keys().next().value;
+    if (oldest !== undefined) geocodeCache.delete(oldest);
+  }
+  geocodeCache.set(address, value);
 }
 
 /**

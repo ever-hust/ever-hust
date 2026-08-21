@@ -70,6 +70,14 @@ jobs:
         with:
           node-version: "24"
           cache: "pnpm"
+      - name: Configure Registry
+        uses: ever-co/ever-gauzy/.github/actions/configure-registry@9459d29e9a3859740348bb445dfe885cae83fc88
+        with:
+          verdaccio-registry: ${{ vars.VERDACCIO_REGISTRY }}
+          verdaccio-token: ${{ secrets.VERDACCIO_TOKEN }}
+          force-public: ${{ vars.VERDACCIO_FORCE_PUBLIC }}
+          expect-vip: ${{ vars.RUNNER_LINUX_X64_4 != '' }}
+
       - name: Install deps (for migrations)
         run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Ensure anonymous-trial schema column

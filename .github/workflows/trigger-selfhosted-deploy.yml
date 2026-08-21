@@ -75,6 +75,14 @@ jobs:
           node-version: 24
           cache: pnpm
 
+      - name: Configure Registry
+        uses: ever-co/ever-gauzy/.github/actions/configure-registry@9459d29e9a3859740348bb445dfe885cae83fc88
+        with:
+          verdaccio-registry: ${{ vars.VERDACCIO_REGISTRY }}
+          verdaccio-token: ${{ secrets.VERDACCIO_TOKEN }}
+          force-public: ${{ vars.VERDACCIO_FORCE_PUBLIC }}
+          expect-vip: ${{ vars.RUNNER_LINUX_X64_8 != '' }}
+
       - name: Install dependencies
         # trigger.config.ts imports @trigger.dev/sdk, so the CLI needs the
         # workspace node_modules present to compile the config + task bundle.

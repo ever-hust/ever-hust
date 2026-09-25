@@ -1,4 +1,6 @@
 import { task, schedules } from "@trigger.dev/sdk";
+import { callAppEndpoint } from "./app-endpoint";
+import { APP_ENDPOINT_TASK_MAX_DURATION_S, CRON_ENDPOINTS, CRON_TIMEOUTS_MS } from "./cron-endpoints";
 import { runsOnTrigger, SKIPPED } from "./scheduler";
 
 /**
@@ -7,29 +9,19 @@ import { runsOnTrigger, SKIPPED } from "./scheduler";
  * of where the app is deployed. No-ops when SCHEDULER!=trigger.
  */
 async function callCronSync() {
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:8443";
-  const secret = process.env.CRON_SECRET;
-  const res = await fetch(`${base}/api/inbox/cron-sync`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
-    },
-  });
-  if (!res.ok) {
-    throw new Error(`inbox cron-sync failed: ${res.status}`);
-  }
-  return res.json().catch(() => ({}));
+  return callAppEndpoint(CRON_ENDPOINTS.inboxSync, {}, { timeoutMs: CRON_TIMEOUTS_MS.inboxSync });
 }
 
 export const inboxSyncTask = task({
   id: "inbox-sync",
+  maxDuration: APP_ENDPOINT_TASK_MAX_DURATION_S,
   run: async () => callCronSync(),
 });
 
 /** Every hour, sync all connected mailboxes. */
 export const inboxSyncSchedule = schedules.task({
   id: "inbox-sync-hourly",
+  maxDuration: APP_ENDPOINT_TASK_MAX_DURATION_S,
   cron: "0 * * * *",
   run: async () => {
     if (!runsOnTrigger()) return SKIPPED;

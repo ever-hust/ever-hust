@@ -26,10 +26,20 @@ export {
   processAlerts,
   ALERT_FREQUENCIES,
   ALERT_MIN_INTERVAL_MS,
+  ALERT_JOBS_SETTLE_MS,
+  ALERT_DB_CLOCK_MAX_SKEW_MS,
+  JOBS_INSERT_MAX_LATENCY_MS,
   type AlertFrequency,
   type AlertRunResult,
   type JobAlertsRunResult,
 } from "./job-alerts";
+
+export {
+  alertWindowEndProblem,
+  resolveAlertWindowEnd,
+  ALERT_WINDOW_END_MAX_FUTURE_MS,
+  ALERT_WINDOW_END_MAX_AGE_MS,
+} from "./alert-window";
 
 export {
   runFollowUpNudges,

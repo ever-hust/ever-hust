@@ -16,14 +16,80 @@ const BASE_DELAY_MS = 500;
 /** HTTP status codes that are safe to retry. */
 const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
 
-/** Error subclass that preserves the HTTP status code from the Resend API. */
+/** Error subclass that preserves the HTTP status code (and Resend error name) from the Resend API. */
 class EmailSendError extends Error {
   readonly statusCode?: number;
-  constructor(message: string, statusCode?: number) {
+  /** Resend's error name, e.g. `rate_limit_exceeded`. */
+  readonly code?: string;
+  constructor(message: string, statusCode?: number, code?: string) {
     super(message);
     this.name = "EmailSendError";
     this.statusCode = statusCode;
+    this.code = code;
   }
+}
+
+// ── Idempotent sends ──────────────────────────────────────────────────────────
+
+/**
+ * Resend 409s for a request whose idempotency key was already used (Resend remembers a key for
+ * 24 h). The same key with the same payload is not an error: Resend answers with the original
+ * response and sends nothing new.
+ *  - `invalid_idempotent_request`: the key was used by an earlier request with a different payload
+ *    (e.g. the matching jobs changed between two attempts). That earlier request was processed:
+ *    {@link DeduplicatedEmail} with reason `replayed`.
+ *  - `concurrent_idempotent_requests`: a request with this key is STILL being processed, so its
+ *    outcome is not known yet: reason `in_flight`. The caller must not treat that as delivered.
+ */
+const IDEMPOTENT_REPLAY_REASONS = new Map<string, DeduplicatedEmail["reason"]>([
+  ["invalid_idempotent_request", "replayed"],
+  ["concurrent_idempotent_requests", "in_flight"],
+]);
+
+/** Returned instead of throwing when Resend says this idempotency key was already used. */
+export interface DeduplicatedEmail {
+  id: null;
+  deduplicated: true;
+  /**
+   * `replayed`: an earlier request with this key was already processed; nothing new was sent.
+   * `in_flight`: an earlier request with this key is still being processed; whether it will be
+   * delivered is not known yet.
+   */
+  reason: "replayed" | "in_flight";
+}
+
+/** True when a send result is {@link DeduplicatedEmail} (nothing new was sent). */
+export function isDeduplicatedEmail(result: unknown): result is DeduplicatedEmail {
+  return (result as { deduplicated?: unknown } | null)?.deduplicated === true;
+}
+
+type SendEmailResult = Awaited<ReturnType<ReturnType<typeof getResend>["emails"]["send"]>>;
+
+/**
+ * One Resend `emails.send` call. With an `idempotencyKey` (sent as the `Idempotency-Key` header),
+ * a retry of a request Resend already accepted — a lost response, a timeout, a Trigger.dev retry —
+ * cannot send the email twice, and a 409 replay error comes back as {@link DeduplicatedEmail}.
+ */
+async function sendOnce(
+  payload: Parameters<ReturnType<typeof getResend>["emails"]["send"]>[0],
+  errorPrefix: string,
+  idempotencyKey?: string,
+): Promise<SendEmailResult["data"] | DeduplicatedEmail> {
+  const resend = getResend();
+  const { data, error } = idempotencyKey
+    ? await resend.emails.send(payload, { idempotencyKey })
+    : await resend.emails.send(payload);
+  if (error) {
+    const code = (error as { name?: string }).name;
+    const replay = idempotencyKey && code ? IDEMPOTENT_REPLAY_REASONS.get(code) : undefined;
+    if (replay) return { id: null, deduplicated: true, reason: replay };
+    throw new EmailSendError(
+      `${errorPrefix}: ${error.message ?? "Unknown error"}`,
+      (error as { statusCode?: number }).statusCode,
+      code,
+    );
+  }
+  return data;
 }
 
 /** Check whether an error is retryable (network issue or server error). */
@@ -93,6 +159,8 @@ interface SendJobAlertParams {
   }[];
   manageUrl?: string;
   unsubscribeUrl?: string;
+  /** Resend idempotency key; keep it identical for every retry of the same alert period. */
+  idempotencyKey?: string;
 }
 
 export async function sendJobAlertEmail({
@@ -102,6 +170,7 @@ export async function sendJobAlertEmail({
   jobs,
   manageUrl,
   unsubscribeUrl,
+  idempotencyKey,
 }: SendJobAlertParams) {
   const appUrl = getAppUrl();
   if (!manageUrl) manageUrl = `${appUrl}/settings`;
@@ -117,23 +186,10 @@ export async function sendJobAlertEmail({
   const html = await render(element);
   const subject = `${jobs.length} new job${jobs.length !== 1 ? "s" : ""} matching "${alertCriteria}"`;
 
-  return withRetry(async () => {
-    const { data, error } = await getResend().emails.send({
-      from: EMAIL_FROM,
-      to,
-      subject,
-      html,
-    });
-
-    if (error) {
-      throw new EmailSendError(
-        `Failed to send job alert email: ${error.message ?? "Unknown error"}`,
-        (error as { statusCode?: number }).statusCode,
-      );
-    }
-
-    return data;
-  }, "sendJobAlertEmail");
+  return withRetry(
+    () => sendOnce({ from: EMAIL_FROM, to, subject, html }, "Failed to send job alert email", idempotencyKey),
+    "sendJobAlertEmail",
+  );
 }
 
 // ── Follow-up Nudge Email (spec #9) ───────────────────────────────────────────
@@ -150,6 +206,8 @@ interface SendFollowUpNudgeParams {
   }[];
   pipelineUrl?: string;
   settingsUrl?: string;
+  /** Resend idempotency key; keep it identical for every retry of the same cooldown window. */
+  idempotencyKey?: string;
 }
 
 export async function sendFollowUpNudgeEmail({
@@ -158,6 +216,7 @@ export async function sendFollowUpNudgeEmail({
   items,
   pipelineUrl,
   settingsUrl,
+  idempotencyKey,
 }: SendFollowUpNudgeParams) {
   const appUrl = getAppUrl();
   const element = FollowUpNudgeEmail({
@@ -171,21 +230,10 @@ export async function sendFollowUpNudgeEmail({
   const n = items.length;
   const subject = `${n} application${n !== 1 ? "s" : ""} ready for a follow-up`;
 
-  return withRetry(async () => {
-    const { data, error } = await getResend().emails.send({
-      from: EMAIL_FROM,
-      to,
-      subject,
-      html,
-    });
-    if (error) {
-      throw new EmailSendError(
-        `Failed to send follow-up nudge email: ${error.message ?? "Unknown error"}`,
-        (error as { statusCode?: number }).statusCode,
-      );
-    }
-    return data;
-  }, "sendFollowUpNudgeEmail");
+  return withRetry(
+    () => sendOnce({ from: EMAIL_FROM, to, subject, html }, "Failed to send follow-up nudge email", idempotencyKey),
+    "sendFollowUpNudgeEmail",
+  );
 }
 
 // ── Welcome Email ───────────────────────────────────────────────────────────

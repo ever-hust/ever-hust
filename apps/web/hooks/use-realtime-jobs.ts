@@ -39,6 +39,16 @@ const MAX_RECONNECT_ATTEMPTS = 3;
  * React hook that subscribes to Supabase Realtime changes on the `jobs` table.
  * Automatically cleans up the subscription on unmount.
  *
+ * NOTE (2026-09-25) — on the self-hosted k8s deployment this subscription never delivers
+ * an event. Supabase Realtime streams `postgres_changes` from the Postgres it is attached to,
+ * through logical replication and the `supabase_realtime` publication. Hust's jobs live in the
+ * CNPG cluster (`hust` / `hust_stage` / `hust_dev`), which is not a Supabase database, and those
+ * databases have no publication at all (`pg_publication` is empty). So INSERT/UPDATE/DELETE
+ * callbacks cannot fire there, whatever `NEXT_PUBLIC_SUPABASE_URL` points at. The hook is left as
+ * is on purpose: it is harmless (subscribes, then stays silent) and still works on a Supabase-hosted
+ * database. Live job updates on k8s need a different transport (e.g. polling or an SSE route fed
+ * by the sync endpoint) — see docs/internal/CRON_ENDPOINTS.md.
+ *
  * @example
  * ```tsx
  * useRealtimeJobs({

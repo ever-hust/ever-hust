@@ -8,20 +8,26 @@ import type { z } from "zod";
  * is pure and unit-testable without the AI SDK.
  *
  * Returns the parsed, validated object. Throws the last error if every attempt fails.
+ *
+ * With a `signal`, no attempt starts once it is aborted: an aborted run throws instead of paying
+ * for another generation.
  */
 export async function runValidatedGeneration<T>(
   generate: (attempt: number) => Promise<unknown>,
   schema: z.ZodType<T>,
   attempts = 2,
+  signal?: AbortSignal,
 ): Promise<T> {
   const max = Math.max(1, attempts);
   let lastError: unknown;
   for (let attempt = 1; attempt <= max; attempt++) {
+    signal?.throwIfAborted();
     try {
       const raw = await generate(attempt);
       return schema.parse(raw);
     } catch (err) {
       lastError = err;
+      if (signal?.aborted) throw err;
     }
   }
   throw lastError instanceof Error
@@ -43,6 +49,8 @@ export interface GenerateValidatedOptions<TSchema extends z.ZodTypeAny> {
   validationAttempts?: number;
   /** Langfuse / OTEL telemetry passthrough. */
   telemetry?: { functionId?: string; metadata?: Record<string, unknown> };
+  /** Cancels the in-flight SDK call (forwarded as `abortSignal`) and stops further attempts. */
+  abortSignal?: AbortSignal;
 }
 
 /**
@@ -63,6 +71,7 @@ export async function generateValidatedObject<TSchema extends z.ZodTypeAny>(
     maxRetries = 2,
     validationAttempts = 2,
     telemetry,
+    abortSignal,
   } = opts;
 
   return runValidatedGeneration(
@@ -77,6 +86,7 @@ export async function generateValidatedObject<TSchema extends z.ZodTypeAny>(
         schemaName,
         schemaDescription,
         maxRetries,
+        abortSignal,
         experimental_telemetry: telemetry
           ? {
               isEnabled: true,
@@ -89,5 +99,6 @@ export async function generateValidatedObject<TSchema extends z.ZodTypeAny>(
     },
     schema as z.ZodType<z.infer<TSchema>>,
     validationAttempts,
+    abortSignal,
   );
 }

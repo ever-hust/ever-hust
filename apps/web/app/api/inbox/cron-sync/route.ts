@@ -2,23 +2,20 @@ import { db, emailAccounts } from "@ever-hust/db";
 import { eq } from "drizzle-orm";
 import { apiSuccess, apiError } from "../../../../lib/api-response";
 import { syncAccount } from "../../../../lib/inbox-sync";
+import { verifyCronRequest } from "../../../../lib/cron-auth";
 
 export const maxDuration = 300;
 
 /**
  * POST — background sync of ALL connected mailboxes. Guarded by CRON_SECRET
- * (Authorization: Bearer <secret> or x-cron-secret). Called by the Trigger.dev
- * schedule (or any external cron). When CRON_SECRET is unset (local dev), open.
+ * (Authorization: Bearer <secret> or x-cron-secret) through the shared cron guard:
+ * constant-time comparison, fail closed (503) when CRON_SECRET is unset in
+ * production, open when it is unset in local dev. Called by the Trigger.dev
+ * schedule (or any external cron).
  */
 export async function POST(req: Request) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const provided =
-      req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ??
-      req.headers.get("x-cron-secret") ??
-      "";
-    if (provided !== cronSecret) return apiError("Unauthorized", 401);
-  }
+  const denied = verifyCronRequest(req);
+  if (denied) return denied;
 
   try {
     const accounts = await db

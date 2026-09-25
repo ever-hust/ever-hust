@@ -205,6 +205,10 @@ function buildPrompt(input: {
  * Core evaluation routine (spec #3). Pure orchestration over the tested deterministic core
  * + the LLM layer + persistence. Reusable by the tool, a read/refresh API route, and batch
  * evaluation (#19). `userId` and `model` are supplied by the caller (injected server-side).
+ *
+ * `abortSignal` cancels the paid LLM call: no call starts once it is aborted, and an in-flight one
+ * is cancelled (the promise rejects). The provider may still bill the tokens it already produced.
+ * An abort after the LLM answered does not stop the result from being saved.
  */
 export async function runEvaluateJob(args: {
   jobId: number;
@@ -212,8 +216,9 @@ export async function runEvaluateJob(args: {
   model: LanguageModel;
   weightOverride?: Record<string, number>;
   includeInterviewPlan?: boolean;
+  abortSignal?: AbortSignal;
 }): Promise<EvaluateJobResult> {
-  const { jobId, userId, model, weightOverride, includeInterviewPlan = false } = args;
+  const { jobId, userId, model, weightOverride, includeInterviewPlan = false, abortSignal } = args;
 
   const jobRows = await db
     .select({
@@ -284,6 +289,7 @@ export async function runEvaluateJob(args: {
   });
 
   // LLM-reasoned dimensions + A–F blocks + recommendation (model retries on schema mismatch).
+  abortSignal?.throwIfAborted();
   const llmPart = await generateValidatedObject({
     model,
     schema: evaluationLlmPartSchema,
@@ -304,6 +310,7 @@ export async function runEvaluateJob(args: {
       includeInterviewPlan,
     }),
     telemetry: { functionId: "evaluate-job", metadata: { userId, jobId } },
+    abortSignal,
   });
 
   // Block G — posting legitimacy (spec #7): prefer the Ever Jobs corpus signal, else heuristic.

@@ -1,4 +1,4 @@
-import { db as defaultDb, escapeIlike, userAlerts, jobs, users } from "@ever-hust/db";
+import { db as defaultDb, escapeIlike, userAlerts, jobs, users, JOBS_INSERT_MAX_LATENCY_MS } from "@ever-hust/db";
 import { sendJobAlertEmail } from "@ever-hust/email";
 import { and, desc, eq, gt, ilike, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { resolveAlertWindowEnd } from "./alert-window";
@@ -15,7 +15,8 @@ import { classifySendOutcome } from "./send-outcome";
  * is the alert's marker, the existing `user_alerts.last_sent_at` (no schema change). The marker
  * always holds the end of the last period that went out, so consecutive periods meet exactly. The
  * digest lists the jobs created in that period shifted back by {@link ALERT_JOBS_SETTLE_MS}
- * ({@link alertJobsWindow}), so that period's jobs have all committed when the run reads them.
+ * ({@link alertJobsWindow}), so that period's jobs have all committed when the run reads them
+ * (guaranteed by the jobs-writer rule, see {@link ALERT_JOBS_SETTLE_MS}).
  *
  * DELIVERY: at least once, with provider-side dedupe. Per alert, SEND-THEN-ADVANCE:
  *  1. The candidate query only returns alerts not yet sent for this window end
@@ -65,12 +66,21 @@ export const ALERT_MIN_INTERVAL_MS: Record<AlertFrequency, number> = {
  * lists the jobs created up to W − 10 min; the ones from the last 10 minutes go in the next digest.
  * Every period is shifted by the same amount, so consecutive periods still meet exactly.
  *
- * Why: a period's jobs are read once, but a job can become visible later than its `created_at`
- * (the sync stamps it from the app's clock before the insert commits), and W comes from Trigger's
- * clock, which may run ahead of the app's by up to `ALERT_WINDOW_END_MAX_FUTURE_MS`. Without the
- * lag, a job stamped just before W but committed after the read would be in neither digest.
+ * Why: a period's jobs are read once, but a job becomes visible when its insert commits, which is
+ * after its `created_at`, and W comes from Trigger's clock, which may run ahead of the app's by up
+ * to `ALERT_WINDOW_END_MAX_FUTURE_MS`. Without the lag, a job stamped just before W but committed
+ * after the read would be in neither digest.
+ *
+ * The lag is a guarantee, not a guess, because every jobs writer lets the database stamp
+ * `created_at` (the inserting transaction's start) and bounds that transaction, so a row commits
+ * within {@link JOBS_INSERT_MAX_LATENCY_MS} of its `created_at` or not at all (the jobs-writer rule
+ * in `packages/db/src/jobs-insert.ts`). The run reads no earlier than W − the future tolerance, so
+ * the lag must exceed `JOBS_INSERT_MAX_LATENCY_MS + ALERT_WINDOW_END_MAX_FUTURE_MS` (tested).
  */
 export const ALERT_JOBS_SETTLE_MS = 10 * 60 * 1000;
+
+/** Re-exported from `@ever-hust/db`: max time from a job's `created_at` to its commit. */
+export { JOBS_INSERT_MAX_LATENCY_MS };
 
 /** A never-sent alert's first digest covers this much time before its window end. */
 export const ALERT_FIRST_SEND_LOOKBACK_MS = 24 * HOUR_MS;

@@ -1,4 +1,4 @@
-import { db, jobs } from "@ever-hust/db";
+import { db, jobs, withBoundedJobsInsert } from "@ever-hust/db";
 import { inArray, isNotNull, and } from "drizzle-orm";
 import { everJobsClient } from "@ever-hust/jobs-api";
 import { mapJobToDb, geocodeLocation, SEARCH_TERMS } from "@ever-hust/triggers";
@@ -112,17 +112,18 @@ export async function POST(req: Request) {
                   country: mapped.locationCountry,
                 });
 
-            await db
-              .insert(jobs)
-              .values({
-                ...mapped,
-                ...(coords ?? {}),
-                createdAt: new Date(),
-              })
-              .onConflictDoUpdate({
-                target: jobs.externalId,
-                set: { ...mapped, ...(coords ?? {}) },
-              });
+            // Jobs-writer rule (packages/db/src/jobs-insert.ts): no createdAt (the database sets
+            // it), and the insert runs in a transaction with bounded duration. Job alerts rely on
+            // both to read every period's jobs.
+            await withBoundedJobsInsert(db, (tx) =>
+              tx
+                .insert(jobs)
+                .values({ ...mapped, ...(coords ?? {}) })
+                .onConflictDoUpdate({
+                  target: jobs.externalId,
+                  set: { ...mapped, ...(coords ?? {}) },
+                }),
+            );
 
             totalUpserted++;
           } catch (error) {

@@ -1,4 +1,7 @@
+import { jobs, withBoundedJobsInsert } from "@ever-hust/db";
+import * as schema from "@ever-hust/db/schema";
 import type { JobPostDto } from "@ever-hust/jobs-api";
+import { drizzle } from "drizzle-orm/postgres-js";
 import { mapJobToDb, SEARCH_TERMS } from "./map-job";
 
 // ---------------------------------------------------------------------------
@@ -548,5 +551,69 @@ describe("mapJobToDb", () => {
       expect(result.salaryMax).toBeNull();
       expect(result.datePosted).toBeNull();
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The sync upsert (jobs-writer rule, packages/db/src/jobs-insert.ts)
+// ---------------------------------------------------------------------------
+
+describe("the sync upsert built from mapJobToDb", () => {
+  // The same call as apps/web/app/api/jobs/sync/route.ts and ./sync-jobs.ts, through the real
+  // Drizzle postgres-js driver over a client that records the SQL. The source guard
+  // (jobs-insert-guard.test.ts) cannot see inside mapJobToDb, so this checks the SQL itself.
+  function recordingDb() {
+    const statements: string[] = [];
+    const unsafe = (query: string) => {
+      statements.push(query.replace(/\s+/g, " "));
+      const result = Promise.resolve([]);
+      return Object.assign(result, { values: () => result });
+    };
+    const client = {
+      options: { parsers: {}, serializers: {} },
+      unsafe,
+      begin: async (fn: (c: unknown) => Promise<unknown>) => {
+        statements.push("BEGIN");
+        const value = await fn(client);
+        statements.push("COMMIT");
+        return value;
+      },
+    };
+    return { db: drizzle(client as never, { schema }), statements };
+  }
+
+  it("mapJobToDb never sets createdAt", () => {
+    const mapped = mapJobToDb(makeDto({ companyName: "TechCorp", datePosted: "2026-09-20" }));
+    expect(Object.keys(mapped)).not.toContain("createdAt");
+  });
+
+  it("runs bounded, leaves created_at to the database, and never updates it on conflict", async () => {
+    const { db, statements } = recordingDb();
+    const mapped = mapJobToDb(makeDto({ companyName: "TechCorp", location: { city: "Austin" } }));
+    const coords = { latitude: "30.26", longitude: "-97.74" };
+    await withBoundedJobsInsert(db, (tx) =>
+      tx
+        .insert(jobs)
+        .values({ ...mapped, ...coords })
+        .onConflictDoUpdate({ target: jobs.externalId, set: { ...mapped, ...coords } }),
+    );
+
+    expect(statements).toHaveLength(4);
+    expect(statements[0]).toBe("BEGIN");
+    expect(statements[1]).toContain("set_config('statement_timeout'");
+    expect(statements[3]).toBe("COMMIT");
+
+    const insert = statements[2]!;
+    const m = /^insert into "jobs" \(([^)]*)\) values \((.*?)\) on conflict \("external_id"\) do update set (.*)$/.exec(insert);
+    expect(m).not.toBeNull();
+    const columns = m![1]!.split(", ");
+    const values = m![2]!.split(", ");
+    expect(values).toHaveLength(columns.length);
+    const valueOf = (column: string) => values[columns.indexOf(`"${column}"`)];
+    expect(valueOf("created_at")).toBe("default");
+    expect(valueOf("external_id")).toMatch(/^\$\d+$/); // control: a set column is a parameter
+    expect(valueOf("updated_at")).toMatch(/^\$\d+$/);
+    expect(m![3]).toContain('"updated_at" = ');
+    expect(m![3]).not.toContain("created_at");
   });
 });

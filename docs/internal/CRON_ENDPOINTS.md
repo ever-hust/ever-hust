@@ -153,13 +153,57 @@ email and sends it under the same key. The email has nothing that depends on the
 order is fixed and the body reads no clock. The next period starts where this one ended, so each
 job falls in exactly one period.
 
-**Why the 10-minute lag.** A job can become visible after its `created_at`: the sync stamps
-`created_at` from the app's clock before the insert commits. Also, `windowEnd` comes from Trigger's
-clock, which may run ahead of the app's. Without a lag, a job stamped just before `windowEnd` but
-committed after the run read the jobs would be in neither digest. With the lag, the jobs part of
-any accepted window (at most 5 min in the future) closed at least 5 min before the run reads it.
-The cost is small: an 08:00 digest lists the jobs up to 07:50, and the jobs from 07:50 to 08:00 go
-in the next digest.
+**Why the 10-minute lag.** A job becomes visible when its insert commits, which is after its
+`created_at`. Also, `windowEnd` comes from Trigger's clock, which may run ahead of the app's.
+Without a lag, a job stamped just before `windowEnd` but committed after the run read the jobs
+would be in neither digest. The cost is small: an 08:00 digest lists the jobs up to 07:50, and the
+jobs from 07:50 to 08:00 go in the next digest.
+
+The lag only works because the time from `created_at` to the commit is **bounded** (the jobs-writer
+rule below): at most `JOBS_INSERT_MAX_LATENCY_MS` (2 min). The run reads no earlier than
+`windowEnd` − 5 min, and the latest job of the period has `created_at` = `windowEnd` − 10 min, so it
+committed by `windowEnd` − 8 min. A test checks
+`ALERT_JOBS_SETTLE_MS > JOBS_INSERT_MAX_LATENCY_MS + ALERT_WINDOW_END_MAX_FUTURE_MS`; change one of
+the three only together with the others.
+
+### The jobs-writer rule (every writer that inserts into `jobs`)
+
+Job alerts read each period's jobs once. That is safe only if every row commits within a known
+time of its `created_at`. So every INSERT into `jobs`, today and in any future sync mode:
+
+1. **Never passes `createdAt`.** The database sets `created_at` (column default `now()` = the start
+   of the inserting transaction). An `ON CONFLICT DO UPDATE` never sets it either, so an update
+   keeps the first insert's value. (Before this rule the sync stamped `new Date()` in JavaScript
+   and then awaited the insert, with nothing bounding that wait.)
+2. **Runs through `withBoundedJobsInsert(db, (tx) => tx.insert(jobs)...)`** from `@ever-hust/db`
+   (`packages/db/src/jobs-insert.ts`). It opens a transaction whose first statement is
+   `SET LOCAL statement_timeout = 60s`, `idle_in_transaction_session_timeout = 10s` and
+   `TimeZone = UTC`, then runs exactly one INSERT (any `ON CONFLICT` / `RETURNING`, any number of
+   rows). A transaction that would run longer is cancelled or its session ended, and its rows never
+   become visible. The 2 min bound is the 60 s statement timeout, two 10 s idle gaps (before the
+   INSERT and before the COMMIT), and 40 s of slack for what no timeout covers: the round trip after
+   `BEGIN`, the `SET` itself, and the commit's WAL flush. A batch that needs more than 60 s must be
+   split. `TimeZone = UTC` matters because `created_at` is a `timestamp` without time
+   zone: on a server whose time zone is not UTC, a bare `now()` default would be stored in local
+   time (checked: 4 h off on a server set to `America/New_York`).
+3. **The callback awaits nothing.** Geocoding, reads and HTTP happen before the call. The callback
+   only builds and returns the statement, so the transaction is never idle on the client's side.
+4. **No raw `INSERT INTO jobs`.**
+
+`packages/db/src/jobs-insert-guard.test.ts` parses every source file under `apps/` and `packages/`
+(tests excluded) and fails on an INSERT into `jobs` outside the helper, a `createdAt` in its values
+or conflict `set`, an `await` in the callback, or raw SQL. A builder function that takes
+`tx: JobsInsertTx` and returns the statement is accepted (call it inside the helper). The dev seed
+(`packages/db/src/seed.ts`) follows the rule too, so the guard has no exceptions. A sync branch that
+still stamps `createdAt` fails this guard when it is rebased: drop the stamp and wrap the insert.
+
+To check a database (read-only), this must return `now()` (drizzle migration `0000` creates the
+column so):
+
+```sql
+select column_default from information_schema.columns
+where table_name = 'jobs' and column_name = 'created_at';
+```
 
 ### Follow-up nudges
 

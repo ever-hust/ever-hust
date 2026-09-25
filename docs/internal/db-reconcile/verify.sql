@@ -7,6 +7,10 @@
 --   3. the convalidated state of each declared FK
 -- Expected definitions = pg_get_indexdef / pg_get_constraintdef captured from a drizzle-kit
 -- push into an empty db (search_path = public).
+-- FKs are matched by name AND by column: a live FK on the same table + child columns under
+-- another name counts as present when its whole definition is identical (reconcile.sql skips
+-- it), and as fks_mismatch when it differs, e.g. ON DELETE CASCADE where SET NULL is declared
+-- (reconcile.sql refuses to add the declared FK next to it).
 -- Usage: psql -X -d <db> -f verify.sql
 -- =====================================================================================
 \pset pager off
@@ -140,6 +144,27 @@ WITH exp_idx(name, tbl, def) AS (VALUES
   SELECT k.conname AS name, t.relname AS tbl, k.contype::text AS contype, regexp_replace(pg_get_constraintdef(k.oid), ' NOT VALID$', '') AS def, k.convalidated AS valid
     FROM pg_constraint k JOIN pg_class t ON t.oid = k.conrelid
    WHERE k.connamespace = 'public'::regnamespace AND k.contype IN ('u','f')
+), live_fk AS (
+  SELECT l.name, l.tbl, l.def, l.valid, substring(l.def from '^FOREIGN KEY \(([^)]*)\)') AS cols
+    FROM live_con l
+   WHERE l.contype = 'f'
+), fk_eval AS (
+  -- One row per declared FK, matched against every live FK that carries its name or sits on
+  -- the same table + child column list (in order) under ANY name. The comparison is the whole
+  -- rendered definition: child columns, parent table + columns, ON DELETE, ON UPDATE, MATCH,
+  -- DEFERRABLE. n_same = identical matches, n_diff = matches with a different definition
+  -- (e.g. ON DELETE CASCADE under another name where SET NULL is declared = a mismatch).
+  SELECT e.name, e.tbl, e.def,
+         count(l.name) FILTER (WHERE l.tbl = e.tbl AND l.def = e.def) AS n_same,
+         count(l.name) FILTER (WHERE l.tbl <> e.tbl OR l.def <> e.def) AS n_diff,
+         coalesce(bool_or(l.valid) FILTER (WHERE l.tbl = e.tbl AND l.def = e.def), false) AS valid,
+         string_agg(l.name, ', ' ORDER BY l.name) FILTER (WHERE l.tbl = e.tbl AND l.def = e.def AND l.name <> e.name) AS same_as,
+         string_agg(CASE WHEN l.name = e.name THEN l.def ELSE l.name || ': ' || l.def END, '; ' ORDER BY l.name)
+           FILTER (WHERE l.tbl <> e.tbl OR l.def <> e.def) AS live_diff
+    FROM exp_con e
+    LEFT JOIN live_fk l ON l.name = e.name OR (l.tbl = e.tbl AND l.cols = substring(e.def from '^FOREIGN KEY \(([^)]*)\)'))
+   WHERE e.contype = 'f'
+   GROUP BY e.name, e.tbl, e.def
 )
 SELECT current_database() AS db,
   (SELECT count(*) FROM exp_idx e WHERE NOT EXISTS (SELECT 1 FROM live_idx l WHERE l.name = e.name)) AS indexes_missing,
@@ -147,9 +172,9 @@ SELECT current_database() AS db,
   (SELECT count(*) FROM exp_idx e JOIN live_idx l USING (name) WHERE NOT l.valid) AS indexes_invalid,
   (SELECT count(*) FROM exp_con e WHERE e.contype = 'u' AND NOT EXISTS (SELECT 1 FROM live_con l WHERE l.name = e.name AND l.contype = 'u')) AS uniques_missing,
   (SELECT count(*) FROM exp_con e JOIN live_con l USING (name) WHERE e.contype = 'u' AND (l.tbl <> e.tbl OR l.def <> e.def)) AS uniques_mismatch,
-  (SELECT count(*) FROM exp_con e WHERE e.contype = 'f' AND NOT EXISTS (SELECT 1 FROM live_con l WHERE l.name = e.name AND l.contype = 'f')) AS fks_missing,
-  (SELECT count(*) FROM exp_con e JOIN live_con l USING (name) WHERE e.contype = 'f' AND (l.tbl <> e.tbl OR l.def <> e.def)) AS fks_mismatch,
-  (SELECT count(*) FROM exp_con e JOIN live_con l USING (name) WHERE e.contype = 'f' AND NOT l.valid) AS fks_not_valid,
+  (SELECT count(*) FROM fk_eval WHERE n_same = 0 AND n_diff = 0) AS fks_missing,
+  (SELECT count(*) FROM fk_eval WHERE n_diff > 0) AS fks_mismatch,
+  (SELECT count(*) FROM fk_eval WHERE n_diff = 0 AND n_same > 0 AND NOT valid) AS fks_not_valid,
   (SELECT count(*) FROM exp_idx) AS indexes_expected,
   (SELECT count(*) FROM exp_con WHERE contype = 'u') AS uniques_expected,
   (SELECT count(*) FROM exp_con WHERE contype = 'f') AS fks_expected,
@@ -282,6 +307,27 @@ WITH exp_idx(name, tbl, def) AS (VALUES
   SELECT k.conname AS name, t.relname AS tbl, k.contype::text AS contype, regexp_replace(pg_get_constraintdef(k.oid), ' NOT VALID$', '') AS def, k.convalidated AS valid
     FROM pg_constraint k JOIN pg_class t ON t.oid = k.conrelid
    WHERE k.connamespace = 'public'::regnamespace AND k.contype IN ('u','f')
+), live_fk AS (
+  SELECT l.name, l.tbl, l.def, l.valid, substring(l.def from '^FOREIGN KEY \(([^)]*)\)') AS cols
+    FROM live_con l
+   WHERE l.contype = 'f'
+), fk_eval AS (
+  -- One row per declared FK, matched against every live FK that carries its name or sits on
+  -- the same table + child column list (in order) under ANY name. The comparison is the whole
+  -- rendered definition: child columns, parent table + columns, ON DELETE, ON UPDATE, MATCH,
+  -- DEFERRABLE. n_same = identical matches, n_diff = matches with a different definition
+  -- (e.g. ON DELETE CASCADE under another name where SET NULL is declared = a mismatch).
+  SELECT e.name, e.tbl, e.def,
+         count(l.name) FILTER (WHERE l.tbl = e.tbl AND l.def = e.def) AS n_same,
+         count(l.name) FILTER (WHERE l.tbl <> e.tbl OR l.def <> e.def) AS n_diff,
+         coalesce(bool_or(l.valid) FILTER (WHERE l.tbl = e.tbl AND l.def = e.def), false) AS valid,
+         string_agg(l.name, ', ' ORDER BY l.name) FILTER (WHERE l.tbl = e.tbl AND l.def = e.def AND l.name <> e.name) AS same_as,
+         string_agg(CASE WHEN l.name = e.name THEN l.def ELSE l.name || ': ' || l.def END, '; ' ORDER BY l.name)
+           FILTER (WHERE l.tbl <> e.tbl OR l.def <> e.def) AS live_diff
+    FROM exp_con e
+    LEFT JOIN live_fk l ON l.name = e.name OR (l.tbl = e.tbl AND l.cols = substring(e.def from '^FOREIGN KEY \(([^)]*)\)'))
+   WHERE e.contype = 'f'
+   GROUP BY e.name, e.tbl, e.def
 )
 SELECT 'index' AS kind, e.tbl, e.name,
        CASE WHEN l.name IS NULL THEN 'MISSING' WHEN NOT l.valid THEN 'INVALID' ELSE 'DIFFERENT' END AS problem,
@@ -289,10 +335,15 @@ SELECT 'index' AS kind, e.tbl, e.name,
   FROM exp_idx e LEFT JOIN live_idx l USING (name)
  WHERE l.name IS NULL OR NOT l.valid OR l.def <> e.def OR l.tbl <> e.tbl
 UNION ALL
-SELECT CASE e.contype WHEN 'u' THEN 'unique' ELSE 'fk' END, e.tbl, e.name,
+SELECT 'unique', e.tbl, e.name,
        CASE WHEN l.name IS NULL THEN 'MISSING' ELSE 'DIFFERENT' END, e.def, l.def
-  FROM exp_con e LEFT JOIN live_con l ON l.name = e.name AND l.contype = e.contype
- WHERE l.name IS NULL OR l.def <> e.def OR l.tbl <> e.tbl
+  FROM exp_con e LEFT JOIN live_con l ON l.name = e.name AND l.contype = 'u'
+ WHERE e.contype = 'u' AND (l.name IS NULL OR l.def <> e.def OR l.tbl <> e.tbl)
+UNION ALL
+SELECT 'fk', f.tbl, f.name,
+       CASE WHEN f.n_diff > 0 THEN 'DIFFERENT' ELSE 'MISSING' END, f.def, f.live_diff
+  FROM fk_eval f
+ WHERE f.n_diff > 0 OR f.n_same = 0
  ORDER BY 1, 2, 3;
 
 \echo '== 3. convalidated state of every declared FK'
@@ -422,11 +473,33 @@ WITH exp_idx(name, tbl, def) AS (VALUES
   SELECT k.conname AS name, t.relname AS tbl, k.contype::text AS contype, regexp_replace(pg_get_constraintdef(k.oid), ' NOT VALID$', '') AS def, k.convalidated AS valid
     FROM pg_constraint k JOIN pg_class t ON t.oid = k.conrelid
    WHERE k.connamespace = 'public'::regnamespace AND k.contype IN ('u','f')
+), live_fk AS (
+  SELECT l.name, l.tbl, l.def, l.valid, substring(l.def from '^FOREIGN KEY \(([^)]*)\)') AS cols
+    FROM live_con l
+   WHERE l.contype = 'f'
+), fk_eval AS (
+  -- One row per declared FK, matched against every live FK that carries its name or sits on
+  -- the same table + child column list (in order) under ANY name. The comparison is the whole
+  -- rendered definition: child columns, parent table + columns, ON DELETE, ON UPDATE, MATCH,
+  -- DEFERRABLE. n_same = identical matches, n_diff = matches with a different definition
+  -- (e.g. ON DELETE CASCADE under another name where SET NULL is declared = a mismatch).
+  SELECT e.name, e.tbl, e.def,
+         count(l.name) FILTER (WHERE l.tbl = e.tbl AND l.def = e.def) AS n_same,
+         count(l.name) FILTER (WHERE l.tbl <> e.tbl OR l.def <> e.def) AS n_diff,
+         coalesce(bool_or(l.valid) FILTER (WHERE l.tbl = e.tbl AND l.def = e.def), false) AS valid,
+         string_agg(l.name, ', ' ORDER BY l.name) FILTER (WHERE l.tbl = e.tbl AND l.def = e.def AND l.name <> e.name) AS same_as,
+         string_agg(CASE WHEN l.name = e.name THEN l.def ELSE l.name || ': ' || l.def END, '; ' ORDER BY l.name)
+           FILTER (WHERE l.tbl <> e.tbl OR l.def <> e.def) AS live_diff
+    FROM exp_con e
+    LEFT JOIN live_fk l ON l.name = e.name OR (l.tbl = e.tbl AND l.cols = substring(e.def from '^FOREIGN KEY \(([^)]*)\)'))
+   WHERE e.contype = 'f'
+   GROUP BY e.name, e.tbl, e.def
 )
-SELECT e.tbl, e.name, e.def,
-       CASE WHEN l.name IS NULL THEN 'MISSING' WHEN l.valid THEN 'valid' ELSE 'NOT VALID' END AS state
-  FROM exp_con e LEFT JOIN live_con l ON l.name = e.name AND l.contype = 'f'
- WHERE e.contype = 'f'
+SELECT f.tbl, f.name, f.def,
+       CASE WHEN f.n_diff > 0 THEN 'DIFFERENT' WHEN f.n_same = 0 THEN 'MISSING'
+            WHEN f.valid THEN 'valid' ELSE 'NOT VALID' END
+       || CASE WHEN f.n_diff = 0 AND f.same_as IS NOT NULL THEN ' (identical FK under another name: ' || f.same_as || ')' ELSE '' END AS state
+  FROM fk_eval f
  ORDER BY 1, 2;
 
 \echo '== 4. live-only FKs / unique constraints / indexes in public that drizzle does not declare (report only)'
@@ -556,11 +629,36 @@ WITH exp_idx(name, tbl, def) AS (VALUES
   SELECT k.conname AS name, t.relname AS tbl, k.contype::text AS contype, regexp_replace(pg_get_constraintdef(k.oid), ' NOT VALID$', '') AS def, k.convalidated AS valid
     FROM pg_constraint k JOIN pg_class t ON t.oid = k.conrelid
    WHERE k.connamespace = 'public'::regnamespace AND k.contype IN ('u','f')
+), live_fk AS (
+  SELECT l.name, l.tbl, l.def, l.valid, substring(l.def from '^FOREIGN KEY \(([^)]*)\)') AS cols
+    FROM live_con l
+   WHERE l.contype = 'f'
+), fk_eval AS (
+  -- One row per declared FK, matched against every live FK that carries its name or sits on
+  -- the same table + child column list (in order) under ANY name. The comparison is the whole
+  -- rendered definition: child columns, parent table + columns, ON DELETE, ON UPDATE, MATCH,
+  -- DEFERRABLE. n_same = identical matches, n_diff = matches with a different definition
+  -- (e.g. ON DELETE CASCADE under another name where SET NULL is declared = a mismatch).
+  SELECT e.name, e.tbl, e.def,
+         count(l.name) FILTER (WHERE l.tbl = e.tbl AND l.def = e.def) AS n_same,
+         count(l.name) FILTER (WHERE l.tbl <> e.tbl OR l.def <> e.def) AS n_diff,
+         coalesce(bool_or(l.valid) FILTER (WHERE l.tbl = e.tbl AND l.def = e.def), false) AS valid,
+         string_agg(l.name, ', ' ORDER BY l.name) FILTER (WHERE l.tbl = e.tbl AND l.def = e.def AND l.name <> e.name) AS same_as,
+         string_agg(CASE WHEN l.name = e.name THEN l.def ELSE l.name || ': ' || l.def END, '; ' ORDER BY l.name)
+           FILTER (WHERE l.tbl <> e.tbl OR l.def <> e.def) AS live_diff
+    FROM exp_con e
+    LEFT JOIN live_fk l ON l.name = e.name OR (l.tbl = e.tbl AND l.cols = substring(e.def from '^FOREIGN KEY \(([^)]*)\)'))
+   WHERE e.contype = 'f'
+   GROUP BY e.name, e.tbl, e.def
 )
-SELECT 'constraint' AS kind, l.tbl, l.name, l.def FROM live_con l
+SELECT 'constraint' AS kind, l.tbl, l.name, l.def,
+       (SELECT string_agg(CASE WHEN f.def = l.def THEN 'identical to declared ' ELSE 'CONFLICTS with declared ' END || f.name, '; ' ORDER BY f.name)
+          FROM live_fk f2 JOIN fk_eval f ON f.tbl = f2.tbl AND substring(f.def from '^FOREIGN KEY \(([^)]*)\)') = f2.cols
+         WHERE f2.name = l.name AND f2.tbl = l.tbl) AS note
+  FROM live_con l
  WHERE NOT EXISTS (SELECT 1 FROM exp_con e WHERE e.name = l.name)
 UNION ALL
-SELECT 'index', l.tbl, l.name, l.def FROM live_idx l
+SELECT 'index', l.tbl, l.name, l.def, NULL FROM live_idx l
  WHERE NOT EXISTS (SELECT 1 FROM exp_idx e WHERE e.name = l.name)
    AND NOT EXISTS (SELECT 1 FROM exp_con e WHERE e.name = l.name)
    AND l.name NOT LIKE '%\_pkey'

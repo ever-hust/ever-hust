@@ -16,6 +16,8 @@
 -- Order: 0 guards -> 1 extensions -> 2 indexes (CONCURRENTLY) -> 3 UNIQUE constraints
 --        -> 4 FKs as NOT VALID -> 5 VALIDATE FKs that have 0 orphans -> 6 summary
 -- FKs with orphan rows are LEFT NOT VALID and reported; orphans are NEVER deleted.
+-- A declared FK whose column already has an FK with a different definition is NOT added
+-- (WARNING "fk CONFLICT"; verify.sql reports fks_mismatch) - that is an owner decision.
 -- =====================================================================================
 \set ON_ERROR_STOP 1
 \set QUIET 1
@@ -1256,24 +1258,48 @@ SELECT NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'publ
 -- ADD FOREIGN KEY takes SHARE ROW EXCLUSIVE on child AND parent (blocks writes for the few
 -- ms it runs), so lock_timeout is short: if a long transaction holds the table we fail
 -- fast instead of queueing the app's writes behind us. Just re-run the script.
--- Skips if the drizzle-named constraint exists, or if an equivalent FK (same child cols ->
--- same parent) already exists under another name (reported, never duplicated).
+-- Every FK already on the same child column(s) is compared with the declared one on its FULL
+-- definition: child columns in order, parent table, parent columns in order (confkey),
+-- ON DELETE (confdeltype), ON UPDATE (confupdtype), MATCH type, deferrability, no SET NULL
+-- column list, and the rendered pg_get_constraintdef text that verify.sql compares.
+--   * declared name present, identical           -> NOTICE "fk exists", nothing to do
+--   * identical FK under another name            -> NOTICE "fk SKIPPED", never duplicated
+--   * any FK on those columns with a DIFFERENT
+--     definition (declared name or another name) -> WARNING "fk CONFLICT", the declared FK is
+--     NOT added: two FKs with different ON DELETE actions on one column would conflict.
+--     verify.sql reports it as fks_mismatch; resolving it is an owner decision.
 SET lock_timeout = '5s';
 SET statement_timeout = '1min';
 
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.accounts'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.accounts'::regclass AND conname = 'accounts_user_id_users_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'accounts_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.accounts'::regclass AND k.contype = 'f'
+             AND (k.conname = 'accounts_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : accounts(user_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'accounts_user_id_users_id_fk', differs, 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'accounts_user_id_users_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.accounts'::regclass AND contype = 'f' AND confrelid = 'public.users'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.accounts'::regclass AND attname = 'user_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'accounts_user_id_users_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'accounts_user_id_users_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."accounts" ADD CONSTRAINT "accounts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1281,18 +1307,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.agent_instances'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.agent_instances'::regclass AND conname = 'agent_instances_user_id_users_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'agent_instances_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.agent_instances'::regclass AND k.contype = 'f'
+             AND (k.conname = 'agent_instances_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : agent_instances(user_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'agent_instances_user_id_users_id_fk', differs, 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'agent_instances_user_id_users_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.agent_instances'::regclass AND contype = 'f' AND confrelid = 'public.users'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.agent_instances'::regclass AND attname = 'user_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'agent_instances_user_id_users_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'agent_instances_user_id_users_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."agent_instances" ADD CONSTRAINT "agent_instances_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1300,18 +1342,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.agent_instances'::regclass AND a.attname = 'job_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.jobs'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.agent_instances'::regclass AND conname = 'agent_instances_job_id_jobs_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'agent_instances_job_id_jobs_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.jobs'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'n' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE SET NULL') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.agent_instances'::regclass AND k.contype = 'f'
+             AND (k.conname = 'agent_instances_job_id_jobs_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : agent_instances(job_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'agent_instances_job_id_jobs_id_fk', differs, 'FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE SET NULL';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'agent_instances_job_id_jobs_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.agent_instances'::regclass AND contype = 'f' AND confrelid = 'public.jobs'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.agent_instances'::regclass AND attname = 'job_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'agent_instances_job_id_jobs_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'agent_instances_job_id_jobs_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."agent_instances" ADD CONSTRAINT "agent_instances_job_id_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."jobs"("id") ON DELETE SET NULL ON UPDATE NO ACTION NOT VALID;
@@ -1319,18 +1377,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.agent_instances'::regclass AND a.attname = 'session_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.chat_sessions'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.agent_instances'::regclass AND conname = 'agent_instances_session_id_chat_sessions_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'agent_instances_session_id_chat_sessions_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.chat_sessions'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'n' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE SET NULL') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.agent_instances'::regclass AND k.contype = 'f'
+             AND (k.conname = 'agent_instances_session_id_chat_sessions_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : agent_instances(session_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'agent_instances_session_id_chat_sessions_id_fk', differs, 'FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE SET NULL';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'agent_instances_session_id_chat_sessions_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.agent_instances'::regclass AND contype = 'f' AND confrelid = 'public.chat_sessions'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.agent_instances'::regclass AND attname = 'session_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'agent_instances_session_id_chat_sessions_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'agent_instances_session_id_chat_sessions_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."agent_instances" ADD CONSTRAINT "agent_instances_session_id_chat_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."chat_sessions"("id") ON DELETE SET NULL ON UPDATE NO ACTION NOT VALID;
@@ -1338,18 +1412,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.api_keys'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.api_keys'::regclass AND conname = 'api_keys_user_id_users_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'api_keys_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.api_keys'::regclass AND k.contype = 'f'
+             AND (k.conname = 'api_keys_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : api_keys(user_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'api_keys_user_id_users_id_fk', differs, 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'api_keys_user_id_users_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.api_keys'::regclass AND contype = 'f' AND confrelid = 'public.users'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.api_keys'::regclass AND attname = 'user_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'api_keys_user_id_users_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'api_keys_user_id_users_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."api_keys" ADD CONSTRAINT "api_keys_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1357,18 +1447,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.applications'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.applications'::regclass AND conname = 'applications_user_id_users_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'applications_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.applications'::regclass AND k.contype = 'f'
+             AND (k.conname = 'applications_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : applications(user_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'applications_user_id_users_id_fk', differs, 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'applications_user_id_users_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.applications'::regclass AND contype = 'f' AND confrelid = 'public.users'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.applications'::regclass AND attname = 'user_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'applications_user_id_users_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'applications_user_id_users_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."applications" ADD CONSTRAINT "applications_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1376,18 +1482,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.applications'::regclass AND a.attname = 'job_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.jobs'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.applications'::regclass AND conname = 'applications_job_id_jobs_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'applications_job_id_jobs_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.jobs'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.applications'::regclass AND k.contype = 'f'
+             AND (k.conname = 'applications_job_id_jobs_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : applications(job_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'applications_job_id_jobs_id_fk', differs, 'FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'applications_job_id_jobs_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.applications'::regclass AND contype = 'f' AND confrelid = 'public.jobs'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.applications'::regclass AND attname = 'job_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'applications_job_id_jobs_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'applications_job_id_jobs_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."applications" ADD CONSTRAINT "applications_job_id_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."jobs"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1395,18 +1517,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.applications'::regclass AND a.attname = 'agent_instance_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.agent_instances'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.applications'::regclass AND conname = 'applications_agent_instance_id_agent_instances_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'applications_agent_instance_id_agent_instances_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.agent_instances'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'n' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (agent_instance_id) REFERENCES agent_instances(id) ON DELETE SET NULL') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.applications'::regclass AND k.contype = 'f'
+             AND (k.conname = 'applications_agent_instance_id_agent_instances_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : applications(agent_instance_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'applications_agent_instance_id_agent_instances_id_fk', differs, 'FOREIGN KEY (agent_instance_id) REFERENCES agent_instances(id) ON DELETE SET NULL';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'applications_agent_instance_id_agent_instances_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.applications'::regclass AND contype = 'f' AND confrelid = 'public.agent_instances'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.applications'::regclass AND attname = 'agent_instance_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'applications_agent_instance_id_agent_instances_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'applications_agent_instance_id_agent_instances_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."applications" ADD CONSTRAINT "applications_agent_instance_id_agent_instances_id_fk" FOREIGN KEY ("agent_instance_id") REFERENCES "public"."agent_instances"("id") ON DELETE SET NULL ON UPDATE NO ACTION NOT VALID;
@@ -1414,18 +1552,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.approval_gates'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.approval_gates'::regclass AND conname = 'approval_gates_user_id_users_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'approval_gates_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.approval_gates'::regclass AND k.contype = 'f'
+             AND (k.conname = 'approval_gates_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : approval_gates(user_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'approval_gates_user_id_users_id_fk', differs, 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'approval_gates_user_id_users_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.approval_gates'::regclass AND contype = 'f' AND confrelid = 'public.users'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.approval_gates'::regclass AND attname = 'user_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'approval_gates_user_id_users_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'approval_gates_user_id_users_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."approval_gates" ADD CONSTRAINT "approval_gates_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1433,18 +1587,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.branding_configs'::regclass AND a.attname = 'organization_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.organizations'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.branding_configs'::regclass AND conname = 'branding_configs_organization_id_organizations_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'branding_configs_organization_id_organizations_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.organizations'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.branding_configs'::regclass AND k.contype = 'f'
+             AND (k.conname = 'branding_configs_organization_id_organizations_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : branding_configs(organization_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'branding_configs_organization_id_organizations_id_fk', differs, 'FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'branding_configs_organization_id_organizations_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.branding_configs'::regclass AND contype = 'f' AND confrelid = 'public.organizations'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.branding_configs'::regclass AND attname = 'organization_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'branding_configs_organization_id_organizations_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'branding_configs_organization_id_organizations_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."branding_configs" ADD CONSTRAINT "branding_configs_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1452,18 +1622,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.chat_messages'::regclass AND a.attname = 'session_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.chat_sessions'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.chat_messages'::regclass AND conname = 'chat_messages_session_id_chat_sessions_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'chat_messages_session_id_chat_sessions_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.chat_sessions'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.chat_messages'::regclass AND k.contype = 'f'
+             AND (k.conname = 'chat_messages_session_id_chat_sessions_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : chat_messages(session_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'chat_messages_session_id_chat_sessions_id_fk', differs, 'FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'chat_messages_session_id_chat_sessions_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.chat_messages'::regclass AND contype = 'f' AND confrelid = 'public.chat_sessions'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.chat_messages'::regclass AND attname = 'session_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'chat_messages_session_id_chat_sessions_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'chat_messages_session_id_chat_sessions_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."chat_messages" ADD CONSTRAINT "chat_messages_session_id_chat_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."chat_sessions"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1471,18 +1657,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.chat_sessions'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.chat_sessions'::regclass AND conname = 'chat_sessions_user_id_users_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'chat_sessions_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.chat_sessions'::regclass AND k.contype = 'f'
+             AND (k.conname = 'chat_sessions_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : chat_sessions(user_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'chat_sessions_user_id_users_id_fk', differs, 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'chat_sessions_user_id_users_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.chat_sessions'::regclass AND contype = 'f' AND confrelid = 'public.users'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.chat_sessions'::regclass AND attname = 'user_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'chat_sessions_user_id_users_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'chat_sessions_user_id_users_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."chat_sessions" ADD CONSTRAINT "chat_sessions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1490,18 +1692,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.credit_transactions'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.credit_transactions'::regclass AND conname = 'credit_transactions_user_id_users_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'credit_transactions_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.credit_transactions'::regclass AND k.contype = 'f'
+             AND (k.conname = 'credit_transactions_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : credit_transactions(user_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'credit_transactions_user_id_users_id_fk', differs, 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'credit_transactions_user_id_users_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.credit_transactions'::regclass AND contype = 'f' AND confrelid = 'public.users'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.credit_transactions'::regclass AND attname = 'user_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'credit_transactions_user_id_users_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'credit_transactions_user_id_users_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."credit_transactions" ADD CONSTRAINT "credit_transactions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1509,18 +1727,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.email_accounts'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.email_accounts'::regclass AND conname = 'email_accounts_user_id_users_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'email_accounts_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.email_accounts'::regclass AND k.contype = 'f'
+             AND (k.conname = 'email_accounts_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : email_accounts(user_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'email_accounts_user_id_users_id_fk', differs, 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'email_accounts_user_id_users_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.email_accounts'::regclass AND contype = 'f' AND confrelid = 'public.users'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.email_accounts'::regclass AND attname = 'user_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'email_accounts_user_id_users_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'email_accounts_user_id_users_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."email_accounts" ADD CONSTRAINT "email_accounts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1528,18 +1762,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.email_messages'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.email_messages'::regclass AND conname = 'email_messages_user_id_users_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'email_messages_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.email_messages'::regclass AND k.contype = 'f'
+             AND (k.conname = 'email_messages_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : email_messages(user_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'email_messages_user_id_users_id_fk', differs, 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'email_messages_user_id_users_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.email_messages'::regclass AND contype = 'f' AND confrelid = 'public.users'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.email_messages'::regclass AND attname = 'user_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'email_messages_user_id_users_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'email_messages_user_id_users_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."email_messages" ADD CONSTRAINT "email_messages_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1547,18 +1797,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.email_messages'::regclass AND a.attname = 'account_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.email_accounts'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.email_messages'::regclass AND conname = 'email_messages_account_id_email_accounts_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'email_messages_account_id_email_accounts_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.email_accounts'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (account_id) REFERENCES email_accounts(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.email_messages'::regclass AND k.contype = 'f'
+             AND (k.conname = 'email_messages_account_id_email_accounts_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : email_messages(account_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'email_messages_account_id_email_accounts_id_fk', differs, 'FOREIGN KEY (account_id) REFERENCES email_accounts(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'email_messages_account_id_email_accounts_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.email_messages'::regclass AND contype = 'f' AND confrelid = 'public.email_accounts'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.email_messages'::regclass AND attname = 'account_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'email_messages_account_id_email_accounts_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'email_messages_account_id_email_accounts_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."email_messages" ADD CONSTRAINT "email_messages_account_id_email_accounts_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."email_accounts"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1566,18 +1832,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.email_messages'::regclass AND a.attname = 'job_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.jobs'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.email_messages'::regclass AND conname = 'email_messages_job_id_jobs_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'email_messages_job_id_jobs_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.jobs'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'n' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE SET NULL') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.email_messages'::regclass AND k.contype = 'f'
+             AND (k.conname = 'email_messages_job_id_jobs_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : email_messages(job_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'email_messages_job_id_jobs_id_fk', differs, 'FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE SET NULL';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'email_messages_job_id_jobs_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.email_messages'::regclass AND contype = 'f' AND confrelid = 'public.jobs'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.email_messages'::regclass AND attname = 'job_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'email_messages_job_id_jobs_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'email_messages_job_id_jobs_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."email_messages" ADD CONSTRAINT "email_messages_job_id_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."jobs"("id") ON DELETE SET NULL ON UPDATE NO ACTION NOT VALID;
@@ -1585,18 +1867,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.evaluations'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.evaluations'::regclass AND conname = 'evaluations_user_id_users_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'evaluations_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.evaluations'::regclass AND k.contype = 'f'
+             AND (k.conname = 'evaluations_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : evaluations(user_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'evaluations_user_id_users_id_fk', differs, 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'evaluations_user_id_users_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.evaluations'::regclass AND contype = 'f' AND confrelid = 'public.users'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.evaluations'::regclass AND attname = 'user_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'evaluations_user_id_users_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'evaluations_user_id_users_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."evaluations" ADD CONSTRAINT "evaluations_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1604,18 +1902,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.evaluations'::regclass AND a.attname = 'job_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.jobs'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.evaluations'::regclass AND conname = 'evaluations_job_id_jobs_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'evaluations_job_id_jobs_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.jobs'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.evaluations'::regclass AND k.contype = 'f'
+             AND (k.conname = 'evaluations_job_id_jobs_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : evaluations(job_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'evaluations_job_id_jobs_id_fk', differs, 'FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'evaluations_job_id_jobs_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.evaluations'::regclass AND contype = 'f' AND confrelid = 'public.jobs'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.evaluations'::regclass AND attname = 'job_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'evaluations_job_id_jobs_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'evaluations_job_id_jobs_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."evaluations" ADD CONSTRAINT "evaluations_job_id_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."jobs"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1623,18 +1937,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.funnel_snapshots'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.funnel_snapshots'::regclass AND conname = 'funnel_snapshots_user_id_users_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'funnel_snapshots_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.funnel_snapshots'::regclass AND k.contype = 'f'
+             AND (k.conname = 'funnel_snapshots_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : funnel_snapshots(user_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'funnel_snapshots_user_id_users_id_fk', differs, 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'funnel_snapshots_user_id_users_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.funnel_snapshots'::regclass AND contype = 'f' AND confrelid = 'public.users'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.funnel_snapshots'::regclass AND attname = 'user_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'funnel_snapshots_user_id_users_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'funnel_snapshots_user_id_users_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."funnel_snapshots" ADD CONSTRAINT "funnel_snapshots_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1642,18 +1972,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.organization_ai_configs'::regclass AND a.attname = 'organization_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.organizations'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.organization_ai_configs'::regclass AND conname = 'organization_ai_configs_organization_id_organizations_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'organization_ai_configs_organization_id_organizations_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.organizations'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.organization_ai_configs'::regclass AND k.contype = 'f'
+             AND (k.conname = 'organization_ai_configs_organization_id_organizations_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : organization_ai_configs(organization_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'organization_ai_configs_organization_id_organizations_id_fk', differs, 'FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'organization_ai_configs_organization_id_organizations_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.organization_ai_configs'::regclass AND contype = 'f' AND confrelid = 'public.organizations'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.organization_ai_configs'::regclass AND attname = 'organization_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'organization_ai_configs_organization_id_organizations_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'organization_ai_configs_organization_id_organizations_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."organization_ai_configs" ADD CONSTRAINT "organization_ai_configs_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1661,18 +2007,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.organization_invitations'::regclass AND a.attname = 'organization_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.organizations'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.organization_invitations'::regclass AND conname = 'organization_invitations_organization_id_organizations_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'organization_invitations_organization_id_organizations_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.organizations'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.organization_invitations'::regclass AND k.contype = 'f'
+             AND (k.conname = 'organization_invitations_organization_id_organizations_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : organization_invitations(organization_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'organization_invitations_organization_id_organizations_id_fk', differs, 'FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'organization_invitations_organization_id_organizations_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.organization_invitations'::regclass AND contype = 'f' AND confrelid = 'public.organizations'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.organization_invitations'::regclass AND attname = 'organization_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'organization_invitations_organization_id_organizations_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'organization_invitations_organization_id_organizations_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."organization_invitations" ADD CONSTRAINT "organization_invitations_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1680,18 +2042,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.organization_invitations'::regclass AND a.attname = 'invited_by_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.organization_invitations'::regclass AND conname = 'organization_invitations_invited_by_id_users_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'organization_invitations_invited_by_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (invited_by_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.organization_invitations'::regclass AND k.contype = 'f'
+             AND (k.conname = 'organization_invitations_invited_by_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : organization_invitations(invited_by_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'organization_invitations_invited_by_id_users_id_fk', differs, 'FOREIGN KEY (invited_by_id) REFERENCES users(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'organization_invitations_invited_by_id_users_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.organization_invitations'::regclass AND contype = 'f' AND confrelid = 'public.users'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.organization_invitations'::regclass AND attname = 'invited_by_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'organization_invitations_invited_by_id_users_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'organization_invitations_invited_by_id_users_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."organization_invitations" ADD CONSTRAINT "organization_invitations_invited_by_id_users_id_fk" FOREIGN KEY ("invited_by_id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1699,18 +2077,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.organization_members'::regclass AND a.attname = 'organization_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.organizations'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.organization_members'::regclass AND conname = 'organization_members_organization_id_organizations_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'organization_members_organization_id_organizations_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.organizations'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.organization_members'::regclass AND k.contype = 'f'
+             AND (k.conname = 'organization_members_organization_id_organizations_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : organization_members(organization_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'organization_members_organization_id_organizations_id_fk', differs, 'FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'organization_members_organization_id_organizations_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.organization_members'::regclass AND contype = 'f' AND confrelid = 'public.organizations'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.organization_members'::regclass AND attname = 'organization_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'organization_members_organization_id_organizations_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'organization_members_organization_id_organizations_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."organization_members" ADD CONSTRAINT "organization_members_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1718,18 +2112,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.organization_members'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.organization_members'::regclass AND conname = 'organization_members_user_id_users_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'organization_members_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.organization_members'::regclass AND k.contype = 'f'
+             AND (k.conname = 'organization_members_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : organization_members(user_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'organization_members_user_id_users_id_fk', differs, 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'organization_members_user_id_users_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.organization_members'::regclass AND contype = 'f' AND confrelid = 'public.users'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.organization_members'::regclass AND attname = 'user_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'organization_members_user_id_users_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'organization_members_user_id_users_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."organization_members" ADD CONSTRAINT "organization_members_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1737,18 +2147,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.organizations'::regclass AND a.attname = 'created_by_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.organizations'::regclass AND conname = 'organizations_created_by_id_users_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'organizations_created_by_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (created_by_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.organizations'::regclass AND k.contype = 'f'
+             AND (k.conname = 'organizations_created_by_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : organizations(created_by_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'organizations_created_by_id_users_id_fk', differs, 'FOREIGN KEY (created_by_id) REFERENCES users(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'organizations_created_by_id_users_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.organizations'::regclass AND contype = 'f' AND confrelid = 'public.users'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.organizations'::regclass AND attname = 'created_by_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'organizations_created_by_id_users_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'organizations_created_by_id_users_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."organizations" ADD CONSTRAINT "organizations_created_by_id_users_id_fk" FOREIGN KEY ("created_by_id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1756,18 +2182,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.push_subscriptions'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.push_subscriptions'::regclass AND conname = 'push_subscriptions_user_id_users_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'push_subscriptions_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.push_subscriptions'::regclass AND k.contype = 'f'
+             AND (k.conname = 'push_subscriptions_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : push_subscriptions(user_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'push_subscriptions_user_id_users_id_fk', differs, 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'push_subscriptions_user_id_users_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.push_subscriptions'::regclass AND contype = 'f' AND confrelid = 'public.users'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.push_subscriptions'::regclass AND attname = 'user_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'push_subscriptions_user_id_users_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'push_subscriptions_user_id_users_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."push_subscriptions" ADD CONSTRAINT "push_subscriptions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1775,18 +2217,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.referral_credits'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.referral_credits'::regclass AND conname = 'referral_credits_user_id_users_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'referral_credits_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.referral_credits'::regclass AND k.contype = 'f'
+             AND (k.conname = 'referral_credits_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : referral_credits(user_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'referral_credits_user_id_users_id_fk', differs, 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'referral_credits_user_id_users_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.referral_credits'::regclass AND contype = 'f' AND confrelid = 'public.users'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.referral_credits'::regclass AND attname = 'user_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'referral_credits_user_id_users_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'referral_credits_user_id_users_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."referral_credits" ADD CONSTRAINT "referral_credits_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1794,18 +2252,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.referrals'::regclass AND a.attname = 'referrer_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.referrals'::regclass AND conname = 'referrals_referrer_id_users_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'referrals_referrer_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (referrer_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.referrals'::regclass AND k.contype = 'f'
+             AND (k.conname = 'referrals_referrer_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : referrals(referrer_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'referrals_referrer_id_users_id_fk', differs, 'FOREIGN KEY (referrer_id) REFERENCES users(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'referrals_referrer_id_users_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.referrals'::regclass AND contype = 'f' AND confrelid = 'public.users'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.referrals'::regclass AND attname = 'referrer_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'referrals_referrer_id_users_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'referrals_referrer_id_users_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."referrals" ADD CONSTRAINT "referrals_referrer_id_users_id_fk" FOREIGN KEY ("referrer_id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1813,18 +2287,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.referrals'::regclass AND a.attname = 'referred_user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.referrals'::regclass AND conname = 'referrals_referred_user_id_users_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'referrals_referred_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'n' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (referred_user_id) REFERENCES users(id) ON DELETE SET NULL') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.referrals'::regclass AND k.contype = 'f'
+             AND (k.conname = 'referrals_referred_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : referrals(referred_user_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'referrals_referred_user_id_users_id_fk', differs, 'FOREIGN KEY (referred_user_id) REFERENCES users(id) ON DELETE SET NULL';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'referrals_referred_user_id_users_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.referrals'::regclass AND contype = 'f' AND confrelid = 'public.users'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.referrals'::regclass AND attname = 'referred_user_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'referrals_referred_user_id_users_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'referrals_referred_user_id_users_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."referrals" ADD CONSTRAINT "referrals_referred_user_id_users_id_fk" FOREIGN KEY ("referred_user_id") REFERENCES "public"."users"("id") ON DELETE SET NULL ON UPDATE NO ACTION NOT VALID;
@@ -1832,18 +2322,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.sessions'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.sessions'::regclass AND conname = 'sessions_user_id_users_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'sessions_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.sessions'::regclass AND k.contype = 'f'
+             AND (k.conname = 'sessions_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : sessions(user_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'sessions_user_id_users_id_fk', differs, 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'sessions_user_id_users_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.sessions'::regclass AND contype = 'f' AND confrelid = 'public.users'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.sessions'::regclass AND attname = 'user_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'sessions_user_id_users_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'sessions_user_id_users_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."sessions" ADD CONSTRAINT "sessions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1851,18 +2357,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.subscriptions'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.subscriptions'::regclass AND conname = 'subscriptions_user_id_users_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'subscriptions_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.subscriptions'::regclass AND k.contype = 'f'
+             AND (k.conname = 'subscriptions_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : subscriptions(user_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'subscriptions_user_id_users_id_fk', differs, 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'subscriptions_user_id_users_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.subscriptions'::regclass AND contype = 'f' AND confrelid = 'public.users'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.subscriptions'::regclass AND attname = 'user_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'subscriptions_user_id_users_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'subscriptions_user_id_users_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."subscriptions" ADD CONSTRAINT "subscriptions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1870,18 +2392,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.user_alerts'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.user_alerts'::regclass AND conname = 'user_alerts_user_id_users_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'user_alerts_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.user_alerts'::regclass AND k.contype = 'f'
+             AND (k.conname = 'user_alerts_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : user_alerts(user_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'user_alerts_user_id_users_id_fk', differs, 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'user_alerts_user_id_users_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.user_alerts'::regclass AND contype = 'f' AND confrelid = 'public.users'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.user_alerts'::regclass AND attname = 'user_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'user_alerts_user_id_users_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'user_alerts_user_id_users_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."user_alerts" ADD CONSTRAINT "user_alerts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1889,18 +2427,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.user_jobs'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.user_jobs'::regclass AND conname = 'user_jobs_user_id_users_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'user_jobs_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.user_jobs'::regclass AND k.contype = 'f'
+             AND (k.conname = 'user_jobs_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : user_jobs(user_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'user_jobs_user_id_users_id_fk', differs, 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'user_jobs_user_id_users_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.user_jobs'::regclass AND contype = 'f' AND confrelid = 'public.users'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.user_jobs'::regclass AND attname = 'user_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'user_jobs_user_id_users_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'user_jobs_user_id_users_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."user_jobs" ADD CONSTRAINT "user_jobs_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1908,18 +2462,34 @@ BEGIN
 END
 $fk$;
 DO $fk$
-DECLARE other text;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.user_jobs'::regclass AND a.attname = 'job_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.jobs'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = 'public.user_jobs'::regclass AND conname = 'user_jobs_job_id_jobs_id_fk') THEN
+  SELECT coalesce(bool_or(m.conname = 'user_jobs_job_id_jobs_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.jobs'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.user_jobs'::regclass AND k.contype = 'f'
+             AND (k.conname = 'user_jobs_job_id_jobs_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : user_jobs(job_id) already has an FK with a different definition [%]; declared [%]. Declared FK NOT added (two FKs with different actions on one column would conflict) - left for an owner decision', 'user_jobs_job_id_jobs_id_fk', differs, 'FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE';
+    RETURN;
+  END IF;
+  IF has_name THEN
     RAISE NOTICE 'fk exists       %', 'user_jobs_job_id_jobs_id_fk';
     RETURN;
   END IF;
-  SELECT conname INTO other FROM pg_catalog.pg_constraint
-   WHERE conrelid = 'public.user_jobs'::regclass AND contype = 'f' AND confrelid = 'public.jobs'::regclass
-     AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = 'public.user_jobs'::regclass AND attname = 'job_id')]::int2[]
-   LIMIT 1;
-  IF other IS NOT NULL THEN
-    RAISE WARNING 'fk SKIPPED      % : an equivalent FK already exists as %', 'user_jobs_job_id_jobs_id_fk', other;
+  IF same_as IS NOT NULL THEN
+    RAISE NOTICE 'fk SKIPPED      % : an identical FK already exists as %', 'user_jobs_job_id_jobs_id_fk', same_as;
     RETURN;
   END IF;
   ALTER TABLE "public"."user_jobs" ADD CONSTRAINT "user_jobs_job_id_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."jobs"("id") ON DELETE CASCADE ON UPDATE NO ACTION NOT VALID;
@@ -1930,15 +2500,45 @@ $fk$;
 -- ---------- 5. VALIDATE each NOT VALID FK that has 0 orphan rows ---------------------
 -- VALIDATE takes SHARE UPDATE EXCLUSIVE on the child (does not block reads/writes) and
 -- ROW SHARE on the parent. An FK with orphans is LEFT NOT VALID and reported - orphans
--- are never deleted or nulled here; that is an owner decision.
+-- are never deleted or nulled here; that is an owner decision. Only the FK carrying the
+-- declared name is validated: an identical FK under another name is reported and left as
+-- is, and nothing is validated while a conflicting FK (section 4) exists on the column.
 SET lock_timeout = '5s';
 SET statement_timeout = '10min';
 
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.accounts'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'accounts_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.accounts'::regclass AND k.contype = 'f'
+             AND (k.conname = 'accounts_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on accounts(user_id) [%]', 'accounts_user_id_users_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'accounts_user_id_users_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'accounts_user_id_users_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.accounts'::regclass AND conname = 'accounts_user_id_users_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'accounts_user_id_users_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'accounts_user_id_users_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."accounts" c
    WHERE c."user_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."users" p WHERE p."id" = c."user_id");
@@ -1953,10 +2553,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.agent_instances'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'agent_instances_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.agent_instances'::regclass AND k.contype = 'f'
+             AND (k.conname = 'agent_instances_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on agent_instances(user_id) [%]', 'agent_instances_user_id_users_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'agent_instances_user_id_users_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'agent_instances_user_id_users_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.agent_instances'::regclass AND conname = 'agent_instances_user_id_users_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'agent_instances_user_id_users_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'agent_instances_user_id_users_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."agent_instances" c
    WHERE c."user_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."users" p WHERE p."id" = c."user_id");
@@ -1971,10 +2599,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.agent_instances'::regclass AND a.attname = 'job_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.jobs'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'agent_instances_job_id_jobs_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.jobs'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'n' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE SET NULL') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.agent_instances'::regclass AND k.contype = 'f'
+             AND (k.conname = 'agent_instances_job_id_jobs_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on agent_instances(job_id) [%]', 'agent_instances_job_id_jobs_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'agent_instances_job_id_jobs_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'agent_instances_job_id_jobs_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.agent_instances'::regclass AND conname = 'agent_instances_job_id_jobs_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'agent_instances_job_id_jobs_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'agent_instances_job_id_jobs_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."agent_instances" c
    WHERE c."job_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."jobs" p WHERE p."id" = c."job_id");
@@ -1989,10 +2645,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.agent_instances'::regclass AND a.attname = 'session_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.chat_sessions'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'agent_instances_session_id_chat_sessions_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.chat_sessions'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'n' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE SET NULL') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.agent_instances'::regclass AND k.contype = 'f'
+             AND (k.conname = 'agent_instances_session_id_chat_sessions_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on agent_instances(session_id) [%]', 'agent_instances_session_id_chat_sessions_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'agent_instances_session_id_chat_sessions_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'agent_instances_session_id_chat_sessions_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.agent_instances'::regclass AND conname = 'agent_instances_session_id_chat_sessions_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'agent_instances_session_id_chat_sessions_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'agent_instances_session_id_chat_sessions_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."agent_instances" c
    WHERE c."session_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."chat_sessions" p WHERE p."id" = c."session_id");
@@ -2007,10 +2691,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.api_keys'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'api_keys_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.api_keys'::regclass AND k.contype = 'f'
+             AND (k.conname = 'api_keys_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on api_keys(user_id) [%]', 'api_keys_user_id_users_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'api_keys_user_id_users_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'api_keys_user_id_users_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.api_keys'::regclass AND conname = 'api_keys_user_id_users_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'api_keys_user_id_users_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'api_keys_user_id_users_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."api_keys" c
    WHERE c."user_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."users" p WHERE p."id" = c."user_id");
@@ -2025,10 +2737,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.applications'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'applications_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.applications'::regclass AND k.contype = 'f'
+             AND (k.conname = 'applications_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on applications(user_id) [%]', 'applications_user_id_users_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'applications_user_id_users_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'applications_user_id_users_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.applications'::regclass AND conname = 'applications_user_id_users_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'applications_user_id_users_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'applications_user_id_users_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."applications" c
    WHERE c."user_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."users" p WHERE p."id" = c."user_id");
@@ -2043,10 +2783,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.applications'::regclass AND a.attname = 'job_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.jobs'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'applications_job_id_jobs_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.jobs'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.applications'::regclass AND k.contype = 'f'
+             AND (k.conname = 'applications_job_id_jobs_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on applications(job_id) [%]', 'applications_job_id_jobs_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'applications_job_id_jobs_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'applications_job_id_jobs_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.applications'::regclass AND conname = 'applications_job_id_jobs_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'applications_job_id_jobs_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'applications_job_id_jobs_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."applications" c
    WHERE c."job_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."jobs" p WHERE p."id" = c."job_id");
@@ -2061,10 +2829,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.applications'::regclass AND a.attname = 'agent_instance_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.agent_instances'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'applications_agent_instance_id_agent_instances_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.agent_instances'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'n' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (agent_instance_id) REFERENCES agent_instances(id) ON DELETE SET NULL') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.applications'::regclass AND k.contype = 'f'
+             AND (k.conname = 'applications_agent_instance_id_agent_instances_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on applications(agent_instance_id) [%]', 'applications_agent_instance_id_agent_instances_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'applications_agent_instance_id_agent_instances_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'applications_agent_instance_id_agent_instances_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.applications'::regclass AND conname = 'applications_agent_instance_id_agent_instances_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'applications_agent_instance_id_agent_instances_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'applications_agent_instance_id_agent_instances_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."applications" c
    WHERE c."agent_instance_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."agent_instances" p WHERE p."id" = c."agent_instance_id");
@@ -2079,10 +2875,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.approval_gates'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'approval_gates_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.approval_gates'::regclass AND k.contype = 'f'
+             AND (k.conname = 'approval_gates_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on approval_gates(user_id) [%]', 'approval_gates_user_id_users_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'approval_gates_user_id_users_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'approval_gates_user_id_users_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.approval_gates'::regclass AND conname = 'approval_gates_user_id_users_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'approval_gates_user_id_users_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'approval_gates_user_id_users_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."approval_gates" c
    WHERE c."user_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."users" p WHERE p."id" = c."user_id");
@@ -2097,10 +2921,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.branding_configs'::regclass AND a.attname = 'organization_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.organizations'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'branding_configs_organization_id_organizations_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.organizations'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.branding_configs'::regclass AND k.contype = 'f'
+             AND (k.conname = 'branding_configs_organization_id_organizations_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on branding_configs(organization_id) [%]', 'branding_configs_organization_id_organizations_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'branding_configs_organization_id_organizations_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'branding_configs_organization_id_organizations_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.branding_configs'::regclass AND conname = 'branding_configs_organization_id_organizations_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'branding_configs_organization_id_organizations_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'branding_configs_organization_id_organizations_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."branding_configs" c
    WHERE c."organization_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."organizations" p WHERE p."id" = c."organization_id");
@@ -2115,10 +2967,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.chat_messages'::regclass AND a.attname = 'session_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.chat_sessions'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'chat_messages_session_id_chat_sessions_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.chat_sessions'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.chat_messages'::regclass AND k.contype = 'f'
+             AND (k.conname = 'chat_messages_session_id_chat_sessions_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on chat_messages(session_id) [%]', 'chat_messages_session_id_chat_sessions_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'chat_messages_session_id_chat_sessions_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'chat_messages_session_id_chat_sessions_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.chat_messages'::regclass AND conname = 'chat_messages_session_id_chat_sessions_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'chat_messages_session_id_chat_sessions_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'chat_messages_session_id_chat_sessions_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."chat_messages" c
    WHERE c."session_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."chat_sessions" p WHERE p."id" = c."session_id");
@@ -2133,10 +3013,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.chat_sessions'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'chat_sessions_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.chat_sessions'::regclass AND k.contype = 'f'
+             AND (k.conname = 'chat_sessions_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on chat_sessions(user_id) [%]', 'chat_sessions_user_id_users_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'chat_sessions_user_id_users_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'chat_sessions_user_id_users_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.chat_sessions'::regclass AND conname = 'chat_sessions_user_id_users_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'chat_sessions_user_id_users_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'chat_sessions_user_id_users_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."chat_sessions" c
    WHERE c."user_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."users" p WHERE p."id" = c."user_id");
@@ -2151,10 +3059,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.credit_transactions'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'credit_transactions_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.credit_transactions'::regclass AND k.contype = 'f'
+             AND (k.conname = 'credit_transactions_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on credit_transactions(user_id) [%]', 'credit_transactions_user_id_users_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'credit_transactions_user_id_users_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'credit_transactions_user_id_users_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.credit_transactions'::regclass AND conname = 'credit_transactions_user_id_users_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'credit_transactions_user_id_users_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'credit_transactions_user_id_users_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."credit_transactions" c
    WHERE c."user_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."users" p WHERE p."id" = c."user_id");
@@ -2169,10 +3105,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.email_accounts'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'email_accounts_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.email_accounts'::regclass AND k.contype = 'f'
+             AND (k.conname = 'email_accounts_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on email_accounts(user_id) [%]', 'email_accounts_user_id_users_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'email_accounts_user_id_users_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'email_accounts_user_id_users_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.email_accounts'::regclass AND conname = 'email_accounts_user_id_users_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'email_accounts_user_id_users_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'email_accounts_user_id_users_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."email_accounts" c
    WHERE c."user_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."users" p WHERE p."id" = c."user_id");
@@ -2187,10 +3151,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.email_messages'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'email_messages_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.email_messages'::regclass AND k.contype = 'f'
+             AND (k.conname = 'email_messages_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on email_messages(user_id) [%]', 'email_messages_user_id_users_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'email_messages_user_id_users_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'email_messages_user_id_users_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.email_messages'::regclass AND conname = 'email_messages_user_id_users_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'email_messages_user_id_users_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'email_messages_user_id_users_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."email_messages" c
    WHERE c."user_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."users" p WHERE p."id" = c."user_id");
@@ -2205,10 +3197,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.email_messages'::regclass AND a.attname = 'account_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.email_accounts'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'email_messages_account_id_email_accounts_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.email_accounts'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (account_id) REFERENCES email_accounts(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.email_messages'::regclass AND k.contype = 'f'
+             AND (k.conname = 'email_messages_account_id_email_accounts_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on email_messages(account_id) [%]', 'email_messages_account_id_email_accounts_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'email_messages_account_id_email_accounts_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'email_messages_account_id_email_accounts_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.email_messages'::regclass AND conname = 'email_messages_account_id_email_accounts_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'email_messages_account_id_email_accounts_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'email_messages_account_id_email_accounts_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."email_messages" c
    WHERE c."account_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."email_accounts" p WHERE p."id" = c."account_id");
@@ -2223,10 +3243,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.email_messages'::regclass AND a.attname = 'job_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.jobs'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'email_messages_job_id_jobs_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.jobs'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'n' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE SET NULL') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.email_messages'::regclass AND k.contype = 'f'
+             AND (k.conname = 'email_messages_job_id_jobs_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on email_messages(job_id) [%]', 'email_messages_job_id_jobs_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'email_messages_job_id_jobs_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'email_messages_job_id_jobs_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.email_messages'::regclass AND conname = 'email_messages_job_id_jobs_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'email_messages_job_id_jobs_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'email_messages_job_id_jobs_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."email_messages" c
    WHERE c."job_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."jobs" p WHERE p."id" = c."job_id");
@@ -2241,10 +3289,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.evaluations'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'evaluations_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.evaluations'::regclass AND k.contype = 'f'
+             AND (k.conname = 'evaluations_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on evaluations(user_id) [%]', 'evaluations_user_id_users_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'evaluations_user_id_users_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'evaluations_user_id_users_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.evaluations'::regclass AND conname = 'evaluations_user_id_users_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'evaluations_user_id_users_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'evaluations_user_id_users_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."evaluations" c
    WHERE c."user_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."users" p WHERE p."id" = c."user_id");
@@ -2259,10 +3335,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.evaluations'::regclass AND a.attname = 'job_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.jobs'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'evaluations_job_id_jobs_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.jobs'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.evaluations'::regclass AND k.contype = 'f'
+             AND (k.conname = 'evaluations_job_id_jobs_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on evaluations(job_id) [%]', 'evaluations_job_id_jobs_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'evaluations_job_id_jobs_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'evaluations_job_id_jobs_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.evaluations'::regclass AND conname = 'evaluations_job_id_jobs_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'evaluations_job_id_jobs_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'evaluations_job_id_jobs_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."evaluations" c
    WHERE c."job_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."jobs" p WHERE p."id" = c."job_id");
@@ -2277,10 +3381,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.funnel_snapshots'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'funnel_snapshots_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.funnel_snapshots'::regclass AND k.contype = 'f'
+             AND (k.conname = 'funnel_snapshots_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on funnel_snapshots(user_id) [%]', 'funnel_snapshots_user_id_users_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'funnel_snapshots_user_id_users_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'funnel_snapshots_user_id_users_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.funnel_snapshots'::regclass AND conname = 'funnel_snapshots_user_id_users_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'funnel_snapshots_user_id_users_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'funnel_snapshots_user_id_users_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."funnel_snapshots" c
    WHERE c."user_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."users" p WHERE p."id" = c."user_id");
@@ -2295,10 +3427,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.organization_ai_configs'::regclass AND a.attname = 'organization_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.organizations'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'organization_ai_configs_organization_id_organizations_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.organizations'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.organization_ai_configs'::regclass AND k.contype = 'f'
+             AND (k.conname = 'organization_ai_configs_organization_id_organizations_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on organization_ai_configs(organization_id) [%]', 'organization_ai_configs_organization_id_organizations_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'organization_ai_configs_organization_id_organizations_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'organization_ai_configs_organization_id_organizations_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.organization_ai_configs'::regclass AND conname = 'organization_ai_configs_organization_id_organizations_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'organization_ai_configs_organization_id_organizations_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'organization_ai_configs_organization_id_organizations_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."organization_ai_configs" c
    WHERE c."organization_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."organizations" p WHERE p."id" = c."organization_id");
@@ -2313,10 +3473,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.organization_invitations'::regclass AND a.attname = 'organization_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.organizations'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'organization_invitations_organization_id_organizations_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.organizations'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.organization_invitations'::regclass AND k.contype = 'f'
+             AND (k.conname = 'organization_invitations_organization_id_organizations_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on organization_invitations(organization_id) [%]', 'organization_invitations_organization_id_organizations_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'organization_invitations_organization_id_organizations_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'organization_invitations_organization_id_organizations_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.organization_invitations'::regclass AND conname = 'organization_invitations_organization_id_organizations_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'organization_invitations_organization_id_organizations_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'organization_invitations_organization_id_organizations_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."organization_invitations" c
    WHERE c."organization_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."organizations" p WHERE p."id" = c."organization_id");
@@ -2331,10 +3519,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.organization_invitations'::regclass AND a.attname = 'invited_by_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'organization_invitations_invited_by_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (invited_by_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.organization_invitations'::regclass AND k.contype = 'f'
+             AND (k.conname = 'organization_invitations_invited_by_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on organization_invitations(invited_by_id) [%]', 'organization_invitations_invited_by_id_users_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'organization_invitations_invited_by_id_users_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'organization_invitations_invited_by_id_users_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.organization_invitations'::regclass AND conname = 'organization_invitations_invited_by_id_users_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'organization_invitations_invited_by_id_users_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'organization_invitations_invited_by_id_users_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."organization_invitations" c
    WHERE c."invited_by_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."users" p WHERE p."id" = c."invited_by_id");
@@ -2349,10 +3565,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.organization_members'::regclass AND a.attname = 'organization_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.organizations'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'organization_members_organization_id_organizations_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.organizations'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.organization_members'::regclass AND k.contype = 'f'
+             AND (k.conname = 'organization_members_organization_id_organizations_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on organization_members(organization_id) [%]', 'organization_members_organization_id_organizations_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'organization_members_organization_id_organizations_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'organization_members_organization_id_organizations_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.organization_members'::regclass AND conname = 'organization_members_organization_id_organizations_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'organization_members_organization_id_organizations_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'organization_members_organization_id_organizations_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."organization_members" c
    WHERE c."organization_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."organizations" p WHERE p."id" = c."organization_id");
@@ -2367,10 +3611,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.organization_members'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'organization_members_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.organization_members'::regclass AND k.contype = 'f'
+             AND (k.conname = 'organization_members_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on organization_members(user_id) [%]', 'organization_members_user_id_users_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'organization_members_user_id_users_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'organization_members_user_id_users_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.organization_members'::regclass AND conname = 'organization_members_user_id_users_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'organization_members_user_id_users_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'organization_members_user_id_users_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."organization_members" c
    WHERE c."user_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."users" p WHERE p."id" = c."user_id");
@@ -2385,10 +3657,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.organizations'::regclass AND a.attname = 'created_by_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'organizations_created_by_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (created_by_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.organizations'::regclass AND k.contype = 'f'
+             AND (k.conname = 'organizations_created_by_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on organizations(created_by_id) [%]', 'organizations_created_by_id_users_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'organizations_created_by_id_users_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'organizations_created_by_id_users_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.organizations'::regclass AND conname = 'organizations_created_by_id_users_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'organizations_created_by_id_users_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'organizations_created_by_id_users_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."organizations" c
    WHERE c."created_by_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."users" p WHERE p."id" = c."created_by_id");
@@ -2403,10 +3703,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.push_subscriptions'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'push_subscriptions_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.push_subscriptions'::regclass AND k.contype = 'f'
+             AND (k.conname = 'push_subscriptions_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on push_subscriptions(user_id) [%]', 'push_subscriptions_user_id_users_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'push_subscriptions_user_id_users_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'push_subscriptions_user_id_users_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.push_subscriptions'::regclass AND conname = 'push_subscriptions_user_id_users_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'push_subscriptions_user_id_users_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'push_subscriptions_user_id_users_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."push_subscriptions" c
    WHERE c."user_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."users" p WHERE p."id" = c."user_id");
@@ -2421,10 +3749,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.referral_credits'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'referral_credits_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.referral_credits'::regclass AND k.contype = 'f'
+             AND (k.conname = 'referral_credits_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on referral_credits(user_id) [%]', 'referral_credits_user_id_users_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'referral_credits_user_id_users_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'referral_credits_user_id_users_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.referral_credits'::regclass AND conname = 'referral_credits_user_id_users_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'referral_credits_user_id_users_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'referral_credits_user_id_users_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."referral_credits" c
    WHERE c."user_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."users" p WHERE p."id" = c."user_id");
@@ -2439,10 +3795,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.referrals'::regclass AND a.attname = 'referrer_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'referrals_referrer_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (referrer_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.referrals'::regclass AND k.contype = 'f'
+             AND (k.conname = 'referrals_referrer_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on referrals(referrer_id) [%]', 'referrals_referrer_id_users_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'referrals_referrer_id_users_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'referrals_referrer_id_users_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.referrals'::regclass AND conname = 'referrals_referrer_id_users_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'referrals_referrer_id_users_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'referrals_referrer_id_users_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."referrals" c
    WHERE c."referrer_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."users" p WHERE p."id" = c."referrer_id");
@@ -2457,10 +3841,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.referrals'::regclass AND a.attname = 'referred_user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'referrals_referred_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'n' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (referred_user_id) REFERENCES users(id) ON DELETE SET NULL') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.referrals'::regclass AND k.contype = 'f'
+             AND (k.conname = 'referrals_referred_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on referrals(referred_user_id) [%]', 'referrals_referred_user_id_users_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'referrals_referred_user_id_users_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'referrals_referred_user_id_users_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.referrals'::regclass AND conname = 'referrals_referred_user_id_users_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'referrals_referred_user_id_users_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'referrals_referred_user_id_users_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."referrals" c
    WHERE c."referred_user_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."users" p WHERE p."id" = c."referred_user_id");
@@ -2475,10 +3887,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.sessions'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'sessions_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.sessions'::regclass AND k.contype = 'f'
+             AND (k.conname = 'sessions_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on sessions(user_id) [%]', 'sessions_user_id_users_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'sessions_user_id_users_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'sessions_user_id_users_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.sessions'::regclass AND conname = 'sessions_user_id_users_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'sessions_user_id_users_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'sessions_user_id_users_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."sessions" c
    WHERE c."user_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."users" p WHERE p."id" = c."user_id");
@@ -2493,10 +3933,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.subscriptions'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'subscriptions_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.subscriptions'::regclass AND k.contype = 'f'
+             AND (k.conname = 'subscriptions_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on subscriptions(user_id) [%]', 'subscriptions_user_id_users_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'subscriptions_user_id_users_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'subscriptions_user_id_users_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.subscriptions'::regclass AND conname = 'subscriptions_user_id_users_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'subscriptions_user_id_users_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'subscriptions_user_id_users_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."subscriptions" c
    WHERE c."user_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."users" p WHERE p."id" = c."user_id");
@@ -2511,10 +3979,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.user_alerts'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'user_alerts_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.user_alerts'::regclass AND k.contype = 'f'
+             AND (k.conname = 'user_alerts_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on user_alerts(user_id) [%]', 'user_alerts_user_id_users_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'user_alerts_user_id_users_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'user_alerts_user_id_users_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.user_alerts'::regclass AND conname = 'user_alerts_user_id_users_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'user_alerts_user_id_users_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'user_alerts_user_id_users_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."user_alerts" c
    WHERE c."user_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."users" p WHERE p."id" = c."user_id");
@@ -2529,10 +4025,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.user_jobs'::regclass AND a.attname = 'user_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.users'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'user_jobs_user_id_users_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.users'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.user_jobs'::regclass AND k.contype = 'f'
+             AND (k.conname = 'user_jobs_user_id_users_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on user_jobs(user_id) [%]', 'user_jobs_user_id_users_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'user_jobs_user_id_users_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'user_jobs_user_id_users_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.user_jobs'::regclass AND conname = 'user_jobs_user_id_users_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'user_jobs_user_id_users_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'user_jobs_user_id_users_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."user_jobs" c
    WHERE c."user_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."users" p WHERE p."id" = c."user_id");
@@ -2547,10 +4071,38 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 DO $v$
-DECLARE is_valid boolean; orphans bigint;
+DECLARE
+  ck int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.user_jobs'::regclass AND a.attname = 'job_id' AND NOT a.attisdropped)]::int2[];
+  pk int2[] := ARRAY[(SELECT a.attnum FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'public.jobs'::regclass AND a.attname = 'id' AND NOT a.attisdropped)]::int2[];
+  has_name boolean; same_as text; same_valid boolean; differs text;
+  is_valid boolean; orphans bigint;
 BEGIN
+  SELECT coalesce(bool_or(m.conname = 'user_jobs_job_id_jobs_id_fk'), false),
+         string_agg(m.conname, ', ' ORDER BY m.conname) FILTER (WHERE m.same),
+         coalesce(bool_or(m.convalidated) FILTER (WHERE m.same), false),
+         string_agg(m.conname || ' = ' || m.def, '; ' ORDER BY m.conname) FILTER (WHERE m.same IS NOT TRUE)
+    INTO has_name, same_as, same_valid, differs
+    FROM (SELECT k.conname, k.convalidated, pg_catalog.pg_get_constraintdef(k.oid) AS def,
+                 (k.conkey = ck AND k.confrelid = 'public.jobs'::regclass AND k.confkey = pk
+                  AND k.confdeltype = 'c' AND k.confupdtype = 'a'
+                  AND k.confmatchtype = 's' AND NOT k.condeferrable AND k.confdelsetcols IS NULL
+                  AND pg_catalog.regexp_replace(pg_catalog.pg_get_constraintdef(k.oid), ' NOT VALID$', '') = 'FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE') AS same
+            FROM pg_catalog.pg_constraint k
+           WHERE k.conrelid = 'public.user_jobs'::regclass AND k.contype = 'f'
+             AND (k.conname = 'user_jobs_job_id_jobs_id_fk' OR k.conkey = ck)) m;
+  IF differs IS NOT NULL THEN
+    RAISE WARNING 'fk CONFLICT     % : not validated - different FK definition on user_jobs(job_id) [%]', 'user_jobs_job_id_jobs_id_fk', differs;
+    RETURN;
+  END IF;
+  IF NOT has_name THEN
+    IF same_as IS NOT NULL THEN
+      RAISE NOTICE 'fk present as % : identical to % under another name (%) - left as is', same_as, 'user_jobs_job_id_jobs_id_fk', CASE WHEN same_valid THEN 'valid' ELSE 'NOT VALID' END;
+    ELSE
+      RAISE WARNING 'fk MISSING      % (cannot validate)', 'user_jobs_job_id_jobs_id_fk';
+    END IF;
+    RETURN;
+  END IF;
   SELECT convalidated INTO is_valid FROM pg_catalog.pg_constraint WHERE conrelid = 'public.user_jobs'::regclass AND conname = 'user_jobs_job_id_jobs_id_fk';
-  IF is_valid IS NULL THEN RAISE WARNING 'fk MISSING      % (cannot validate)', 'user_jobs_job_id_jobs_id_fk'; RETURN; END IF;
   IF is_valid THEN RAISE NOTICE 'fk valid        %', 'user_jobs_job_id_jobs_id_fk'; RETURN; END IF;
   SELECT count(*) INTO orphans FROM "public"."user_jobs" c
    WHERE c."job_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "public"."jobs" p WHERE p."id" = c."job_id");
@@ -2565,18 +4117,82 @@ EXCEPTION WHEN foreign_key_violation THEN
 END
 $v$;
 
--- ---------- 6. summary (0 / 0 / 0 / 0 = done; run verify.sql for the full report) ---------
+-- ---------- 6. summary (all zeros = done; run verify.sql for the full report) ---------------
+-- FKs are judged exactly as verify.sql judges them: fks_missing = nothing on the column,
+-- fks_mismatch = an FK with a different definition (any name), fks_not_valid = the matching
+-- identical FK is still NOT VALID (orphans).
 RESET lock_timeout;
 RESET statement_timeout;
 \unset QUIET
+WITH exp_con(name, tbl, contype, def) AS (VALUES
+  ('accounts_user_id_users_id_fk','accounts','f','FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE'),
+  ('agent_instances_user_id_users_id_fk','agent_instances','f','FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE'),
+  ('agent_instances_job_id_jobs_id_fk','agent_instances','f','FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE SET NULL'),
+  ('agent_instances_session_id_chat_sessions_id_fk','agent_instances','f','FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE SET NULL'),
+  ('api_keys_user_id_users_id_fk','api_keys','f','FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE'),
+  ('applications_user_id_users_id_fk','applications','f','FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE'),
+  ('applications_job_id_jobs_id_fk','applications','f','FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE'),
+  ('applications_agent_instance_id_agent_instances_id_fk','applications','f','FOREIGN KEY (agent_instance_id) REFERENCES agent_instances(id) ON DELETE SET NULL'),
+  ('approval_gates_user_id_users_id_fk','approval_gates','f','FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE'),
+  ('branding_configs_organization_id_organizations_id_fk','branding_configs','f','FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE'),
+  ('chat_messages_session_id_chat_sessions_id_fk','chat_messages','f','FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE'),
+  ('chat_sessions_user_id_users_id_fk','chat_sessions','f','FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE'),
+  ('credit_transactions_user_id_users_id_fk','credit_transactions','f','FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE'),
+  ('email_accounts_user_id_users_id_fk','email_accounts','f','FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE'),
+  ('email_messages_user_id_users_id_fk','email_messages','f','FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE'),
+  ('email_messages_account_id_email_accounts_id_fk','email_messages','f','FOREIGN KEY (account_id) REFERENCES email_accounts(id) ON DELETE CASCADE'),
+  ('email_messages_job_id_jobs_id_fk','email_messages','f','FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE SET NULL'),
+  ('evaluations_user_id_users_id_fk','evaluations','f','FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE'),
+  ('evaluations_job_id_jobs_id_fk','evaluations','f','FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE'),
+  ('funnel_snapshots_user_id_users_id_fk','funnel_snapshots','f','FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE'),
+  ('organization_ai_configs_organization_id_organizations_id_fk','organization_ai_configs','f','FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE'),
+  ('organization_invitations_organization_id_organizations_id_fk','organization_invitations','f','FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE'),
+  ('organization_invitations_invited_by_id_users_id_fk','organization_invitations','f','FOREIGN KEY (invited_by_id) REFERENCES users(id) ON DELETE CASCADE'),
+  ('organization_members_organization_id_organizations_id_fk','organization_members','f','FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE'),
+  ('organization_members_user_id_users_id_fk','organization_members','f','FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE'),
+  ('organizations_created_by_id_users_id_fk','organizations','f','FOREIGN KEY (created_by_id) REFERENCES users(id) ON DELETE CASCADE'),
+  ('push_subscriptions_user_id_users_id_fk','push_subscriptions','f','FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE'),
+  ('referral_credits_user_id_users_id_fk','referral_credits','f','FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE'),
+  ('referrals_referrer_id_users_id_fk','referrals','f','FOREIGN KEY (referrer_id) REFERENCES users(id) ON DELETE CASCADE'),
+  ('referrals_referred_user_id_users_id_fk','referrals','f','FOREIGN KEY (referred_user_id) REFERENCES users(id) ON DELETE SET NULL'),
+  ('sessions_user_id_users_id_fk','sessions','f','FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE'),
+  ('subscriptions_user_id_users_id_fk','subscriptions','f','FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE'),
+  ('user_alerts_user_id_users_id_fk','user_alerts','f','FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE'),
+  ('user_jobs_user_id_users_id_fk','user_jobs','f','FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE'),
+  ('user_jobs_job_id_jobs_id_fk','user_jobs','f','FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE')
+), live_con AS (
+  SELECT k.conname AS name, t.relname AS tbl, k.contype::text AS contype, regexp_replace(pg_get_constraintdef(k.oid), ' NOT VALID$', '') AS def, k.convalidated AS valid
+    FROM pg_constraint k JOIN pg_class t ON t.oid = k.conrelid
+   WHERE k.connamespace = 'public'::regnamespace AND k.contype IN ('u','f')
+), live_fk AS (
+  SELECT l.name, l.tbl, l.def, l.valid, substring(l.def from '^FOREIGN KEY \(([^)]*)\)') AS cols
+    FROM live_con l
+   WHERE l.contype = 'f'
+), fk_eval AS (
+  -- One row per declared FK, matched against every live FK that carries its name or sits on
+  -- the same table + child column list (in order) under ANY name. The comparison is the whole
+  -- rendered definition: child columns, parent table + columns, ON DELETE, ON UPDATE, MATCH,
+  -- DEFERRABLE. n_same = identical matches, n_diff = matches with a different definition
+  -- (e.g. ON DELETE CASCADE under another name where SET NULL is declared = a mismatch).
+  SELECT e.name, e.tbl, e.def,
+         count(l.name) FILTER (WHERE l.tbl = e.tbl AND l.def = e.def) AS n_same,
+         count(l.name) FILTER (WHERE l.tbl <> e.tbl OR l.def <> e.def) AS n_diff,
+         coalesce(bool_or(l.valid) FILTER (WHERE l.tbl = e.tbl AND l.def = e.def), false) AS valid,
+         string_agg(l.name, ', ' ORDER BY l.name) FILTER (WHERE l.tbl = e.tbl AND l.def = e.def AND l.name <> e.name) AS same_as,
+         string_agg(CASE WHEN l.name = e.name THEN l.def ELSE l.name || ': ' || l.def END, '; ' ORDER BY l.name)
+           FILTER (WHERE l.tbl <> e.tbl OR l.def <> e.def) AS live_diff
+    FROM exp_con e
+    LEFT JOIN live_fk l ON l.name = e.name OR (l.tbl = e.tbl AND l.cols = substring(e.def from '^FOREIGN KEY \(([^)]*)\)'))
+   WHERE e.contype = 'f'
+   GROUP BY e.name, e.tbl, e.def
+)
 SELECT current_database() AS db,
   (SELECT count(*) FROM unnest(ARRAY['accounts_user_id_idx','agent_instances_user_id_idx','api_keys_user_id_idx','api_keys_key_hash_idx','api_keys_key_prefix_idx','applications_user_id_idx','applications_user_job_idx','applications_user_status_idx','applications_user_stage_idx','applications_job_id_idx','approval_gates_user_id_idx','approval_gates_user_status_idx','approval_gates_action_idx','branding_configs_org_id_idx','branding_configs_custom_domain_idx','chat_messages_session_id_idx','chat_messages_session_created_idx','chat_sessions_user_id_idx','credit_tx_user_idx','credit_tx_user_created_idx','email_accounts_user_idx','email_messages_user_idx','email_messages_account_idx','email_messages_thread_idx','email_messages_job_idx','evaluations_user_id_idx','evaluations_user_band_idx','evaluations_user_score_idx','evaluations_job_id_idx','funnel_snapshots_user_captured_idx','jobs_location_country_idx','jobs_is_remote_idx','jobs_date_posted_idx','jobs_site_idx','jobs_title_idx','jobs_company_name_idx','jobs_job_level_idx','jobs_salary_min_idx','jobs_lat_lng_idx','jobs_skills_gin_idx','jobs_title_search_idx','org_ai_configs_org_id_idx','org_invitations_org_id_idx','org_invitations_token_idx','org_invitations_email_idx','org_members_org_id_idx','org_members_user_id_idx','organizations_slug_idx','organizations_created_by_idx','push_subscriptions_user_id_idx','push_subscriptions_endpoint_idx','referral_credits_user_id_idx','referrals_referrer_id_idx','referrals_referral_code_idx','referrals_referred_user_id_idx','subscriptions_user_id_idx','subscriptions_period_end_idx','user_alerts_user_id_idx','user_alerts_active_idx','user_alerts_frequency_active_idx','user_jobs_user_id_idx','user_jobs_status_idx']) n
     WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_index i ON i.indexrelid = c.oid
                        WHERE c.relnamespace = 'public'::regnamespace AND c.relname = n AND i.indisvalid)) AS indexes_missing_or_invalid,
   (SELECT count(*) FROM unnest(ARRAY['accounts_provider_account_unique','credit_tx_grant_unique','email_accounts_user_id_unique','email_messages_msgid_unique','evaluations_user_job_unique','jobs_external_id_unique','organization_invitations_token_unique','org_members_unique','organizations_slug_unique','push_subscriptions_endpoint_unique','referral_credits_user_id_unique','referrals_referral_code_unique','sessions_token_unique','subscriptions_stripe_subscription_id_unique','user_jobs_unique','users_email_unique','users_linkedin_id_unique','users_stripe_customer_id_unique']) n
     WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint k WHERE k.connamespace = 'public'::regnamespace AND k.conname = n AND k.contype = 'u')) AS uniques_missing,
-  (SELECT count(*) FROM unnest(ARRAY['accounts_user_id_users_id_fk','agent_instances_user_id_users_id_fk','agent_instances_job_id_jobs_id_fk','agent_instances_session_id_chat_sessions_id_fk','api_keys_user_id_users_id_fk','applications_user_id_users_id_fk','applications_job_id_jobs_id_fk','applications_agent_instance_id_agent_instances_id_fk','approval_gates_user_id_users_id_fk','branding_configs_organization_id_organizations_id_fk','chat_messages_session_id_chat_sessions_id_fk','chat_sessions_user_id_users_id_fk','credit_transactions_user_id_users_id_fk','email_accounts_user_id_users_id_fk','email_messages_user_id_users_id_fk','email_messages_account_id_email_accounts_id_fk','email_messages_job_id_jobs_id_fk','evaluations_user_id_users_id_fk','evaluations_job_id_jobs_id_fk','funnel_snapshots_user_id_users_id_fk','organization_ai_configs_organization_id_organizations_id_fk','organization_invitations_organization_id_organizations_id_fk','organization_invitations_invited_by_id_users_id_fk','organization_members_organization_id_organizations_id_fk','organization_members_user_id_users_id_fk','organizations_created_by_id_users_id_fk','push_subscriptions_user_id_users_id_fk','referral_credits_user_id_users_id_fk','referrals_referrer_id_users_id_fk','referrals_referred_user_id_users_id_fk','sessions_user_id_users_id_fk','subscriptions_user_id_users_id_fk','user_alerts_user_id_users_id_fk','user_jobs_user_id_users_id_fk','user_jobs_job_id_jobs_id_fk']) n
-    WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint k WHERE k.connamespace = 'public'::regnamespace AND k.conname = n AND k.contype = 'f')) AS fks_missing,
-  (SELECT count(*) FROM pg_catalog.pg_constraint k WHERE k.connamespace = 'public'::regnamespace AND k.contype = 'f'
-      AND k.conname IN ('accounts_user_id_users_id_fk','agent_instances_user_id_users_id_fk','agent_instances_job_id_jobs_id_fk','agent_instances_session_id_chat_sessions_id_fk','api_keys_user_id_users_id_fk','applications_user_id_users_id_fk','applications_job_id_jobs_id_fk','applications_agent_instance_id_agent_instances_id_fk','approval_gates_user_id_users_id_fk','branding_configs_organization_id_organizations_id_fk','chat_messages_session_id_chat_sessions_id_fk','chat_sessions_user_id_users_id_fk','credit_transactions_user_id_users_id_fk','email_accounts_user_id_users_id_fk','email_messages_user_id_users_id_fk','email_messages_account_id_email_accounts_id_fk','email_messages_job_id_jobs_id_fk','evaluations_user_id_users_id_fk','evaluations_job_id_jobs_id_fk','funnel_snapshots_user_id_users_id_fk','organization_ai_configs_organization_id_organizations_id_fk','organization_invitations_organization_id_organizations_id_fk','organization_invitations_invited_by_id_users_id_fk','organization_members_organization_id_organizations_id_fk','organization_members_user_id_users_id_fk','organizations_created_by_id_users_id_fk','push_subscriptions_user_id_users_id_fk','referral_credits_user_id_users_id_fk','referrals_referrer_id_users_id_fk','referrals_referred_user_id_users_id_fk','sessions_user_id_users_id_fk','subscriptions_user_id_users_id_fk','user_alerts_user_id_users_id_fk','user_jobs_user_id_users_id_fk','user_jobs_job_id_jobs_id_fk') AND NOT k.convalidated) AS fks_not_valid;
+  (SELECT count(*) FROM fk_eval WHERE n_same = 0 AND n_diff = 0) AS fks_missing,
+  (SELECT count(*) FROM fk_eval WHERE n_diff > 0) AS fks_mismatch,
+  (SELECT count(*) FROM fk_eval WHERE n_diff = 0 AND n_same > 0 AND NOT valid) AS fks_not_valid;
 \echo '== reconcile done: db=' :db

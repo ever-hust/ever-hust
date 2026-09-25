@@ -22,13 +22,23 @@ It generates those from a `drizzle-kit push` into an empty database.
 |---|---|
 | `reconcile.sql` | Idempotent and additive. See the notes below. |
 | `verify.sql` | Read-only. Summary row is all zeros when the database matches the schema. |
-| `rollback.sql` | Drops the 35 foreign keys and 54 indexes that reconcile added. Only for a real incident. |
+| `rollback.sql` | Drops the 35 foreign keys and 54 indexes that reconcile added, by their declared names. Has the same guard as `reconcile.sql`. Only for a real incident. |
 
 Notes on `reconcile.sql`:
 - Indexes are built with `CREATE INDEX CONCURRENTLY IF NOT EXISTS`.
 - Foreign keys are added as `NOT VALID`. `VALIDATE` then runs only on keys whose orphan count is 0.
 - It never drops anything and never changes data. Orphan rows are reported, never deleted.
-- A guard aborts if it is connected to a replica, or to a database other than `hust`, `hust_stage` or `hust_dev`.
+- Before a foreign key is added, every FK already on the same column is compared on its full
+  definition: child columns, parent table and columns, `ON DELETE`, `ON UPDATE`, match type and
+  deferrability. If one is identical under another name, the declared FK is skipped with a
+  NOTICE. If one differs (for example `ON DELETE CASCADE` where `SET NULL` is declared), the
+  declared FK is **not** added, because two FKs with different actions on one column would
+  conflict. The script raises a `fk CONFLICT` WARNING that names both FKs, and `verify.sql`
+  reports it as `fks_mismatch`. Resolving it is an owner decision.
+- A guard aborts before any change if it is connected to a replica, to a database other than
+  `hust`, `hust_stage` or `hust_dev`, or to a database without the Hust tables. `rollback.sql`
+  runs the same guard before its first `DROP`. For a throwaway test copy only, allow its name with
+  `PGOPTIONS='-c hust.reconcile_allow_db=<name>'`.
 
 ## How to run
 

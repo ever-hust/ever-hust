@@ -7,8 +7,11 @@ import * as path from "node:path";
 
 jest.mock("@ever-hust/triggers/work", () => {
   const errors = jest.requireActual("../../../../packages/triggers/src/work/errors");
+  // The window-end check is pure (no database), and the request schema uses it: keep it real.
+  const alertWindow = jest.requireActual("../../../../packages/triggers/src/work/alert-window");
   return {
     ...errors,
+    ...alertWindow,
     runCleanup: jest.fn(),
     cleanupExpiredJobs: jest.fn(),
     runJobAlerts: jest.fn(),
@@ -70,7 +73,7 @@ afterEach(() => {
 const routes = [
   { name: "cleanup", route: cleanupRoute, work: runCleanup, body: {}, expectArgs: [{ mode: undefined }] },
   { name: "cleanup-expired-jobs", route: cleanupExpiredJobsRoute, work: cleanupExpiredJobs, body: {}, expectArgs: [{ mode: undefined }] },
-  { name: "job-alerts", route: jobAlertsRoute, work: runJobAlerts, body: { frequencies: ["daily", "twice_daily"] }, expectArgs: [["daily", "twice_daily"]] },
+  { name: "job-alerts", route: jobAlertsRoute, work: runJobAlerts, body: { frequencies: ["daily", "twice_daily"] }, expectArgs: [["daily", "twice_daily"], { windowEnd: undefined }] },
   { name: "follow-up-nudges", route: followUpNudgesRoute, work: runFollowUpNudges, body: {}, expectArgs: [] },
   { name: "funnel-snapshots", route: funnelSnapshotsRoute, work: processFunnelSnapshots, body: {}, expectArgs: [] },
   {
@@ -152,6 +155,34 @@ describe("request validation", () => {
     [{ frequencies: ["daily"], extra: true }],
   ])("job-alerts rejects %j with 400", async (b) => {
     expect((await post(jobAlertsRoute, b)).status).toBe(400);
+    expect(runJobAlerts).not.toHaveBeenCalled();
+  });
+
+  it("job-alerts passes the window end through to the work", async () => {
+    mocked(runJobAlerts).mockResolvedValue({ sent: 1 });
+    const windowEnd = new Date(Date.now() - 60_000).toISOString();
+    const res = await post(jobAlertsRoute, { frequencies: ["daily", "twice_daily"], windowEnd });
+    expect(res.status).toBe(200);
+    expect(runJobAlerts).toHaveBeenCalledWith(["daily", "twice_daily"], { windowEnd });
+  });
+
+  it("job-alerts without a window end leaves it to the work (the app clock)", async () => {
+    mocked(runJobAlerts).mockResolvedValue({ sent: 0 });
+    expect((await post(jobAlertsRoute, { frequencies: ["weekly"] })).status).toBe(200);
+    expect(mocked(runJobAlerts).mock.calls[0]![1]).toEqual({ windowEnd: undefined });
+  });
+
+  it.each([
+    ["not a date", "yesterday"],
+    ["a number", 1790236800000],
+    ["a date without a time", "2026-09-25"],
+    ["a time without an offset", "2026-09-25T08:00:00"],
+    ["more than 5 min in the future", () => new Date(Date.now() + 60 * 60_000).toISOString()],
+    ["more than 8 days old", () => new Date(Date.now() - 9 * 24 * 60 * 60_000).toISOString()],
+  ])("job-alerts rejects a window end that is %s with 400", async (_label, value) => {
+    const windowEnd = typeof value === "function" ? value() : value;
+    const res = await post(jobAlertsRoute, { frequencies: ["daily"], windowEnd });
+    expect(res.status).toBe(400);
     expect(runJobAlerts).not.toHaveBeenCalled();
   });
 

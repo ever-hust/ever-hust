@@ -1,5 +1,5 @@
 import { task, schedules } from "@trigger.dev/sdk";
-import { db, jobs } from "@ever-hust/db";
+import { db, jobs, JOBS_CREATED_AT, withBoundedJobsInsert } from "@ever-hust/db";
 import { everJobsClient } from "@ever-hust/jobs-api";
 import { mapJobToDb, geocodeLocation, SEARCH_TERMS } from "./map-job";
 import { runsOnTrigger, SKIPPED } from "./scheduler";
@@ -64,17 +64,18 @@ async function syncJobs() {
 
         // Atomic upsert: insert new job or update existing by externalId.
         // Eliminates the race condition from a separate SELECT + INSERT/UPDATE.
-        await db
-          .insert(jobs)
-          .values({
-            ...mapped,
-            ...(coords ?? {}),
-            createdAt: new Date(),
-          })
-          .onConflictDoUpdate({
-            target: jobs.externalId,
-            set: { ...mapped, ...(coords ?? {}) },
-          });
+        // Jobs-writer rule (packages/db/src/jobs-insert.ts): created_at is the database's stamp
+        // of this INSERT (JOBS_CREATED_AT, last so nothing overrides it; never in the conflict
+        // set), and the insert runs in a transaction with bounded duration. Job alerts rely on both.
+        await withBoundedJobsInsert(db, (tx) =>
+          tx
+            .insert(jobs)
+            .values({ ...mapped, ...(coords ?? {}), createdAt: JOBS_CREATED_AT })
+            .onConflictDoUpdate({
+              target: jobs.externalId,
+              set: { ...mapped, ...(coords ?? {}) },
+            }),
+        );
 
         totalUpserted++;
       } catch (error) {

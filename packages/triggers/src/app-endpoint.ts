@@ -46,6 +46,22 @@ function truncate(text: string, limit = DETAIL_LIMIT): string {
   return oneLine.length > limit ? `${oneLine.slice(0, limit)}…` : oneLine;
 }
 
+/**
+ * The first candidate that is a valid date (a `Date`, or a string `Date` can parse), as ISO 8601,
+ * or undefined. Used for a value that must be identical on every attempt of one Trigger.dev run:
+ * pass the schedule's fire time (`payload.timestamp`) and/or the run's creation time
+ * (`ctx.run.createdAt`). Both are stored with the run, so a retry sees the same value; `new Date()`
+ * would not. The request body is built once per attempt from these, so every attempt (and the
+ * single `fetch` inside {@link callAppEndpoint}) sends the same body.
+ */
+export function stableRunTimestamp(...candidates: unknown[]): string | undefined {
+  for (const value of candidates) {
+    const date = value instanceof Date ? value : typeof value === "string" ? new Date(value) : null;
+    if (date && Number.isFinite(date.getTime())) return date.toISOString();
+  }
+  return undefined;
+}
+
 /** Base URL of the app, without a trailing slash. */
 export function appBaseUrl(env: Record<string, string | undefined> = process.env): string {
   return (env.NEXT_PUBLIC_APP_URL?.trim() || "http://localhost:8443").replace(/\/+$/, "");

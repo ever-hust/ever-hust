@@ -117,6 +117,14 @@ harvests the corpus Hust already syncs from the Ever Jobs API. Real implementati
   `packages/jobs-api/src/client.test.ts` (the `analyzeJobs` path), and
   `packages/jobs-api/src/types.test.ts` (`SiteEnum` / `companySlug` schema).
 
+**Sync rebuilt by [01a — Full + keyword job sync](../01a-full-and-keyword-sync/spec.md)
+(2026-09-24):** the 15-min sync used to store only page 1 (80 jobs) of each keyword search, so the
+corpus came almost entirely from sources whose names start with "a". It now streams **every** job
+Ever Jobs returns (NDJSON), runs a keyword-less **full** sync every 6 h plus the rotating
+**keyword** sync every 15 min (now with intern / new-grad / quant terms), dedupes within and across
+runs, skips rewriting unchanged rows, and fails loudly. `country: "USA"` remains only as the
+Indeed-style country hint, not a location filter.
+
 **Intentionally deferred (not shipped in this pass):**
 
 - **Widen `SiteEnum`** — still the original 11-value enum in `packages/jobs-api/src/types.ts`; the

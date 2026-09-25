@@ -31,7 +31,9 @@ export function mapJobToDb(dto: JobPostDto) {
     department: dto.department ?? null,
     team: dto.team ?? null,
     employmentType: dto.employmentType ?? null,
-    jobLevel: dto.jobLevel ?? null,
+    // Contract v1 C7: the deterministic Ever Jobs classification wins over the source's own
+    // free-text level — except "unknown", which defers to whatever the source said.
+    jobLevel: resolveJobLevel(dto),
     jobFunction: dto.jobFunction ?? null,
     companyIndustry: dto.companyIndustry ?? null,
     companyNumEmployees: dto.companyNumEmployees ?? null,
@@ -45,6 +47,17 @@ export function mapJobToDb(dto: JobPostDto) {
     rawData: dto as unknown as Record<string, unknown>,
     updatedAt: new Date(),
   };
+}
+
+/**
+ * `job_level` for a DTO: `careerLevel.level` (contract v1 C7) when present and informative,
+ * else the source `jobLevel`, else null. `careerLevel` and `dedupKey` themselves stay in
+ * `raw_data` (the DTO is stored verbatim).
+ */
+export function resolveJobLevel(dto: Pick<JobPostDto, "careerLevel" | "jobLevel">): string | null {
+  const classified = dto.careerLevel?.level?.trim().toLowerCase();
+  if (classified && classified !== "unknown") return classified;
+  return dto.jobLevel ?? null;
 }
 
 /** Convert a number to string for PostgreSQL numeric columns, returning null for NaN/Infinity/negative/undefined. */
@@ -206,4 +219,21 @@ export const SEARCH_TERMS = [
   "AR/VR developer",
   "robotics engineer",
   "computer vision engineer",
+  // Early career — internships, new grad, entry level (many boards only surface these for an
+  // explicit keyword)
+  "software engineer intern",
+  "software engineering internship",
+  "new grad software engineer",
+  "entry level software engineer",
+  "junior software engineer",
+  "machine learning intern",
+  "data science intern",
+  "AI engineer new grad",
+  "research scientist intern",
+  // Quantitative finance
+  "quantitative researcher",
+  "quantitative trader",
+  "quantitative trader intern",
+  "quantitative developer",
+  "quantitative analyst",
 ];

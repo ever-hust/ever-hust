@@ -1,8 +1,9 @@
-import { jobs, JOBS_CREATED_AT, withBoundedJobsInsert } from "@ever-hust/db";
+import { withBoundedJobsInsert } from "@ever-hust/db";
 import * as schema from "@ever-hust/db/schema";
 import type { JobPostDto } from "@ever-hust/jobs-api";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { mapJobToDb, SEARCH_TERMS } from "./map-job";
+import { buildUpsertQuery } from "./ingest/job-store";
+import { mapJobToDb, resolveJobLevel, SEARCH_TERMS } from "./map-job";
 
 // ---------------------------------------------------------------------------
 // Factory helper
@@ -51,6 +52,62 @@ describe("SEARCH_TERMS", () => {
     // Leadership
     expect(joined).toContain("engineering manager");
     expect(joined).toContain("cto");
+  });
+
+  it("covers early-career and quantitative roles (spec 01a FR-13)", () => {
+    for (const term of [
+      "software engineer intern",
+      "new grad software engineer",
+      "entry level software engineer",
+      "machine learning intern",
+      "data science intern",
+      "AI engineer new grad",
+      "quantitative researcher",
+      "quantitative trader intern",
+    ]) {
+      expect(SEARCH_TERMS).toContain(term);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Career level (contract v1 C7) → job_level
+// ---------------------------------------------------------------------------
+
+describe("resolveJobLevel / mapJobToDb career level", () => {
+  it("prefers the classified careerLevel.level over the source jobLevel", () => {
+    const dto = makeDto({
+      jobLevel: "Mid-Senior level",
+      careerLevel: { level: "new_grad", confidence: "high", reasons: ["title: new grad"] },
+    });
+    expect(resolveJobLevel(dto)).toBe("new_grad");
+    expect(mapJobToDb(dto).jobLevel).toBe("new_grad");
+  });
+
+  it("falls back to the source jobLevel when the classifier says unknown or is absent", () => {
+    expect(
+      resolveJobLevel({ jobLevel: "Mid-Senior level", careerLevel: { level: "unknown", confidence: "low" } }),
+    ).toBe("Mid-Senior level");
+    expect(resolveJobLevel({ jobLevel: "Associate" })).toBe("Associate");
+    expect(resolveJobLevel({ careerLevel: { level: "unknown" } })).toBeNull();
+    expect(resolveJobLevel({})).toBeNull();
+  });
+
+  it("normalises the classified level's case/whitespace", () => {
+    expect(resolveJobLevel({ careerLevel: { level: " Senior " } })).toBe("senior");
+  });
+
+  it("keeps careerLevel and dedupKey in raw_data and does not mutate the DTO", () => {
+    const dto = makeDto({
+      jobLevel: "Internship",
+      dedupKey: "acme|swe intern|nyc",
+      careerLevel: { level: "internship", confidence: "high", reasons: ["jobType: internship"] },
+    });
+    const mapped = mapJobToDb(dto);
+    const raw = mapped.rawData as Record<string, unknown>;
+    expect(raw.dedupKey).toBe("acme|swe intern|nyc");
+    expect(raw.careerLevel).toEqual(dto.careerLevel);
+    expect(dto.jobLevel).toBe("Internship");
   });
 });
 
@@ -559,9 +616,10 @@ describe("mapJobToDb", () => {
 // ---------------------------------------------------------------------------
 
 describe("the sync upsert built from mapJobToDb", () => {
-  // The same call as apps/web/app/api/jobs/sync/route.ts and ./sync-jobs.ts, through the real
-  // Drizzle postgres-js driver over a client that records the SQL. The source guard
-  // (jobs-insert-guard.test.ts) cannot see inside mapJobToDb, so this checks the SQL itself.
+  // The sync's writer (`buildUpsertQuery` in ./ingest/job-store.ts, called by the ingest core that
+  // /api/jobs/sync and the sync-jobs task run) through the real Drizzle postgres-js driver over a
+  // client that records the SQL. The source guard (jobs-insert-guard.test.ts) cannot see inside
+  // mapJobToDb, so this checks the SQL itself.
   function recordingDb() {
     const statements: string[] = [];
     const unsafe = (query: string) => {
@@ -591,12 +649,7 @@ describe("the sync upsert built from mapJobToDb", () => {
     const { db, statements } = recordingDb();
     const mapped = mapJobToDb(makeDto({ companyName: "TechCorp", location: { city: "Austin" } }));
     const coords = { latitude: "30.26", longitude: "-97.74" };
-    await withBoundedJobsInsert(db, (tx) =>
-      tx
-        .insert(jobs)
-        .values({ ...mapped, ...coords, createdAt: JOBS_CREATED_AT })
-        .onConflictDoUpdate({ target: jobs.externalId, set: { ...mapped, ...coords } }),
-    );
+    await withBoundedJobsInsert(db, (tx) => buildUpsertQuery(tx, [{ ...mapped, ...coords }]));
 
     expect(statements).toHaveLength(4);
     expect(statements[0]).toBe("BEGIN");

@@ -146,6 +146,14 @@ jobs:
         env:
           DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/hust_test"
 
+      # The job sync's store against real SQL (spec 01a): skip-unchanged read-ahead, row locks,
+      # the narrow last-seen refresh, statement timeouts, the jobs-writer stamp. Opt-in elsewhere;
+      # here the job's own throwaway Postgres runs it. BEFORE the seed: the test truncates jobs.
+      - name: Job store integration test (Postgres)
+        run: node --max-old-space-size=4096 --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.config.ts --ci --selectProjects triggers --testPathPatterns job-store.integration
+        env:
+          JOBS_SYNC_IT_DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/hust_test"
+
       - name: Seed database (jobs corpus for authenticated + AI E2E)
         run: pnpm db:seed
         env:

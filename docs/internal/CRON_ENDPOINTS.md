@@ -252,10 +252,19 @@ only as `withBoundedJobsInsert(db, (tx) => buildUpsertQuery(tx, rows))` from the
   `set` (`upsertSet()`) never lists `created_at`, so a rewritten row keeps its first insert's stamp.
 - **Skip unchanged.** The `WHERE` of the `DO UPDATE` (`... IS DISTINCT FROM ...`, plus the weekly
   last-seen refresh and the merge-takeover rule) is unchanged by the rule: an unchanged row is not
-  rewritten at all.
+  rewritten at all. It is also read ahead (spec 01a D24): before the INSERT, one read-only query
+  evaluates the same predicate for the batch's rows that exist, so unchanged rows are never sent
+  (an `ON CONFLICT DO UPDATE` whose `WHERE` is false still locks and WAL-logs the row: 20 k
+  unchanged rows cost 22 MB of WAL and 20 k row locks on PostgreSQL 16, now 0 and 0).
+- **Weekly refresh is not an INSERT.** An unchanged row whose `updated_at` is over 7 days old gets
+  `UPDATE jobs SET updated_at = ... WHERE external_id IN (...) AND updated_at < ...`
+  (`buildLastSeenRefreshQuery`), which never touches `created_at` and so is outside this rule;
+  it runs in its own transaction with a local 60 s statement timeout.
 - **Fallback.** When the batch statement fails, the ingestor retries row by row, each row its own
-  bounded transaction (one INSERT each). The reads (existence, dedup probe, stored coordinates) and
-  Google geocoding all happen before the transaction opens.
+  bounded transaction (one INSERT each); it stops after 5 rows in a row failed or once the run's
+  deadline has passed (spec 01a D25). The reads (existence, dedup probe, the read-ahead, stored
+  coordinates, each in its own transaction with a local 30 s statement timeout) and Google
+  geocoding all happen before the INSERT's transaction opens.
 
 The column keeps its `now()` default (no migration); no writer relies on it any more.
 

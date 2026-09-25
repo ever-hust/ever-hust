@@ -67,13 +67,13 @@ Hust ingests its job corpus from the Ever Jobs API, but only ever stores **page 
 | FR-3  | Streaming requests use a separate long timeout `EVER_JOBS_STREAM_TIMEOUT_MS` (default 30 min) and an undici dispatcher with raised headers/body timeouts. | must |
 | FR-4  | List mode: `searchTerm` omitted when blank (contract C1). `siteCategories` passed through (C2). | must |
 | FR-5  | Liveness/legitimacy flags are sent **only** when `EVER_JOBS_REQUEST_SIGNALS=true` (default off; per-call `signals` still wins). | must |
-| FR-6  | A shared ingest core consumes the stream in batches of 250 with bounded memory; maps with `mapJobToDb`; skips invalid rows; asks Ever Jobs for every observation (`dedup=false`, D22) and dedupes within the run itself by `external_id` and by `dedupKey` (C9), or for a job without a key by company + title + location; prevents a second row when a `dedupKey` already exists under a different `external_id` (cross-run merge, D2). | must |
-| FR-7  | One bulk upsert statement per batch: `INSERT … ON CONFLICT (external_id) DO UPDATE … WHERE (content columns) IS DISTINCT FROM (excluded content columns)`, so unchanged rows are not rewritten; falls back to row-by-row only when the batch statement fails. Every statement (the batch's, and each fallback row's) follows the jobs-writer rule (D20): it runs alone in `withBoundedJobsInsert`, every row ends with `createdAt: JOBS_CREATED_AT`, the conflict `SET` never touches `created_at`, and a statement holds at most 250 rows. | must |
-| FR-8  | Geocode only rows that lack coordinates, memoised per normalised `(city,state,country)` within the run **and across runs of the process** (coordinates and ZERO_RESULTS 24 h, failed calls 1 h, "no stored coordinates" 6 h; bounded to 20 k entries), reusing coordinates already stored for the same location key (one batched query per batch, only for locations the process memo does not know) before calling Google; stop calling Google for the rest of the run after the first `OVER_QUERY_LIMIT` (also `REQUEST_DENIED`) and keep it off for the process for 1 h; cap Google calls per run (`JOBS_SYNC_GEOCODE_MAX_CALLS`, default 500, for full runs; `JOBS_SYNC_KEYWORD_GEOCODE_MAX_CALLS`, default 100 and never above the former, for keyword runs). | must |
-| FR-9  | Counters per run: `received, inserted, updated, unchanged, invalid, duplicatesMerged, mergedWrites, geocodeCalls, geocodeReused, errors, durationMs` (`mergedWrites` = merges that rewrote the owning row, a subset of `duplicatesMerged`), plus the upstream crawl completeness `complete, stopReason, sourcesSkipped, sourcesFailed` (D21); one summary log line per run, and one warning line when an ok run is not complete. | must |
+| FR-6  | A shared ingest core consumes the stream in batches of 250 with bounded memory; maps with `mapJobToDb`; skips invalid rows; asks Ever Jobs for every observation (`dedup=false`, D22) and dedupes within the run itself by `external_id`, and drops a job as a copy when a posting from **another source** with the same `dedupKey` (C9), or for a job without a key the same company + title + location, was kept earlier in the run; one source's two ids with one key are two postings, and an `external_id` that already exists is always written under itself (D23); prevents a second row when a `dedupKey` already exists on another source's row under a different `external_id` (cross-run merge, D2). | must |
+| FR-7  | One bulk upsert statement per batch: `INSERT … ON CONFLICT (external_id) DO UPDATE … WHERE (content columns) IS DISTINCT FROM (excluded content columns)`, so unchanged rows are not rewritten; that predicate is read ahead for the rows that exist, so unchanged rows are not sent at all and rows only due their weekly refresh get a narrow `UPDATE … SET updated_at` (D24); falls back to row-by-row only when the batch statement fails, and stops the fallback after 5 rows in a row failed or past the run's deadline (D25). Every statement (the batch's, and each fallback row's) follows the jobs-writer rule (D20): it runs alone in `withBoundedJobsInsert`, every row ends with `createdAt: JOBS_CREATED_AT`, the conflict `SET` never touches `created_at`, and a statement holds at most 250 rows. | must |
+| FR-8  | Geocode only rows that lack coordinates, memoised per normalised `(city,state,country)` within the run **and across runs of the process** (coordinates and ZERO_RESULTS 24 h, failed calls 1 h, "no stored coordinates" 6 h; bounded to 20 k entries), reusing coordinates already stored for the same location key (one batched query per batch, only for locations the process memo does not know; after two such queries in a run, one load of every stored location for the rest of the run, D26) before calling Google; stop calling Google for the rest of the run after the first `OVER_QUERY_LIMIT` (also `REQUEST_DENIED`) and keep it off for the process for 1 h; cap Google calls per run (`JOBS_SYNC_GEOCODE_MAX_CALLS`, default 500, for full runs; `JOBS_SYNC_KEYWORD_GEOCODE_MAX_CALLS`, default 100 and never above the former, for keyword runs). | must |
+| FR-9  | Counters per run: `received, inserted, updated, unchanged, invalid, duplicatesMerged, mergedWrites, geocodeCalls, geocodeReused, errors, durationMs` (`mergedWrites` = merges that rewrote the owning row, a subset of `duplicatesMerged`), plus the upstream crawl completeness `complete, stopReason, sourcesSkipped, sourcesFailed` (D21) and, for full runs, `incompleteStreak` (D27); one summary log line per run, one warning line when an ok run is not complete, an error line once full runs have been incomplete 4 times in a row. | must |
 | FR-10 | Two modes. `full`: no `searchTerm`, no `siteCategories`, `resultsWanted = JOBS_SYNC_FULL_RESULTS_PER_SOURCE` (default 1000), `country: "USA"` kept only as the Indeed-style hint; runs only once the process has seen Ever Jobs answer in NDJSON (D18, `JOBS_SYNC_FULL_ENABLED`). `keywords`: rotating term(s), `siteCategories = JOBS_SYNC_KEYWORD_SITE_CATEGORIES` (default `job-board,niche,regional,remote,government,freelance`), `resultsWanted = JOBS_SYNC_KEYWORD_RESULTS_PER_SOURCE` (default 100; 80 until contract v1 is seen, D18). Any per-source count is capped at 1000. | must |
 | FR-11 | `POST /api/jobs/sync` is guarded by the shared cron guard `verifyCronRequest` (`apps/web/lib/cron-auth.ts`: `CRON_SECRET`, constant-time, fail closed in production), accepts `{ mode?, searchTerms?, resultsWanted?, siteCategories?, deadlineMs? }`, returns non-2xx if it fails **before** streaming (auth 401, no `CRON_SECRET` in production 503, bad body 400, same mode already running in this process 409, upstream refused 502), otherwise streams NDJSON progress lines (≤ every 10 s) and ends with exactly one `{"type":"summary","ok":…,…counters}` line. `ok` is never `true` when the upstream failed or a stream was truncated. | must |
-| FR-12 | Trigger.dev: `sync-jobs-schedule` (`*/15`) runs `mode=keywords`; new `sync-jobs-full-schedule` (`20 */6 * * *`) runs `mode=full` with `maxDuration` 3600 s and a `concurrencyLimit: 1` queue. Both read the route's progress stream, parse the summary, return the counters and **throw** when `ok` is false or the summary is missing. A run that is `ok` on a partial crawl (`complete: false`, D21) does **not** throw: the task logs a warning with the `stopReason` and returns the summary. | must |
+| FR-12 | Trigger.dev: `sync-jobs-schedule` (`*/15`) runs `mode=keywords`; new `sync-jobs-full-schedule` (`20 */6 * * *`) runs `mode=full` with `maxDuration` 3600 s and a `concurrencyLimit: 1` queue. Both read the route's progress stream, parse the summary, return the counters and **throw** when `ok` is false or the summary is missing. A run that is `ok` on a partial crawl (`complete: false`, D21) does **not** throw: the task logs a warning with the `stopReason` and returns the summary — until full runs have been incomplete 4 times in a row in the serving process (D27): then the full task throws. | must |
 | FR-13 | `SEARCH_TERMS` gains intern / new-grad / entry-level / quant terms. | must |
 | FR-14 | `mapJobToDb`: `job_level ← careerLevel.level` (C7) when present and not `unknown`, else the source `jobLevel`; `careerLevel` and `dedupKey` stay in `raw_data`. | must |
 | FR-15 | `/api/jobs/search` orders by `date_posted DESC NULLS LAST`. | must |
@@ -82,9 +82,9 @@ Hust ingests its job corpus from the Ever Jobs API, but only ever stores **page 
 
 | ID    | Requirement | Target |
 | ----- | ----------- | ------ |
-| NFR-1 | Memory while ingesting a full run | O(batch) rows + O(run) id/key sets (no whole-response buffering on the NDJSON path) |
-| NFR-2 | DB writes for an unchanged corpus | ≤ 1 rewrite per row per week (skip-unchanged `WHERE` + weekly last-seen refresh, D14) |
-| NFR-3 | DB round trips per batch | ≤ 6 plus the row-by-row fallback, most batches ≤ 3 (existence; dedup candidates + candidate keys, only for new ids with a `dedupKey`; merge-owner existence, only when merging; location reuse, only for locations the process memo does not know; upsert; row-by-row fallback only when the upsert fails) |
+| NFR-1 | Memory while ingesting a full run | O(batch) rows + O(run) id/key sets (no whole-response buffering on the NDJSON path) + the dedup probe cache, capped at 50 k candidate rows (D23; measured for 160 k keyed jobs: 30 MB retained, 90 MB without the cap) |
+| NFR-2 | DB writes for an unchanged corpus | none per run: no row rewritten, locked or WAL-logged (read-ahead, D24); ≤ 1 narrow `updated_at` UPDATE per row per week (D14/D24) |
+| NFR-3 | DB statements per batch | ≤ 8 plus the bounded row-by-row fallback, most batches ≤ 3 (existence; dedup candidates + candidate keys, only for new ids with a `dedupKey`; merge-owner existence, only when merging; location reuse, only for locations the process memo does not know, at most twice per run before one load, D26; write-needs read-ahead, only when rows of the batch exist; upsert, only for new or changed rows; last-seen refresh, only for stale rows). Each runs in its own transaction bounded by `SET LOCAL` timeouts (D25): reads 30 s, refresh 60 s, upsert the jobs-writer rule's 60 s |
 | NFR-4 | Caller header/body timeouts | headers within ~15 s, a line at least every 10 s |
 
 ## 7. Contracts
@@ -154,7 +154,12 @@ type SyncLine =
 - Integration (jest, `triggers`, opt-in): `job-store.integration.test.ts` runs the Drizzle store
   and the ingest core against a real, throwaway Postgres (`JOBS_SYNC_IT_DATABASE_URL`, database
   name must end in `_it`/`_test`, schema pushed first) and proves no tuple is rewritten for an
-  unchanged corpus (`xmin` stable), the weekly refresh, the merge (no flip between two sources of one posting, stale-owner takeover) and the coordinate reuse.
+  unchanged corpus (`xmin` stable) and none is locked either (`xmax` stays 0, with a control that
+  bypasses the read-ahead and locks them all), a description-only change is written, the weekly
+  refresh re-stores no TOASTed value, the merge (no flip between two sources of one posting,
+  stale-owner takeover, one source's two postings with one key both kept), a read waiting on a
+  lock fails on its statement timeout, and the coordinate reuse and load. CI runs it in the E2E
+  job against that job's Postgres service, before the seed step.
 - No live calls: all upstream access is faked; no shared database is touched.
 
 ## 9. Open Questions
@@ -183,8 +188,8 @@ None blocking; see Decisions.
   upstream within a single response). A future `dedup_key` column + index is the upgrade path once
   the deployment has a migration step.
 - **D2 — cross-run duplicates merge onto the existing row, keeping its content.** When a job's
-  `dedupKey` already exists under a different `external_id` (and its own `external_id` is not in
-  the table), no second row is created and the owning row keeps its `id`, `external_id`,
+  `dedupKey` already exists under a different `external_id` on a row of **another source** (D23)
+  (and its own `external_id` is not in the table), no second row is created and the owning row keeps its `id`, `external_id`,
   `created_at` **and content**: when the same posting reaches Hust through two sources (e.g. the
   ATS copy in full runs and a board copy in keyword runs), the row must not flip between them on
   every run (that rewrote the whole row, TOASTed description included, each time — review of
@@ -214,7 +219,7 @@ None blocking; see Decisions.
   2026-09-25). The web pod now keeps a bounded TTL memo shared by its runs (FR-8), keyword runs get
   a lower cap (100), and quota / denied answers pause Google for the process for an hour. The
   memo is per process (each pod learns on its own); an expression index on the location key is the
-  upgrade path once the deployment has a migration step.
+  upgrade path once the deployment has a migration step. Within a run, D26 bounds the scans.
 - **D6 — Google geocoding is capped per run** (`JOBS_SYNC_GEOCODE_MAX_CALLS`, default 500) and
   also stops after `REQUEST_DENIED` (the key is unusable for the rest of the run), in addition to
   `OVER_QUERY_LIMIT`.
@@ -261,7 +266,8 @@ None blocking; see Decisions.
   every run. A pure skip-unchanged upsert would let live-but-unchanged postings age into that
   delete (which cascades into users' applications). The upsert therefore also rewrites an
   unchanged row when its `updated_at` is older than 7 days (`LAST_SEEN_REFRESH_DAYS`): at most one
-  rewrite per row per week instead of one per run. Such refreshes count as `updated`.
+  rewrite per row per week instead of one per run. Such refreshes count as `updated`. Since D24 the
+  refresh is a narrow `UPDATE jobs SET updated_at` rather than a rewrite of the whole row.
 - **D16 — stored liveness / legitimacy verdicts are sticky.** Signals are opt-in per request and
   now off by default (FR-5), so a DTO without them means "not asked", not "no verdict". The
   `liveness` / `legitimacy` / `legitimacy_reasons` columns are therefore neither compared nor
@@ -323,6 +329,14 @@ None blocking; see Decisions.
      `JOBS_SYNC_FULL_RESULTS_PER_SOURCE` accordingly.
   3. **Order:** Hust may deploy before Ever Jobs contract v1 (D18 gates full runs); the full sync
      starts producing complete results once Ever Jobs v1 is live **and** step 1 is done.
+  4. **Indexes: a read-only check before enabling full mode (review of 2026-09-26).** The dedup
+     probe narrows through `jobs_title_idx` / `jobs_company_name_idx` and every per-id lookup goes
+     through the `external_id` unique index; the live Hust databases are known to miss many
+     declared indexes. Before `JOBS_SYNC_FULL_ENABLED` is set on a shared cluster, check
+     `pg_indexes` for `jobs` on hust, hust_stage and hust_dev (creating a missing one, e.g. with
+     `packages/db/scripts/reconcile.sql`, is a database change the owner approves). The
+     location-key expression index (the D17/D26 upgrade path) is a schema change and needs the
+     owner's approval too.
 
 - **D20 — the sync's upsert follows the jobs-writer rule (rebase onto develop `e551cef`).** Job
   alerts read each period's jobs once, which is only safe when every `jobs` row commits within a
@@ -363,8 +377,8 @@ None blocking; see Decisions.
   `dedup=false` the producer streams every observation, and every job still carries the producer's
   `dedupKey` (company | title | location, the same key with or without its dedup), so Hust's own
   dedupe keeps postings in different places apart and still collapses one posting seen through
-  two sources: within the run by `external_id` and `dedupKey` (first seen wins), across runs by the
-  stored key (D1/D2). The client sends `dedup` explicitly on every streaming request
+  two sources: within the run by `external_id` and `dedupKey` (the first source seen wins; one
+  source's own ids are never merged, D23), across runs by the stored key (D1/D2). The client sends `dedup` explicitly on every streaming request
   (`SearchStreamOptions.dedup`, default `false`). A pre-contract server honours `dedup=false` but
   stamps no `dedupKey`; for a job without a key the within-run dedupe falls back to company + title
   + location compared loosely (`fallbackDedupIdentity`), so its cross-source copies within one run
@@ -372,11 +386,74 @@ None blocking; see Decisions.
   producer streams more lines (duplicates it used to drop); they are counted in
   `duplicatesMerged` and never written.
 
+- **D23 — one source's two ids are two postings; an existing id is always its own row (review and
+  E2E of 2026-09-26).** The producer's `dedupKey` is company | title | location, so one employer's
+  different requisitions with one title in one city share it: on real data, Jane Street's New York
+  new-grad role was merged into its New York internship, and all 10 merges of the first E2E full
+  run were distinct postings of one source (AbbVie ×3, Moderna ×5, Stripe ×1). So a key (or, for a
+  job without one, the fallback identity) only makes a job a **copy** of a posting from **another
+  source**: within the run, each kept identity is marked with its source (kept for several sources:
+  any source's job with it is a copy); across runs, the probe reads each candidate row's `site` and
+  `raw_data->>'id'` (the source id of the content it holds), and a new job merges onto the oldest
+  row with its key that is of another source, or that holds this very job's content (a row it took
+  over, D2). Sources compare case- and space-insensitively. And a job whose `external_id` already
+  exists is always written under itself, even when another source's copy of it streamed first in
+  the run (before, the copy's key dropped the owner's own update, so the owner aged into a
+  takeover): the within-run check runs after the batch's existence lookup, not on arrival; only
+  exact external-id repeats are dropped on arrival. The probe's candidate cache starts over at
+  50 k rows (NFR-1). Trade-off: a source that lists one posting under two ids gets two rows.
+- **D24 — the upsert's `WHERE` is read ahead; the weekly refresh is a narrow UPDATE (review of
+  2026-09-26).** `INSERT … ON CONFLICT DO UPDATE … WHERE false` still locks every conflicting row
+  and WAL-logs the lock (measured on PostgreSQL 16, 20 k unchanged rows: 22 MB of WAL and 20 k
+  locked rows per run; a full run every 6 hours on the shared cluster). Before the INSERT, one
+  read-only query (`buildWriteNeedsQuery`) joins the batch's rows that exist, sent as a typed
+  `VALUES` list with the very parameters the INSERT would send (the columns' own encoders, cast to
+  the columns' types; `raw_data` trimmed to the keys the predicate reads), to `jobs` and evaluates
+  the same predicate parts: `write` (the CASE without its last-seen clause) or `refresh` (that
+  clause; never for a merge row). Only new and `write` rows go to the INSERT; `refresh` rows get
+  `UPDATE jobs SET updated_at = $seen WHERE external_id IN (…) AND updated_at < $seen - 7 days`,
+  which rewrites the heap tuple only (no TOASTed value stored again: 67 MB of WAL instead of 123 MB
+  plus 27 MB of new TOAST for 20 k rows); unchanged rows are counted and not sent (0 WAL, 0 locks).
+  The INSERT keeps the full predicate: it is what holds under concurrent runs, and when the
+  read-ahead fails the batch goes to the INSERT as before. The UPDATE is not an INSERT, so the
+  jobs-writer rule (which is about `created_at`) does not apply; it never touches `created_at`.
+- **D25 — every sync statement is time-bounded (review of 2026-09-26).** Each read runs in its own
+  transaction with `SET LOCAL statement_timeout` 30 s and `idle_in_transaction_session_timeout`
+  10 s (`withSyncStatementBound`), the refresh UPDATE with 60 s: a session `SET` would leak to the
+  next borrower of a pooled connection, and a startup parameter does not pass a transaction-mode
+  pooler. A read waiting on a lock (e.g. a schema push holding `jobs`) now fails its batch instead
+  of hanging the run. The row-by-row fallback stops after 5 rows in a row failed
+  (`MAX_CONSECUTIVE_ROW_FAILURES`) or once the run's deadline (the route's `deadlineAt`) has
+  passed; the rest of the batch is counted as errors. Before, one batch could take 250 × 70 s,
+  three batches in a row, past the run's single-flight slot. Drizzle's `Failed query: <sql>
+  params: <all parameters>` wrapper is reduced to the driver's message (`errorText`, capped at
+  500 characters), so a failed batch no longer logs megabytes of parameters.
+- **D26 — at most two stored-coordinate scans per run, then one load (review of 2026-09-26).** Each
+  location-reuse query scans `jobs` (no index covers the computed key, D1/D17): 4 k buffers at 20 k
+  rows, growing with the table, and on a cold process nearly every batch of a full run paid one.
+  After `STORED_LOOKUPS_BEFORE_PRELOAD` (2) targeted queries, a run loads every stored location once
+  (`buildStoredCoordsQuery`: one row per distinct key and coordinates with their newest
+  `updated_at`, grouped so the planner can hash instead of sorting every row; the newest per key is
+  kept) and answers the rest of the run from memory. Keyword runs (a few batches) keep their
+  targeted queries. More than 50 k stored locations, or a failed load, keeps the run on per-batch
+  queries. The expression index on the location key remains the owner-approved upgrade path.
+- **D27 — a full crawl that stays incomplete is escalated (review of 2026-09-26).** D21 keeps a
+  partial crawl `ok`; but if full runs are never complete (e.g. D19 step 1 not done), the sources
+  the producer always skips are never refreshed and the 90-day cleanup can delete their open
+  postings. The serving process counts the full runs in a row that were not complete
+  (`IncompleteRunTracker`; skipped runs change nothing, a complete run resets it); the summary
+  carries `incompleteStreak`, and from 4 on (one day of 6-hourly runs) the run logs an error and the
+  scheduled (and in-process) full task throws, so the Trigger run fails and alerts. The count is
+  per process: with several web pods the alert can come later, never earlier. Raising the
+  producer's deadline (D19 step 1) is a deployment step on Ever Jobs, outside this repository.
+
 **Implementation status (2026-09-24):** all tasks in [`tasks.md`](tasks.md) implemented on branch
 `feat/full-and-keyword-sync`; not yet deployed. Review fixes of 2026-09-25 (D2 revised, D1
 two-step probe, D11 bounds, D16–D19) implemented on the same branch. Rebased onto develop
 `e551cef` on 2026-09-25 with the follow-ups D20 (jobs-writer rule), the shared cron guard
-(FR-11), D21 (crawl completeness) and D22 (`dedup=false`). Verify after deploy: while
+(FR-11), D21 (crawl completeness) and D22 (`dedup=false`). Review and E2E fixes of 2026-09-26
+(D23–D27) implemented on the same branch; its history was squashed into one commit so that no
+commit carries a jobs writer that predates the jobs-writer rule. Verify after deploy: while
 Ever Jobs predates v1, `sync-jobs-full-schedule` runs end `ok:true` with `skipped` and keyword
 runs request 80 per source; once v1 is live (and D19 step 1 done), a full run ends `ok:true` with
 `received` close to the upstream `end.total` and `complete: true` (or a `stopReason` saying which

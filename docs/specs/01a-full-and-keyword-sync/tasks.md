@@ -94,6 +94,26 @@
 - [x] T23 — `dedup=false` on every streaming request; within-run dedupe by `dedupKey`, with a
   company + title + location fallback for keyless jobs (FR-6, D22).
 
+## Phase 7 — Review + real-data E2E fixes (2026-09-26)
+
+- [x] T24 — One source's two ids with one `dedupKey` stay two rows, within a run and across runs
+  (the probe reads `site` and `raw_data->>'id'`); an existing `external_id` is always written under
+  itself even when another source's copy streamed first; probe cache capped at 50 k rows (FR-6,
+  NFR-1, D23).
+- [x] T25 — Upsert `WHERE` read ahead: unchanged rows never reach the INSERT (no lock, no WAL);
+  the weekly last-seen refresh is a narrow `UPDATE … SET updated_at` (FR-7, NFR-2, D24).
+- [x] T26 — Every read and the refresh bounded by `SET LOCAL` timeouts; the row-by-row fallback stops
+  after 5 failures in a row or past the run's deadline; short driver messages instead of Drizzle's
+  full-query wrapper (FR-7, NFR-3, D25).
+- [x] T27 — Stored coordinates: two targeted scans per run, then one load of every stored location
+  (FR-8, D26).
+- [x] T28 — Escalation after 4 incomplete full runs in a row: error line, `incompleteStreak`, the
+  full task throws (FR-9, FR-12, D27).
+- [x] T29 — Tests: the content columns pinned literally; Postgres tests for a description-only
+  change, row locks (`xmax`), the narrow refresh (TOAST/WAL), a read under a lock; CI runs the
+  Postgres test in the E2E job; the branch history squashed so every commit follows the jobs-writer
+  rule.
+
 ## Notes
 
 - Write tests alongside each implementation task.

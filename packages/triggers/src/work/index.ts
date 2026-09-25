@@ -34,8 +34,10 @@ export {
 export {
   runFollowUpNudges,
   processFollowUpNudges,
+  resolveFollowUpNudgesEnabled,
   NUDGE_COOLDOWN_DAYS,
   type FollowUpNudgeResult,
+  type FollowUpNudgeRunResult,
 } from "./follow-up-nudges";
 
 export { processFunnelSnapshots, type FunnelSnapshotResult } from "./funnel-snapshots";

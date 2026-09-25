@@ -114,6 +114,29 @@ describe("callAppEndpoint", () => {
     expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
   });
 
+  it("says so when NEXT_PUBLIC_APP_URL is unset (a deployed env without config, e.g. preview/develop)", async () => {
+    const fetchImpl = jest.fn(async () => {
+      throw new TypeError("fetch failed");
+    });
+    const err = (await callAppEndpoint("/api/cron/cleanup", {}, {
+      env: {},
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    }).catch((e: unknown) => e)) as AppEndpointError;
+    expect(err.message).toContain("failed before a response (http://localhost:8443/api/cron/cleanup)");
+    expect(err.message).toContain("NEXT_PUBLIC_APP_URL is not set in this environment");
+  });
+
+  it("control: no such hint when NEXT_PUBLIC_APP_URL is set", async () => {
+    const fetchImpl = jest.fn(async () => {
+      throw new TypeError("fetch failed");
+    });
+    const err = (await callAppEndpoint("/api/cron/cleanup", {}, {
+      env,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    }).catch((e: unknown) => e)) as AppEndpointError;
+    expect(err.message).not.toContain("NEXT_PUBLIC_APP_URL");
+  });
+
   it("requires an absolute path", async () => {
     await expect(callAppEndpoint("api/cron/cleanup", {}, { env })).rejects.toThrow('must start with "/"');
   });

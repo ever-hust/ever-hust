@@ -1,6 +1,6 @@
 import { task, schedules } from "@trigger.dev/sdk";
 import { callAppEndpoint } from "./app-endpoint";
-import { CRON_ENDPOINTS, CRON_TIMEOUTS_MS } from "./cron-endpoints";
+import { APP_ENDPOINT_TASK_MAX_DURATION_S, CRON_ENDPOINTS, CRON_TIMEOUTS_MS } from "./cron-endpoints";
 import { runsOnTrigger, SKIPPED } from "./scheduler";
 
 /**
@@ -22,12 +22,14 @@ async function runCleanupRemote(payload?: CleanupPayload) {
 
 export const cleanupTask = task({
   id: "cleanup",
+  maxDuration: APP_ENDPOINT_TASK_MAX_DURATION_S,
   run: async (payload?: CleanupPayload) => runCleanupRemote(payload),
 });
 
 // Run daily at 3 AM UTC
 export const cleanupSchedule = schedules.task({
   id: "daily-cleanup",
+  maxDuration: APP_ENDPOINT_TASK_MAX_DURATION_S,
   cron: "0 3 * * *",
   run: async () => {
     if (!runsOnTrigger()) return SKIPPED;

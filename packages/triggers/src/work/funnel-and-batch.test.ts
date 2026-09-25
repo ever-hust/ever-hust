@@ -11,13 +11,21 @@ import { getTableName, type SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { CronInputError, CronWorkError } from "./errors";
 import { processFunnelSnapshots, startOfUtcDay } from "./funnel-snapshots";
-import { runBatchEvaluate } from "./batch-evaluate";
+import {
+  BATCH_EVALUATE_BUDGET_MS,
+  BATCH_EVALUATE_RESPONSE_LIMIT_MS,
+  STILL_RUNNING_ERROR,
+  runBatchEvaluate,
+} from "./batch-evaluate";
 
 const dialect = new PgDialect();
 
-function selectFake(results: Record<string, unknown[]>) {
+function selectFake(results: Record<string, unknown[]>, opts: { locked?: boolean } = {}) {
   const inserted: unknown[][] = [];
   const wheres: { table: string; sql: string; params: unknown[] }[] = [];
+  /** Every operation in order, tagged with whether it ran inside `transaction()`. */
+  const ops: { op: string; inTx: boolean }[] = [];
+  let inTx = false;
   const builder = (table0?: unknown) => {
     const st: { table?: unknown; where?: unknown; values?: unknown[] } = { table: table0 };
     const b = {
@@ -34,21 +42,39 @@ function selectFake(results: Record<string, unknown[]>) {
       then: (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) =>
         Promise.resolve()
           .then(() => {
+            const table = getTableName(st.table as never);
+            ops.push({ op: `${st.values ? "insert" : "select"} ${table}`, inTx });
             if (st.values) {
               inserted.push(st.values);
               return [];
             }
-            return results[getTableName(st.table as never)] ?? [];
+            return results[table] ?? [];
           })
           .then(res, rej),
     };
     return b;
   };
-  return {
-    db: { select: () => builder(), selectDistinct: () => builder(), insert: (t: unknown) => builder(t) } as never,
-    inserted,
-    wheres,
+  const client = {
+    select: () => builder(),
+    selectDistinct: () => builder(),
+    insert: (t: unknown) => builder(t),
+    execute: async (q: SQL) => {
+      ops.push({ op: dialect.sqlToQuery(q).sql, inTx });
+      return [{ locked: opts.locked ?? true }];
+    },
   };
+  const db = {
+    ...client,
+    transaction: async <T>(fn: (tx: typeof client) => Promise<T>): Promise<T> => {
+      inTx = true;
+      try {
+        return await fn(client);
+      } finally {
+        inTx = false;
+      }
+    },
+  };
+  return { db: db as never, inserted, wheres, ops };
 }
 
 describe("processFunnelSnapshots", () => {
@@ -86,6 +112,30 @@ describe("processFunnelSnapshots", () => {
     expect(dedupe.params).toContain("scheduled");
   });
 
+  it("runs entirely inside one transaction that first takes the advisory lock", async () => {
+    const f = selectFake({ applications: [{ userId: "a", stage: "applied", score: null }], funnel_snapshots: [] });
+    await processFunnelSnapshots({ db: f.db, now });
+    expect(f.ops[0]!.op).toBe(
+      "select pg_try_advisory_xact_lock(hashtext('ever-hust'), hashtext('funnel-snapshots')) as locked",
+    );
+    expect(f.ops.map((o) => o.op).slice(1)).toEqual([
+      "select applications",
+      "select funnel_snapshots",
+      "insert funnel_snapshots",
+    ]);
+    expect(f.ops.every((o) => o.inTx)).toBe(true);
+  });
+
+  it("an overlapping run (lock held) answers 409 and reads/writes nothing, so it cannot duplicate points", async () => {
+    const f = selectFake({ applications: [{ userId: "a", stage: "applied", score: null }], funnel_snapshots: [] }, { locked: false });
+    const err = (await processFunnelSnapshots({ db: f.db, now }).catch((e: unknown) => e)) as CronWorkError;
+    expect(err).toBeInstanceOf(CronWorkError);
+    expect(err.cronStatus).toBe(409);
+    expect(err.cronDetails).toEqual({ skipped: "locked" });
+    expect(f.ops).toHaveLength(1);
+    expect(f.inserted).toHaveLength(0);
+  });
+
   it("startOfUtcDay", () => {
     expect(startOfUtcDay(new Date("2026-09-25T23:59:59.999Z")).toISOString()).toBe("2026-09-25T00:00:00.000Z");
   });
@@ -119,10 +169,66 @@ describe("runBatchEvaluate", () => {
     let t = 0;
     const err = (await runBatchEvaluate(
       { userId: "u", jobIds: [1, 2, 3] },
-      { db: f.db, evaluate, clock: () => (t += 100), deadline: 150 },
+      // clock reads: start 100, job 1 check 200 (<= 250), job 2 check 400 (> 250).
+      { db: f.db, evaluate, clock: () => (t += 100), deadline: 250 },
     ).catch((e: unknown) => e)) as CronWorkError;
     expect(err).toBeInstanceOf(CronWorkError);
     expect(err.cronDetails).toMatchObject({ failed: [{ jobId: 1, error: "Job not found." }], deferred: [2, 3] });
     expect(evaluate).toHaveBeenCalledTimes(1);
+  });
+
+  it("by default starts no new evaluation after 170 s (room for the last one inside the 290 s Trigger timeout)", async () => {
+    expect(BATCH_EVALUATE_BUDGET_MS).toBe(170_000);
+    const f = selectFake({ users: [{ preferences: {}, subscriptionStatus: "active" }] });
+    let now = 1_000_000;
+    // Each evaluation takes 60 s of (fake) wall-clock time.
+    evaluate.mockImplementation(async ({ jobId }: { jobId: number }) => {
+      now += 60_000;
+      return { evaluated: true, jobId, score: 50, band: "B" };
+    });
+    const err = (await runBatchEvaluate(
+      { userId: "u", jobIds: [1, 2, 3, 4, 5] },
+      { db: f.db, evaluate, clock: () => now },
+    ).catch((e: unknown) => e)) as CronWorkError;
+    // Starts at 0 s, 60 s and 120 s; at 180 s the budget (170 s) has passed.
+    expect(evaluate).toHaveBeenCalledTimes(3);
+    expect(err.cronDetails).toMatchObject({ evaluated: 3, deferred: [4, 5], failed: [] });
+  });
+
+  describe("an evaluation that never answers", () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    it("the run still answers at the 270 s response limit, listing it as failed and the rest as deferred", async () => {
+      expect(BATCH_EVALUATE_RESPONSE_LIMIT_MS).toBe(270_000);
+      const f = selectFake({ users: [{ preferences: {}, subscriptionStatus: "active" }] });
+      let rejectHung: (e: Error) => void = () => {};
+      evaluate.mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectHung = reject;
+          }),
+      );
+      const outcome = runBatchEvaluate({ userId: "u", jobIds: [1, 2, 3] }, { db: f.db, evaluate, clock: () => 0 }).catch(
+        (e: unknown) => e,
+      );
+      await jest.advanceTimersByTimeAsync(269_999);
+      let settled = false;
+      void outcome.then(() => (settled = true));
+      await Promise.resolve();
+      expect(settled).toBe(false);
+      await jest.advanceTimersByTimeAsync(1);
+      const err = (await outcome) as CronWorkError;
+      expect(err).toBeInstanceOf(CronWorkError);
+      expect(err.cronDetails).toMatchObject({
+        evaluated: 0,
+        failed: [{ jobId: 1, error: STILL_RUNNING_ERROR }],
+        deferred: [2, 3],
+      });
+      expect(evaluate).toHaveBeenCalledTimes(1);
+      // The abandoned evaluation failing later is swallowed (no unhandled rejection).
+      rejectHung(new Error("late LLM failure"));
+      await Promise.resolve();
+    });
   });
 });

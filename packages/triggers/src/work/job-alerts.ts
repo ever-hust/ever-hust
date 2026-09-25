@@ -1,19 +1,26 @@
 import { db as defaultDb, escapeIlike, userAlerts, jobs, users } from "@ever-hust/db";
-import { sendJobAlertEmail } from "@ever-hust/email";
+import { sendJobAlertEmail, type DeduplicatedEmail } from "@ever-hust/email";
 import { and, eq, gte, ilike, isNull, lt, or, sql } from "drizzle-orm";
 import { CronWorkError, deadlineFrom } from "./errors";
 
 /**
  * Job-alert emails (app-runtime work behind `POST /api/cron/job-alerts`).
  *
- * IDEMPOTENCY (no schema change — uses the existing `user_alerts.last_sent_at`):
- * an alert is sent at most once per period. Before sending, the run CLAIMS the alert with one
- * atomic conditional UPDATE (`last_sent_at = now WHERE id = ? AND (last_sent_at IS NULL OR
- * last_sent_at < now - period)`). A Trigger retry, a manual re-run or an overlapping run finds the
- * alert already claimed for this period and skips it, so nobody gets the same alert twice. If the
- * email then fails to send, the claim is released (last_sent_at restored) so the next attempt
- * retries that alert only. Tradeoff: if the process dies between claim and send, that alert is
- * skipped for one period (at-most-once, not at-least-once — a missed digest beats a duplicate).
+ * IDEMPOTENCY (no schema change — uses the existing `user_alerts.last_sent_at`), two layers:
+ *  1. CLAIM. Before sending, the run claims the alert with one atomic conditional UPDATE
+ *     (`last_sent_at = now WHERE id = ? AND (last_sent_at IS NULL OR last_sent_at < now - period)`).
+ *     A Trigger retry, a manual re-run or an overlapping run finds the alert already claimed for
+ *     this period and skips it. If the send fails, the claim is released (last_sent_at restored)
+ *     so the next attempt retries that alert only.
+ *  2. RESEND IDEMPOTENCY KEY. A failure can be ambiguous: Resend may have accepted the email and
+ *     only the response was lost (timeout, network, 5xx). The released claim would then send it
+ *     again. So every send carries `job-alert/<alertId>/<previous last_sent_at>` as its Resend
+ *     idempotency key ({@link jobAlertIdempotencyKey}). Releasing the claim restores the previous
+ *     `last_sent_at`, so every retry of the same period sends the SAME key, and Resend (which
+ *     remembers a key for 24 h) delivers at most one of them. A replay that Resend reports as a
+ *     409 is counted as `deduplicated` and keeps the claim.
+ * Tradeoff: if the process dies between claim and send, that alert is skipped for one period
+ * (at-most-once, not at-least-once — a missed digest beats a duplicate).
  */
 
 export type AlertFrequency = "daily" | "twice_daily" | "weekly";
@@ -31,6 +38,20 @@ export const ALERT_MIN_INTERVAL_MS: Record<AlertFrequency, number> = {
   twice_daily: 8 * HOUR_MS,
   weekly: 6 * 24 * HOUR_MS,
 };
+
+/**
+ * Resend idempotency key for one alert period: the alert id plus the `last_sent_at` the period
+ * started from (`first` for a never-sent alert). Stable across claim releases and retries of the
+ * same period; a successful send moves `last_sent_at`, so the next period gets a new key.
+ */
+export function jobAlertIdempotencyKey(alertId: number, previousSentAt: Date | null): string {
+  return `job-alert/${alertId}/${previousSentAt ? previousSentAt.getTime() : "first"}`;
+}
+
+/** Nothing new was sent: Resend reported this idempotency key as already used. */
+function wasDeduplicated(outcome: unknown): outcome is DeduplicatedEmail {
+  return (outcome as { deduplicated?: unknown } | null)?.deduplicated === true;
+}
 
 /** Alerts last sent before this instant are due again. */
 export function alertPeriodCutoff(frequency: AlertFrequency, now: Date): Date {
@@ -81,6 +102,8 @@ export interface AlertRunResult {
   /** Active alerts of this frequency not yet sent in the current period. */
   candidates: number;
   sent: number;
+  /** Resend reported the period's idempotency key as already used: an earlier attempt delivered it. */
+  deduplicated: number;
   skippedNotEligible: number;
   skippedNoCriteria: number;
   skippedNoMatches: number;
@@ -146,6 +169,7 @@ export async function processAlerts(
     frequency,
     candidates: 0,
     sent: 0,
+    deduplicated: 0,
     skippedNotEligible: 0,
     skippedNoCriteria: 0,
     skippedNoMatches: 0,
@@ -268,8 +292,9 @@ export async function processAlerts(
         result.skippedAlreadyClaimed++;
         continue;
       }
+      let outcome: Awaited<ReturnType<typeof send>>;
       try {
-        await send({
+        outcome = await send({
           to: alert.email,
           userName: user.name ?? "Job Seeker",
           alertCriteria: criteriaDesc,
@@ -281,6 +306,7 @@ export async function processAlerts(
             salary: formatSalary(j.salaryMin, j.salaryMax, j.salaryCurrency),
             jobUrl: safeJobUrl(j.jobUrl),
           })),
+          idempotencyKey: jobAlertIdempotencyKey(alert.id, alert.lastSentAt ?? null),
         });
       } catch (sendError) {
         await releaseAlertClaim(database, alert.id, alert.lastSentAt ?? null, claimedAt).catch((err) =>
@@ -291,7 +317,8 @@ export async function processAlerts(
         );
         throw sendError;
       }
-      result.sent++;
+      if (wasDeduplicated(outcome)) result.deduplicated++;
+      else result.sent++;
     } catch (error) {
       result.failed++;
       console.error(`[job-alerts] alert ${alert.id} failed:`, error instanceof Error ? error.message : error);
@@ -304,6 +331,7 @@ export async function processAlerts(
 export interface JobAlertsRunResult {
   runs: AlertRunResult[];
   sent: number;
+  deduplicated: number;
   failed: number;
   deferred: number;
 }
@@ -326,6 +354,7 @@ export async function runJobAlerts(
   const total = {
     runs,
     sent: runs.reduce((n, r) => n + r.sent, 0),
+    deduplicated: runs.reduce((n, r) => n + r.deduplicated, 0),
     failed: runs.reduce((n, r) => n + r.failed, 0),
     deferred: runs.reduce((n, r) => n + r.deferred, 0),
   };

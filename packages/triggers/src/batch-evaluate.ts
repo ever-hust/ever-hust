@@ -1,6 +1,6 @@
 import { task } from "@trigger.dev/sdk";
 import { callAppEndpoint } from "./app-endpoint";
-import { CRON_ENDPOINTS, CRON_TIMEOUTS_MS } from "./cron-endpoints";
+import { APP_ENDPOINT_TASK_MAX_DURATION_S, CRON_ENDPOINTS, CRON_TIMEOUTS_MS } from "./cron-endpoints";
 
 export interface BatchEvaluateTaskPayload {
   userId: string;
@@ -20,6 +20,7 @@ export interface BatchEvaluateTaskPayload {
  */
 export const batchEvaluateTask = task({
   id: "batch-evaluate",
+  maxDuration: APP_ENDPOINT_TASK_MAX_DURATION_S,
   retry: { maxAttempts: 1 },
   run: async (payload: BatchEvaluateTaskPayload) =>
     callAppEndpoint(CRON_ENDPOINTS.batchEvaluate, payload, { timeoutMs: CRON_TIMEOUTS_MS.batchEvaluate }),

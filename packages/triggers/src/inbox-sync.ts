@@ -1,6 +1,6 @@
 import { task, schedules } from "@trigger.dev/sdk";
 import { callAppEndpoint } from "./app-endpoint";
-import { CRON_ENDPOINTS, CRON_TIMEOUTS_MS } from "./cron-endpoints";
+import { APP_ENDPOINT_TASK_MAX_DURATION_S, CRON_ENDPOINTS, CRON_TIMEOUTS_MS } from "./cron-endpoints";
 import { runsOnTrigger, SKIPPED } from "./scheduler";
 
 /**
@@ -14,12 +14,14 @@ async function callCronSync() {
 
 export const inboxSyncTask = task({
   id: "inbox-sync",
+  maxDuration: APP_ENDPOINT_TASK_MAX_DURATION_S,
   run: async () => callCronSync(),
 });
 
 /** Every hour, sync all connected mailboxes. */
 export const inboxSyncSchedule = schedules.task({
   id: "inbox-sync-hourly",
+  maxDuration: APP_ENDPOINT_TASK_MAX_DURATION_S,
   cron: "0 * * * *",
   run: async () => {
     if (!runsOnTrigger()) return SKIPPED;

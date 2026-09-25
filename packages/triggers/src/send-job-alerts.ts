@@ -1,6 +1,6 @@
 import { task, schedules } from "@trigger.dev/sdk";
 import { callAppEndpoint } from "./app-endpoint";
-import { CRON_ENDPOINTS, CRON_TIMEOUTS_MS } from "./cron-endpoints";
+import { APP_ENDPOINT_TASK_MAX_DURATION_S, CRON_ENDPOINTS, CRON_TIMEOUTS_MS } from "./cron-endpoints";
 import { runsOnTrigger, SKIPPED } from "./scheduler";
 
 type AlertFrequency = "daily" | "twice_daily" | "weekly";
@@ -18,6 +18,7 @@ async function sendAlerts(frequencies: AlertFrequency[]) {
 // Task definition
 export const sendJobAlertsTask = task({
   id: "send-job-alerts",
+  maxDuration: APP_ENDPOINT_TASK_MAX_DURATION_S,
   run: async (payload: { frequency: AlertFrequency }) => sendAlerts([payload.frequency]),
 });
 
@@ -25,6 +26,7 @@ export const sendJobAlertsTask = task({
 // Daily alerts at 8 AM UTC
 export const dailyAlertSchedule = schedules.task({
   id: "daily-job-alerts",
+  maxDuration: APP_ENDPOINT_TASK_MAX_DURATION_S,
   cron: "0 8 * * *",
   run: async () => {
     if (!runsOnTrigger()) return SKIPPED;
@@ -35,6 +37,7 @@ export const dailyAlertSchedule = schedules.task({
 // Twice daily alerts at 6 PM UTC (second run)
 export const eveningAlertSchedule = schedules.task({
   id: "evening-job-alerts",
+  maxDuration: APP_ENDPOINT_TASK_MAX_DURATION_S,
   cron: "0 18 * * *",
   run: async () => {
     if (!runsOnTrigger()) return SKIPPED;
@@ -45,6 +48,7 @@ export const eveningAlertSchedule = schedules.task({
 // Weekly alerts on Monday at 8 AM UTC
 export const weeklyAlertSchedule = schedules.task({
   id: "weekly-job-alerts",
+  maxDuration: APP_ENDPOINT_TASK_MAX_DURATION_S,
   cron: "0 8 * * 1",
   run: async () => {
     if (!runsOnTrigger()) return SKIPPED;

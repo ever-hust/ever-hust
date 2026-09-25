@@ -41,6 +41,7 @@ import {
   sendFollowUpNudgeEmail,
   sendWelcomeEmail,
   sendSubscriptionConfirmedEmail,
+  isDeduplicatedEmail,
 } from "./send";
 
 const mockSend = mockSendFn as jest.Mock;
@@ -358,5 +359,68 @@ describe("retry logic", () => {
     await jest.runAllTimersAsync();
     await assertion;
     expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("idempotency keys (job alerts + follow-up nudges)", () => {
+  const alert = {
+    to: "user@example.com",
+    userName: "Jane",
+    alertCriteria: "rust",
+    jobs: [{ title: "Rust Engineer", companyName: "Acme", jobUrl: "https://example.com/j/1" }],
+  };
+  const nudge = {
+    to: "user@example.com",
+    userName: "Jane",
+    items: [{ jobTitle: "Engineer", companyName: "Acme", stage: "applied", daysSinceActivity: 9, overdue: true }],
+  };
+
+  it("passes the key to Resend as the idempotencyKey request option, on every retry", async () => {
+    mockSend
+      .mockResolvedValueOnce({ data: null, error: { name: "internal_server_error", message: "upstream", statusCode: 500 } })
+      .mockResolvedValueOnce({ data: { id: "m1" }, error: null });
+    const promise = sendJobAlertEmail({ ...alert, idempotencyKey: "job-alert/7/first" });
+    await jest.runAllTimersAsync();
+    expect(await promise).toEqual({ id: "m1" });
+    expect(mockSend).toHaveBeenCalledTimes(2);
+    for (const call of mockSend.mock.calls) {
+      expect(call[1]).toEqual({ idempotencyKey: "job-alert/7/first" });
+    }
+  });
+
+  it("sends no request option when no key is given (unchanged behaviour)", async () => {
+    mockSend.mockResolvedValueOnce({ data: { id: "m2" }, error: null });
+    const promise = sendFollowUpNudgeEmail(nudge);
+    await jest.runAllTimersAsync();
+    await promise;
+    expect(mockSend.mock.calls[0]).toHaveLength(1);
+  });
+
+  it.each(["invalid_idempotent_request", "concurrent_idempotent_requests"])(
+    "a 409 %s (key already used) returns a deduplicated result instead of throwing, without retrying",
+    async (name) => {
+      mockSend.mockResolvedValueOnce({ data: null, error: { name, message: "key already used", statusCode: 409 } });
+      const promise = sendFollowUpNudgeEmail({ ...nudge, idempotencyKey: "follow-up-nudge/u1/first" });
+      await jest.runAllTimersAsync();
+      const result = await promise;
+      expect(result).toEqual({ id: null, deduplicated: true });
+      expect(isDeduplicatedEmail(result)).toBe(true);
+      expect(mockSend).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("without a key, the same 409 is still an error (nothing to deduplicate against)", async () => {
+    mockSend.mockResolvedValueOnce({
+      data: null,
+      error: { name: "invalid_idempotent_request", message: "key already used", statusCode: 409 },
+    });
+    const assertion = expect(sendJobAlertEmail(alert)).rejects.toThrow("Failed to send job alert email");
+    await jest.runAllTimersAsync();
+    await assertion;
+  });
+
+  it("isDeduplicatedEmail is false for a normal send result", () => {
+    expect(isDeduplicatedEmail({ id: "m1" })).toBe(false);
+    expect(isDeduplicatedEmail(null)).toBe(false);
   });
 });

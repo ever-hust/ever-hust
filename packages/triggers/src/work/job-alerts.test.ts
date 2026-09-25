@@ -6,6 +6,7 @@ import { CronWorkError } from "./errors";
 import {
   ALERT_MIN_INTERVAL_MS,
   alertPeriodCutoff,
+  jobAlertIdempotencyKey,
   processAlerts,
   runJobAlerts,
   type AlertFrequency,
@@ -229,6 +230,58 @@ describe("processAlerts idempotency", () => {
     const b = fakeDb([alert({ criteria: {} })]);
     expect((await processAlerts("daily", { db: b.db, sendEmail: send as never, now: clock })).skippedNoCriteria).toBe(1);
     expect(send).not.toHaveBeenCalled();
+  });
+});
+
+describe("Resend idempotency key (an ambiguous send failure cannot duplicate the alert)", () => {
+  const now = new Date("2026-09-25T08:00:05Z");
+  type SendArgs = { idempotencyKey?: string };
+  const keysOf = (send: jest.Mock) => send.mock.calls.map((c) => (c[0] as SendArgs).idempotencyKey);
+
+  it("keys every send on the alert id and the period's previous last_sent_at", async () => {
+    const previous = new Date(now.getTime() - 24 * HOUR);
+    const { db } = fakeDb([alert(), alert({ id: 2, lastSentAt: previous })]);
+    const send = jest.fn(async () => ({ id: "m" }));
+    await processAlerts("daily", { db, sendEmail: send as never, now: () => now });
+    expect(keysOf(send)).toEqual(["job-alert/1/first", `job-alert/2/${previous.getTime()}`]);
+    expect(jobAlertIdempotencyKey(2, previous)).toBe(`job-alert/2/${previous.getTime()}`);
+  });
+
+  it("a Trigger retry after a lost response reuses the SAME key, so Resend sends at most one", async () => {
+    // Resend accepted the first request but the response never arrived: the send throws, the
+    // claim is released, and the retry sends again. Only the shared key keeps that to one email.
+    const previous = new Date(now.getTime() - 24 * HOUR);
+    const { db, store } = fakeDb([alert({ lastSentAt: previous })]);
+    const lost = jest.fn(async () => {
+      throw new Error("Unable to fetch data. The request could not be resolved.");
+    });
+    const first = await processAlerts("daily", { db, sendEmail: lost as never, now: () => now });
+    expect(first.failed).toBe(1);
+    expect(store.get(1)!.lastSentAt).toEqual(previous);
+
+    const retry = jest.fn(async () => ({ id: "m1" }));
+    const later = new Date(now.getTime() + 30_000);
+    await processAlerts("daily", { db, sendEmail: retry as never, now: () => later });
+    expect(keysOf(lost)).toEqual([`job-alert/1/${previous.getTime()}`]);
+    expect(keysOf(retry)).toEqual(keysOf(lost));
+  });
+
+  it("the next period gets a new key (the successful send moved last_sent_at)", async () => {
+    const { db } = fakeDb([alert()]);
+    const send = jest.fn(async () => ({ id: "m" }));
+    await processAlerts("daily", { db, sendEmail: send as never, now: () => now });
+    const tomorrow = new Date(now.getTime() + 24 * HOUR);
+    await processAlerts("daily", { db, sendEmail: send as never, now: () => tomorrow });
+    expect(keysOf(send)).toEqual(["job-alert/1/first", `job-alert/1/${now.getTime()}`]);
+  });
+
+  it("a replay Resend reports as already-used counts as deduplicated, keeps the claim and does not fail the run", async () => {
+    const { db, store } = fakeDb([alert()]);
+    const replay = jest.fn(async () => ({ id: null, deduplicated: true }));
+    const out = await runJobAlerts(["daily"], { db, sendEmail: replay as never, now: () => now });
+    expect(out).toMatchObject({ sent: 0, deduplicated: 1, failed: 0 });
+    expect(out.runs[0]).toMatchObject({ sent: 0, deduplicated: 1 });
+    expect(store.get(1)!.lastSentAt).toEqual(now);
   });
 });
 

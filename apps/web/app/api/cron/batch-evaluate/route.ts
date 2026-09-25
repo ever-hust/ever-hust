@@ -4,7 +4,8 @@ import { cronBatchEvaluateSchema } from "../../../../lib/cron-schemas";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-// Sequential LLM evaluations stop at a 240 s budget; the rest are returned as `deferred`.
+// No new LLM evaluation starts after 170 s and the run answers by 270 s (the rest come back as
+// `deferred`, a still-running one as `failed`), inside the 290 s Trigger timeout.
 export const maxDuration = 300;
 
 /**

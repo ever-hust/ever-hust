@@ -1,6 +1,6 @@
 import { task, schedules } from "@trigger.dev/sdk";
 import { callAppEndpoint } from "./app-endpoint";
-import { CRON_ENDPOINTS, CRON_TIMEOUTS_MS } from "./cron-endpoints";
+import { APP_ENDPOINT_TASK_MAX_DURATION_S, CRON_ENDPOINTS, CRON_TIMEOUTS_MS } from "./cron-endpoints";
 import { runsOnTrigger, SKIPPED } from "./scheduler";
 
 /**
@@ -14,12 +14,14 @@ async function runSnapshots() {
 
 export const funnelSnapshotsTask = task({
   id: "funnel-snapshots",
+  maxDuration: APP_ENDPOINT_TASK_MAX_DURATION_S,
   run: async () => runSnapshots(),
 });
 
 // Daily at 2 AM UTC (quiet hour).
 export const funnelSnapshotsSchedule = schedules.task({
   id: "daily-funnel-snapshots",
+  maxDuration: APP_ENDPOINT_TASK_MAX_DURATION_S,
   cron: "0 2 * * *",
   run: async () => {
     if (!runsOnTrigger()) return SKIPPED;

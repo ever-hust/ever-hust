@@ -74,6 +74,13 @@ export async function callAppEndpoint<T = unknown>(
   }
 
   const url = `${appBaseUrl(env)}${path}`;
+  // An environment without NEXT_PUBLIC_APP_URL (e.g. the Trigger.dev preview/develop env today)
+  // falls back to the local-dev URL, which a deployed worker cannot reach. Say so in the error, so
+  // a FAILED run reads as "env not configured", not as an app outage.
+  const unconfiguredHint = env.NEXT_PUBLIC_APP_URL?.trim()
+    ? ""
+    : " — NEXT_PUBLIC_APP_URL is not set in this environment, so the local-dev default was used" +
+      " (set NEXT_PUBLIC_APP_URL and CRON_SECRET on this Trigger.dev environment)";
   let res: Response;
   try {
     res = await fetchImpl(url, {
@@ -92,7 +99,7 @@ export async function callAppEndpoint<T = unknown>(
       name === "TimeoutError" || name === "AbortError"
         ? `POST ${path} timed out after ${timeoutMs} ms (${url})`
         : `POST ${path} failed before a response (${url}): ${err instanceof Error ? err.message : String(err)}`;
-    throw new AppEndpointError(message, path, null);
+    throw new AppEndpointError(message + unconfiguredHint, path, null);
   }
 
   const text = await res.text().catch(() => "");

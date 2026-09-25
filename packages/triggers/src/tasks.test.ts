@@ -22,11 +22,12 @@ import { followUpNudgesTask, followUpNudgesSchedule } from "./follow-up-nudges";
 import { funnelSnapshotsTask, funnelSnapshotsSchedule } from "./funnel-snapshots";
 import { batchEvaluateTask } from "./batch-evaluate";
 import { inboxSyncTask, inboxSyncSchedule } from "./inbox-sync";
-import { CRON_ENDPOINTS } from "./cron-endpoints";
+import { APP_ENDPOINT_TASK_MAX_DURATION_S, CRON_ENDPOINTS, CRON_TIMEOUTS_MS } from "./cron-endpoints";
 
 interface TaskConfig {
   id: string;
   cron?: string;
+  maxDuration?: number;
   retry?: { maxAttempts?: number };
   run: (payload?: unknown) => Promise<unknown>;
 }
@@ -136,6 +137,30 @@ describe("retry policy", () => {
     for (const t of [sendJobAlertsTask, dailyAlertSchedule, eveningAlertSchedule, weeklyAlertSchedule, followUpNudgesTask, followUpNudgesSchedule]) {
       expect(asConfig(t).retry).toBeUndefined();
     }
+  });
+});
+
+describe("maxDuration covers every attempt", () => {
+  // trigger.config.ts: retries.default (maxAttempts 3, backoff capped at 30 s) and maxDuration 600.
+  const DEFAULT_MAX_ATTEMPTS = 3;
+  const MAX_BACKOFF_S = 30;
+  const PROJECT_DEFAULT_MAX_DURATION_S = 600;
+  const timeoutS = (c: (typeof cases)[number]) => {
+    const t = asConfig(c.task);
+    const key = (Object.keys(CRON_ENDPOINTS) as (keyof typeof CRON_ENDPOINTS)[]).find((k) => CRON_ENDPOINTS[k] === c.path)!;
+    const ms = (CRON_TIMEOUTS_MS as Record<string, number>)[key === "cleanupExpiredJobs" ? "cleanup" : key]!;
+    return { t, s: ms / 1000 };
+  };
+
+  it("the project default (600 s) would NOT cover three full 290 s attempts — the reason for the override", () => {
+    expect(DEFAULT_MAX_ATTEMPTS * 290).toBeGreaterThan(PROJECT_DEFAULT_MAX_DURATION_S);
+  });
+
+  it.each(cases)("$name: maxDuration >= attempts x timeout + backoff, even if Trigger sums attempts", (c) => {
+    const { t, s } = timeoutS(c);
+    const attempts = t.retry?.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
+    expect(t.maxDuration).toBe(APP_ENDPOINT_TASK_MAX_DURATION_S);
+    expect(t.maxDuration!).toBeGreaterThanOrEqual(attempts * s + (attempts - 1) * MAX_BACKOFF_S);
   });
 });
 

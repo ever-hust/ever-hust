@@ -16,7 +16,8 @@ import { classifySendOutcome } from "./send-outcome";
  * always holds the end of the last period that went out, so consecutive periods meet exactly. The
  * digest lists the jobs created in that period shifted back by {@link ALERT_JOBS_SETTLE_MS}
  * ({@link alertJobsWindow}), so that period's jobs have all committed when the run reads them
- * (guaranteed by the jobs-writer rule, see {@link ALERT_JOBS_SETTLE_MS}).
+ * (guaranteed by the jobs-writer rule, within a documented clock skew; see
+ * {@link ALERT_JOBS_SETTLE_MS}).
  *
  * DELIVERY: at least once, with provider-side dedupe. Per alert, SEND-THEN-ADVANCE:
  *  1. The candidate query only returns alerts not yet sent for this window end
@@ -71,13 +72,30 @@ export const ALERT_MIN_INTERVAL_MS: Record<AlertFrequency, number> = {
  * to `ALERT_WINDOW_END_MAX_FUTURE_MS`. Without the lag, a job stamped just before W but committed
  * after the read would be in neither digest.
  *
- * The lag is a guarantee, not a guess, because every jobs writer lets the database stamp
- * `created_at` (the inserting transaction's start) and bounds that transaction, so a row commits
- * within {@link JOBS_INSERT_MAX_LATENCY_MS} of its `created_at` or not at all (the jobs-writer rule
- * in `packages/db/src/jobs-insert.ts`). The run reads no earlier than W − the future tolerance, so
- * the lag must exceed `JOBS_INSERT_MAX_LATENCY_MS + ALERT_WINDOW_END_MAX_FUTURE_MS` (tested).
+ * The lag is a guarantee, not a guess, because every jobs writer stamps `created_at` with the
+ * database's `statement_timestamp()` of the INSERT itself (`JOBS_CREATED_AT`) and bounds the rest of
+ * that transaction, so a row commits within {@link JOBS_INSERT_MAX_LATENCY_MS} of its `created_at`
+ * or not at all (the jobs-writer rule in `packages/db/src/jobs-insert.ts`).
+ *
+ * Three clocks meet here: `created_at` is the DATABASE's clock, W is Trigger's (checked against
+ * the app's), and the read runs on the app's schedule. Worst case: W is
+ * `ALERT_WINDOW_END_MAX_FUTURE_MS` ahead of the app, so the run reads no earlier than W minus that
+ * on the app's clock; the latest job of the period has `created_at` = W minus the lag on the
+ * database's clock, commits at most `JOBS_INSERT_MAX_LATENCY_MS` later, and the database's clock may
+ * be up to {@link ALERT_DB_CLOCK_MAX_SKEW_MS} behind the app's. So the lag must exceed
+ * `JOBS_INSERT_MAX_LATENCY_MS + ALERT_WINDOW_END_MAX_FUTURE_MS + ALERT_DB_CLOCK_MAX_SKEW_MS`
+ * (10 min > 2 + 5 + 1 min; tested).
  */
 export const ALERT_JOBS_SETTLE_MS = 10 * 60 * 1000;
+
+/**
+ * The clock difference between the database server and the app that the settle lag tolerates
+ * (an assumption, not a measurement: NTP-synced hosts differ by milliseconds). `created_at` is
+ * stamped by the database, while the window end is checked against the app's clock, so a database
+ * clock running behind the app's makes a job look older than it is. If the hosts can drift further
+ * than this, raise it (and the lag with it): `job-alerts.test.ts` checks the budget.
+ */
+export const ALERT_DB_CLOCK_MAX_SKEW_MS = 60 * 1000;
 
 /** Re-exported from `@ever-hust/db`: max time from a job's `created_at` to its commit. */
 export { JOBS_INSERT_MAX_LATENCY_MS };

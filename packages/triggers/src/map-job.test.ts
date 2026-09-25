@@ -1,4 +1,4 @@
-import { jobs, withBoundedJobsInsert } from "@ever-hust/db";
+import { jobs, JOBS_CREATED_AT, withBoundedJobsInsert } from "@ever-hust/db";
 import * as schema from "@ever-hust/db/schema";
 import type { JobPostDto } from "@ever-hust/jobs-api";
 import { drizzle } from "drizzle-orm/postgres-js";
@@ -582,19 +582,19 @@ describe("the sync upsert built from mapJobToDb", () => {
     return { db: drizzle(client as never, { schema }), statements };
   }
 
-  it("mapJobToDb never sets createdAt", () => {
+  it("mapJobToDb never sets createdAt (the writers spread it into the conflict set too)", () => {
     const mapped = mapJobToDb(makeDto({ companyName: "TechCorp", datePosted: "2026-09-20" }));
     expect(Object.keys(mapped)).not.toContain("createdAt");
   });
 
-  it("runs bounded, leaves created_at to the database, and never updates it on conflict", async () => {
+  it("runs bounded, stamps created_at with the INSERT's statement_timestamp(), and never updates it on conflict", async () => {
     const { db, statements } = recordingDb();
     const mapped = mapJobToDb(makeDto({ companyName: "TechCorp", location: { city: "Austin" } }));
     const coords = { latitude: "30.26", longitude: "-97.74" };
     await withBoundedJobsInsert(db, (tx) =>
       tx
         .insert(jobs)
-        .values({ ...mapped, ...coords })
+        .values({ ...mapped, ...coords, createdAt: JOBS_CREATED_AT })
         .onConflictDoUpdate({ target: jobs.externalId, set: { ...mapped, ...coords } }),
     );
 
@@ -610,7 +610,8 @@ describe("the sync upsert built from mapJobToDb", () => {
     const values = m![2]!.split(", ");
     expect(values).toHaveLength(columns.length);
     const valueOf = (column: string) => values[columns.indexOf(`"${column}"`)];
-    expect(valueOf("created_at")).toBe("default");
+    expect(valueOf("created_at")).toBe("statement_timestamp()");
+    expect(valueOf("id")).toBe("default"); // control: an unset column is DEFAULT
     expect(valueOf("external_id")).toMatch(/^\$\d+$/); // control: a set column is a parameter
     expect(valueOf("updated_at")).toMatch(/^\$\d+$/);
     expect(m![3]).toContain('"updated_at" = ');

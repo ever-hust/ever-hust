@@ -16,7 +16,8 @@ const DAY_MS = 24 * 60 * MINUTE_MS;
 
 /**
  * How far ahead of the app's clock a window end may be. It covers clock skew between Trigger.dev
- * and the app. It must stay below `ALERT_JOBS_SETTLE_MS − JOBS_INSERT_MAX_LATENCY_MS`
+ * and the app. It must stay below
+ * `ALERT_JOBS_SETTLE_MS − JOBS_INSERT_MAX_LATENCY_MS − ALERT_DB_CLOCK_MAX_SKEW_MS`
  * (`work/job-alerts.ts`), so every job of an accepted window's jobs part has committed when the run
  * reads it. A test checks this.
  */

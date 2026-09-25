@@ -160,50 +160,75 @@ would be in neither digest. The cost is small: an 08:00 digest lists the jobs up
 jobs from 07:50 to 08:00 go in the next digest.
 
 The lag only works because the time from `created_at` to the commit is **bounded** (the jobs-writer
-rule below): at most `JOBS_INSERT_MAX_LATENCY_MS` (2 min). The run reads no earlier than
-`windowEnd` − 5 min, and the latest job of the period has `created_at` = `windowEnd` − 10 min, so it
-committed by `windowEnd` − 8 min. A test checks
-`ALERT_JOBS_SETTLE_MS > JOBS_INSERT_MAX_LATENCY_MS + ALERT_WINDOW_END_MAX_FUTURE_MS`; change one of
-the three only together with the others.
+rule below): at most `JOBS_INSERT_MAX_LATENCY_MS` (2 min). Three clocks meet here: `created_at` is
+the **database's** clock, `windowEnd` is Trigger's (checked against the app's), and the read runs
+on the app's schedule. The budget assumes the database and app clocks differ by at most
+`ALERT_DB_CLOCK_MAX_SKEW_MS` (60 s; NTP-synced hosts differ by milliseconds). Worst case: the run
+reads no earlier than `windowEnd` − 5 min (app clock); the latest job of the period has
+`created_at` = `windowEnd` − 10 min on the database's clock, which is at most `windowEnd` − 9 min
+on the app's, so it committed by `windowEnd` − 7 min. A test checks
+`ALERT_JOBS_SETTLE_MS > JOBS_INSERT_MAX_LATENCY_MS + ALERT_WINDOW_END_MAX_FUTURE_MS + ALERT_DB_CLOCK_MAX_SKEW_MS`
+(10 min > 2 + 5 + 1 min); change one of the four only together with the others.
 
 ### The jobs-writer rule (every writer that inserts into `jobs`)
 
 Job alerts read each period's jobs once. That is safe only if every row commits within a known
 time of its `created_at`. So every INSERT into `jobs`, today and in any future sync mode:
 
-1. **Never passes `createdAt`.** The database sets `created_at` (column default `now()` = the start
-   of the inserting transaction). An `ON CONFLICT DO UPDATE` never sets it either, so an update
-   keeps the first insert's value. (Before this rule the sync stamped `new Date()` in JavaScript
-   and then awaited the insert, with nothing bounding that wait.)
+1. **Stamps `created_at` with `JOBS_CREATED_AT`, and only with it.** Every row ends with
+   `createdAt: JOBS_CREATED_AT` (imported from `@ever-hust/db`; last, so no spread can override
+   it). It is the database's `statement_timestamp()`: the instant the server received the INSERT
+   itself. An `ON CONFLICT DO UPDATE` never sets `created_at`, so an update keeps the first
+   insert's value. Two stamps that looked fine are not: `new Date()` in JavaScript before
+   `await db.insert(...)` (nothing bounds that wait; the sync did this before), and the column
+   default `now()`, which is the start of the **transaction**: no timeout covers the gap between
+   `BEGIN` and the `SET` below, so a client stalled there would commit a row stamped minutes in
+   the past (checked: a 12 s stall after `BEGIN` gave a row committed 12 s after its `now()`
+   stamp; with `JOBS_CREATED_AT` the same stall moves the stamp and the row commits within ms of it).
 2. **Runs through `withBoundedJobsInsert(db, (tx) => tx.insert(jobs)...)`** from `@ever-hust/db`
    (`packages/db/src/jobs-insert.ts`). It opens a transaction whose first statement is
-   `SET LOCAL statement_timeout = 60s`, `idle_in_transaction_session_timeout = 10s` and
-   `TimeZone = UTC`, then runs exactly one INSERT (any `ON CONFLICT` / `RETURNING`, any number of
-   rows). A transaction that would run longer is cancelled or its session ended, and its rows never
-   become visible. The 2 min bound is the 60 s statement timeout, two 10 s idle gaps (before the
-   INSERT and before the COMMIT), and 40 s of slack for what no timeout covers: the round trip after
-   `BEGIN`, the `SET` itself, and the commit's WAL flush. A batch that needs more than 60 s must be
-   split. `TimeZone = UTC` matters because `created_at` is a `timestamp` without time
-   zone: on a server whose time zone is not UTC, a bare `now()` default would be stored in local
-   time (checked: 4 h off on a server set to `America/New_York`).
-3. **The callback awaits nothing.** Geocoding, reads and HTTP happen before the call. The callback
-   only builds and returns the statement, so the transaction is never idle on the client's side.
+   `SET LOCAL statement_timeout = 60s`, `idle_in_transaction_session_timeout = 10s`,
+   `synchronous_commit = local` and `TimeZone = UTC`, then runs exactly one INSERT (any
+   `ON CONFLICT` / `RETURNING`, any number of rows). The 2 min bound, from the stamp to the
+   commit: the INSERT's 60 s statement timeout (its timer starts with the INSERT's first protocol
+   message, no later than the stamp; checked: an INSERT waiting on a row lock was cancelled 60.0 s
+   after it arrived, and one whose lock was released after 30 s committed 30 s after its stamp),
+   the 10 s idle gap before the COMMIT, and 50 s of slack for the COMMIT itself, which no timeout
+   covers (PostgreSQL stops the statement timer before it commits): its local WAL flush.
+   - `synchronous_commit = local` keeps a synchronous standby out of that COMMIT. Checked with an
+     unreachable synchronous standby: without it the COMMIT waited over 5 min, ignoring the 60 s
+     statement timeout, and the row became visible when the wait was cut; with it the COMMIT took
+     milliseconds. The shared cluster replicates asynchronously today, so this changes nothing
+     there; it keeps the bound if a synchronous replica is added.
+   - `TimeZone = UTC` because `created_at` is a `timestamp` without time zone: the stamp (a
+     `timestamptz`) is converted with the session's time zone (checked: 4 h off on a server set to
+     `America/New_York` without the pin; exact with it).
+   - A transaction that would run longer is cancelled or its session ended, and its rows never
+     become visible. A batch that needs more than 60 s must be split.
+   - Before running it, the helper renders the statement and refuses (rolls back) one whose rows do
+     not all set `created_at` to `statement_timestamp()`, or whose conflict `set` touches it
+     (`jobsInsertSqlProblem`). That covers what the source guard cannot see, such as a row built
+     in another function.
+3. **The callback is one expression and awaits nothing.** `(tx) => tx.insert(jobs).values(...)`
+   with only `.onConflictDoUpdate` / `.onConflictDoNothing` / `.returning` after it, or a call to
+   a builder declared in the same file that takes `tx: JobsInsertTx` and is itself that one
+   expression. No `.then()`, no second INSERT, no other statement. Geocoding, reads and HTTP happen
+   before the call, so the transaction is never idle on the client's side.
 4. **No raw `INSERT INTO jobs`.**
 
 `packages/db/src/jobs-insert-guard.test.ts` parses every source file under `apps/` and `packages/`
-(tests excluded) and fails on an INSERT into `jobs` outside the helper, a `createdAt` in its values
-or conflict `set`, an `await` in the callback, or raw SQL. A builder function that takes
-`tx: JobsInsertTx` and returns the statement is accepted (call it inside the helper). The dev seed
-(`packages/db/src/seed.ts`) follows the rule too, so the guard has no exceptions. A sync branch that
-still stamps `createdAt` fails this guard when it is rebased: drop the stamp and wrap the insert.
+(tests excluded) and fails on: an INSERT into `jobs` outside the helper (table aliases included:
+`import { jobs as t }`, `const t = jobs`, `const { jobs: t } = schema`); a row without the stamp;
+any other `createdAt` in the values (`new Date()`, `now()`, a local copy of the SQL, a
+`JOBS_CREATED_AT` not imported from the helper module or shadowed, a stamp that is not the last
+key); any `createdAt` in the conflict `set`; a callback that is not one INSERT expression
+(`.then()` chains, two INSERTs, extra statements); an `await` in the callback; raw SQL. The dev seed
+(`packages/db/src/seed.ts`) follows the rule too, so the guard has no exceptions. A sync branch
+written against the earlier rules fails this guard when it is rebased: stamp each row with
+`createdAt: JOBS_CREATED_AT` and wrap the insert (a builder such as
+`buildUpsertQuery(tx: JobsInsertTx, rows)` called as `withBoundedJobsInsert(db, (tx) => buildUpsertQuery(tx, rows))`).
 
-To check a database (read-only), this must return `now()` (drizzle migration `0000` creates the
-column so):
-
-```sql
-select column_default from information_schema.columns
-where table_name = 'jobs' and column_name = 'created_at';
-```
+The column keeps its `now()` default (no migration); no writer relies on it any more.
 
 ### Follow-up nudges
 

@@ -11,6 +11,7 @@ import {
 } from "./alert-window";
 import { CronInputError, CronWorkError } from "./errors";
 import {
+  ALERT_DB_CLOCK_MAX_SKEW_MS,
   ALERT_FIRST_SEND_LOOKBACK_MS,
   ALERT_JOBS_SETTLE_MS,
   ALERT_MIN_INTERVAL_MS,
@@ -270,18 +271,23 @@ describe("period windows", () => {
     expect(SETTLE - ALERT_WINDOW_END_MAX_FUTURE_MS).toBeGreaterThanOrEqual(5 * 60_000);
   });
 
-  it("the settle lag exceeds the jobs-insert latency bound plus the accepted skew, so every job of a period has committed when it is read", () => {
+  it("the settle lag exceeds the jobs-insert latency bound plus the accepted skews, so every job of a period has committed when it is read", () => {
     // The re-export is the writers' bound itself (packages/db/src/jobs-insert.ts).
     expect(JOBS_INSERT_MAX_LATENCY_MS).toBe(DB_JOBS_INSERT_MAX_LATENCY_MS);
-    expect(JOBS_INSERT_MAX_LATENCY_MS).toBeGreaterThan(0);
-    expect(ALERT_JOBS_SETTLE_MS).toBeGreaterThan(JOBS_INSERT_MAX_LATENCY_MS + ALERT_WINDOW_END_MAX_FUTURE_MS);
+    expect(JOBS_INSERT_MAX_LATENCY_MS).toBe(2 * 60_000);
+    // The database/app clock difference the budget assumes (created_at is the database's clock).
+    expect(ALERT_DB_CLOCK_MAX_SKEW_MS).toBe(60_000);
+    expect(ALERT_JOBS_SETTLE_MS).toBeGreaterThan(
+      JOBS_INSERT_MAX_LATENCY_MS + ALERT_WINDOW_END_MAX_FUTURE_MS + ALERT_DB_CLOCK_MAX_SKEW_MS,
+    );
 
-    // Worst case, spelled out. W is as far ahead of the app's clock as the route accepts, so the run
-    // reads (on the app/database clock) no earlier than W - MAX_FUTURE. The latest job of the period
-    // has created_at = through (its transaction started then) and commits at most
-    // JOBS_INSERT_MAX_LATENCY_MS later, strictly before that read.
+    // Worst case, spelled out, on the app's clock. W is as far ahead of the app's clock as the route
+    // accepts, so the run reads no earlier than W - MAX_FUTURE. The latest job of the period has
+    // created_at = through on the DATABASE's clock (the INSERT's statement_timestamp()), which may
+    // run SKEW behind the app's, so that instant is through + SKEW on the app's clock; it commits at
+    // most JOBS_INSERT_MAX_LATENCY_MS later, strictly before that read.
     const { through } = alertJobsWindow(new Date(W.getTime() - 24 * HOUR), W);
-    const latestCommit = through.getTime() + JOBS_INSERT_MAX_LATENCY_MS;
+    const latestCommit = through.getTime() + ALERT_DB_CLOCK_MAX_SKEW_MS + JOBS_INSERT_MAX_LATENCY_MS;
     const earliestRead = W.getTime() - ALERT_WINDOW_END_MAX_FUTURE_MS;
     expect(latestCommit).toBeLessThan(earliestRead);
   });

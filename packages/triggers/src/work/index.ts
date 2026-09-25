@@ -27,6 +27,7 @@ export {
   ALERT_FREQUENCIES,
   ALERT_MIN_INTERVAL_MS,
   ALERT_JOBS_SETTLE_MS,
+  ALERT_DB_CLOCK_MAX_SKEW_MS,
   JOBS_INSERT_MAX_LATENCY_MS,
   type AlertFrequency,
   type AlertRunResult,

@@ -20,7 +20,7 @@ Until 2026-09 six schedules opened the database from the Trigger worker and fail
 |---|---|---|---|
 | `daily-cleanup` (03:00 UTC), `cleanup` | `POST /api/cron/cleanup` | `runCleanup` | 290 s |
 | `cleanup-expired-jobs` (on demand) | `POST /api/cron/cleanup-expired-jobs` | `cleanupExpiredJobs` | 290 s |
-| `daily-job-alerts` (08:00), `evening-job-alerts` (18:00), `weekly-job-alerts` (Mon 08:00), `send-job-alerts` | `POST /api/cron/job-alerts` `{ frequencies: [...] }` | `runJobAlerts` | 290 s |
+| `daily-job-alerts` (08:00), `evening-job-alerts` (18:00), `weekly-job-alerts` (Mon 08:00), `send-job-alerts` | `POST /api/cron/job-alerts` `{ frequencies: [...], windowEnd? }` | `runJobAlerts` | 290 s |
 | `daily-follow-up-nudges` (09:00), `follow-up-nudges` | `POST /api/cron/follow-up-nudges` | `runFollowUpNudges` (**off by default**) | 290 s |
 | `daily-funnel-snapshots` (02:00), `funnel-snapshots` | `POST /api/cron/funnel-snapshots` | `processFunnelSnapshots` | 290 s |
 | `batch-evaluate` (on demand) | `POST /api/cron/batch-evaluate` `{ userId, jobIds, scoreFloor?, max? }` | `runBatchEvaluate` | 290 s |
@@ -108,61 +108,184 @@ cannot verify a develop deploy.** Two ways to verify develop:
 ## Emails: at least once, deduplicated by Resend
 
 Job alerts and follow-up nudges are delivered **at least once**, and Resend's idempotency keys
-collapse the repeats to one email. No schema change: each item has a period marker on an
-existing column.
+collapse the repeats to one email. No schema change: each item has a marker on an existing column.
 
-- Job alerts use `user_alerts.last_sent_at`. The windows are: daily 20 h, twice_daily 8 h,
-  weekly 6 d.
+- Job alerts use `user_alerts.last_sent_at`. The minimum gaps between two sends are: daily 20 h,
+  twice_daily 8 h, weekly 6 d.
 - Follow-up nudges use `users.last_follow_up_nudge_at`, with the 3-day cooldown as the window.
 
-Per item, the run does **send, then advance**:
+### Job alerts: one fixed window per run
 
-1. The candidate query only returns items whose marker is outside the window, and reads that
-   marker (`previous`).
-2. The run sends the email with an idempotency key derived from `previous`:
-   - `job-alert/<alertId>/<previous last_sent_at in ms, or "first">`;
-   - `follow-up-nudge/<userId>/<previous last_follow_up_nudge_at in ms, or "first">`.
-3. Only after Resend has taken the email does the run advance the marker, with one conditional
-   `UPDATE ... SET <marker> = <now> WHERE id = ? AND <marker> IS NOT DISTINCT FROM <previous>`
-   (written as `IS NULL` / `= previous`). If an overlapping run already advanced it, the update
+Every job-alert run has one **window end** (`windowEnd` in the request body). It is the same on
+every attempt of the run:
+
+| Run | `windowEnd` |
+|---|---|
+| `daily-job-alerts`, `evening-job-alerts`, `weekly-job-alerts` | the schedule's fire time (`payload.timestamp`), e.g. `2026-09-25T08:00:00.000Z` |
+| `send-job-alerts` (on demand) | the run's creation time (`ctx.run.createdAt`) |
+| a direct POST without `windowEnd` | the app's current time |
+
+Trigger stores both values with the run, so a retry sends the same `windowEnd`. A dashboard replay
+of a scheduled run sends it too, and then finds nothing due if the original run finished. The app
+answers 400 if `windowEnd` is not an ISO 8601 date-time with an offset (`...Z` or `+hh:mm`), is
+more than 5 min in the future, or is more than 8 days old.
+
+For each alert, a run covers the period (`previous`, `windowEnd`], where `previous` is the alert's
+marker. Per alert, the run does **send, then advance**:
+
+1. The candidate query returns the active alerts whose marker is earlier than `windowEnd` minus
+   the minimum gap, and reads that marker (`previous`). The cutoff is taken from `windowEnd`, not
+   from the clock. So every attempt sees the same alerts, and a marker never moves backwards.
+2. The digest lists the matching jobs with `created_at` in (`previous` − 10 min,
+   `windowEnd` − 10 min], newest first (ties broken by id), at most 20. For a never-sent alert, the
+   period starts 24 h before `windowEnd`. The 10-minute lag (`ALERT_JOBS_SETTLE_MS`) is explained
+   below.
+3. The run sends the digest with the key
+   `job-alert/<alertId>/<previous in ms, or "first">/<windowEnd in ms>`.
+4. Only after Resend has taken the email does the run move the marker to exactly `windowEnd`,
+   with one conditional
+   `UPDATE ... SET last_sent_at = <windowEnd> WHERE id = ? AND last_sent_at IS NOT DISTINCT FROM <previous>`
+   (written as `IS NULL` / `= previous`). If an overlapping request already moved it, the update
    changes nothing.
 
-Because the marker only moves after a send, every attempt at the same period sends the **same**
-key: the retries inside `withRetry`, the Trigger retries, a manual re-run and an overlapping run.
+Both ends of the period are fixed, so every attempt of a run reads the same jobs, builds the same
+email and sends it under the same key. The email has nothing that depends on the attempt: the job
+order is fixed and the body reads no clock. The next period starts where this one ended, so each
+job falls in exactly one period.
+
+**Why the 10-minute lag.** A job becomes visible when its insert commits, which is after its
+`created_at`. Also, `windowEnd` comes from Trigger's clock, which may run ahead of the app's.
+Without a lag, a job stamped just before `windowEnd` but committed after the run read the jobs
+would be in neither digest. The cost is small: an 08:00 digest lists the jobs up to 07:50, and the
+jobs from 07:50 to 08:00 go in the next digest.
+
+The lag only works because the time from `created_at` to the commit is **bounded** (the jobs-writer
+rule below): at most `JOBS_INSERT_MAX_LATENCY_MS` (2 min). Three clocks meet here: `created_at` is
+the **database's** clock, `windowEnd` is Trigger's (checked against the app's), and the read runs
+on the app's schedule. The budget assumes the database and app clocks differ by at most
+`ALERT_DB_CLOCK_MAX_SKEW_MS` (60 s; NTP-synced hosts differ by milliseconds). Worst case: the run
+reads no earlier than `windowEnd` − 5 min (app clock); the latest job of the period has
+`created_at` = `windowEnd` − 10 min on the database's clock, which is at most `windowEnd` − 9 min
+on the app's, so it committed by `windowEnd` − 7 min. A test checks
+`ALERT_JOBS_SETTLE_MS > JOBS_INSERT_MAX_LATENCY_MS + ALERT_WINDOW_END_MAX_FUTURE_MS + ALERT_DB_CLOCK_MAX_SKEW_MS`
+(10 min > 2 + 5 + 1 min); change one of the four only together with the others.
+
+### The jobs-writer rule (every writer that inserts into `jobs`)
+
+Job alerts read each period's jobs once. That is safe only if every row commits within a known
+time of its `created_at`. So every INSERT into `jobs`, today and in any future sync mode:
+
+1. **Stamps `created_at` with `JOBS_CREATED_AT`, and only with it.** Every row ends with
+   `createdAt: JOBS_CREATED_AT` (imported from `@ever-hust/db`; last, so no spread can override
+   it). It is the database's `statement_timestamp()`: the instant the server received the INSERT
+   itself. An `ON CONFLICT DO UPDATE` never sets `created_at`, so an update keeps the first
+   insert's value. Two stamps that looked fine are not: `new Date()` in JavaScript before
+   `await db.insert(...)` (nothing bounds that wait; the sync did this before), and the column
+   default `now()`, which is the start of the **transaction**: no timeout covers the gap between
+   `BEGIN` and the `SET` below, so a client stalled there would commit a row stamped minutes in
+   the past (checked: a 12 s stall after `BEGIN` gave a row committed 12 s after its `now()`
+   stamp; with `JOBS_CREATED_AT` the same stall moves the stamp and the row commits within ms of it).
+2. **Runs through `withBoundedJobsInsert(db, (tx) => tx.insert(jobs)...)`** from `@ever-hust/db`
+   (`packages/db/src/jobs-insert.ts`). It opens a transaction whose first statement is
+   `SET LOCAL statement_timeout = 60s`, `idle_in_transaction_session_timeout = 10s`,
+   `synchronous_commit = local` and `TimeZone = UTC`, then runs exactly one INSERT (any
+   `ON CONFLICT` / `RETURNING`, any number of rows). The 2 min bound, from the stamp to the
+   commit: the INSERT's 60 s statement timeout (its timer starts with the INSERT's first protocol
+   message, no later than the stamp; checked: an INSERT waiting on a row lock was cancelled 60.0 s
+   after it arrived, and one whose lock was released after 30 s committed 30 s after its stamp),
+   the 10 s idle gap before the COMMIT, and 50 s of slack for the COMMIT itself, which no timeout
+   covers (PostgreSQL stops the statement timer before it commits): its local WAL flush.
+   - `synchronous_commit = local` keeps a synchronous standby out of that COMMIT. Checked with an
+     unreachable synchronous standby: without it the COMMIT waited over 5 min, ignoring the 60 s
+     statement timeout, and the row became visible when the wait was cut; with it the COMMIT took
+     milliseconds. The shared cluster replicates asynchronously today, so this changes nothing
+     there; it keeps the bound if a synchronous replica is added.
+   - `TimeZone = UTC` because `created_at` is a `timestamp` without time zone: the stamp (a
+     `timestamptz`) is converted with the session's time zone (checked: 4 h off on a server set to
+     `America/New_York` without the pin; exact with it).
+   - A transaction that would run longer is cancelled or its session ended, and its rows never
+     become visible. A batch that needs more than 60 s must be split.
+   - Before running it, the helper renders the statement and refuses (rolls back) one whose rows do
+     not all set `created_at` to `statement_timestamp()`, or whose conflict `set` touches it
+     (`jobsInsertSqlProblem`). That covers what the source guard cannot see, such as a row built
+     in another function.
+3. **The callback is one expression and awaits nothing.** `(tx) => tx.insert(jobs).values(...)`
+   with only `.onConflictDoUpdate` / `.onConflictDoNothing` / `.returning` after it, or a call to
+   a builder declared in the same file that takes `tx: JobsInsertTx` and is itself that one
+   expression. No `.then()`, no second INSERT, no other statement. Geocoding, reads and HTTP happen
+   before the call, so the transaction is never idle on the client's side.
+4. **No raw `INSERT INTO jobs`.**
+
+`packages/db/src/jobs-insert-guard.test.ts` parses every source file under `apps/` and `packages/`
+(tests excluded) and fails on: an INSERT into `jobs` outside the helper (table aliases included:
+`import { jobs as t }`, `const t = jobs`, `const { jobs: t } = schema`); a row without the stamp;
+any other `createdAt` in the values (`new Date()`, `now()`, a local copy of the SQL, a
+`JOBS_CREATED_AT` not imported from the helper module or shadowed, a stamp that is not the last
+key); any `createdAt` in the conflict `set`; a callback that is not one INSERT expression
+(`.then()` chains, two INSERTs, extra statements); an `await` in the callback; raw SQL. The dev seed
+(`packages/db/src/seed.ts`) follows the rule too, so the guard has no exceptions. A sync branch
+written against the earlier rules fails this guard when it is rebased: stamp each row with
+`createdAt: JOBS_CREATED_AT` and wrap the insert (a builder such as
+`buildUpsertQuery(tx: JobsInsertTx, rows)` called as `withBoundedJobsInsert(db, (tx) => buildUpsertQuery(tx, rows))`).
+
+The column keeps its `now()` default (no migration); no writer relies on it any more.
+
+### Follow-up nudges
+
+Nudges also send, then advance, with the key
+`follow-up-nudge/<userId>/<previous last_follow_up_nudge_at in ms, or "first">`. The marker moves
+to the run's time. Nudges cannot lose an item between attempts: each run recomputes what is due
+from the applications themselves, and sending a nudge does not change them. If an application
+becomes due between two attempts, it is missing from the email that went out, but it is still due
+at the next run after the cooldown.
+
+### What each failure does
+
 Resend delivers at most one email per key. It answers a repeat with the same payload with the
-original response, and a repeat with a different payload (for example, new matching jobs) with a
-409 `invalid_idempotent_request`. That 409 counts as `deduplicated`, and the marker still advances.
-What each failure does:
+original response, and sends nothing new. It answers a repeat with a different payload with a 409
+`invalid_idempotent_request`. That 409 counts as `deduplicated`, and the marker still advances.
 
 - **The send fails.** The marker is untouched; the run counts it in `failed` and answers
-  non-2xx. The Trigger retry sends it again with the same key. If the first attempt was in fact
-  accepted and only the response was lost, Resend dedupes the retry.
+  non-2xx. The Trigger retry sends the same email with the same key. If the first attempt was in
+  fact accepted and only the response was lost, Resend dedupes the retry.
 - **The process dies (or the database write fails) between the send and the advance.** The
-  marker is untouched, so the retry sends again with the same key and Resend dedupes. No period is
-  skipped.
-- **Two runs overlap** (for example a Trigger retry after a timed-out attempt whose request is
-  still running). Both send the same key, and the user gets one email. If Resend reports the key
-  as still being processed (409 `concurrent_idempotent_requests`), the second run does **not**
-  record the period for the first. It counts the item as `skippedInFlight` and answers non-2xx, and
-  the retry then finds the period recorded, or sends again with the same key.
+  marker is untouched, so the retry repeats the same email with the same key, and Resend answers
+  with the original response. No period is skipped. A job created in the meantime is later than
+  `windowEnd`, so it is not in the retry's period either: it goes in the next one.
+- **The period's content changed between two attempts** (a job in it was edited or deleted, or the
+  alert was edited). The retry's payload differs, Resend answers 409, and the marker moves to
+  `windowEnd`. That is correct: the email that went out covered the same period.
+- **Two attempts of one run overlap** (for example a Trigger retry after a timed-out attempt whose
+  request is still running). Both send the same key, and the user gets one email. If Resend reports
+  the key as still being processed (409 `concurrent_idempotent_requests`), the second attempt does
+  **not** record the period for the first. It counts the item as `skippedInFlight` and answers
+  non-2xx. The retry then finds the period recorded, or sends again with the same key.
+- **Two different runs overlap** (for example a manual `send-job-alerts` during the 08:00 run).
+  They have different window ends, so different keys, and both emails go out. The first
+  conditional advance wins, and the other run counts the item as `deduplicated`. Nothing is
+  skipped; the next period repeats at most the jobs between the two window ends. Different runs
+  must not share a key: with a shared key, Resend would refuse the later run's email (which has
+  more jobs) as a repeat of the earlier one, and the extra jobs would be lost.
 
 Counters: `sent` means Resend accepted the email and this run recorded the period. `deduplicated`
-means Resend reported the key as used, or an overlapping run recorded the period first. With
-overlapping runs the split between the two can vary, but the user gets one email per key.
+means Resend reported the key as used, or an overlapping request recorded a period first. The job
+alerts response also returns the run's `windowEnd`.
 
 Limits of the guarantee:
 
-- **Resend remembers a key for 24 h.** The dedupe only covers repeats inside that window. Trigger
-  retries come minutes apart, so a crash or a failed database write between the send and the
-  advance is covered. But if every retry fails to advance the marker (for example, the database
-  is down for the whole retry chain), the next **scheduled** run sends the digest again. It sends
-  the same key, but that run is 24 h later for daily alerts and nudges and 7 days later for weekly
-  alerts, so the key has usually expired and the **user can get a second email**. Twice-daily
-  alerts (10 h / 14 h apart) stay inside the window. This is the price of at-least-once: a
-  duplicate digest in a rare double failure, instead of a silently missed one.
+- **Resend remembers a key for 24 h, and a job-alert key belongs to one run.** Trigger retries
+  come minutes apart, so a crash or a failed database write between the send and the advance is
+  covered. But if every retry fails to advance the marker (for example, the database is down for
+  the whole retry chain), the next scheduled run sends its own digest for the longer period
+  (`previous`, its `windowEnd`] under its own key, and the **user gets the earlier jobs a second
+  time**. For nudges, the next daily run reuses the key, but 24 h later, when the key has usually
+  expired, so the result is the same. This is the price of at-least-once: a duplicate digest in a
+  rare double failure, instead of a silently missed one.
 - The markers are only written by this code, always from a JS `Date` (millisecond precision), so
-  `= previous` matches exactly. **Do not write these columns with SQL `now()`** (microseconds).
-  The conditional advance would then never match, and the item would be resent every run.
+  `= previous` matches exactly. A job-alert marker is the run's `windowEnd`, parsed into a `Date`
+  first, so digits below the millisecond in the request are dropped before it is used or stored.
+  **Do not write these columns with SQL `now()`** (microseconds). The conditional advance would
+  then never match, and the item would be resent every run.
 
 Retries:
 

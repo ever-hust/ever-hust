@@ -1,4 +1,5 @@
 import { db } from "./client";
+import { JOBS_CREATED_AT, withBoundedJobsInsert } from "./jobs-insert";
 import { jobs } from "./schema/jobs";
 
 // ---------------------------------------------------------------------------
@@ -1292,7 +1293,14 @@ async function seed() {
 
   for (let i = 0; i < seedJobs.length; i += BATCH_SIZE) {
     const batch = seedJobs.slice(i, i + BATCH_SIZE);
-    await db.insert(jobs).values(batch).onConflictDoNothing();
+    // Same rule as every jobs writer (jobs-insert.ts): created_at is the database's stamp of the
+    // INSERT (JOBS_CREATED_AT), in a transaction with bounded duration.
+    await withBoundedJobsInsert(db, (tx) =>
+      tx
+        .insert(jobs)
+        .values(batch.map((job) => ({ ...job, createdAt: JOBS_CREATED_AT })))
+        .onConflictDoNothing(),
+    );
     inserted += batch.length;
     console.log(`  Inserted batch ${Math.ceil((i + 1) / BATCH_SIZE)} (${inserted}/${seedJobs.length} jobs)`);
   }

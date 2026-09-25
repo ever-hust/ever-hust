@@ -29,9 +29,15 @@ interface TaskConfig {
   cron?: string;
   maxDuration?: number;
   retry?: { maxAttempts?: number };
-  run: (payload?: unknown) => Promise<unknown>;
+  run: (payload: unknown, params: { ctx: { run: { createdAt: Date } } }) => Promise<unknown>;
 }
 const asConfig = (t: unknown) => t as TaskConfig;
+
+// One Trigger run: when it was created, and (for a schedule) the fire time in its payload.
+const RUN_CREATED_AT = new Date("2026-09-25T08:00:01.234Z");
+const FIRE_TIME = new Date("2026-09-25T08:00:00.000Z");
+const ctxOf = (createdAt = RUN_CREATED_AT) => ({ ctx: { run: { createdAt } } });
+const runTask = (t: unknown, payload?: unknown, createdAt?: Date) => asConfig(t).run(payload, ctxOf(createdAt));
 
 const BASE = "http://hust-web.hust-test.svc.cluster.local:3000";
 let fetchMock: jest.Mock;
@@ -60,10 +66,34 @@ const cases: { name: string; task: unknown; payload?: unknown; path: string; bod
   { name: "cleanup (dry-run request)", task: cleanupTask, payload: { mode: "dry-run" }, path: CRON_ENDPOINTS.cleanup, body: { mode: "dry-run" } },
   { name: "daily-cleanup", task: cleanupSchedule, path: CRON_ENDPOINTS.cleanup, body: {} },
   { name: "cleanup-expired-jobs", task: cleanupExpiredJobsTask, path: CRON_ENDPOINTS.cleanupExpiredJobs, body: {} },
-  { name: "send-job-alerts", task: sendJobAlertsTask, payload: { frequency: "weekly" }, path: CRON_ENDPOINTS.jobAlerts, body: { frequencies: ["weekly"] } },
-  { name: "daily-job-alerts", task: dailyAlertSchedule, path: CRON_ENDPOINTS.jobAlerts, body: { frequencies: ["daily", "twice_daily"] } },
-  { name: "evening-job-alerts", task: eveningAlertSchedule, path: CRON_ENDPOINTS.jobAlerts, body: { frequencies: ["twice_daily"] } },
-  { name: "weekly-job-alerts", task: weeklyAlertSchedule, path: CRON_ENDPOINTS.jobAlerts, body: { frequencies: ["weekly"] } },
+  {
+    name: "send-job-alerts",
+    task: sendJobAlertsTask,
+    payload: { frequency: "weekly" },
+    path: CRON_ENDPOINTS.jobAlerts,
+    body: { frequencies: ["weekly"], windowEnd: RUN_CREATED_AT.toISOString() },
+  },
+  {
+    name: "daily-job-alerts",
+    task: dailyAlertSchedule,
+    payload: { timestamp: FIRE_TIME },
+    path: CRON_ENDPOINTS.jobAlerts,
+    body: { frequencies: ["daily", "twice_daily"], windowEnd: FIRE_TIME.toISOString() },
+  },
+  {
+    name: "evening-job-alerts",
+    task: eveningAlertSchedule,
+    payload: { timestamp: FIRE_TIME },
+    path: CRON_ENDPOINTS.jobAlerts,
+    body: { frequencies: ["twice_daily"], windowEnd: FIRE_TIME.toISOString() },
+  },
+  {
+    name: "weekly-job-alerts",
+    task: weeklyAlertSchedule,
+    payload: { timestamp: FIRE_TIME },
+    path: CRON_ENDPOINTS.jobAlerts,
+    body: { frequencies: ["weekly"], windowEnd: FIRE_TIME.toISOString() },
+  },
   { name: "follow-up-nudges", task: followUpNudgesTask, path: CRON_ENDPOINTS.followUpNudges, body: {} },
   { name: "daily-follow-up-nudges", task: followUpNudgesSchedule, path: CRON_ENDPOINTS.followUpNudges, body: {} },
   { name: "funnel-snapshots", task: funnelSnapshotsTask, path: CRON_ENDPOINTS.funnelSnapshots, body: {} },
@@ -81,7 +111,7 @@ const cases: { name: string; task: unknown; payload?: unknown; path: string; bod
 
 describe("Trigger tasks delegate to the app over authenticated HTTP", () => {
   it.each(cases)("$name POSTs to $path with Bearer CRON_SECRET", async ({ task, payload, path: p, body }) => {
-    const out = await asConfig(task).run(payload);
+    const out = await runTask(task, payload);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const call = lastCall();
     expect(call.url).toBe(`${BASE}${p}`);
@@ -93,14 +123,14 @@ describe("Trigger tasks delegate to the app over authenticated HTTP", () => {
 
   it.each(cases)("$name throws (run FAILED) on a non-2xx", async ({ task, payload }) => {
     fetchMock.mockImplementation(async () => new Response(JSON.stringify({ error: "boom" }), { status: 500 }));
-    await expect(asConfig(task).run(payload)).rejects.toThrow("HTTP 500");
+    await expect(runTask(task, payload)).rejects.toThrow("HTTP 500");
   });
 
   it.each(cases.filter((c) => asConfig(c.task).cron))(
     "$name no-ops (no HTTP call) when SCHEDULER=cron",
     async ({ task }) => {
       process.env.SCHEDULER = "cron";
-      await expect(asConfig(task).run()).resolves.toEqual({ skipped: true, reason: "SCHEDULER!=trigger" });
+      await expect(runTask(task)).resolves.toEqual({ skipped: true, reason: "SCHEDULER!=trigger" });
       expect(fetchMock).not.toHaveBeenCalled();
     },
   );
@@ -123,6 +153,50 @@ describe("Trigger tasks delegate to the app over authenticated HTTP", () => {
       "inbox-sync": null,
       "inbox-sync-hourly": "0 * * * *",
     });
+  });
+});
+
+describe("job alerts send a window end that is the same on every attempt of a run", () => {
+  const bodies = () => fetchMock.mock.calls.map(([, init]) => JSON.parse(String((init as RequestInit).body)));
+
+  it.each([
+    ["daily-job-alerts", dailyAlertSchedule],
+    ["evening-job-alerts", eveningAlertSchedule],
+    ["weekly-job-alerts", weeklyAlertSchedule],
+  ])("%s: windowEnd is the schedule fire time (payload.timestamp), on every attempt", async (_name, t) => {
+    // Two attempts of one run: same payload and ctx, but the clock has moved on.
+    await runTask(t, { timestamp: FIRE_TIME });
+    jest.useFakeTimers().setSystemTime(new Date(FIRE_TIME.getTime() + 5 * 60_000));
+    try {
+      await runTask(t, { timestamp: FIRE_TIME });
+    } finally {
+      jest.useRealTimers();
+    }
+    const [first, retry] = bodies();
+    expect(first.windowEnd).toBe(FIRE_TIME.toISOString());
+    expect(retry).toEqual(first);
+  });
+
+  it("send-job-alerts (on demand): windowEnd is the run creation time (ctx.run.createdAt), on every attempt", async () => {
+    await runTask(sendJobAlertsTask, { frequency: "daily" });
+    await runTask(sendJobAlertsTask, { frequency: "daily" });
+    const [first, retry] = bodies();
+    expect(first).toEqual({ frequencies: ["daily"], windowEnd: RUN_CREATED_AT.toISOString() });
+    expect(retry).toEqual(first);
+  });
+
+  it("two different runs send different window ends (so the app never gives them one key)", async () => {
+    await runTask(dailyAlertSchedule, { timestamp: FIRE_TIME });
+    await runTask(dailyAlertSchedule, { timestamp: new Date("2026-09-26T08:00:00.000Z") });
+    await runTask(sendJobAlertsTask, { frequency: "daily" }, new Date("2026-09-25T09:30:00.000Z"));
+    const ends = bodies().map((b) => b.windowEnd);
+    expect(new Set(ends).size).toBe(3);
+  });
+
+  it("a schedule payload whose timestamp arrives serialised is normalised; a missing one falls back to the run creation time", async () => {
+    await runTask(eveningAlertSchedule, { timestamp: "2026-09-25T18:00:00Z" });
+    await runTask(eveningAlertSchedule, {});
+    expect(bodies().map((b) => b.windowEnd)).toEqual(["2026-09-25T18:00:00.000Z", RUN_CREATED_AT.toISOString()]);
   });
 });
 

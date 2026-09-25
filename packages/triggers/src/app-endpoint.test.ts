@@ -3,6 +3,7 @@ import {
   MAX_APP_ENDPOINT_TIMEOUT_MS,
   appBaseUrl,
   callAppEndpoint,
+  stableRunTimestamp,
 } from "./app-endpoint";
 
 type FetchArgs = [string, RequestInit];
@@ -144,5 +145,32 @@ describe("callAppEndpoint", () => {
   it("defaults the base URL to local dev and strips trailing slashes", () => {
     expect(appBaseUrl({})).toBe("http://localhost:8443");
     expect(appBaseUrl({ NEXT_PUBLIC_APP_URL: "https://app.hust.so///" })).toBe("https://app.hust.so");
+  });
+});
+
+describe("stableRunTimestamp", () => {
+  it("returns the first candidate that is a valid date, as ISO 8601", () => {
+    const fire = new Date("2026-09-25T08:00:00Z");
+    const created = new Date("2026-09-25T08:00:01.234Z");
+    expect(stableRunTimestamp(fire, created)).toBe("2026-09-25T08:00:00.000Z");
+    expect(stableRunTimestamp(undefined, created)).toBe("2026-09-25T08:00:01.234Z");
+    expect(stableRunTimestamp("2026-09-25T18:00:00+02:00")).toBe("2026-09-25T16:00:00.000Z");
+    expect(stableRunTimestamp(new Date(Number.NaN), "garbage", null, 123, created)).toBe(created.toISOString());
+  });
+
+  it("returns undefined (the app then uses its own clock) when no candidate is a date", () => {
+    expect(stableRunTimestamp()).toBeUndefined();
+    expect(stableRunTimestamp(undefined, "nope")).toBeUndefined();
+  });
+
+  it("never reads the clock: the same inputs give the same value later", () => {
+    const created = new Date("2026-09-25T08:00:01.234Z");
+    const first = stableRunTimestamp(undefined, created);
+    jest.useFakeTimers().setSystemTime(new Date("2026-09-25T09:00:00Z"));
+    try {
+      expect(stableRunTimestamp(undefined, created)).toBe(first);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

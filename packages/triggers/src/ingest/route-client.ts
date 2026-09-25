@@ -78,6 +78,7 @@ function summarise(summary: Record<string, unknown>): string {
     "upstreamFailed",
     "complete",
     "stopReason",
+    "incompleteStreak",
   ];
   const parts = pick.filter((k) => k in summary).map((k) => `${k}=${String(summary[k])}`);
   const messages = Array.isArray(summary.errorMessages) ? summary.errorMessages.slice(0, 3) : [];

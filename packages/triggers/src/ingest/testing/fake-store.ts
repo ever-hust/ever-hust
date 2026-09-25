@@ -8,6 +8,7 @@ import {
   type ExistingJobRef,
   type JobRow,
   type JobStore,
+  type WriteNeed,
   type WrittenRow,
 } from "../job-store";
 
@@ -19,7 +20,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * rows, rewrites an existing row only when a content column changed / coordinates or the dedup
  * identity get backfilled or its last-seen marker is older than the refresh window, and keeps
  * stored coordinates when the incoming row has none. A merge row (`rawData.id` ≠ `externalId`)
- * only rewrites an owner older than the takeover window.
+ * only rewrites an owner older than the takeover window. `findWriteNeeds` evaluates the same
+ * predicate, split into "write" and "refresh"; `refreshLastSeen` only moves `updatedAt`.
  */
 
 export interface StoredRow extends JobRow {
@@ -74,26 +76,37 @@ const same = (a: unknown, b: unknown) =>
 const rawField = (row: JobRow, key: string) =>
   (row.rawData as Record<string, unknown> | null | undefined)?.[key];
 
-/** Mirrors `upsertChangedPredicate()`. */
-function shouldRewrite(current: StoredRow, row: JobRow): boolean {
+/** Mirrors the parts of `upsertChangedPredicate()`: "write" (the CASE without the last-seen clause), "refresh", or null. */
+function needOf(current: StoredRow, row: JobRow): WriteNeed | null {
   const sourceId = rawField(row, "id");
   if (typeof sourceId === "string" && sourceId !== row.externalId) {
-    // A cross-run merge row: only a stale owner is taken over.
-    return mergeMayTakeOver(current.updatedAt, row.updatedAt);
+    // A cross-run merge row: only a stale owner is taken over, and it is never just refreshed.
+    return mergeMayTakeOver(current.updatedAt, row.updatedAt) ? "write" : null;
   }
   const signals = effectiveSignals(current, row);
-  return (
+  const changed =
     CONTENT_KEYS.some((k) => !same(current[k], row[k])) ||
     !same(current.liveness, signals.liveness) ||
     !same(current.legitimacy, signals.legitimacy) ||
     !same(current.legitimacyReasons, signals.legitimacyReasons) ||
     (current.latitude == null && row.latitude != null) ||
     !same(rawField(current, "dedupKey"), rawField(row, "dedupKey")) ||
-    !same(rawField(current, "careerLevel"), rawField(row, "careerLevel")) ||
-    (current.updatedAt instanceof Date &&
-      row.updatedAt instanceof Date &&
-      current.updatedAt.getTime() < row.updatedAt.getTime() - LAST_SEEN_REFRESH_DAYS * DAY_MS)
+    !same(rawField(current, "careerLevel"), rawField(row, "careerLevel"));
+  if (changed) return "write";
+  return isStale(current.updatedAt, row.updatedAt) ? "refresh" : null;
+}
+
+function isStale(storedAt: Date | undefined, seenAt: Date | undefined): boolean {
+  return (
+    storedAt instanceof Date &&
+    seenAt instanceof Date &&
+    storedAt.getTime() < seenAt.getTime() - LAST_SEEN_REFRESH_DAYS * DAY_MS
   );
+}
+
+/** Mirrors `upsertChangedPredicate()` as a whole (the upsert's WHERE). */
+function shouldRewrite(current: StoredRow, row: JobRow): boolean {
+  return needOf(current, row) !== null;
 }
 
 export class FakeJobStore implements JobStore {
@@ -102,9 +115,18 @@ export class FakeJobStore implements JobStore {
     findExisting: [] as string[][],
     findDedupCandidates: [] as Array<{ titles: string[]; companies: string[] }>,
     findDedupKeys: [] as number[][],
+    findWriteNeeds: [] as string[][],
+    refreshLastSeen: [] as string[][],
     findCoordsForLocations: [] as string[][],
+    loadStoredCoords: [] as number[],
     upsertBatch: [] as JobRow[][],
   };
+  /** Make the next N `findWriteNeeds` calls throw. */
+  failWriteNeeds = 0;
+  /** Make the next N `refreshLastSeen` calls throw. */
+  failRefreshes = 0;
+  /** Make `loadStoredCoords` answer null (more stored locations than the limit). */
+  tooManyStoredLocations = false;
   /** Make the next N `upsertBatch` calls with more than one row throw. */
   failBulkUpserts = 0;
   /** External ids whose single-row upsert always throws. */
@@ -163,7 +185,59 @@ export class FakeJobStore implements JobStore {
     return [...this.rows.values()]
       .filter((r) => ids.includes(r.id) && typeof rawField(r, "dedupKey") === "string")
       .sort((a, b) => a.id - b.id)
-      .map((r) => ({ id: r.id, externalId: r.externalId, dedupKey: rawField(r, "dedupKey") as string }));
+      .map((r) => ({
+        id: r.id,
+        externalId: r.externalId,
+        site: r.site,
+        sourceId: typeof rawField(r, "id") === "string" ? (rawField(r, "id") as string) : null,
+        dedupKey: rawField(r, "dedupKey") as string,
+      }));
+  }
+
+  async findWriteNeeds(rows: JobRow[]): Promise<Map<string, WriteNeed>> {
+    this.calls.findWriteNeeds.push(rows.map((r) => r.externalId));
+    if (this.down) throw new Error("connection refused");
+    if (this.failWriteNeeds > 0) {
+      this.failWriteNeeds--;
+      throw new Error("canceling statement due to statement timeout");
+    }
+    const out = new Map<string, WriteNeed>();
+    for (const row of rows) {
+      const current = this.rows.get(row.externalId);
+      const need = current ? needOf(current, row) : null;
+      if (need) out.set(row.externalId, need);
+    }
+    return out;
+  }
+
+  async refreshLastSeen(externalIds: string[], seenAt: Date): Promise<string[]> {
+    this.calls.refreshLastSeen.push([...externalIds]);
+    if (this.down) throw new Error("connection refused");
+    if (this.failRefreshes > 0) {
+      this.failRefreshes--;
+      throw new Error("canceling statement due to statement timeout");
+    }
+    const refreshed: string[] = [];
+    for (const id of externalIds) {
+      const current = this.rows.get(id);
+      if (!current || !isStale(current.updatedAt, seenAt)) continue;
+      current.updatedAt = seenAt;
+      refreshed.push(id);
+    }
+    return refreshed;
+  }
+
+  async loadStoredCoords(limit: number): Promise<Map<string, Coords> | null> {
+    this.calls.loadStoredCoords.push(limit);
+    if (this.down) throw new Error("connection refused");
+    if (this.tooManyStoredLocations) return null;
+    const out = new Map<string, Coords>();
+    for (const r of this.rows.values()) {
+      if (r.latitude == null || r.longitude == null) continue;
+      const key = locationKey({ city: r.locationCity, state: r.locationState, country: r.locationCountry });
+      if (key && !out.has(key)) out.set(key, { latitude: String(r.latitude), longitude: String(r.longitude) });
+    }
+    return out.size > limit ? null : out;
   }
 
   async findCoordsForLocations(keys: string[]): Promise<Map<string, Coords>> {

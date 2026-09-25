@@ -2,6 +2,7 @@ import { describe, it, expect, jest } from "@jest/globals";
 import { TruncatedStreamError, type JobStreamEnd, type JobStreamEvent, type ScraperInput } from "@ever-hust/jobs-api";
 import { buildSyncPlan, type SyncEnvConfig } from "./config";
 import { formatSummaryLine, runJobsSync, type RunSyncDeps, type SyncProgress, type UpstreamStream } from "./run-sync";
+import { INCOMPLETE_FULL_RUNS_ALERT, IncompleteRunTracker } from "./incomplete-runs";
 import { UpstreamContractTracker } from "./upstream-contract";
 import { FakeJobStore } from "./testing/fake-store";
 
@@ -284,5 +285,45 @@ describe("formatSummaryLine", () => {
   it("prints the keyword terms, or <none> in list mode", async () => {
     const base = await runJobsSync(buildSyncPlan({ mode: "keywords", searchTerms: ["quant"] }, ENV, Date.now(), "v1"), deps(async () => streamOf([END])));
     expect(formatSummaryLine(base)).toContain('term="quant"');
+  });
+});
+
+describe("runJobsSync — a full crawl that stays incomplete is escalated (spec D27)", () => {
+  const END_PARTIAL: JobStreamEnd = { type: "end", total: 1, legacy: false, complete: false, stopReason: "deadline", sourcesSkipped: 12 };
+  const END_WHOLE: JobStreamEnd = { type: "end", total: 1, legacy: false, complete: true, stopReason: null };
+  const full = () => buildSyncPlan({ mode: "full" }, ENV, Date.now(), "v1");
+
+  it("counts incomplete full runs in a row, logs an error from the threshold on, and resets on a complete run", async () => {
+    const tracker = new IncompleteRunTracker();
+    const streaks: Array<number | undefined> = [];
+    let log = logger();
+    for (let i = 0; i < INCOMPLETE_FULL_RUNS_ALERT; i++) {
+      log = logger();
+      const s = await runJobsSync(full(), deps(async () => streamOf([jobEvent(`p${i}`), END_PARTIAL]), { incompleteRuns: tracker, logger: log }));
+      streaks.push(s.incompleteStreak);
+      expect(s).toMatchObject({ ok: true, complete: false });
+    }
+    expect(streaks).toEqual([1, 2, 3, 4]);
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining("full sync incomplete 4 runs in a row (stopReason=deadline sourcesSkipped=12)"));
+    expect(log.warn).not.toHaveBeenCalledWith(expect.stringContaining("full sync incomplete: stopReason"));
+
+    const whole = await runJobsSync(full(), deps(async () => streamOf([END_WHOLE]), { incompleteRuns: tracker }));
+    expect(whole).toMatchObject({ complete: true, incompleteStreak: 0 });
+    expect(formatSummaryLine(whole)).toContain("incompleteStreak=0");
+    expect(tracker.current).toBe(0);
+  });
+
+  it("ignores keyword runs, skipped runs, and runs without a tracker", async () => {
+    const tracker = new IncompleteRunTracker();
+    const kw = await runJobsSync(
+      buildSyncPlan({ mode: "keywords", searchTerms: ["a"] }, ENV, Date.now(), "v1"),
+      deps(async () => streamOf([END_PARTIAL]), { incompleteRuns: tracker }),
+    );
+    expect(kw.incompleteStreak).toBeUndefined();
+    const skipped = await runJobsSync(buildSyncPlan({ mode: "full" }, ENV, 0, "unknown"), deps(async () => streamOf([END_WHOLE]), { incompleteRuns: tracker }));
+    expect(skipped.incompleteStreak).toBeUndefined();
+    const untracked = await runJobsSync(full(), deps(async () => streamOf([END_PARTIAL])));
+    expect(untracked.incompleteStreak).toBeUndefined();
+    expect(tracker.current).toBe(0);
   });
 });

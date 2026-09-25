@@ -2,6 +2,8 @@ import { describe, it, expect, jest } from "@jest/globals";
 import type { JobStreamEvent } from "@ever-hust/jobs-api";
 import {
   createDefaultSyncDeps,
+  INCOMPLETE_FULL_RUNS_ALERT,
+  IncompleteRunTracker,
   processGeocodeMemo,
   readSyncEnv,
   routeDeadlineMs,
@@ -191,6 +193,25 @@ describe("runScheduledSync (what the Trigger schedules run)", () => {
     expect(info).not.toHaveBeenCalledWith("[jobs-sync] full sync ok", expect.anything());
   });
 
+  it("THROWS once full runs have been incomplete INCOMPLETE_FULL_RUNS_ALERT times in a row (spec D27)", async () => {
+    const warn = jest.fn();
+    const below = { ...OK_SUMMARY, complete: false, stopReason: "deadline", sourcesSkipped: 3, incompleteStreak: INCOMPLETE_FULL_RUNS_ALERT - 1 };
+    await expect(
+      runScheduledSync("full", { fetchImpl: fetchReturning(ndjson([below])), dispatcher: null, logger: { info: jest.fn(), warn } }),
+    ).resolves.toMatchObject({ ok: true, incompleteStreak: INCOMPLETE_FULL_RUNS_ALERT - 1 });
+    expect(warn).toHaveBeenCalledTimes(1);
+
+    const atThreshold = { ...below, incompleteStreak: INCOMPLETE_FULL_RUNS_ALERT };
+    const err = await runScheduledSync("full", {
+      fetchImpl: fetchReturning(ndjson([atThreshold])),
+      dispatcher: null,
+      logger: quiet,
+    }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SyncRunFailedError);
+    expect((err as Error).message).toContain("full sync incomplete 4 runs in a row (stopReason=deadline sourcesSkipped=3)");
+    expect((err as SyncRunFailedError).summary).toMatchObject({ incompleteStreak: INCOMPLETE_FULL_RUNS_ALERT });
+  });
+
   it("reads a summary without completeness fields (an older app) as NOT known complete", async () => {
     const warn = jest.fn();
     const older: Record<string, unknown> = { ...OK_SUMMARY };
@@ -341,6 +362,21 @@ describe("runInProcessSync (the sync-jobs task)", () => {
       },
     );
     expect(whole).toMatchObject({ ok: true, complete: true, stopReason: null, sourcesFailed: 3 });
+  });
+
+  it("throws in-process too once the tracker reaches the threshold", async () => {
+    const incompleteRuns = new IncompleteRunTracker();
+    const partialRun = () =>
+      runInProcessSync(
+        { mode: "full" },
+        {
+          ...baseDeps,
+          incompleteRuns,
+          openStream: async () => stream([{ type: "end", legacy: false, complete: false, stopReason: "deadline", sourcesSkipped: 2 }]),
+        },
+      );
+    for (let i = 1; i < INCOMPLETE_FULL_RUNS_ALERT; i++) await expect(partialRun()).resolves.toMatchObject({ incompleteStreak: i });
+    await expect(partialRun()).rejects.toThrow(/full sync incomplete 4 runs in a row/);
   });
 
   it("skips a full run (no upstream call, no throw) while the contract is unknown", async () => {

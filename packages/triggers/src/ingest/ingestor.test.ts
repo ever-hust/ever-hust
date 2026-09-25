@@ -6,7 +6,9 @@ import {
   IngestAbortedError,
   JobIngestor,
   looseIdentity,
+  MAX_CONSECUTIVE_ROW_FAILURES,
   type IngestCounters,
+  type JobIngestorOptions,
 } from "./ingestor";
 import { MAX_UPSERT_ROWS_PER_STATEMENT } from "./job-store";
 import { FakeJobStore } from "./testing/fake-store";
@@ -31,6 +33,7 @@ function setup(
     geocode?: GeocodeFn | null;
     maxCalls?: number;
     maxConsecutiveFailedBatches?: number;
+    ingestor?: Partial<Omit<JobIngestorOptions, "store" | "geocoder">>;
   } = {},
 ) {
   const store = opts.store ?? new FakeJobStore();
@@ -53,6 +56,7 @@ function setup(
     batchSize: opts.batchSize ?? 3,
     logger: silent,
     maxConsecutiveFailedBatches: opts.maxConsecutiveFailedBatches,
+    ...opts.ingestor,
   });
   return { store, geocoder, geocode, ingestor };
 }
@@ -202,7 +206,7 @@ describe("JobIngestor — dedupe", () => {
   it("merges a new external id onto the stored row that already owns its dedupKey, keeping the owner's content", async () => {
     const store = new FakeJobStore();
     await ingestAll(setup({ store }).ingestor, [
-      job("lever-1", { dedupKey: "acme|engineer|austin", jobUrl: "https://old" }),
+      job("lever-1", { site: "lever", dedupKey: "acme|engineer|austin", jobUrl: "https://old" }),
     ]);
     const ownerId = store.rows.get("lever-1")!.id;
     store.resetCalls();
@@ -224,6 +228,7 @@ describe("JobIngestor — dedupe", () => {
     expect((owner.rawData as { id: string }).id).toBe("lever-1");
     expect(counters).toMatchObject({ received: 1, inserted: 0, duplicatesMerged: 1, mergedWrites: 0 });
     expect(store.calls.upsertBatch).toEqual([]); // nothing to write, no statement
+    expect(store.calls.findWriteNeeds).toEqual([]); // no row of the batch exists under its own id
     expect(store.calls.findDedupCandidates).toEqual([
       { titles: ["Engineer lever-1"], companies: ["Acme"] },
     ]);
@@ -275,9 +280,10 @@ describe("JobIngestor — dedupe", () => {
       store.rows.delete("gone");
       return found;
     };
-    const counters = await ingestAll(run.ingestor, [job("new", { title: "Engineer gone", dedupKey: "k" })]);
+    const counters = await ingestAll(run.ingestor, [job("new", { site: "indeed", title: "Engineer gone", dedupKey: "k" })]);
     expect(counters).toMatchObject({ inserted: 1, duplicatesMerged: 0 });
     expect(store.rows.has("new")).toBe(true);
+    expect(store.calls.findExisting).toContainEqual(["gone"]); // the owner lookup ran and missed
     expectInvariant(counters);
   });
 
@@ -288,7 +294,7 @@ describe("JobIngestor — dedupe", () => {
     const run = setup({ store, batchSize: 10 });
     const counters = await ingestAll(run.ingestor, [
       // New id carrying A's stored key → would merge onto A …
-      job("X", { title: "Engineer A", dedupKey: "k", jobUrl: "https://x" }),
+      job("X", { site: "indeed", title: "Engineer A", dedupKey: "k", jobUrl: "https://x" }),
       // … but A itself is in the same batch (its key changed with its title): A wins.
       job("A", { dedupKey: "k-renamed", title: "Engineer A (updated)" }),
     ]);
@@ -485,8 +491,8 @@ describe("JobIngestor — failures", () => {
     const run = setup({ store, batchSize: 10 });
     const counters = await ingestAll(run.ingestor, [
       job("O1", { dedupKey: "k1-renamed", title: "Shared 1" }), // exact id → wins over X1
-      job("X1", { dedupKey: "k1", title: "Shared 1" }), // merge onto O1 → dropped
-      job("X2", { dedupKey: "k2", title: "Shared 2" }), // merge onto O2 → owner lookup fails
+      job("X1", { site: "indeed", dedupKey: "k1", title: "Shared 1" }), // merge onto O1 → dropped
+      job("X2", { site: "indeed", dedupKey: "k2", title: "Shared 2" }), // merge onto O2 → owner lookup fails
     ]);
     expect(counters).toMatchObject({ received: 3, errors: 3, duplicatesMerged: 0 });
     expectInvariant(counters);
@@ -501,5 +507,267 @@ describe("JobIngestor — failures", () => {
     expect(ingestor.counters.errors).toBe(2);
     expect(ingestor.persisted).toBe(0);
     expectInvariant(ingestor.counters);
+  });
+});
+
+describe("JobIngestor — one source's postings with one dedupKey (spec D23, E2E R1)", () => {
+  // Jane Street, New York: a new-grad role and an internship with the same title in the same city.
+  // The producer's key (company | title | location) is the same for both; they are two postings.
+  const KEY = "jane street|software engineer|new york";
+  const js = (id: string, extra: Partial<JobPostDto> = {}) =>
+    job(id, {
+      title: "Software Engineer",
+      companyName: "Jane Street",
+      location: { city: "New York", state: "NY" },
+      dedupKey: KEY,
+      ...extra,
+    });
+
+  it("keeps both within a run, and still drops another source's copy", async () => {
+    const { store, ingestor } = setup({ batchSize: 10 });
+    const counters = await ingestAll(ingestor, [
+      js("gh-intern", { employmentType: "internship" }),
+      js("gh-newgrad", { employmentType: "new_grad" }),
+      js("in-copy", { site: "indeed" }),
+    ]);
+    expect([...store.rows.keys()].sort()).toEqual(["gh-intern", "gh-newgrad"]);
+    expect(counters).toMatchObject({ received: 3, inserted: 2, duplicatesMerged: 1 });
+    expectInvariant(counters);
+  });
+
+  it("keeps both when they arrive in different batches (the run's marks carry the source)", async () => {
+    const { store, ingestor } = setup({ batchSize: 1 });
+    const counters = await ingestAll(ingestor, [js("gh-intern"), js("in-copy", { site: "indeed" }), js("gh-newgrad")]);
+    expect([...store.rows.keys()].sort()).toEqual(["gh-intern", "gh-newgrad"]);
+    expect(counters).toMatchObject({ received: 3, inserted: 2, duplicatesMerged: 1 });
+  });
+
+  it("across runs: the stored internship does not swallow the new-grad role; a board copy merges onto the oldest", async () => {
+    const store = new FakeJobStore();
+    await ingestAll(setup({ store }).ingestor, [js("gh-intern")]);
+
+    const second = await ingestAll(setup({ store, batchSize: 10 }).ingestor, [js("gh-intern"), js("gh-newgrad")]);
+    expect(second).toMatchObject({ inserted: 1, unchanged: 1, duplicatesMerged: 0 });
+    expect(store.rows.has("gh-newgrad")).toBe(true);
+
+    // A new id of the same source alone in its batch (nothing kept this run): the probe finds the
+    // stored rows, both of the job's own source, so it is a posting of its own.
+    const third = await ingestAll(setup({ store }).ingestor, [js("gh-third")]);
+    expect(third).toMatchObject({ inserted: 1, duplicatesMerged: 0 });
+
+    const board = await ingestAll(setup({ store }).ingestor, [js("in-copy", { site: "indeed" })]);
+    expect(board).toMatchObject({ inserted: 0, duplicatesMerged: 1, mergedWrites: 0 });
+    expect(store.rows.has("in-copy")).toBe(false);
+    expect(store.rows.size).toBe(3);
+  });
+
+  it("without a dedupKey, the fallback identity follows the same rule", async () => {
+    const { store, ingestor } = setup({ batchSize: 10 });
+    const plain = (id: string, site: string) =>
+      job(id, { site, title: "Technician, Manufacturing I", companyName: "AbbVie", location: { city: "Branchburg", state: "NJ" } });
+    const counters = await ingestAll(ingestor, [plain("wd-1", "workday"), plain("wd-2", "workday"), plain("in-1", "indeed")]);
+    expect([...store.rows.keys()].sort()).toEqual(["wd-1", "wd-2"]);
+    expect(counters).toMatchObject({ inserted: 2, duplicatesMerged: 1 });
+  });
+
+  it("compares sources case- and space-insensitively", async () => {
+    const { store, ingestor } = setup({ batchSize: 10 });
+    await ingestAll(ingestor, [js("a", { site: "Greenhouse" }), js("b", { site: " greenhouse " }), js("c", { site: "INDEED" })]);
+    expect([...store.rows.keys()].sort()).toEqual(["a", "b"]);
+  });
+
+  it("a row another source took over still absorbs that source's copy, but not that source's other postings", async () => {
+    const store = new FakeJobStore();
+    await ingestAll(setup({ store }).ingestor, [js("gh-1")]);
+    store.rows.get("gh-1")!.updatedAt = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const takeover = await ingestAll(setup({ store }).ingestor, [js("in-1", { site: "indeed" })]);
+    expect(takeover).toMatchObject({ duplicatesMerged: 1, mergedWrites: 1 });
+    expect(store.rows.get("gh-1")).toMatchObject({ site: "indeed" });
+
+    // The row now shows indeed: in-1 is its own content (raw_data.id), so it merges again …
+    const again = await ingestAll(setup({ store }).ingestor, [js("in-1", { site: "indeed" })]);
+    expect(again).toMatchObject({ duplicatesMerged: 1, inserted: 0 });
+    // … while another indeed posting with the same key is a posting of its own.
+    const other = await ingestAll(setup({ store }).ingestor, [js("in-2", { site: "indeed" })]);
+    expect(other).toMatchObject({ inserted: 1, duplicatesMerged: 0 });
+    expect([...store.rows.keys()].sort()).toEqual(["gh-1", "in-2"]);
+  });
+});
+
+describe("JobIngestor — a copy streamed before the owner (review finding 2)", () => {
+  const owner = (extra: Partial<JobPostDto> = {}) =>
+    job("gh-9", { dedupKey: "k", title: "Engineer", description: "v1", ...extra });
+  const boardCopy = job("in-9", { site: "indeed", dedupKey: "k", title: "Engineer", description: "board" });
+
+  it("still writes the owner's own update when the copy comes first in the same batch", async () => {
+    const store = new FakeJobStore();
+    await ingestAll(setup({ store }).ingestor, [owner()]);
+    const stale = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+    store.rows.get("gh-9")!.updatedAt = stale;
+
+    const counters = await ingestAll(setup({ store, batchSize: 10 }).ingestor, [boardCopy, owner({ description: "v2" })]);
+    expect(store.rows.get("gh-9")).toMatchObject({ description: "v2", site: "greenhouse" });
+    expect(store.rows.get("gh-9")!.updatedAt.getTime()).toBeGreaterThan(stale.getTime());
+    expect(store.rows.has("in-9")).toBe(false);
+    expect(counters).toMatchObject({ received: 2, updated: 1, duplicatesMerged: 1, mergedWrites: 0 });
+    expectInvariant(counters);
+  });
+
+  it("still writes the owner's own update when the copy came in an earlier batch", async () => {
+    const store = new FakeJobStore();
+    await ingestAll(setup({ store }).ingestor, [owner()]);
+    const counters = await ingestAll(setup({ store, batchSize: 1 }).ingestor, [boardCopy, owner({ description: "v2" })]);
+    expect(store.rows.get("gh-9")!.description).toBe("v2");
+    expect(store.rows.has("in-9")).toBe(false);
+    expect(counters).toMatchObject({ received: 2, updated: 1, duplicatesMerged: 1 });
+    expectInvariant(counters);
+  });
+
+  it("when both are new, the first source seen keeps the row and the owner's id is the copy (spec D2)", async () => {
+    const { store, ingestor } = setup({ batchSize: 1 });
+    const counters = await ingestAll(ingestor, [boardCopy, owner()]);
+    expect([...store.rows.keys()]).toEqual(["in-9"]);
+    expect(counters).toMatchObject({ inserted: 1, duplicatesMerged: 1 });
+  });
+});
+
+describe("JobIngestor — only rows that need it are written (spec D24, review findings 3 and 7)", () => {
+  it("sends no unchanged row to the upsert, and asks only about rows that exist", async () => {
+    const store = new FakeJobStore();
+    await ingestAll(setup({ store }).ingestor, [job("1"), job("2")]);
+    store.resetCalls();
+
+    const counters = await ingestAll(setup({ store, batchSize: 10 }).ingestor, [job("1"), job("2"), job("3")]);
+    expect(store.calls.findWriteNeeds).toEqual([["1", "2"]]);
+    expect(store.calls.upsertBatch.map((b) => b.map((r) => r.externalId))).toEqual([["3"]]);
+    expect(store.calls.refreshLastSeen).toEqual([]);
+    expect(counters).toMatchObject({ inserted: 1, unchanged: 2, updated: 0 });
+    expectInvariant(counters);
+
+    // A fully unchanged batch runs no write statement at all.
+    store.resetCalls();
+    await ingestAll(setup({ store, batchSize: 10 }).ingestor, [job("1"), job("2"), job("3")]);
+    expect(store.calls.upsertBatch).toEqual([]);
+  });
+
+  it("refreshes a stale unchanged row with the narrow last-seen update, not the upsert", async () => {
+    const store = new FakeJobStore();
+    await ingestAll(setup({ store }).ingestor, [job("old"), job("changed")]);
+    const longAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    store.rows.get("old")!.updatedAt = longAgo;
+    store.resetCalls();
+
+    const counters = await ingestAll(setup({ store, batchSize: 10 }).ingestor, [
+      job("old"),
+      job("changed", { title: "Staff Engineer" }),
+    ]);
+    expect(store.calls.refreshLastSeen).toEqual([["old"]]);
+    expect(store.calls.upsertBatch.map((b) => b.map((r) => r.externalId))).toEqual([["changed"]]);
+    expect(store.rows.get("old")!.updatedAt.getTime()).toBeGreaterThan(longAgo.getTime());
+    expect(counters).toMatchObject({ updated: 2, unchanged: 0 });
+    expectInvariant(counters);
+  });
+
+  it("a merge that does not take the owner over is never refreshed (the owner keeps ageing)", async () => {
+    const store = new FakeJobStore();
+    await ingestAll(setup({ store }).ingestor, [job("gh-1", { dedupKey: "k" })]);
+    const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+    store.rows.get("gh-1")!.updatedAt = tenDaysAgo;
+    store.resetCalls();
+    const counters = await ingestAll(setup({ store }).ingestor, [
+      job("in-1", { site: "indeed", title: "Engineer gh-1", dedupKey: "k" }),
+    ]);
+    expect(counters).toMatchObject({ duplicatesMerged: 1, mergedWrites: 0, updated: 0 });
+    expect(store.calls.refreshLastSeen).toEqual([]);
+    expect(store.rows.get("gh-1")!.updatedAt).toEqual(tenDaysAgo);
+  });
+
+  it("sends every row to the upsert when the read-ahead fails (its WHERE still skips unchanged rows)", async () => {
+    const store = new FakeJobStore();
+    await ingestAll(setup({ store }).ingestor, [job("1"), job("2")]);
+    store.resetCalls();
+    store.failWriteNeeds = 1;
+    const counters = await ingestAll(setup({ store, batchSize: 10 }).ingestor, [job("1"), job("2", { title: "New" })]);
+    expect(store.calls.upsertBatch.map((b) => b.map((r) => r.externalId))).toEqual([["1", "2"]]);
+    expect(counters).toMatchObject({ updated: 1, unchanged: 1, errors: 0 });
+    expectInvariant(counters);
+  });
+
+  it("counts a failed refresh as errors and keeps the invariant", async () => {
+    const store = new FakeJobStore();
+    await ingestAll(setup({ store }).ingestor, [job("old")]);
+    store.rows.get("old")!.updatedAt = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    store.failRefreshes = 1;
+    const { ingestor } = setup({ store });
+    const counters = await ingestAll(ingestor, [job("old")]);
+    expect(counters).toMatchObject({ errors: 1, updated: 0 });
+    expect(ingestor.errorMessages.join("\n")).toContain("last-seen refresh");
+    expectInvariant(counters);
+  });
+});
+
+describe("JobIngestor — bounded row-by-row fallback (spec D25, review finding 6)", () => {
+  it(`stops after ${MAX_CONSECUTIVE_ROW_FAILURES} rows in a row failed and counts the rest as errors`, async () => {
+    const store = new FakeJobStore();
+    store.failBulkUpserts = 1;
+    const ids = Array.from({ length: 12 }, (_, i) => `r${String(i).padStart(2, "0")}`);
+    for (const id of ids) store.poisonIds.add(id);
+    const { ingestor } = setup({ store, batchSize: 12 });
+    const counters = await ingestAll(ingestor, ids.map((id) => job(id)));
+    // One bulk attempt, then exactly MAX_CONSECUTIVE_ROW_FAILURES single-row attempts.
+    expect(store.calls.upsertBatch.map((b) => b.length)).toEqual([12, ...Array(MAX_CONSECUTIVE_ROW_FAILURES).fill(1)]);
+    expect(counters).toMatchObject({ received: 12, errors: 12, inserted: 0 });
+    expect(ingestor.errorMessages.join("\n")).toContain("rows in a row failed");
+    expectInvariant(counters);
+  });
+
+  it("a success resets the count of failures in a row", async () => {
+    const store = new FakeJobStore();
+    store.failBulkUpserts = 1;
+    const ids = ["a1", "a2", "b", "c1", "c2"];
+    for (const id of ["a1", "a2", "c1", "c2"]) store.poisonIds.add(id);
+    const { ingestor } = setup({ store, batchSize: 5, ingestor: { maxConsecutiveRowFailures: 3 } });
+    const counters = await ingestAll(ingestor, ids.map((id) => job(id)));
+    expect(counters).toMatchObject({ inserted: 1, errors: 4 });
+    expect(store.calls.upsertBatch).toHaveLength(6); // bulk + all five rows
+  });
+
+  it("writes no row past the run's deadline", async () => {
+    const store = new FakeJobStore();
+    store.failBulkUpserts = 1;
+    let now = 1_000;
+    const original = store.upsertBatch.bind(store);
+    store.upsertBatch = async (rows) => {
+      now += 10; // each statement takes 10 ms
+      return original(rows);
+    };
+    const { ingestor } = setup({ store, batchSize: 5, ingestor: { deadlineAt: 1_025, now: () => now } });
+    const counters = await ingestAll(ingestor, ["a", "b", "c", "d", "e"].map((id) => job(id)));
+    // bulk (fails) at 1010, a at 1020, b at 1030; c is not tried (1030 ≥ 1025)
+    expect(counters).toMatchObject({ inserted: 2, errors: 3 });
+    expect(ingestor.errorMessages.join("\n")).toContain("deadline");
+    expectInvariant(counters);
+  });
+});
+
+describe("JobIngestor — dedup probe cache cap (review finding 9)", () => {
+  it("starts the probe cache over once it holds the cap, and probes again (never a wrong merge)", async () => {
+    const store = new FakeJobStore();
+    store.seed({ externalId: "s1", site: "lever", title: "T1", companyName: "Acme", rawData: { id: "s1", dedupKey: "k1" } });
+    store.seed({ externalId: "s2", site: "lever", title: "T2", companyName: "Acme", rawData: { id: "s2", dedupKey: "k2" } });
+    store.seed({ externalId: "s3", site: "lever", title: "T3", companyName: "Acme", rawData: { id: "s3", dedupKey: "k3" } });
+    const { ingestor } = setup({ store, batchSize: 1, ingestor: { dedupProbeCacheRows: 2 } });
+    const counters = await ingestAll(ingestor, [
+      job("n1", { title: "T1", dedupKey: "k1" }), // probes Acme: 3 candidate rows cached (≥ cap)
+      job("n2", { title: "T2", dedupKey: "k2" }), // cache full → starts over, probes again
+      job("n3", { title: "T1", dedupKey: "k1-other" }),
+    ]);
+    expect(store.calls.findDedupCandidates).toEqual([
+      { titles: ["T1"], companies: ["Acme"] },
+      { titles: ["T2"], companies: ["Acme"] },
+      { titles: ["T1"], companies: ["Acme"] },
+    ]);
+    expect(counters).toMatchObject({ duplicatesMerged: 2, inserted: 1 });
+    expect(store.rows.has("n3")).toBe(true);
   });
 });

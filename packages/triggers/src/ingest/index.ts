@@ -5,6 +5,7 @@
 import { DEFAULT_STREAM_TIMEOUT_MS, everJobsClient, type EverJobsClient } from "@ever-hust/jobs-api";
 import { geocodeMaxCallsFor, readSyncEnv, type SyncEnvConfig, type SyncMode } from "./config";
 import { googleGeocoderFromEnv, processGeocodeMemo } from "./geocoder";
+import { processIncompleteRuns } from "./incomplete-runs";
 import { processUpstreamContract } from "./upstream-contract";
 import { createDrizzleJobStore, type JobStore } from "./job-store";
 import type { RunSyncDeps } from "./run-sync";
@@ -16,6 +17,8 @@ export * from "./ingestor";
 export * from "./run-sync";
 export * from "./route-client";
 export * from "./upstream-contract";
+export * from "./incomplete-runs";
+export * from "./errors";
 
 /**
  * Production wiring: the Ever Jobs client, the Drizzle store, Google from env with the per-mode
@@ -58,6 +61,9 @@ export function createDefaultSyncDeps(overrides: {
     geocodeMaxCalls: geocodeMaxCallsFor(overrides.mode ?? "full", env),
     geocodeMemo: processGeocodeMemo,
     upstreamContract: processUpstreamContract,
+    incompleteRuns: processIncompleteRuns,
     onProgress: overrides.onProgress,
+    deadlineAt,
+    now,
   };
 }

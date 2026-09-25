@@ -7,6 +7,7 @@ import {
   type IngestCounters,
   type IngestLogger,
 } from "./ingestor";
+import { INCOMPLETE_FULL_RUNS_ALERT, type IncompleteRunTracker } from "./incomplete-runs";
 import type { JobStore } from "./job-store";
 import type { UpstreamContractTracker } from "./upstream-contract";
 
@@ -51,6 +52,12 @@ export interface SyncSummary extends SyncCounters {
   errorMessages: string[];
   /** Set when the run did nothing on purpose (full mode gated off, spec 01a D18). */
   skipped?: string;
+  /**
+   * Full runs only (with a tracker): the full runs in a row, this one included, that were not
+   * complete in this process; 0 when this one was (spec 01a D27). From
+   * {@link INCOMPLETE_FULL_RUNS_ALERT} on, the scheduled full task fails.
+   */
+  incompleteStreak?: number;
 }
 
 /**
@@ -93,10 +100,17 @@ export interface RunSyncDeps {
   geocodeMemo?: GeocodeMemo;
   /** Records whether Ever Jobs answered in NDJSON (contract v1) or plain JSON (spec 01a D18). */
   upstreamContract?: UpstreamContractTracker;
+  /** Counts full runs in a row that were not complete (spec 01a D27). */
+  incompleteRuns?: IncompleteRunTracker;
   batchSize?: number;
   logger?: IngestLogger;
   /** Called on upstream progress and after each flushed batch. Must not throw. */
   onProgress?: (progress: SyncProgress) => void;
+  /**
+   * The run's deadline (epoch ms). The streams are opened within it (see `createDefaultSyncDeps`);
+   * the ingestor's row-by-row fallback writes no row past it (spec 01a D25).
+   */
+  deadlineAt?: number;
   now?: () => number;
 }
 
@@ -132,6 +146,8 @@ export async function runJobsSync(plan: SyncPlan, deps: RunSyncDeps): Promise<Sy
     geocoder,
     batchSize: deps.batchSize,
     logger,
+    deadlineAt: deps.deadlineAt,
+    now,
     onFlush: () => report(currentTerm, lastUpstream),
   });
 
@@ -268,6 +284,9 @@ export async function runJobsSync(plan: SyncPlan, deps: RunSyncDeps): Promise<Sy
   const complete = stopReason === null && completeStreams === plan.inputs.length;
   if (!complete) incomplete("not_reported"); // defensive: never "incomplete for no reason"
 
+  const incompleteStreak =
+    plan.mode === "full" && !plan.skipped && deps.incompleteRuns ? deps.incompleteRuns.record(complete) : undefined;
+
   const summary: SyncSummary = {
     ok,
     mode: plan.mode,
@@ -284,10 +303,13 @@ export async function runJobsSync(plan: SyncPlan, deps: RunSyncDeps): Promise<Sy
     sourcesFailed,
     errorMessages: [...upstreamErrors, ...ingestor.errorMessages].slice(0, 25),
     ...(plan.skipped ? { skipped: plan.skipped } : {}),
+    ...(incompleteStreak !== undefined ? { incompleteStreak } : {}),
   };
 
   if (plan.skipped) logger.warn(`[jobs-sync] ${plan.mode} sync skipped: ${plan.skipped}`);
-  else if (ok && !complete) logger.warn(formatIncompleteLine(summary));
+  else if (incompleteStreak !== undefined && incompleteStreak >= INCOMPLETE_FULL_RUNS_ALERT) {
+    logger.error(formatIncompleteStreakLine(summary));
+  } else if (ok && !complete) logger.warn(formatIncompleteLine(summary));
   logger.info(formatSummaryLine(summary));
   return summary;
 }
@@ -304,6 +326,18 @@ export function formatIncompleteLine(s: SyncSummary): string {
   );
 }
 
+/**
+ * The error for a full crawl that stayed incomplete {@link INCOMPLETE_FULL_RUNS_ALERT}+ runs in a
+ * row (spec 01a D27).
+ */
+export function formatIncompleteStreakLine(s: SyncSummary): string {
+  return (
+    `[jobs-sync] full sync incomplete ${s.incompleteStreak ?? "?"} runs in a row (stopReason=${s.stopReason ?? "not_reported"}` +
+    ` sourcesSkipped=${s.sourcesSkipped}): postings of the skipped sources are not refreshed and the 90-day cleanup` +
+    ` may delete open ones; raise Ever Jobs' fan-out deadline (spec 01a D19)`
+  );
+}
+
 /** One log line per run. */
 export function formatSummaryLine(s: SyncSummary): string {
   const term = s.terms.length > 0 ? s.terms.map((t) => `"${t}"`).join(",") : "<none>";
@@ -315,6 +349,7 @@ export function formatSummaryLine(s: SyncSummary): string {
     ` upstreamTotal=${s.upstreamTotal} truncated=${s.truncated} upstreamFailed=${s.upstreamFailed}` +
     ` complete=${s.complete} stopReason=${s.stopReason ?? "-"} sourcesSkipped=${s.sourcesSkipped}` +
     ` sourcesFailed=${s.sourcesFailed} legacyServer=${s.legacyServer} durationMs=${s.durationMs}` +
+    (s.incompleteStreak !== undefined ? ` incompleteStreak=${s.incompleteStreak}` : "") +
     (s.skipped ? ` skipped=true` : "")
   );
 }

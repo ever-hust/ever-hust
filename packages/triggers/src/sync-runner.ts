@@ -1,6 +1,7 @@
 import {
   buildSyncPlan,
   createDefaultSyncDeps,
+  INCOMPLETE_FULL_RUNS_ALERT,
   processUpstreamContract,
   readSyncEnv,
   runJobsSync,
@@ -48,7 +49,8 @@ export function maxDurationFor(mode: SyncMode): number {
  * return the summary. Throws {@link SyncRunFailedError} on any failure. A run that is ok on a
  * PARTIAL upstream crawl (`complete: false`, e.g. `stopReason: "deadline"`, spec 01a D21) does not
  * throw: it is logged as a warning and returned with its `complete` / `stopReason` /
- * `sourcesSkipped` / `sourcesFailed`, so the Trigger run shows it.
+ * `sourcesSkipped` / `sourcesFailed`, so the Trigger run shows it — until full runs have been
+ * incomplete {@link INCOMPLETE_FULL_RUNS_ALERT} times in a row (spec D27): then it throws.
  */
 export async function runScheduledSync(
   mode: SyncMode,
@@ -70,6 +72,8 @@ export async function runScheduledSync(
   });
   if (typeof summary.skipped === "string") {
     logger.info(`[jobs-sync] ${mode} sync skipped: ${summary.skipped}`, { ...summary });
+  } else if (incompleteTooLong(summary)) {
+    throw incompleteStreakError(summary);
   } else if (summary.complete !== true) {
     logger.warn(
       `[jobs-sync] ${mode} sync ok but INCOMPLETE: stopReason=${summary.stopReason ?? "not_reported"}` +
@@ -101,5 +105,25 @@ export async function runInProcessSync(
       { ...summary },
     );
   }
+  if (incompleteTooLong(summary)) throw incompleteStreakError(summary);
   return summary;
+}
+
+/** A full crawl that stayed incomplete too many runs in a row (spec 01a D27). */
+function incompleteTooLong(summary: Pick<SyncSummary, "mode" | "incompleteStreak">): boolean {
+  return (
+    summary.mode === "full" &&
+    typeof summary.incompleteStreak === "number" &&
+    summary.incompleteStreak >= INCOMPLETE_FULL_RUNS_ALERT
+  );
+}
+
+function incompleteStreakError(summary: SyncSummary): SyncRunFailedError {
+  return new SyncRunFailedError(
+    `full sync incomplete ${summary.incompleteStreak} runs in a row (stopReason=${summary.stopReason ?? "not_reported"}` +
+      ` sourcesSkipped=${summary.sourcesSkipped ?? 0}); what arrived is stored, but the skipped sources are not refreshed` +
+      ` and the 90-day cleanup may delete their open postings: raise Ever Jobs' fan-out deadline (spec 01a D19/D27)`,
+    undefined,
+    { ...summary },
+  );
 }

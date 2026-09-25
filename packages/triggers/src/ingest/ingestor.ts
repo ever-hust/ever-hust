@@ -1,5 +1,6 @@
 import type { JobPostDto } from "@ever-hust/jobs-api";
 import { mapJobToDb } from "../map-job";
+import { errorText } from "./errors";
 import { locationKey, type RunGeocoder, type GeocodeRequest } from "./geocoder";
 import {
   MAX_UPSERT_ROWS_PER_STATEMENT,
@@ -7,6 +8,7 @@ import {
   type ExistingJobRef,
   type JobRow,
   type JobStore,
+  type WriteNeed,
   type WrittenRow,
 } from "./job-store";
 
@@ -15,12 +17,18 @@ import {
  * time, with bounded memory. Shared by the `/api/jobs/sync` route and the in-process Trigger task.
  *
  * Per batch:
- *   1. existing rows for the batch's external ids (unique index),
- *   2. cross-run dedupe for *new* external ids that carry a `dedupKey` (spec D1/D2),
+ *   1. existing rows for the batch's external ids (unique index); an existing id is always
+ *      written under itself (spec D23), whatever copies of it arrived before,
+ *   2. within-run and cross-run dedupe for *new* external ids (spec D1/D2/D23): a job is a copy
+ *      only of a posting from ANOTHER source with the same `dedupKey` (one source's two ids are two
+ *      postings),
  *   3. geocoding for rows without usable stored coordinates (see {@link RunGeocoder}),
- *   4. one `INSERT … ON CONFLICT … DO UPDATE … WHERE … IS DISTINCT FROM …` statement in its own
- *      bounded transaction (the jobs-writer rule, `packages/db/src/jobs-insert.ts`), with a
- *      row-by-row fallback only when that statement fails.
+ *   4. the upsert's `WHERE` read ahead for rows that exist (spec D24): unchanged rows are not sent,
+ *      rows only due their weekly last-seen refresh get a narrow `UPDATE … SET updated_at`,
+ *   5. one `INSERT … ON CONFLICT … DO UPDATE … WHERE … IS DISTINCT FROM …` statement for new and
+ *      changed rows, in its own bounded transaction (the jobs-writer rule,
+ *      `packages/db/src/jobs-insert.ts`), with a row-by-row fallback only when that statement
+ *      fails, which stops at the run's deadline or after a few rows in a row failed (spec D25).
  *
  * Counter invariant (every received job lands in exactly one bucket):
  *   received = inserted + updated + unchanged + invalid + duplicatesMerged + errors
@@ -42,8 +50,9 @@ export interface IngestCounters {
   /** Jobs skipped as invalid (failed validation or missing id/site/title). */
   invalid: number;
   /**
-   * Jobs that did not get a row of their own: a duplicate within the run (same external id or
-   * dedupKey), or merged onto an existing row that carries the same dedupKey (spec D2).
+   * Jobs that did not get a row of their own: a duplicate within the run (the same external id, or
+   * the same dedupKey / fallback identity from ANOTHER source, spec D23), or merged onto an existing
+   * row of another source that carries the same dedupKey (spec D2).
    */
   duplicatesMerged: number;
   /**
@@ -86,6 +95,7 @@ export class IngestAbortedError extends Error {
   }
 }
 
+
 export interface JobIngestorOptions {
   store: JobStore;
   geocoder: RunGeocoder;
@@ -94,6 +104,19 @@ export interface JobIngestorOptions {
   logger?: IngestLogger;
   /** Give up after this many consecutive batches with nothing persisted (default 3). */
   maxConsecutiveFailedBatches?: number;
+  /**
+   * The row-by-row fallback stops after this many rows in a row failed (default
+   * {@link MAX_CONSECUTIVE_ROW_FAILURES}); the rest of the batch is counted as errors.
+   */
+  maxConsecutiveRowFailures?: number;
+  /**
+   * The run's deadline (epoch ms): past it, the row-by-row fallback writes no further row (each
+   * may take the jobs-writer rule's full statement timeout). Default: none.
+   */
+  deadlineAt?: number;
+  now?: () => number;
+  /** Candidate rows the dedup probe caches before starting over (default {@link MAX_DEDUP_PROBE_CACHE_ROWS}). */
+  dedupProbeCacheRows?: number;
   /** Called after every flushed batch (progress reporting). Must not throw. */
   onFlush?: () => void;
 }
@@ -101,30 +124,94 @@ export interface JobIngestorOptions {
 /** Cap on stored error messages (the counters stay exact). */
 const MAX_ERROR_MESSAGES = 20;
 
+/**
+ * Consecutive failed rows after which the row-by-row fallback gives the batch up (spec D25).
+ * Each row is its own bounded INSERT (up to the jobs-writer rule's 60 s statement timeout plus its
+ * idle bound), so a database that rejects every row would otherwise hold the run for up to
+ * 250 × 70 s per batch.
+ */
+export const MAX_CONSECUTIVE_ROW_FAILURES = 5;
+
+/**
+ * Candidate rows the cross-run dedup probe keeps cached per run before it starts over (spec
+ * NFR-1): the narrow rows of every company probed would otherwise grow with the whole table on a
+ * first full run. Starting over only costs repeated probe queries, never a wrong merge.
+ */
+export const MAX_DEDUP_PROBE_CACHE_ROWS = 50_000;
+
+/** A mark kept for more than one source: any source's copy of it is then a copy of one of them. */
+const SEVERAL_SOURCES = "\u0000several";
+
+const isCopyOf = (mark: string | undefined, site: string) => mark !== undefined && mark !== site;
+
+/**
+ * Within-run identities (a dedupKey, or the fallback identity of a job without one) marked with
+ * the source they were kept for: the run's marks plus this batch's, committed only once the
+ * batch's pre-queries succeeded.
+ */
+class BatchMarks {
+  private readonly added = new Map<string, string>();
+  constructor(private readonly run: Map<string, string>) {}
+
+  private get(identity: string): string | undefined {
+    return this.added.get(identity) ?? this.run.get(identity);
+  }
+
+  /** A job from `site` with this identity is a copy of a posting kept for another source. */
+  isCopy(identity: string, site: string): boolean {
+    return isCopyOf(this.get(identity), site);
+  }
+
+  keep(identity: string, site: string): void {
+    const mark = this.get(identity);
+    this.added.set(identity, mark === undefined || mark === site ? site : SEVERAL_SOURCES);
+  }
+
+  commit(): void {
+    for (const [identity, mark] of this.added) this.run.set(identity, mark);
+  }
+}
+
+/** A stored row owning a dedupKey (see {@link JobIngestor.storedOwnerFor}). */
+interface StoredOwner {
+  id: number;
+  externalId: string;
+  site: string;
+  sourceId: string | null;
+}
+
 export class JobIngestor {
   readonly counters = emptyCounters();
   readonly errorMessages: string[] = [];
 
   private readonly batchSize: number;
   private readonly maxConsecutiveFailedBatches: number;
+  private readonly maxConsecutiveRowFailures: number;
+  private readonly now: () => number;
   private buffer: JobPostDto[] = [];
 
   /**
-   * Within-run identities: the first job seen wins. The sync asks Ever Jobs for every observation
-   * (`dedup=false`, spec 01a D22), so this is THE within-run dedupe: by external id, by the
-   * producer's `dedupKey` (company | title | location), and for a job without a key (a
-   * pre-contract server) by {@link fallbackDedupIdentity}.
+   * Within-run identities. The sync asks Ever Jobs for every observation (`dedup=false`, spec 01a
+   * D22), so this is THE within-run dedupe: an external id is kept once, and a job is dropped as a
+   * copy when a posting from ANOTHER source with the same producer `dedupKey` (company | title |
+   * location), or for a job without a key (a pre-contract server) the same
+   * {@link fallbackDedupIdentity}, was kept earlier in the run. One source's two ids with the
+   * same key are two postings (one employer's new-grad and intern role with the same title in the
+   * same city, spec D23) and both are kept. Marks map the identity to the source it was kept for.
    */
   private readonly seenExternalIds = new Set<string>();
-  private readonly seenDedupKeys = new Set<string>();
-  private readonly seenFallbackIdentities = new Set<string>();
+  private readonly keptKeys = new Map<string, string>();
+  private readonly keptFallbacks = new Map<string, string>();
+  /** One string per source name, shared by every mark (the marks grow with the run). */
+  private readonly siteNames = new Map<string, string>();
 
   /**
-   * Cross-run dedupe state (per run): stored dedupKey → the row owning it; the titles/companies
-   * already probed; the narrow candidate rows grouped by loose (title, company) identity; and the
-   * candidate ids whose stored dedupKey was already read.
+   * Cross-run dedupe state (per run, capped by {@link MAX_DEDUP_PROBE_CACHE_ROWS}): stored dedupKey
+   * → the rows owning it (oldest first); the titles/companies already probed; the narrow candidate
+   * rows grouped by loose (title, company) identity; and the candidate ids whose stored dedupKey was
+   * already read.
    */
-  private readonly storedByDedupKey = new Map<string, { id: number; externalId: string }>();
+  private readonly storedByDedupKey = new Map<string, StoredOwner[]>();
   private readonly probedTitles = new Set<string>();
   private readonly probedCompanies = new Set<string>();
   private readonly candidatesByIdentity = new Map<string, Array<{ id: number; externalId: string }>>();
@@ -132,7 +219,7 @@ export class JobIngestor {
   private readonly keyReadIds = new Set<number>();
 
   private consecutiveFailedBatches = 0;
-  /** Rows the database accepted (inserted, rewritten, unchanged, or merged onto another row). */
+  /** Rows the database accepted (inserted, rewritten, refreshed, unchanged, or merged onto another row). */
   private rowsPersisted = 0;
 
   constructor(private readonly options: JobIngestorOptions) {
@@ -142,6 +229,8 @@ export class JobIngestor {
       Math.max(1, options.batchSize ?? MAX_UPSERT_ROWS_PER_STATEMENT),
     );
     this.maxConsecutiveFailedBatches = Math.max(1, options.maxConsecutiveFailedBatches ?? 3);
+    this.maxConsecutiveRowFailures = Math.max(1, options.maxConsecutiveRowFailures ?? MAX_CONSECUTIVE_ROW_FAILURES);
+    this.now = options.now ?? Date.now;
   }
 
   /** Rows the database accepted so far (within-run duplicates are not writes and not counted). */
@@ -158,26 +247,23 @@ export class JobIngestor {
     }
   }
 
-  /** Add one validated job; flushes a batch when the buffer is full. */
+  /**
+   * Add one validated job; flushes a batch when the buffer is full. Only an external id seen
+   * before is dropped here: whether a job is a copy of another source's posting depends on
+   * whether its own id already exists (an existing id is always written, spec D23), which the
+   * batch learns in one query.
+   */
   async add(job: JobPostDto): Promise<void> {
     this.counters.received++;
     if (!isPersistable(job)) {
       this.counters.invalid++;
       return;
     }
-    const dedupKey = normaliseDedupKey(job.dedupKey);
-    const fallback = dedupKey ? undefined : fallbackDedupIdentity(job);
-    if (
-      this.seenExternalIds.has(job.id) ||
-      (dedupKey !== undefined && this.seenDedupKeys.has(dedupKey)) ||
-      (fallback !== undefined && this.seenFallbackIdentities.has(fallback))
-    ) {
+    if (this.seenExternalIds.has(job.id)) {
       this.counters.duplicatesMerged++;
       return;
     }
     this.seenExternalIds.add(job.id);
-    if (dedupKey) this.seenDedupKeys.add(dedupKey);
-    if (fallback) this.seenFallbackIdentities.add(fallback);
     this.buffer.push(job);
     if (this.buffer.length >= this.batchSize) await this.flush();
   }
@@ -217,28 +303,53 @@ export class JobIngestor {
     }
   }
 
-  /** Returns how many rows of the batch the database accepted. */
+  /** Returns how many jobs of the batch were settled without an error (written, unchanged or merged). */
   private async persistBatch(batch: JobPostDto[]): Promise<number> {
     const { store } = this.options;
 
-    // 1) Which external ids already exist?
+    // 1) Which external ids already exist? Those are their sources' own rows: always written
+    //    under their own id (spec D23), even when another source's copy arrived first this run.
     const existing = await store.findExisting(batch.map((j) => j.id));
 
-    // 2) Cross-run dedupe, only for new external ids that carry a dedupKey.
-    const fresh = batch.filter((j) => !existing.has(j.id) && normaliseDedupKey(j.dedupKey));
-    if (fresh.length > 0) await this.probeDedupCandidates(fresh);
-
-    // Pass 1: rows written under their own external id (batch ids are unique — see add()).
+    const keys = new BatchMarks(this.keptKeys);
+    const fallbacks = new BatchMarks(this.keptFallbacks);
     const rows: JobRow[] = [];
     const targets = new Set<string>();
-    const merges: Array<{ job: JobPostDto; owner: string }> = [];
+    const fresh: JobPostDto[] = [];
     for (const job of batch) {
-      const dedupKey = normaliseDedupKey(job.dedupKey);
-      const owner = !existing.has(job.id) && dedupKey ? this.storedByDedupKey.get(dedupKey) : undefined;
-      if (owner && owner.externalId !== job.id) {
+      if (!existing.has(job.id)) {
+        fresh.push(job);
+        continue;
+      }
+      this.markKept(job, keys, fallbacks);
+      targets.add(job.id);
+      rows.push(mapJobToDb(job));
+    }
+
+    // 2) Cross-run dedupe probe, only for new external ids with a dedupKey that are not already a
+    //    copy of a posting kept in this run.
+    const toProbe = fresh.filter((j) => {
+      const key = normaliseDedupKey(j.dedupKey);
+      return key !== undefined && !keys.isCopy(key, this.siteOf(j));
+    });
+    if (toProbe.length > 0) await this.probeDedupCandidates(toProbe);
+
+    // Pass 1: new ids, in stream order — a copy of a posting kept in this run is dropped, a copy
+    // of a stored row of another source merges onto it, anything else gets its own row.
+    let copies = 0;
+    const merges: Array<{ job: JobPostDto; owner: string }> = [];
+    for (const job of fresh) {
+      if (this.isCopy(job, keys, fallbacks)) {
+        copies++;
+        continue;
+      }
+      const key = normaliseDedupKey(job.dedupKey);
+      const owner = key !== undefined ? this.storedOwnerFor(key, job) : undefined;
+      if (owner) {
         merges.push({ job, owner: owner.externalId });
         continue;
       }
+      this.markKept(job, keys, fallbacks);
       targets.add(job.id);
       rows.push(mapJobToDb(job));
     }
@@ -266,8 +377,14 @@ export class JobIngestor {
       const ownerRef = stored.get(owner);
       const row = mapJobToDb(job);
       if (!ownerRef) {
-        // The owner vanished since the probe (e.g. the cleanup deleted it): this job gets its own row.
-        this.storedByDedupKey.delete(normaliseDedupKey(job.dedupKey) ?? "");
+        // The owner vanished since the probe (e.g. the cleanup deleted it): this job gets its own
+        // row, unless an earlier job of this pass took that place for another source.
+        this.forgetStoredOwner(normaliseDedupKey(job.dedupKey), owner);
+        if (this.isCopy(job, keys, fallbacks)) {
+          copies++;
+          continue;
+        }
+        this.markKept(job, keys, fallbacks);
         targets.add(job.id);
         rows.push(row);
         continue;
@@ -282,37 +399,163 @@ export class JobIngestor {
       rows.push(row);
     }
 
+    // Every pre-query succeeded: the batch's marks and dedupe outcomes become the run's. (If one
+    // had thrown, flush() counts the whole batch as errors and none of this happened.)
+    keys.commit();
+    fallbacks.commit();
+    this.counters.duplicatesMerged += copies + keptMerges;
+    const settled = copies + keptMerges;
+
     // 3) Coordinates for rows that lack usable stored ones.
     await this.geocodeRows(rows, stored);
 
-    // Counted only now: if a pre-query above throws, flush() counts the whole batch as errors.
-    this.counters.duplicatesMerged += keptMerges;
-    if (rows.length === 0) return keptMerges;
+    // 4) What the rows that exist actually need (spec D24).
+    const { write, refresh, unchanged } = await this.sortByNeed(rows, stored);
+    this.countWrite(unchanged, [], mergedTargets);
+    let accepted = settled + unchanged.length;
+    accepted += await this.refreshLastSeen(refresh, mergedTargets);
+    if (write.length === 0) return accepted;
 
-    // 4) One statement for the batch; a stable key order keeps concurrent runs deadlock-free.
-    rows.sort((a, b) => (a.externalId < b.externalId ? -1 : a.externalId > b.externalId ? 1 : 0));
+    // 5) One statement for the batch; a stable key order keeps concurrent runs deadlock-free.
+    write.sort((a, b) => (a.externalId < b.externalId ? -1 : a.externalId > b.externalId ? 1 : 0));
     try {
-      const written = await store.upsertBatch(rows);
-      this.countWrite(rows, written, mergedTargets);
-      return rows.length + keptMerges;
+      const written = await store.upsertBatch(write);
+      this.countWrite(write, written, mergedTargets);
+      return accepted + write.length;
     } catch (err) {
       this.recordError(
-        `bulk upsert of ${rows.length} rows failed, retrying row by row: ${messageOf(err)}`,
+        `bulk upsert of ${write.length} rows failed, retrying row by row: ${messageOf(err)}`,
       );
     }
 
     let ok = 0;
-    for (const row of rows) {
+    let failedInARow = 0;
+    for (const [i, row] of write.entries()) {
+      const stop =
+        failedInARow >= this.maxConsecutiveRowFailures
+          ? `${failedInARow} rows in a row failed`
+          : this.options.deadlineAt !== undefined && this.now() >= this.options.deadlineAt
+            ? "the run's deadline passed"
+            : null;
+      if (stop) {
+        const left = write.length - i;
+        this.counters.errors += left;
+        this.recordError(`row-by-row fallback stopped (${stop}); ${left} of ${write.length} rows not written`);
+        break;
+      }
       try {
         const written = await store.upsertBatch([row]);
         this.countWrite([row], written, mergedTargets);
         ok++;
+        failedInARow = 0;
       } catch (rowErr) {
         this.counters.errors++;
+        failedInARow++;
         this.recordError(`upsert of ${row.externalId} failed: ${messageOf(rowErr)}`);
       }
     }
-    return ok;
+    return accepted + ok;
+  }
+
+  /**
+   * Split the batch's rows by what they need: rows whose external id does not exist are written;
+   * for the others the upsert's `WHERE` is read ahead (spec D24). When that read fails, every row
+   * goes to the upsert, whose own `WHERE` still skips unchanged rows (at the cost of locking them).
+   */
+  private async sortByNeed(
+    rows: JobRow[],
+    stored: Map<string, ExistingJobRef>,
+  ): Promise<{ write: JobRow[]; refresh: JobRow[]; unchanged: JobRow[] }> {
+    const out = { write: [] as JobRow[], refresh: [] as JobRow[], unchanged: [] as JobRow[] };
+    const existingRows = rows.filter((r) => stored.has(r.externalId));
+    let needs: Map<string, WriteNeed> | null = null;
+    if (existingRows.length > 0) {
+      try {
+        needs = await this.options.store.findWriteNeeds(existingRows);
+      } catch (err) {
+        this.options.logger?.warn(
+          `[jobs-sync] reading which of ${existingRows.length} existing rows changed failed; sending them to the upsert: ${messageOf(err)}`,
+        );
+      }
+    }
+    for (const row of rows) {
+      if (!stored.has(row.externalId) || needs === null) {
+        out.write.push(row);
+        continue;
+      }
+      const need = needs.get(row.externalId);
+      if (need === "write") out.write.push(row);
+      else if (need === "refresh") out.refresh.push(row);
+      else out.unchanged.push(row);
+    }
+    return out;
+  }
+
+  /** The narrow last-seen refresh (spec D14/D24). Returns the rows settled (refreshed or not due). */
+  private async refreshLastSeen(rows: JobRow[], mergedTargets: Set<string>): Promise<number> {
+    if (rows.length === 0) return 0;
+    const seenAt = new Date(Math.max(...rows.map((r) => r.updatedAt.getTime())));
+    try {
+      const refreshed = await this.options.store.refreshLastSeen(
+        rows.map((r) => r.externalId),
+        seenAt,
+      );
+      this.countWrite(
+        rows,
+        refreshed.map((externalId) => ({ externalId, inserted: false })),
+        mergedTargets,
+      );
+      return rows.length;
+    } catch (err) {
+      this.counters.errors += rows.length;
+      this.recordError(`last-seen refresh of ${rows.length} rows failed: ${messageOf(err)}`);
+      return 0;
+    }
+  }
+
+  private siteOf(job: Pick<JobPostDto, "site">): string {
+    const site = job.site.trim().toLowerCase();
+    const shared = this.siteNames.get(site);
+    if (shared !== undefined) return shared;
+    this.siteNames.set(site, site);
+    return site;
+  }
+
+  /** A job whose identity was kept in this run for another source (spec D23). */
+  private isCopy(job: JobPostDto, keys: BatchMarks, fallbacks: BatchMarks): boolean {
+    const site = this.siteOf(job);
+    const key = normaliseDedupKey(job.dedupKey);
+    if (key !== undefined) return keys.isCopy(key, site);
+    return fallbacks.isCopy(fallbackDedupIdentity(job), site);
+  }
+
+  private markKept(job: JobPostDto, keys: BatchMarks, fallbacks: BatchMarks): void {
+    const site = this.siteOf(job);
+    const key = normaliseDedupKey(job.dedupKey);
+    if (key !== undefined) keys.keep(key, site);
+    else fallbacks.keep(fallbackDedupIdentity(job), site);
+  }
+
+  /**
+   * The stored row a new job is a copy of (spec D2/D23): the oldest row with the job's dedupKey
+   * that comes from another source, or that holds this very job's content (a row it took over
+   * earlier: its `raw_data.id` is the job's id). A row of the job's own source with another id is
+   * a different posting.
+   */
+  private storedOwnerFor(key: string, job: JobPostDto): StoredOwner | undefined {
+    const owners = this.storedByDedupKey.get(key);
+    if (!owners) return undefined;
+    const site = this.siteOf(job);
+    return owners.find(
+      (o) => o.externalId !== job.id && (o.sourceId === job.id || this.siteOf(o) !== site),
+    );
+  }
+
+  private forgetStoredOwner(key: string | undefined, externalId: string): void {
+    if (key === undefined) return;
+    const owners = this.storedByDedupKey.get(key)?.filter((o) => o.externalId !== externalId);
+    if (owners && owners.length > 0) this.storedByDedupKey.set(key, owners);
+    else this.storedByDedupKey.delete(key);
   }
 
   private async geocodeRows(rows: JobRow[], stored: Map<string, ExistingJobRef>): Promise<void> {
@@ -355,11 +598,16 @@ export class JobIngestor {
    * row of every company in the batch:
    *   1. narrow rows (id, external_id, title, company) sharing an exact title OR company — once per
    *      title/company per run, through the btree indexes;
-   *   2. the stored dedupKey (`raw_data`, usually TOASTed) only for the candidates whose title AND
-   *      company match an incoming job loosely (case, punctuation, corporate suffix), by id.
+   *   2. the stored dedupKey (`raw_data`, usually TOASTed), with the row's source and the source id
+   *      of its content, only for the candidates whose title AND company match an incoming job
+   *      loosely (case, punctuation, corporate suffix), by id.
+   * The cache of step 1 starts over once it holds {@link MAX_DEDUP_PROBE_CACHE_ROWS} rows.
    */
   private async probeDedupCandidates(jobs: JobPostDto[]): Promise<void> {
     const { store } = this.options;
+    if (this.groupedIds.size >= (this.options.dedupProbeCacheRows ?? MAX_DEDUP_PROBE_CACHE_ROWS)) {
+      this.resetProbeCache();
+    }
     const titles = new Set<string>();
     const companies = new Set<string>();
     for (const j of jobs) {
@@ -393,12 +641,26 @@ export class JobIngestor {
     for (const c of keyed) {
       const key = normaliseDedupKey(c.dedupKey);
       if (!key) continue;
-      // The oldest row (lowest id) owns the key.
-      const current = this.storedByDedupKey.get(key);
-      if (!current || c.id < current.id) {
-        this.storedByDedupKey.set(key, { id: c.id, externalId: c.externalId });
+      const owner: StoredOwner = { id: c.id, externalId: c.externalId, site: c.site, sourceId: c.sourceId };
+      const owners = this.storedByDedupKey.get(key);
+      if (!owners) {
+        this.storedByDedupKey.set(key, [owner]);
+        continue;
       }
+      if (owners.some((o) => o.id === c.id)) continue;
+      // Oldest first: the oldest row of another source owns the key.
+      owners.push(owner);
+      owners.sort((a, b) => a.id - b.id);
     }
+  }
+
+  private resetProbeCache(): void {
+    this.storedByDedupKey.clear();
+    this.probedTitles.clear();
+    this.probedCompanies.clear();
+    this.candidatesByIdentity.clear();
+    this.groupedIds.clear();
+    this.keyReadIds.clear();
   }
 
   private countWrite(rows: JobRow[], written: WrittenRow[], mergedTargets: Set<string>): void {
@@ -455,7 +717,8 @@ export function looseIdentity(title: string, company: string | null | undefined)
  * none, and it honours `dedup=false` too, so without this its cross-source copies of one posting
  * would all be stored. Company + title + location, each compared loosely: the same parts as the
  * producer's key (company | title | location), so two postings of one title in different cities
- * stay apart. Used within a run only; the cross-run merge (D2) needs the producer's stored key.
+ * stay apart; like the key, it only makes a job from ANOTHER source a copy (spec D23). Used within
+ * a run only; the cross-run merge (D2) needs the producer's stored key.
  */
 export function fallbackDedupIdentity(job: Pick<JobPostDto, "title" | "companyName" | "location">): string {
   const loc = job.location ?? {};
@@ -471,5 +734,5 @@ function normaliseDedupKey(key: unknown): string | undefined {
 }
 
 function messageOf(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+  return errorText(err);
 }

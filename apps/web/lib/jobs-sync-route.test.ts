@@ -24,6 +24,8 @@ function acceptingStore(): JobStore & { written: string[] } {
     findExisting: async () => new Map(),
     findDedupCandidates: async () => [],
     findDedupKeys: async () => [],
+    findWriteNeeds: async () => new Map(),
+    refreshLastSeen: async () => [],
     findCoordsForLocations: async () => new Map(),
     upsertBatch: async (rows) => {
       written.push(...rows.map((r) => r.externalId));

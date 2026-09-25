@@ -297,3 +297,59 @@ describe("googleGeocoder", () => {
     expect(typeof googleGeocoderFromEnv({ GOOGLE_MAPS_SERVER_KEY: "k" })).toBe("function");
   });
 });
+
+describe("RunGeocoder — one load of every stored location for a long run (spec D26)", () => {
+  const stored: Record<string, Coords> = {
+    "a||": { latitude: "1", longitude: "1" },
+    "b||": { latitude: "2", longitude: "2" },
+    "c||": { latitude: "3", longitude: "3" },
+  };
+  function preloadingLookup(answer: "all" | "too-many" | "fail" = "all") {
+    const { lookup, fn } = lookupOf(stored);
+    const load = jest.fn(async (limit: number) => {
+      if (answer === "fail") throw new Error("canceling statement due to statement timeout");
+      if (answer === "too-many") return null;
+      expect(limit).toBe(50_000);
+      return new Map(Object.entries(stored));
+    });
+    return { lookup: { ...lookup, loadStoredCoords: load } as CoordsLookup, fn, load };
+  }
+  const batch = (key: string) => [{ key, parts: { city: key.split("|")[0] } }];
+
+  it("makes two targeted lookups, then loads every stored location once and answers from it", async () => {
+    const { lookup, fn, load } = preloadingLookup();
+    const geocode = jest.fn<GeocodeFn>(async (a) => ok(a));
+    const g = new RunGeocoder({ lookup, geocode, maxCalls: 10, logger: silent });
+    expect((await g.resolve(batch("a||"))).get("a||")).toEqual(stored["a||"]);
+    expect((await g.resolve(batch("x||"))).get("x||")).toEqual(ok("x").coords); // stored miss → Google
+    expect((await g.resolve(batch("b||"))).get("b||")).toEqual(stored["b||"]);
+    expect((await g.resolve(batch("c||"))).get("c||")).toEqual(stored["c||"]);
+    expect((await g.resolve(batch("y||"))).get("y||")).toEqual(ok("y").coords); // absent from the load → Google
+    expect(fn).toHaveBeenCalledTimes(2);
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(geocode.mock.calls.map((c) => c[0])).toEqual(["x", "y"]);
+  });
+
+  it("stays with per-batch lookups when there are too many stored locations to load, or the load failed", async () => {
+    for (const answer of ["too-many", "fail"] as const) {
+      const { lookup, fn, load } = preloadingLookup(answer);
+      const warnings: string[] = [];
+      const g = new RunGeocoder({ lookup, geocode: null, maxCalls: 0, logger: { warn: (m) => warnings.push(m) } });
+      for (const key of ["a||", "b||", "c||", "d||"]) await g.resolve(batch(key));
+      expect(load).toHaveBeenCalledTimes(1); // tried once, never again this run
+      expect(fn).toHaveBeenCalledTimes(4);
+      expect(warnings.join("\n")).toContain("stored coordinates stay per batch this run");
+    }
+  });
+
+  it("never loads for a lookup without loadStoredCoords, or before the threshold", async () => {
+    const { lookup, fn } = lookupOf(stored);
+    const g = new RunGeocoder({ lookup, geocode: null, maxCalls: 0, logger: silent });
+    for (const key of ["a||", "b||", "c||"]) await g.resolve(batch(key));
+    expect(fn).toHaveBeenCalledTimes(3);
+    const custom = preloadingLookup();
+    const late = new RunGeocoder({ lookup: custom.lookup, geocode: null, maxCalls: 0, logger: silent, storedLookupsBeforePreload: 5 });
+    for (const key of ["a||", "b||", "c||"]) await late.resolve(batch(key));
+    expect(custom.load).not.toHaveBeenCalled();
+  });
+});

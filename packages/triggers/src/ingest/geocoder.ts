@@ -1,3 +1,5 @@
+import { errorText } from "./errors";
+
 /**
  * Geocoding for the job sync (spec 01a FR-8).
  *
@@ -6,8 +8,9 @@
  *   2. the process memo ({@link GeocodeMemo}, shared by every run of this process for a TTL):
  *      coordinates, "unresolvable" (Google said ZERO_RESULTS / failed — not retried until the TTL
  *      ends) and "no stored coordinates" (skip the stored-coordinate query, go to Google),
- *   3. coordinates already stored in `jobs` for the same normalised location
- *      (one batched query per ingest batch, via {@link CoordsLookup}),
+ *   3. coordinates already stored in `jobs` for the same normalised location (one batched query
+ *      per ingest batch, via {@link CoordsLookup}; after {@link STORED_LOOKUPS_BEFORE_PRELOAD} of
+ *      those, one load of every stored location for the rest of the run),
  *   4. Google's Geocoding API — sequentially, at most `maxCalls` per run, and never again in the
  *      run once Google answered `OVER_QUERY_LIMIT` (quota) or `REQUEST_DENIED` (unusable key); the
  *      process memo then keeps Google off for every run for a while too.
@@ -36,7 +39,26 @@ export type GeocodeFn = (address: string) => Promise<GeocodeOutcome>;
 export interface CoordsLookup {
   /** Stored coordinates for normalised location keys (see {@link locationKey}); missing keys are absent. */
   findCoordsForLocations(keys: string[]): Promise<Map<string, Coords>>;
+  /**
+   * Every stored location's coordinates in one read, or `null` when there are more than `limit`
+   * of them (spec 01a D26). Optional: without it every batch uses {@link findCoordsForLocations}.
+   */
+  loadStoredCoords?(limit: number): Promise<Map<string, Coords> | null>;
 }
+
+/**
+ * Per-batch stored-coordinate lookups a run makes before it loads every stored location once
+ * instead (spec 01a D26). Each lookup scans `jobs` (no index covers the computed location key), so
+ * a keyword run (a few batches) keeps its targeted lookups, and a full run (hundreds of batches)
+ * pays two of them plus one load instead of one scan per batch.
+ */
+export const STORED_LOOKUPS_BEFORE_PRELOAD = 2;
+
+/**
+ * Most stored locations a run loads at once (≈ 10 MB of memo at the worst); with more, the run
+ * stays with per-batch lookups.
+ */
+export const STORED_COORDS_PRELOAD_LIMIT = 50_000;
 
 export type GeocoderStopReason = "quota" | "denied" | "cap" | "disabled";
 
@@ -238,6 +260,12 @@ export class RunGeocoder {
   stoppedReason: GeocoderStopReason | null;
 
   private readonly memo = new Map<string, Coords | null>();
+  /** Per-batch stored-coordinate lookups made so far. */
+  private storedLookups = 0;
+  /** Every stored location's coordinates, once loaded (spec D26). */
+  private preloaded: Map<string, Coords> | null = null;
+  /** The load was tried and failed or was too large: stay with per-batch lookups. */
+  private preloadGaveUp = false;
 
   constructor(
     private readonly deps: {
@@ -247,6 +275,10 @@ export class RunGeocoder {
       logger?: GeocoderLogger;
       /** Cross-run memo (default: none — the run memo only). */
       shared?: GeocodeMemo;
+      /** Default {@link STORED_LOOKUPS_BEFORE_PRELOAD}. */
+      storedLookupsBeforePreload?: number;
+      /** Default {@link STORED_COORDS_PRELOAD_LIMIT}. */
+      preloadLimit?: number;
     },
   ) {
     this.stoppedReason = deps.geocode ? (deps.maxCalls > 0 ? null : "cap") : "disabled";
@@ -297,14 +329,7 @@ export class RunGeocoder {
 
     // 2) Stored coordinates for the same location — one query for the whole batch.
     if (toLookUp.length > 0) {
-      let stored: Map<string, Coords> | null = null;
-      try {
-        stored = await this.deps.lookup.findCoordsForLocations(toLookUp);
-      } catch (err) {
-        this.deps.logger?.warn(
-          `[jobs-sync] stored-coordinate lookup failed: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
+      const stored = await this.storedCoords(toLookUp);
       for (const key of toLookUp) {
         const coords = stored?.get(key);
         if (coords) {
@@ -380,6 +405,48 @@ export class RunGeocoder {
       this.reused++;
     }
     return result;
+  }
+
+  /**
+   * Stored coordinates for `keys`, or `null` when the lookup failed (which proves nothing about the
+   * keys). The first {@link STORED_LOOKUPS_BEFORE_PRELOAD} calls of a run query just those keys;
+   * after that the run loads every stored location once and answers from memory (spec D26).
+   */
+  private async storedCoords(keys: string[]): Promise<Map<string, Coords> | null> {
+    const { lookup, logger } = this.deps;
+    const threshold = this.deps.storedLookupsBeforePreload ?? STORED_LOOKUPS_BEFORE_PRELOAD;
+    if (!this.preloaded && !this.preloadGaveUp && lookup.loadStoredCoords && this.storedLookups >= threshold) {
+      const limit = this.deps.preloadLimit ?? STORED_COORDS_PRELOAD_LIMIT;
+      try {
+        this.preloaded = await lookup.loadStoredCoords(limit);
+        if (!this.preloaded) {
+          this.preloadGaveUp = true;
+          logger?.warn(
+            `[jobs-sync] more than ${limit} stored locations to load at once; stored coordinates stay per batch this run`,
+          );
+        }
+      } catch (err) {
+        this.preloadGaveUp = true;
+        logger?.warn(
+          `[jobs-sync] loading stored coordinates failed (${errorText(err)}); stored coordinates stay per batch this run`,
+        );
+      }
+    }
+    if (this.preloaded) {
+      const out = new Map<string, Coords>();
+      for (const key of keys) {
+        const coords = this.preloaded.get(key);
+        if (coords) out.set(key, coords);
+      }
+      return out;
+    }
+    this.storedLookups++;
+    try {
+      return await lookup.findCoordsForLocations(keys);
+    } catch (err) {
+      logger?.warn(`[jobs-sync] stored-coordinate lookup failed: ${errorText(err)}`);
+      return null;
+    }
   }
 
   private stop(reason: GeocoderStopReason, message: string): void {

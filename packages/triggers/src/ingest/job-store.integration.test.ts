@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
 import * as postgresModule from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
@@ -6,7 +7,8 @@ import type { Database } from "@ever-hust/db";
 import type { JobPostDto, JobStreamEvent } from "@ever-hust/jobs-api";
 import { buildSyncPlan, type SyncEnvConfig } from "./config";
 import type { GeocodeFn } from "./geocoder";
-import { createDrizzleJobStore } from "./job-store";
+import { errorText } from "./errors";
+import { createDrizzleJobStore, type JobStore } from "./job-store";
 import { runJobsSync, type UpstreamStream } from "./run-sync";
 
 /**
@@ -72,15 +74,30 @@ suite("job store against Postgres (opt-in)", () => {
     return { status: "ok", coords: { latitude: "30.2672", longitude: "-97.7431" } };
   };
 
-  const sync = (jobs: JobPostDto[], batchSize = 2) =>
+  const syncWith = (store: JobStore, jobs: JobPostDto[], batchSize = 2) =>
     runJobsSync(buildSyncPlan({ mode: "full" }, ENV, Date.now(), "v1"), {
       openStream: async () => streamOf(jobs),
-      store: createDrizzleJobStore(db),
+      store,
       geocode,
       geocodeMaxCalls: 100,
       batchSize,
       logger: quiet,
     });
+  const sync = (jobs: JobPostDto[], batchSize = 2) => syncWith(createDrizzleJobStore(db), jobs, batchSize);
+
+  /** Rows whose xmax is set: rewritten, deleted, or LOCKED by an ON CONFLICT that did not update. */
+  const lockedOrTouched = async () =>
+    (await client<Array<{ n: number }>>`SELECT count(*)::int AS n FROM jobs WHERE xmax::text <> '0'`)[0]!.n;
+  const toastBytes = async () =>
+    Number(
+      (
+        await client<Array<{ b: string }>>`
+          SELECT pg_relation_size(reltoastrelid)::text AS b FROM pg_class WHERE relname = 'jobs' AND relkind = 'r'`
+      )[0]!.b,
+    );
+  const walBytesSince = async (lsn: string) =>
+    Number((await client<Array<{ d: string }>>`SELECT pg_wal_lsn_diff(pg_current_wal_insert_lsn(), ${lsn}::pg_lsn)::text AS d`)[0]!.d);
+  const walNow = async () => (await client<Array<{ l: string }>>`SELECT pg_current_wal_insert_lsn()::text AS l`)[0]!.l;
 
   const rowVersions = async () =>
     Object.fromEntries(
@@ -151,7 +168,7 @@ suite("job store against Postgres (opt-in)", () => {
   });
 
   it("merges a new external id onto the stored row that owns its dedupKey (no second row)", async () => {
-    await sync([job("lever-1", { dedupKey: "acme|eng|austin", jobUrl: "https://old" })]);
+    await sync([job("lever-1", { site: "lever", dedupKey: "acme|eng|austin", jobUrl: "https://old" })]);
     const owner = await client`SELECT id FROM jobs WHERE external_id = 'lever-1'`;
 
     const merged = await sync([
@@ -280,6 +297,124 @@ suite("job store against Postgres (opt-in)", () => {
     expect(await sync([job("a", { title: "Staff Engineer a" })])).toMatchObject({ updated: 1 });
     const second = await client`SELECT created_at::text AS c, title FROM jobs WHERE external_id = 'a'`;
     expect(second[0]).toMatchObject({ c: first[0]!.c, title: "Staff Engineer a" });
+  });
+
+  // --- review round of 2026-09-26 -------------------------------------------------------------
+
+  it("keeps one source's two postings that share a dedupKey, across runs; another source's copy merges (spec D23, E2E R1)", async () => {
+    const key = "jane street|software engineer|new york";
+    const js = (id: string, extra: Partial<JobPostDto> = {}) =>
+      job(id, { title: "Software Engineer", companyName: "Jane Street", location: { city: "New York", state: "NY" }, dedupKey: key, ...extra });
+    expect(await sync([js("js-intern", { employmentType: "internship" })])).toMatchObject({ inserted: 1 });
+    const second = await sync([js("js-intern", { employmentType: "internship" }), js("js-newgrad", { employmentType: "new_grad" })]);
+    expect(second).toMatchObject({ ok: true, inserted: 1, unchanged: 1, duplicatesMerged: 0 });
+    const board = await sync([js("in-1", { site: "indeed" })]);
+    expect(board).toMatchObject({ ok: true, inserted: 0, duplicatesMerged: 1, mergedWrites: 0 });
+    const rows = await client`SELECT external_id, employment_type FROM jobs ORDER BY external_id`;
+    expect(rows.map((r) => [r.external_id, r.employment_type])).toEqual([
+      ["js-intern", "internship"],
+      ["js-newgrad", "new_grad"],
+    ]);
+  });
+
+  it("an unchanged re-sync neither rewrites NOR locks a row (xmax stays 0); bypassing the read-ahead locks them all (spec D24)", async () => {
+    const corpus = Array.from({ length: 40 }, (_, i) =>
+      job(`u-${String(i).padStart(2, "0")}`, {
+        isRemote: i % 2 === 0,
+        jobType: ["fulltime", "internship"],
+        skills: ["go", "sql"],
+        compensation: { minAmount: 100000 + i, maxAmount: 150000.5, currency: "USD", interval: "yearly" },
+        careerLevel: { level: "new_grad", confidence: "high" },
+        dedupKey: `acme|engineer ${i}|austin`,
+        expiresAt: "2026-12-31T23:59:59.000Z",
+      } as Partial<JobPostDto>),
+    );
+    expect(await sync(corpus, 250)).toMatchObject({ ok: true, inserted: 40 });
+    expect(await lockedOrTouched()).toBe(0);
+
+    const again = await sync(corpus, 250);
+    expect(again).toMatchObject({ ok: true, inserted: 0, updated: 0, unchanged: 40 });
+    expect(await lockedOrTouched()).toBe(0);
+
+    // Control: the same re-sync through the upsert alone (its WHERE is false for every row).
+    const bypass: JobStore = {
+      ...createDrizzleJobStore(db),
+      findWriteNeeds: async () => {
+        throw new Error("read-ahead bypassed");
+      },
+    };
+    const control = await syncWith(bypass, corpus, 250);
+    expect(control).toMatchObject({ ok: true, inserted: 0, updated: 0, unchanged: 40 });
+    expect(await lockedOrTouched()).toBe(40);
+  });
+
+  it("detects a description-only change (review finding 5)", async () => {
+    await sync([job("d", { description: "first text" })]);
+    const v = await rowVersions();
+    const res = await sync([job("d", { description: "second text" })]);
+    expect(res).toMatchObject({ ok: true, updated: 1, unchanged: 0 });
+    expect((await rowVersions()).d).not.toBe(v.d);
+    const stored = await client`SELECT description FROM jobs WHERE external_id = 'd'`;
+    expect(stored[0]!.description).toBe("second text");
+  });
+
+  it("refreshes a stale unchanged row's last-seen marker without rewriting its TOASTed content (spec D14/D24, finding 7)", async () => {
+    const big = randomBytes(48 * 1024).toString("base64"); // ~64 KB, incompressible: stored out of line
+    await sync([job("big", { description: big })]);
+    const created = await client`SELECT created_at::text AS c FROM jobs WHERE external_id = 'big'`;
+    await client`UPDATE jobs SET updated_at = (now() AT TIME ZONE 'UTC') - interval '30 days' WHERE external_id = 'big'`;
+
+    const toast0 = await toastBytes();
+    const wal0 = await walNow();
+    const refreshed = await sync([job("big", { description: big })]);
+    expect(refreshed).toMatchObject({ ok: true, updated: 1, unchanged: 0 });
+    expect(await toastBytes()).toBe(toast0); // no new TOAST chunk
+    expect(await walBytesSince(wal0)).toBeLessThan(24 * 1024); // a heap tuple (+ at most a page image), not 64 KB
+    const after = await client`
+      SELECT created_at::text AS c, updated_at > (now() AT TIME ZONE 'UTC') - interval '1 day' AS fresh, description = ${big} AS same
+      FROM jobs WHERE external_id = 'big'`;
+    expect(after[0]).toMatchObject({ c: created[0]!.c, fresh: true, same: true });
+    expect(await sync([job("big", { description: big })])).toMatchObject({ updated: 0, unchanged: 1 });
+
+    // Control: a content change does rewrite the TOASTed value.
+    const wal1 = await walNow();
+    expect(await sync([job("big", { description: randomBytes(48 * 1024).toString("base64") })])).toMatchObject({ updated: 1 });
+    expect(await toastBytes()).toBeGreaterThan(toast0 + 48 * 1024);
+    expect(await walBytesSince(wal1)).toBeGreaterThan(48 * 1024);
+  });
+
+  it("bounds every read with a statement timeout: a read waiting on a lock fails instead of hanging (spec D25)", async () => {
+    await sync([job("locked")]);
+    const store = createDrizzleJobStore(db, { readTimeoutMs: 300 });
+    const locker = postgres(url!, { prepare: false, max: 1, onnotice: () => {} });
+    try {
+      await locker.begin(async (tx) => {
+        await tx.unsafe("LOCK TABLE jobs IN ACCESS EXCLUSIVE MODE");
+        const started = Date.now();
+        const err = await store.findExisting(["locked"]).then(() => null, (e: unknown) => e);
+        expect(errorText(err)).toBe("canceling statement due to statement timeout");
+        expect(Date.now() - started).toBeLessThan(5_000);
+      });
+    } finally {
+      await locker.end({ timeout: 5 });
+    }
+    expect((await store.findExisting(["locked"])).has("locked")).toBe(true); // the lock is gone
+  });
+
+  it("loads every stored location's newest coordinates in one read, or null above the limit (spec D26)", async () => {
+    await client`
+      INSERT INTO jobs (external_id, site, title, location_city, location_state, location_country, latitude, longitude, updated_at)
+      VALUES ('old', 'x', 'T', 'Austin', 'TX', 'USA', 1.5, 2.5, now() - interval '10 days'),
+             ('new', 'x', 'T', ' austin ', 'tx', 'usa', 30.25, -97.75, now()),
+             ('ber', 'x', 'T', 'Berlin', NULL, 'DE', 52.5, 13.4, now()),
+             ('none', 'x', 'T', 'Paris', NULL, 'FR', NULL, NULL, now())`;
+    const store = createDrizzleJobStore(db);
+    const all = await store.loadStoredCoords!(10);
+    expect(all && Object.fromEntries(all)).toEqual({
+      "austin|tx|usa": { latitude: "30.25", longitude: "-97.75" },
+      "berlin||de": { latitude: "52.5", longitude: "13.4" },
+    });
+    expect(await store.loadStoredCoords!(2)).toBeNull(); // three (key, coordinates) groups
   });
 });
 

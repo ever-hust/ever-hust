@@ -46,4 +46,5 @@ export {
   runBatchEvaluate,
   type BatchEvaluatePayload,
   type BatchEvaluateResult,
+  type InterruptedEvaluation,
 } from "./batch-evaluate";

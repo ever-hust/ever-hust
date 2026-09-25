@@ -12,9 +12,9 @@ import { PgDialect } from "drizzle-orm/pg-core";
 import { CronInputError, CronWorkError } from "./errors";
 import { processFunnelSnapshots, startOfUtcDay } from "./funnel-snapshots";
 import {
+  BATCH_EVALUATE_ABORT_GRACE_MS,
   BATCH_EVALUATE_BUDGET_MS,
   BATCH_EVALUATE_RESPONSE_LIMIT_MS,
-  STILL_RUNNING_ERROR,
   runBatchEvaluate,
 } from "./batch-evaluate";
 
@@ -160,10 +160,28 @@ describe("runBatchEvaluate", () => {
       .mockResolvedValueOnce({ evaluated: true, jobId: 2, score: 90, band: "A" });
     const r = await runBatchEvaluate({ userId: "u", jobIds: [1, 2] }, { db: f.db, evaluate });
     expect(r.results.map((x) => x.jobId)).toEqual([2, 1]);
-    expect(r).toMatchObject({ evaluated: 2, failed: [], deferred: [] });
+    expect(r).toMatchObject({ evaluated: 2, failed: [], interrupted: [], deferred: [], retryJobIds: [] });
   });
 
-  it("throws CronWorkError (→ non-2xx) listing failed and deferred jobs", async () => {
+  it("passes a live AbortSignal to every evaluation", async () => {
+    const f = selectFake({ users: [{ preferences: {}, subscriptionStatus: "active" }] });
+    evaluate.mockResolvedValue({ evaluated: true, jobId: 1, score: 50, band: "B" });
+    await runBatchEvaluate({ userId: "u", jobIds: [1] }, { db: f.db, evaluate });
+    const args = evaluate.mock.calls[0]![0] as { abortSignal?: AbortSignal };
+    expect(args.abortSignal).toBeInstanceOf(AbortSignal);
+    expect(args.abortSignal!.aborted).toBe(false);
+  });
+
+  it("a thrown evaluation error is a failure (nothing still runs for it), so it is in retryJobIds", async () => {
+    const f = selectFake({ users: [{ preferences: {}, subscriptionStatus: "active" }] });
+    evaluate.mockRejectedValueOnce(new Error("provider 500"));
+    const err = (await runBatchEvaluate({ userId: "u", jobIds: [7] }, { db: f.db, evaluate }).catch(
+      (e: unknown) => e,
+    )) as CronWorkError;
+    expect(err.cronDetails).toMatchObject({ failed: [{ jobId: 7, error: "provider 500" }], interrupted: [], retryJobIds: [7] });
+  });
+
+  it("throws CronWorkError (→ non-2xx) listing failed and deferred jobs, both in retryJobIds", async () => {
     const f = selectFake({ users: [{ preferences: {}, subscriptionStatus: "active" }] });
     evaluate.mockResolvedValueOnce({ evaluated: false, jobId: 1, error: "Job not found." });
     let t = 0;
@@ -173,7 +191,14 @@ describe("runBatchEvaluate", () => {
       { db: f.db, evaluate, clock: () => (t += 100), deadline: 250 },
     ).catch((e: unknown) => e)) as CronWorkError;
     expect(err).toBeInstanceOf(CronWorkError);
-    expect(err.cronDetails).toMatchObject({ failed: [{ jobId: 1, error: "Job not found." }], deferred: [2, 3] });
+    expect(err.cronDetails).toMatchObject({
+      failed: [{ jobId: 1, error: "Job not found." }],
+      interrupted: [],
+      deferred: [2, 3],
+      retryJobIds: [1, 2, 3],
+    });
+    expect(err.message).toContain("Re-trigger with retryJobIds.");
+    expect(err.message).not.toContain("Interrupted");
     expect(evaluate).toHaveBeenCalledTimes(1);
   });
 
@@ -192,43 +217,115 @@ describe("runBatchEvaluate", () => {
     ).catch((e: unknown) => e)) as CronWorkError;
     // Starts at 0 s, 60 s and 120 s; at 180 s the budget (170 s) has passed.
     expect(evaluate).toHaveBeenCalledTimes(3);
-    expect(err.cronDetails).toMatchObject({ evaluated: 3, deferred: [4, 5], failed: [] });
+    expect(err.cronDetails).toMatchObject({ evaluated: 3, deferred: [4, 5], failed: [], retryJobIds: [4, 5] });
   });
 
-  describe("an evaluation that never answers", () => {
+  describe("an evaluation still running at the 270 s response limit", () => {
     beforeEach(() => jest.useFakeTimers());
     afterEach(() => jest.useRealTimers());
 
-    it("the run still answers at the 270 s response limit, listing it as failed and the rest as deferred", async () => {
-      expect(BATCH_EVALUATE_RESPONSE_LIMIT_MS).toBe(270_000);
-      const f = selectFake({ users: [{ preferences: {}, subscriptionStatus: "active" }] });
-      let rejectHung: (e: Error) => void = () => {};
+    const activeUser = { users: [{ preferences: {}, subscriptionStatus: "active" }] };
+
+    /** An evaluation that only ends when its signal aborts (like the AI SDK call), or never. */
+    function hangingEvaluation(opts: { honoursAbort: boolean }) {
+      const seen: { signal?: AbortSignal; reject?: (e: Error) => void } = {};
       evaluate.mockImplementationOnce(
-        () =>
+        ({ abortSignal }: { abortSignal: AbortSignal }) =>
           new Promise((_resolve, reject) => {
-            rejectHung = reject;
+            seen.signal = abortSignal;
+            seen.reject = reject;
+            if (opts.honoursAbort) {
+              abortSignal.addEventListener("abort", () => reject(new Error("This operation was aborted")));
+            }
           }),
       );
+      return seen;
+    }
+
+    it("is ABORTED (its signal fires) and reported as interrupted/aborted, never in retryJobIds; the rest deferred", async () => {
+      expect(BATCH_EVALUATE_RESPONSE_LIMIT_MS).toBe(270_000);
+      const f = selectFake(activeUser);
+      const seen = hangingEvaluation({ honoursAbort: true });
       const outcome = runBatchEvaluate({ userId: "u", jobIds: [1, 2, 3] }, { db: f.db, evaluate, clock: () => 0 }).catch(
         (e: unknown) => e,
       );
       await jest.advanceTimersByTimeAsync(269_999);
-      let settled = false;
-      void outcome.then(() => (settled = true));
-      await Promise.resolve();
-      expect(settled).toBe(false);
+      expect(seen.signal!.aborted).toBe(false);
       await jest.advanceTimersByTimeAsync(1);
+      expect(seen.signal!.aborted).toBe(true);
       const err = (await outcome) as CronWorkError;
       expect(err).toBeInstanceOf(CronWorkError);
       expect(err.cronDetails).toMatchObject({
         evaluated: 0,
-        failed: [{ jobId: 1, error: STILL_RUNNING_ERROR }],
+        failed: [],
+        interrupted: [{ jobId: 1, status: "aborted" }],
         deferred: [2, 3],
+        retryJobIds: [2, 3],
       });
+      expect(err.message).toContain("1 interrupted");
+      expect(err.message).toContain("Interrupted jobs are not in retryJobIds");
       expect(evaluate).toHaveBeenCalledTimes(1);
+    });
+
+    it("one that ignores the abort is reported in_progress after the 5 s grace (it may still save its result)", async () => {
+      expect(BATCH_EVALUATE_ABORT_GRACE_MS).toBe(5_000);
+      const f = selectFake(activeUser);
+      const seen = hangingEvaluation({ honoursAbort: false });
+      const outcome = runBatchEvaluate({ userId: "u", jobIds: [1, 2] }, { db: f.db, evaluate, clock: () => 0 }).catch(
+        (e: unknown) => e,
+      );
+      await jest.advanceTimersByTimeAsync(270_000);
+      expect(seen.signal!.aborted).toBe(true);
+      let settled = false;
+      void outcome.then(() => (settled = true));
+      await jest.advanceTimersByTimeAsync(4_999);
+      expect(settled).toBe(false);
+      await jest.advanceTimersByTimeAsync(1);
+      const err = (await outcome) as CronWorkError;
+      expect(err.cronDetails).toMatchObject({
+        failed: [],
+        interrupted: [{ jobId: 1, status: "in_progress" }],
+        deferred: [2],
+        retryJobIds: [2],
+      });
       // The abandoned evaluation failing later is swallowed (no unhandled rejection).
-      rejectHung(new Error("late LLM failure"));
+      seen.reject!(new Error("late LLM failure"));
       await Promise.resolve();
+    });
+
+    it("one that finishes during the grace period is reported as evaluated", async () => {
+      const f = selectFake(activeUser);
+      evaluate.mockImplementationOnce(
+        ({ abortSignal }: { abortSignal: AbortSignal }) =>
+          new Promise((resolve) => {
+            // Already past the LLM call (saving): the abort cannot stop it; it resolves 1 s later.
+            abortSignal.addEventListener("abort", () => {
+              setTimeout(() => resolve({ evaluated: true, jobId: 1, score: 70, band: "B" }), 1_000);
+            });
+          }),
+      );
+      const outcome = runBatchEvaluate({ userId: "u", jobIds: [1, 2] }, { db: f.db, evaluate, clock: () => 0 }).catch(
+        (e: unknown) => e,
+      );
+      await jest.advanceTimersByTimeAsync(271_000);
+      const err = (await outcome) as CronWorkError;
+      expect(err.cronDetails).toMatchObject({ evaluated: 1, interrupted: [], failed: [], deferred: [2], retryJobIds: [2] });
+    });
+
+    it("control: an evaluation that answers before the limit is never aborted", async () => {
+      const f = selectFake(activeUser);
+      let signal: AbortSignal | undefined;
+      evaluate.mockImplementationOnce(({ abortSignal }: { abortSignal: AbortSignal }) => {
+        signal = abortSignal;
+        return new Promise((resolve) => {
+          setTimeout(() => resolve({ evaluated: true, jobId: 1, score: 80, band: "A" }), 269_000);
+        });
+      });
+      const outcome = runBatchEvaluate({ userId: "u", jobIds: [1] }, { db: f.db, evaluate, clock: () => 0 });
+      await jest.advanceTimersByTimeAsync(269_000);
+      await expect(outcome).resolves.toMatchObject({ evaluated: 1, interrupted: [], retryJobIds: [] });
+      await jest.advanceTimersByTimeAsync(10_000);
+      expect(signal!.aborted).toBe(false);
     });
   });
 });

@@ -131,7 +131,7 @@ describe("retry policy", () => {
     expect(asConfig(batchEvaluateTask).retry).toEqual({ maxAttempts: 1 });
   });
 
-  it("email tasks keep the default retries — safe because sends are claimed per period", () => {
+  it("email tasks keep the default retries — safe because each period's sends share one idempotency key", () => {
     // Idempotency lives in work/job-alerts.ts + work/follow-up-nudges.ts (see their tests); a retry
     // is what finishes a run that failed or deferred part of its batch.
     for (const t of [sendJobAlertsTask, dailyAlertSchedule, eveningAlertSchedule, weeklyAlertSchedule, followUpNudgesTask, followUpNudgesSchedule]) {

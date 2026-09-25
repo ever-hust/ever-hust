@@ -7,8 +7,9 @@ import { runsOnTrigger, SKIPPED } from "./scheduler";
  * Follow-up nudge digest (spec #9). The work (DB + Resend) runs in the app via
  * `POST /api/cron/follow-up-nudges` (see `work/follow-up-nudges.ts`). The app sends nothing unless
  * its FOLLOW_UP_NUDGES_ENABLED is on (default off: the run completes with `skipped: "disabled"`).
- * Retries are safe: each user is claimed atomically for the 3-day cooldown before the email goes
- * out, and the send carries a Resend idempotency key.
+ * Retries are safe: the send carries a Resend idempotency key derived from the user's cooldown
+ * marker, and the marker only advances after Resend has taken the email, so a retry resends the
+ * same key and Resend delivers one email.
  */
 async function runNudges() {
   return callAppEndpoint(CRON_ENDPOINTS.followUpNudges, {}, { timeoutMs: CRON_TIMEOUTS_MS.followUpNudges });

@@ -7,9 +7,11 @@ type AlertFrequency = "daily" | "twice_daily" | "weekly";
 
 /**
  * Job-alert emails. The work (DB queries + Resend) runs in the app via `POST /api/cron/job-alerts`
- * (see `work/job-alerts.ts`). Retries are safe: each alert is claimed atomically per period before
- * it is sent, so a retry or manual re-run only sends what is still due. The app answers non-2xx
- * when any alert failed or was deferred, which marks the run FAILED and retries the remainder.
+ * (see `work/job-alerts.ts`). Retries are safe: the app sends first with a Resend idempotency key
+ * derived from the alert's period marker, then advances the marker, so a retry or manual re-run
+ * only sees what is still due and resends it with the same key (Resend delivers one email). The
+ * app answers non-2xx when any alert failed or was deferred, which marks the run FAILED and
+ * retries the remainder.
  */
 async function sendAlerts(frequencies: AlertFrequency[]) {
   return callAppEndpoint(CRON_ENDPOINTS.jobAlerts, { frequencies }, { timeoutMs: CRON_TIMEOUTS_MS.jobAlerts });

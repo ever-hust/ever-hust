@@ -50,7 +50,9 @@ Until 2026-09 six schedules opened the database from the Trigger worker and fail
     reachable from outside the cluster, and each environment should have its own `CRON_SECRET`.
 - **Failures are never reported as a 2xx.** The task's `callAppEndpoint()` throws on any non-2xx
   response, network error or timeout, so the Trigger run shows **FAILED**. A partial failure
-  (some emails failed, or the time budget ran out) returns a 500 with the counters in `details`.
+  returns a 500 with the counters in `details`. Partial failures include: some emails failed, an
+  email was left to another run's in-flight send, a batch evaluation was interrupted, or the time
+  budget ran out.
   A bad request body returns 400. An unknown user in `batch-evaluate` returns 404. An overlapping
   `funnel-snapshots` run returns 409.
 - **Time limits.** Node's `fetch` (undici) drops a response whose headers take longer than 300 s,
@@ -60,8 +62,16 @@ Until 2026-09 six schedules opened the database from the Trigger worker and fail
     the next day's run continues. Alerts and nudges report the remaining items as `deferred` and
     return a non-2xx, and the Trigger retry picks up where the run stopped.
   - `batch-evaluate` starts no new evaluation after 170 s (one LLM evaluation has no timeout of
-    its own) and answers by 270 s even if an evaluation is still running. That evaluation is listed
-    in `failed` as still running (its result may still be saved), the rest in `deferred`.
+    its own). At 270 s it **aborts** an evaluation that is still running: an `AbortSignal` cancels
+    the in-flight AI SDK call, and no further validation attempt starts. It then waits up to 5 s
+    and answers by 275 s. The evaluation goes in `interrupted`, the rest in `deferred`:
+    - `aborted`: the call was cancelled and nothing was saved. The provider may still bill the
+      tokens it had already produced.
+    - `in_progress`: the evaluation did not stop within 5 s (for example, it was already saving),
+      so it may still save its result.
+
+    Interrupted jobs are **not** in `retryJobIds`. Before re-triggering one, check whether its
+    evaluation exists. An evaluation that finishes during the 5 s counts as evaluated.
   - `funnel-snapshots` runs as one transaction under a Postgres advisory lock, so a retry that
     arrives while the first request is still writing gets a 409 instead of writing duplicates.
 - **`maxDuration` of the tasks.** Trigger.dev defines `maxDuration` as the compute time a run may
@@ -95,48 +105,73 @@ cannot verify a develop deploy.** Two ways to verify develop:
   known state of that environment, not as a regression. Staging and prod are verified from Trigger
   run history.
 
-## Emails: at most one per period
+## Emails: at least once, deduplicated by Resend
 
-Two layers, both on existing columns (no schema change):
+Job alerts and follow-up nudges are delivered **at least once**, and Resend's idempotency keys
+collapse the repeats to one email. No schema change: each item has a period marker on an
+existing column.
 
-1. **A claim in the database.** Before sending, the run claims the item with one conditional
-   `UPDATE ... WHERE last_sent_at IS NULL OR last_sent_at < now - window RETURNING id`.
-   - Job alerts use `user_alerts.last_sent_at`. The windows are: daily 20 h, twice_daily 8 h,
-     weekly 6 d.
-   - Follow-up nudges use `users.last_follow_up_nudge_at`, with the 3-day cooldown as the window.
-   - A Trigger retry, a manual re-run or an overlapping run that reaches an item already claimed
-     skips it.
-   - If the send fails, the claim is released (the previous value is restored), so the retry sends
-     that item only.
-2. **A Resend idempotency key.** A failed send can be ambiguous: Resend may have accepted the email
-   and only the response was lost (timeout, network error, 5xx). The released claim would then send
-   it again. So every send carries an idempotency key:
+- Job alerts use `user_alerts.last_sent_at`. The windows are: daily 20 h, twice_daily 8 h,
+  weekly 6 d.
+- Follow-up nudges use `users.last_follow_up_nudge_at`, with the 3-day cooldown as the window.
+
+Per item, the run does **send, then advance**:
+
+1. The candidate query only returns items whose marker is outside the window, and reads that
+   marker (`previous`).
+2. The run sends the email with an idempotency key derived from `previous`:
    - `job-alert/<alertId>/<previous last_sent_at in ms, or "first">`;
    - `follow-up-nudge/<userId>/<previous last_follow_up_nudge_at in ms, or "first">`.
+3. Only after Resend has taken the email does the run advance the marker, with one conditional
+   `UPDATE ... SET <marker> = <now> WHERE id = ? AND <marker> IS NOT DISTINCT FROM <previous>`
+   (written as `IS NULL` / `= previous`). If an overlapping run already advanced it, the update
+   changes nothing.
 
-   Releasing the claim restores the previous value, so every retry of the same period sends the
-   **same** key, both inside `withRetry` and across Trigger attempts. Resend delivers at most one
-   email per key. It answers a repeat with the same payload with the original response, and a
-   repeat with a different payload (for example, new matching jobs) with a 409, which is counted as
-   `deduplicated` and keeps the claim.
+Because the marker only moves after a send, every attempt at the same period sends the **same**
+key: the retries inside `withRetry`, the Trigger retries, a manual re-run and an overlapping run.
+Resend delivers at most one email per key. It answers a repeat with the same payload with the
+original response, and a repeat with a different payload (for example, new matching jobs) with a
+409 `invalid_idempotent_request`. That 409 counts as `deduplicated`, and the marker still advances.
+What each failure does:
+
+- **The send fails.** The marker is untouched; the run counts it in `failed` and answers
+  non-2xx. The Trigger retry sends it again with the same key. If the first attempt was in fact
+  accepted and only the response was lost, Resend dedupes the retry.
+- **The process dies (or the database write fails) between the send and the advance.** The
+  marker is untouched, so the retry sends again with the same key and Resend dedupes. No period is
+  skipped.
+- **Two runs overlap** (for example a Trigger retry after a timed-out attempt whose request is
+  still running). Both send the same key, and the user gets one email. If Resend reports the key
+  as still being processed (409 `concurrent_idempotent_requests`), the second run does **not**
+  record the period for the first. It counts the item as `skippedInFlight` and answers non-2xx, and
+  the retry then finds the period recorded, or sends again with the same key.
+
+Counters: `sent` means Resend accepted the email and this run recorded the period. `deduplicated`
+means Resend reported the key as used, or an overlapping run recorded the period first. With
+overlapping runs the split between the two can vary, but the user gets one email per key.
 
 Limits of the guarantee:
 
-- Resend remembers a key for 24 h. Retries happen within minutes, so this does not matter in
-  practice.
-- If the app process dies between the claim and the send, that item is skipped for one period.
-  Delivery is at most once, not at least once: a missed digest beats a duplicate.
-- If an ambiguous failure exhausts all retries, the next scheduled run within 24 h reuses the key,
-  so that period's digest is counted as `deduplicated` instead of being sent. The user got the
-  earlier email.
+- **Resend remembers a key for 24 h.** The dedupe only covers repeats inside that window. Trigger
+  retries come minutes apart, so a crash or a failed database write between the send and the
+  advance is covered. But if every retry fails to advance the marker (for example, the database
+  is down for the whole retry chain), the next **scheduled** run sends the digest again. It sends
+  the same key, but that run is 24 h later for daily alerts and nudges and 7 days later for weekly
+  alerts, so the key has usually expired and the **user can get a second email**. Twice-daily
+  alerts (10 h / 14 h apart) stay inside the window. This is the price of at-least-once: a
+  duplicate digest in a rare double failure, instead of a silently missed one.
+- The markers are only written by this code, always from a JS `Date` (millisecond precision), so
+  `= previous` matches exactly. **Do not write these columns with SQL `now()`** (microseconds).
+  The conditional advance would then never match, and the item would be resent every run.
 
 Retries:
 
-- Alerts and nudges keep the default Trigger retries (3). The claims and keys make retries safe,
+- Alerts and nudges keep the default Trigger retries (3). The markers and keys make retries safe,
   and the retries are what finish a run that failed part-way.
 - `batch-evaluate` is set to `retry: { maxAttempts: 1 }`, because every evaluation is a paid LLM
-  call. To finish a failed run, re-trigger it with the `failed` and `deferred` job ids from its
-  error.
+  call. To finish a failed run, re-trigger it with the `retryJobIds` from its error (the `failed`
+  and `deferred` ids). Never include the `interrupted` ids without checking them first (see Time
+  limits).
 - Funnel snapshots write at most one scheduled snapshot per user per UTC day. The advisory lock
   makes the check-then-insert atomic, so a retry does not duplicate points.
 

@@ -32,21 +32,31 @@ class EmailSendError extends Error {
 // ── Idempotent sends ──────────────────────────────────────────────────────────
 
 /**
- * Resend errors meaning "a request with this idempotency key was already accepted": the same key
- * with a different payload (409 `invalid_idempotent_request`, e.g. the matching jobs changed
- * between two attempts) or while the first request is still being processed (409
- * `concurrent_idempotent_requests`). Resend remembers a key for 24 h. The same key with the same
- * payload is not an error: Resend answers with the original response and sends nothing new.
+ * Resend 409s for a request whose idempotency key was already used (Resend remembers a key for
+ * 24 h). The same key with the same payload is not an error: Resend answers with the original
+ * response and sends nothing new.
+ *  - `invalid_idempotent_request`: the key was used by an earlier request with a different payload
+ *    (e.g. the matching jobs changed between two attempts). That earlier request was processed:
+ *    {@link DeduplicatedEmail} with reason `replayed`.
+ *  - `concurrent_idempotent_requests`: a request with this key is STILL being processed, so its
+ *    outcome is not known yet: reason `in_flight`. The caller must not treat that as delivered.
  */
-const IDEMPOTENT_REPLAY_ERRORS = new Set(["invalid_idempotent_request", "concurrent_idempotent_requests"]);
+const IDEMPOTENT_REPLAY_REASONS = new Map<string, DeduplicatedEmail["reason"]>([
+  ["invalid_idempotent_request", "replayed"],
+  ["concurrent_idempotent_requests", "in_flight"],
+]);
 
 /** Returned instead of throwing when Resend says this idempotency key was already used. */
 export interface DeduplicatedEmail {
   id: null;
   deduplicated: true;
+  /**
+   * `replayed`: an earlier request with this key was already processed; nothing new was sent.
+   * `in_flight`: an earlier request with this key is still being processed; whether it will be
+   * delivered is not known yet.
+   */
+  reason: "replayed" | "in_flight";
 }
-
-const DEDUPLICATED: DeduplicatedEmail = { id: null, deduplicated: true };
 
 /** True when a send result is {@link DeduplicatedEmail} (nothing new was sent). */
 export function isDeduplicatedEmail(result: unknown): result is DeduplicatedEmail {
@@ -71,7 +81,8 @@ async function sendOnce(
     : await resend.emails.send(payload);
   if (error) {
     const code = (error as { name?: string }).name;
-    if (idempotencyKey && code && IDEMPOTENT_REPLAY_ERRORS.has(code)) return DEDUPLICATED;
+    const replay = idempotencyKey && code ? IDEMPOTENT_REPLAY_REASONS.get(code) : undefined;
+    if (replay) return { id: null, deduplicated: true, reason: replay };
     throw new EmailSendError(
       `${errorPrefix}: ${error.message ?? "Unknown error"}`,
       (error as { statusCode?: number }).statusCode,

@@ -9,8 +9,10 @@ export const maxDuration = 300;
 
 /**
  * POST /api/cron/job-alerts — body `{ frequencies: ("daily" | "twice_daily" | "weekly")[] }`.
- * Each alert is claimed atomically per period before sending (no duplicates on retry/re-run).
- * CRON_SECRET-guarded. Non-2xx when any alert failed or was deferred.
+ * Send, then advance: each send carries a Resend idempotency key derived from the alert's period
+ * marker, and the marker only moves once Resend has taken the email, so a retry/re-run resends the
+ * same key and Resend delivers one email. CRON_SECRET-guarded. Non-2xx when any alert failed, was
+ * deferred or was left to another run's in-flight send.
  */
 export const POST = createCronHandler(
   "job-alerts",

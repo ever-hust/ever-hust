@@ -53,4 +53,28 @@ describe("runValidatedGeneration", () => {
     await runValidatedGeneration(gen, schema, 0);
     expect(gen).toHaveBeenCalledTimes(1);
   });
+
+  it("an aborted signal stops further attempts (no second paid generation)", async () => {
+    const controller = new AbortController();
+    const gen = jest.fn(async () => {
+      controller.abort(new Error("budget reached"));
+      throw new Error("The operation was aborted.");
+    });
+    await expect(runValidatedGeneration(gen, schema, 3, controller.signal)).rejects.toThrow("The operation was aborted.");
+    expect(gen).toHaveBeenCalledTimes(1);
+  });
+
+  it("never starts a generation when the signal is already aborted", async () => {
+    const controller = new AbortController();
+    controller.abort(new Error("budget reached"));
+    const gen = jest.fn().mockResolvedValue({ n: 1 });
+    await expect(runValidatedGeneration(gen, schema, 2, controller.signal)).rejects.toThrow("budget reached");
+    expect(gen).not.toHaveBeenCalled();
+  });
+
+  it("control: a live signal changes nothing (still retries on a validation failure)", async () => {
+    const gen = jest.fn().mockResolvedValueOnce({ n: -1 }).mockResolvedValueOnce({ n: 4 });
+    await expect(runValidatedGeneration(gen, schema, 2, new AbortController().signal)).resolves.toEqual({ n: 4 });
+    expect(gen).toHaveBeenCalledTimes(2);
+  });
 });

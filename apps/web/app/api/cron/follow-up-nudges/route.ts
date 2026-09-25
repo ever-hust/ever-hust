@@ -8,9 +8,10 @@ export const maxDuration = 300;
 
 /**
  * POST /api/cron/follow-up-nudges — daily follow-up digest. OFF unless FOLLOW_UP_NUDGES_ENABLED is
- * on (a disabled run answers 200 with `skipped: "disabled"` and touches nothing). Each user is
- * claimed atomically for the 3-day cooldown before sending, and the send carries a Resend
- * idempotency key (no duplicates on retry/re-run). CRON_SECRET-guarded.
- * Non-2xx when any user failed or was deferred.
+ * on (a disabled run answers 200 with `skipped: "disabled"` and touches nothing). Send, then
+ * advance: the send carries a Resend idempotency key derived from the user's cooldown marker, and
+ * the marker only moves once Resend has taken the email, so a retry/re-run resends the same key
+ * and Resend delivers one email. CRON_SECRET-guarded.
+ * Non-2xx when any user failed, was deferred or was left to another run's in-flight send.
  */
 export const POST = createCronHandler("follow-up-nudges", () => runFollowUpNudges());

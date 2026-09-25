@@ -15,8 +15,9 @@ export interface BatchEvaluateTaskPayload {
  * `POST /api/cron/batch-evaluate` (see `work/batch-evaluate.ts`).
  *
  * `maxAttempts: 1`: every evaluation is a paid LLM call and a timed-out request keeps running in
- * the app, so an automatic retry could pay twice. A FAILED run lists `failed`/`deferred` job ids
- * in its error; re-trigger with those.
+ * the app, so an automatic retry could pay twice. A FAILED run lists `retryJobIds` (the `failed`
+ * and `deferred` ids) in its error; re-trigger with those. `interrupted` ids (aborted at the
+ * response limit, possibly already billed or still saving) are deliberately not in that list.
  */
 export const batchEvaluateTask = task({
   id: "batch-evaluate",

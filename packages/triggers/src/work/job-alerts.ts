@@ -1,26 +1,31 @@
 import { db as defaultDb, escapeIlike, userAlerts, jobs, users } from "@ever-hust/db";
-import { sendJobAlertEmail, type DeduplicatedEmail } from "@ever-hust/email";
+import { sendJobAlertEmail } from "@ever-hust/email";
 import { and, eq, gte, ilike, isNull, lt, or, sql } from "drizzle-orm";
 import { CronWorkError, deadlineFrom } from "./errors";
+import { classifySendOutcome } from "./send-outcome";
 
 /**
  * Job-alert emails (app-runtime work behind `POST /api/cron/job-alerts`).
  *
- * IDEMPOTENCY (no schema change — uses the existing `user_alerts.last_sent_at`), two layers:
- *  1. CLAIM. Before sending, the run claims the alert with one atomic conditional UPDATE
- *     (`last_sent_at = now WHERE id = ? AND (last_sent_at IS NULL OR last_sent_at < now - period)`).
- *     A Trigger retry, a manual re-run or an overlapping run finds the alert already claimed for
- *     this period and skips it. If the send fails, the claim is released (last_sent_at restored)
- *     so the next attempt retries that alert only.
- *  2. RESEND IDEMPOTENCY KEY. A failure can be ambiguous: Resend may have accepted the email and
- *     only the response was lost (timeout, network, 5xx). The released claim would then send it
- *     again. So every send carries `job-alert/<alertId>/<previous last_sent_at>` as its Resend
- *     idempotency key ({@link jobAlertIdempotencyKey}). Releasing the claim restores the previous
- *     `last_sent_at`, so every retry of the same period sends the SAME key, and Resend (which
- *     remembers a key for 24 h) delivers at most one of them. A replay that Resend reports as a
- *     409 is counted as `deduplicated` and keeps the claim.
- * Tradeoff: if the process dies between claim and send, that alert is skipped for one period
- * (at-most-once, not at-least-once — a missed digest beats a duplicate).
+ * DELIVERY: at least once, with provider-side dedupe. No schema change: the period marker is the
+ * existing `user_alerts.last_sent_at`. Per alert, SEND-THEN-ADVANCE:
+ *  1. The candidate query only returns alerts not yet sent in this period, together with their
+ *     current marker (`previous`).
+ *  2. The email is sent with the Resend idempotency key `job-alert/<alertId>/<previous ms|first>`
+ *     ({@link jobAlertIdempotencyKey}). Every attempt at the same period sends the SAME key, and
+ *     Resend delivers at most one email per key (it remembers a key for 24 h).
+ *  3. Only after Resend accepted (or reported the key as already used) is the marker advanced, with
+ *     a conditional `UPDATE ... WHERE id = ? AND last_sent_at IS NOT DISTINCT FROM previous`
+ *     ({@link advanceAlertMarker}). An overlapping run that already advanced it makes this a no-op.
+ * Consequences:
+ *  - A failed send leaves the marker untouched, so the Trigger retry sends that alert again, with
+ *    the same key: an ambiguous failure (Resend accepted, the response was lost) is deduplicated.
+ *  - A crash between the send and the advance also leaves the marker untouched: the retry re-sends
+ *    with the same key and Resend dedupes. Nothing is skipped for a period any more.
+ *  - Overlapping runs send the same key; Resend delivers one email.
+ *  - Limit: the dedupe only holds while Resend still remembers the key (24 h). If the marker can
+ *    not be advanced for longer than that (every retry failed, e.g. the database was down), the
+ *    next scheduled run re-sends the digest: at least once, not exactly once.
  */
 
 export type AlertFrequency = "daily" | "twice_daily" | "weekly";
@@ -41,16 +46,12 @@ export const ALERT_MIN_INTERVAL_MS: Record<AlertFrequency, number> = {
 
 /**
  * Resend idempotency key for one alert period: the alert id plus the `last_sent_at` the period
- * started from (`first` for a never-sent alert). Stable across claim releases and retries of the
- * same period; a successful send moves `last_sent_at`, so the next period gets a new key.
+ * started from (`first` for a never-sent alert). The marker only moves after a send was accepted,
+ * so every attempt at the same period (Trigger retry, re-run, overlapping run) sends the same key;
+ * once the marker has moved, the next period gets a new key.
  */
 export function jobAlertIdempotencyKey(alertId: number, previousSentAt: Date | null): string {
   return `job-alert/${alertId}/${previousSentAt ? previousSentAt.getTime() : "first"}`;
-}
-
-/** Nothing new was sent: Resend reported this idempotency key as already used. */
-function wasDeduplicated(outcome: unknown): outcome is DeduplicatedEmail {
-  return (outcome as { deduplicated?: unknown } | null)?.deduplicated === true;
 }
 
 /** Alerts last sent before this instant are due again. */
@@ -61,54 +62,53 @@ export function alertPeriodCutoff(frequency: AlertFrequency, now: Date): Date {
 type AlertDb = typeof defaultDb;
 
 /**
- * Atomically claim an alert for this period. Returns false when another run already sent it within
- * the period (or claimed it a moment ago) — the caller must then NOT send.
+ * Record a sent period: move `last_sent_at` from `previousSentAt` (the value the send's idempotency
+ * key was derived from) to `sentAt`, with `WHERE id = ? AND last_sent_at IS NOT DISTINCT FROM
+ * previousSentAt`. Returns false (and changes nothing) when an overlapping run already advanced
+ * it. Only this module writes the column, always from a JS Date, so the stored value round-trips
+ * exactly (millisecond precision) and the equality is reliable.
  */
-export async function claimAlertSend(
+export async function advanceAlertMarker(
   database: AlertDb,
   alertId: number,
-  frequency: AlertFrequency,
-  claimedAt: Date,
+  previousSentAt: Date | null,
+  sentAt: Date,
 ): Promise<boolean> {
-  const cutoff = alertPeriodCutoff(frequency, claimedAt);
   const rows = await database
     .update(userAlerts)
-    .set({ lastSentAt: claimedAt, updatedAt: claimedAt })
+    .set({ lastSentAt: sentAt, updatedAt: sentAt })
     .where(
       and(
         eq(userAlerts.id, alertId),
-        or(isNull(userAlerts.lastSentAt), lt(userAlerts.lastSentAt, cutoff)),
+        previousSentAt === null ? isNull(userAlerts.lastSentAt) : eq(userAlerts.lastSentAt, previousSentAt),
       ),
     )
     .returning({ id: userAlerts.id });
   return rows.length > 0;
 }
 
-/** Undo a claim after a failed send, only if nobody has claimed the alert since. */
-export async function releaseAlertClaim(
-  database: AlertDb,
-  alertId: number,
-  previousSentAt: Date | null,
-  claimedAt: Date,
-): Promise<void> {
-  await database
-    .update(userAlerts)
-    .set({ lastSentAt: previousSentAt })
-    .where(and(eq(userAlerts.id, alertId), eq(userAlerts.lastSentAt, claimedAt)));
-}
-
 export interface AlertRunResult {
   frequency: AlertFrequency;
   /** Active alerts of this frequency not yet sent in the current period. */
   candidates: number;
+  /** Resend accepted the email and this run recorded the period. */
   sent: number;
-  /** Resend reported the period's idempotency key as already used: an earlier attempt delivered it. */
+  /**
+   * Nothing new was recorded by this run: Resend reported the period's key as already used (an
+   * earlier attempt delivered it), or an overlapping run recorded the period first. Either way the
+   * attempts shared one idempotency key, so the user got one email.
+   */
   deduplicated: number;
+  /**
+   * Another request with the same key was still in flight (an overlapping run), so this run did
+   * not record the period on its behalf. The run still answers non-2xx: the Trigger retry finds the
+   * alert recorded, or resends it with the same key.
+   */
+  skippedInFlight: number;
   skippedNotEligible: number;
   skippedNoCriteria: number;
   skippedNoMatches: number;
-  /** Another run claimed the alert first (retry / overlap) — not a failure. */
-  skippedAlreadyClaimed: number;
+  /** The send failed, or it was accepted but the period could not be recorded. A retry resends with the same key. */
   failed: number;
   /** Not processed because the run hit its time budget; a retry continues with them. */
   deferred: number;
@@ -155,7 +155,8 @@ function safeJobUrl(jobUrl: string | null): string {
 
 /**
  * Send one frequency's due alerts. Never throws for a single alert's failure — it is counted in
- * `failed` (and its claim released) while the rest of the batch continues.
+ * `failed` (its marker untouched, so the retry resends it with the same key) while the rest of the
+ * batch continues.
  */
 export async function processAlerts(
   frequency: AlertFrequency,
@@ -170,10 +171,10 @@ export async function processAlerts(
     candidates: 0,
     sent: 0,
     deduplicated: 0,
+    skippedInFlight: 0,
     skippedNotEligible: 0,
     skippedNoCriteria: 0,
     skippedNoMatches: 0,
-    skippedAlreadyClaimed: 0,
     failed: 0,
     deferred: 0,
   };
@@ -224,9 +225,15 @@ export async function processAlerts(
         continue;
       }
 
+      // The period this digest covers: from the marker (the value the idempotency key is derived
+      // from) to now. `periodEnd` becomes the next marker; it is taken before the jobs query, so a
+      // job created while this alert is being sent lands in the next digest rather than in neither.
+      const previousSentAt = alert.lastSentAt ?? null;
+      const periodEnd = clock();
+
       const conditions = [];
       // Time filter: jobs posted since last alert
-      const since = alert.lastSentAt ?? new Date(clock().getTime() - 24 * HOUR_MS);
+      const since = previousSentAt ?? new Date(periodEnd.getTime() - 24 * HOUR_MS);
       conditions.push(gte(jobs.createdAt, since));
 
       if (criteria?.keywords && criteria.keywords.length > 0) {
@@ -286,39 +293,41 @@ export async function processAlerts(
           .filter(Boolean)
           .join(", ") || "Your job preferences";
 
-      // Claim BEFORE sending: whoever wins the conditional update is the only sender this period.
-      const claimedAt = clock();
-      if (!(await claimAlertSend(database, alert.id, frequency, claimedAt))) {
-        result.skippedAlreadyClaimed++;
+      // SEND, THEN ADVANCE. Every attempt at this period sends the same key, so Resend delivers
+      // at most one email however many attempts reach this point.
+      const outcome = await send({
+        to: alert.email,
+        userName: user.name ?? "Job Seeker",
+        alertCriteria: criteriaDesc,
+        jobs: matchingJobs.map((j) => ({
+          title: j.title,
+          companyName: j.companyName ?? "Unknown Company",
+          location: j.locationCity ?? undefined,
+          isRemote: j.isRemote ?? undefined,
+          salary: formatSalary(j.salaryMin, j.salaryMax, j.salaryCurrency),
+          jobUrl: safeJobUrl(j.jobUrl),
+        })),
+        idempotencyKey: jobAlertIdempotencyKey(alert.id, previousSentAt),
+      });
+      const delivery = classifySendOutcome(outcome);
+      if (delivery === "in_flight") {
+        // Its outcome is unknown: never record the period on its behalf. The run answers non-2xx
+        // (runJobAlerts), and the retry finds the period recorded or resends with the same key.
+        result.skippedInFlight++;
         continue;
       }
-      let outcome: Awaited<ReturnType<typeof send>>;
+      let advanced: boolean;
       try {
-        outcome = await send({
-          to: alert.email,
-          userName: user.name ?? "Job Seeker",
-          alertCriteria: criteriaDesc,
-          jobs: matchingJobs.map((j) => ({
-            title: j.title,
-            companyName: j.companyName ?? "Unknown Company",
-            location: j.locationCity ?? undefined,
-            isRemote: j.isRemote ?? undefined,
-            salary: formatSalary(j.salaryMin, j.salaryMax, j.salaryCurrency),
-            jobUrl: safeJobUrl(j.jobUrl),
-          })),
-          idempotencyKey: jobAlertIdempotencyKey(alert.id, alert.lastSentAt ?? null),
-        });
-      } catch (sendError) {
-        await releaseAlertClaim(database, alert.id, alert.lastSentAt ?? null, claimedAt).catch((err) =>
-          console.error(
-            `[job-alerts] could not release claim on alert ${alert.id}:`,
-            err instanceof Error ? err.message : err,
-          ),
+        advanced = await advanceAlertMarker(database, alert.id, previousSentAt, periodEnd);
+      } catch (advanceError) {
+        throw new Error(
+          `email accepted but the period could not be recorded (a retry resends it with the same idempotency key): ${
+            advanceError instanceof Error ? advanceError.message : String(advanceError)
+          }`,
         );
-        throw sendError;
       }
-      if (wasDeduplicated(outcome)) result.deduplicated++;
-      else result.sent++;
+      if (delivery === "accepted" && advanced) result.sent++;
+      else result.deduplicated++;
     } catch (error) {
       result.failed++;
       console.error(`[job-alerts] alert ${alert.id} failed:`, error instanceof Error ? error.message : error);
@@ -332,14 +341,16 @@ export interface JobAlertsRunResult {
   runs: AlertRunResult[];
   sent: number;
   deduplicated: number;
+  skippedInFlight: number;
   failed: number;
   deferred: number;
 }
 
 /**
  * Run the given frequencies in order under one time budget. Throws {@link CronWorkError} (with
- * all counters) when any alert failed or was deferred, so the route answers non-2xx and the
- * Trigger run shows FAILED and retries — the claims make that retry send only what is still due.
+ * all counters) when any alert failed, was deferred or was left to an in-flight request of an
+ * overlapping run, so the route answers non-2xx and the Trigger run shows FAILED and retries. The
+ * retry only sees alerts whose marker has not moved, and resends each with the same key.
  */
 export async function runJobAlerts(
   frequencies: readonly AlertFrequency[],
@@ -355,12 +366,13 @@ export async function runJobAlerts(
     runs,
     sent: runs.reduce((n, r) => n + r.sent, 0),
     deduplicated: runs.reduce((n, r) => n + r.deduplicated, 0),
+    skippedInFlight: runs.reduce((n, r) => n + r.skippedInFlight, 0),
     failed: runs.reduce((n, r) => n + r.failed, 0),
     deferred: runs.reduce((n, r) => n + r.deferred, 0),
   };
-  if (total.failed > 0 || total.deferred > 0) {
+  if (total.failed > 0 || total.deferred > 0 || total.skippedInFlight > 0) {
     throw new CronWorkError(
-      `Job alerts incomplete: ${total.failed} failed, ${total.deferred} deferred (sent ${total.sent}).`,
+      `Job alerts incomplete: ${total.failed} failed, ${total.deferred} deferred, ${total.skippedInFlight} in flight elsewhere (sent ${total.sent}).`,
       total,
     );
   }

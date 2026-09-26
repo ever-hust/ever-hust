@@ -1,6 +1,6 @@
 # Cron endpoints & the cleanup mode
 
-_Last updated: 2026-09-25_
+_Last updated: 2026-09-26_
 
 Hust's scheduled and background tasks are defined in Trigger.dev (`packages/triggers/src`), but
 **the work runs inside the web app**. The Trigger.dev environment carries only two variables,
@@ -25,7 +25,7 @@ Until 2026-09 six schedules opened the database from the Trigger worker and fail
 | `daily-funnel-snapshots` (02:00), `funnel-snapshots` | `POST /api/cron/funnel-snapshots` | `processFunnelSnapshots` | 290 s |
 | `batch-evaluate` (on demand) | `POST /api/cron/batch-evaluate` `{ userId, jobIds, scoreFloor?, max? }` | `runBatchEvaluate` | 290 s |
 | `inbox-sync-hourly`, `inbox-sync` | `POST /api/inbox/cron-sync` | inbox IMAP sync | 290 s |
-| `sync-jobs-schedule` (every 15 min, keywords), `sync-jobs-full-schedule` (every 6 h, full) | `POST /api/jobs/sync` `{ mode, deadlineMs, ... }` | `runJobsSync` (NDJSON progress stream; spec `docs/specs/01a-full-and-keyword-sync`) | 570 s / 3570 s |
+| `sync-jobs-schedule` (every 15 min, keywords), `sync-jobs-full-schedule` (every 6 h, full); under `SCHEDULER=cron`, two k8s CronJobs ([below](#the-jobs-sync-under-schedulercron-k8s-cronjobs)) | `POST /api/jobs/sync` `{ mode, deadlineMs, ... }` | `runJobsSync` (NDJSON progress stream; spec `docs/specs/01a-full-and-keyword-sync`) | 570 s / 3570 s |
 
 - **Code layout.** The work functions live in `packages/triggers/src/work/*`, exported as
   `@ever-hust/triggers/work`. That entry point never imports `@trigger.dev/sdk`, and a test checks
@@ -91,11 +91,43 @@ Until 2026-09 six schedules opened the database from the Trigger worker and fail
   `ok: true, complete: false` is a partial upstream crawl that was stored, logged as a warning.
   A full run also lists `staleSources`: sources none of whose rows a sync has seen for 10 days,
   read from the database at the end of the run. When there are any and the crawl was not complete
-  (or sources failed), the full task fails (spec 01a D27). Under `SCHEDULER=cron` the k8s CronJob
-  (`curl -fsS`) only sees the HTTP status, which is 200 once the stream has started: it sees
-  neither `ok: false` nor this alarm, so read the app's log lines (`[jobs-sync]` error lines) there.
+  (or sources failed), the full task fails (spec 01a D27).
   The on-demand `sync-jobs` task runs the sync in-process and needs `DATABASE_URL`, which the
   Trigger environments must not have: it is for local or manual runs, not for Trigger.dev.
+
+### The jobs sync under `SCHEDULER=cron` (k8s CronJobs)
+
+With `SCHEDULER=cron` on the app, both Trigger sync schedules return `skipped` and do nothing;
+two k8s CronJobs take their place (spec 01a D31). Both are checked in **suspended**
+(`suspend: true`); they are not applied by any workflow.
+
+| CronJob | Manifest | Schedule | Body | curl `-m` | `activeDeadlineSeconds` | Retries |
+|---|---|---|---|---|---|---|
+| `hust-jobs-sync` (keywords) | `.deploy/k8s/sync-cronjob.yaml` | `*/15 * * * *` | `{"mode":"keywords","deadlineMs":550000}` | 570 s | 660 | 1 |
+| `hust-jobs-sync-full` (full) | `.deploy/k8s/sync-full-cronjob.yaml` | `20 */6 * * *` | `{"mode":"full","deadlineMs":3550000}` | 3570 s | 3660 | 0 |
+
+- **Switch to them together.** Set `SCHEDULER=cron` on the app, then set `suspend: false` on
+  **both** CronJobs. With only the keyword CronJob running, the full corpus is never synced (PR
+  #106 review). Both are live changes: claim them on `MAINTENANCE.md` first.
+- **Budgets mirror the Trigger tasks** (`maxDuration` 600 s / 3600 s, call timeout 570 s /
+  3570 s). The route is told a budget 20 s shorter than curl's `-m` (`deadlineMs`), so it stops
+  reading Ever Jobs and sends its summary line before curl gives up; `activeDeadlineSeconds` adds
+  90 s for pod start-up and the check. Both have `concurrencyPolicy: Forbid` (the route also
+  answers 409 to a second run of the same mode). The full CronJob never retries (spec D7: a retry
+  re-scrapes every source; the next tick is the retry). Neither sends `resultsWanted`: like the
+  Trigger tasks, they let the app choose the per-source count (spec D18).
+- **The Job fails when the run failed.** The route answers HTTP 200 as soon as its stream starts,
+  so `curl -f` cannot see a failed run. The CronJobs do not use `-f`: they save the stream and
+  fail the Job (exit 1) when curl failed or timed out, the answer was not 2xx, the stream has no
+  `{"type":"summary",…}` line (cut), or the summary line does not start with
+  `{"type":"summary","ok":true,`. The full CronJob also fails on the stale-sources alarm: a
+  non-empty `staleSources` while the crawl was not `"complete":true` or `sourcesFailed` is not
+  0, which is where the Trigger full task throws (spec D27); after a complete crawl it only logs a
+  warning. A skipped run (full mode gated off, spec D18) is `ok` and succeeds. The Job log shows
+  the HTTP status, curl's exit code and the summary line. A test runs both scripts, with a stub
+  `curl`, against the route's real output (`apps/web/lib/jobs-sync-cronjob.test.ts`).
+- A full run without Ever Jobs contract v1 (and without `JOBS_SYNC_FULL_ENABLED=true`) ends
+  `ok` with `skipped`, so the full CronJob succeeds without syncing anything until then.
 
 ## Environments (Trigger.dev)
 
@@ -266,7 +298,9 @@ only as `withBoundedJobsInsert(db, (tx) => buildUpsertQuery(tx, rows))` from the
   external_id COLLATE "C" FOR UPDATE)` (`buildLastSeenRefreshQuery`), which never touches
   `created_at` and so is outside this rule; it locks its rows in the order the INSERT's sorted
   `VALUES` list does (no deadlock between the two), and runs in its own transaction with a local
-  60 s statement timeout.
+  60 s statement timeout. A row it does not return was deleted (e.g. by the cleanup) or refreshed
+  by another run since the read-ahead: it goes to the batch's INSERT, which stores a deleted row
+  again (stamped `JOBS_CREATED_AT` like any insert) and leaves a refreshed one alone (spec 01a D28).
 - **Fallback.** When the batch statement fails, the ingestor retries row by row, each row its own
   bounded transaction (one INSERT each); it stops after 5 rows in a row failed or once the run's
   deadline has passed (spec 01a D25). The reads (existence, dedup probe, the read-ahead, stored

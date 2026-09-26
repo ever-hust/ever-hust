@@ -129,6 +129,19 @@
 - [x] T34 — `errorText` cuts Drizzle's parameter list without a driver cause; the sync route uses
   it (D25; review nits).
 
+## Phase 9 — PR #106 review fixes (Greptile, 2026-09-26)
+
+- [x] T35 — A row the last-seen refresh did not return (deleted or refreshed since the read-ahead)
+  goes to the batch's INSERT: a deleted row is stored again, a refreshed one left alone; unit and
+  Postgres tests delete a row between the two steps (FR-7, D28).
+- [x] T36 — The dedup candidate query reads keyset pages of 5 k rows; a batch whose candidates do
+  not fit the cache keeps only its own loose matches; stored keys read 1 000 ids per statement;
+  tests with 60 k candidate rows (unit and Postgres) (FR-6, NFR-1, D29).
+- [x] T37 — Long-timeout dispatchers: one Agent per timeout bucket (7), rounded up (D30).
+- [x] T38 — `SCHEDULER=cron`: a six-hour full-sync CronJob (`.deploy/k8s/sync-full-cronjob.yaml`);
+  both CronJobs send their mode and budget and fail the Job on a failed summary (and the full one
+  on the D27 alarm); their scripts are tested against the route's real output (FR-12, D31).
+
 ## Notes
 
 - Write tests alongside each implementation task.

@@ -3,6 +3,18 @@
 # Trigger.dev (its sync-jobs schedule calls the same endpoint, portably). To use this instead of
 # Trigger.dev: set SCHEDULER=cron on the app and flip `suspend: false`. Kept (not deleted) for hosts
 # where Trigger.dev isn't configured.
+#
+# This is the KEYWORD sync (every 15 min, mode "keywords": a rotating search term against the
+# keyword-capable sources), the fallback for Trigger.dev's `sync-jobs-schedule`. Under
+# SCHEDULER=cron the FULL sync (every 6 h) needs its own CronJob: `sync-full-cronjob.yaml` —
+# flip `suspend: false` on both, or the full corpus is never synced.
+#
+# Budgets mirror the Trigger task (maxDuration 600 s, call timeout 570 s): the route is told a
+# 550 s budget (`deadlineMs`), so it stops and sends its summary line before curl gives up (`-m`).
+# Like the Trigger task it sends no `resultsWanted`: the app picks the per-source count (spec D18).
+# The route answers HTTP 200 once its stream starts, so `curl -f` cannot see a failed run: the
+# script fails the Job on a non-2xx, a stream without a summary line, or `"ok":false` (see
+# sync-full-cronjob.yaml, which also checks `staleSources`).
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -15,7 +27,7 @@ spec:
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
-      activeDeadlineSeconds: 300
+      activeDeadlineSeconds: 660
       backoffLimit: 1
       template:
         spec:
@@ -32,8 +44,34 @@ spec:
               command:
                 - sh
                 - -c
-                - >-
-                  curl -fsS -m 280 -X POST http://hust-prod-web-lb/api/jobs/sync
-                  -H "Authorization: Bearer $CRON_SECRET"
-                  -H 'Content-Type: application/json'
-                  -d '{"resultsWanted":80}'
+                - |
+                  out=/tmp/jobs-sync.ndjson
+                  status=$(curl -sS -m 570 -o "$out" -w '%{http_code}' \
+                    -X POST http://hust-prod-web-lb/api/jobs/sync \
+                    -H "Authorization: Bearer $CRON_SECRET" \
+                    -H 'Content-Type: application/json' \
+                    -H 'Accept: application/x-ndjson' \
+                    -H 'Accept-Encoding: identity' \
+                    -d '{"mode":"keywords","deadlineMs":550000}')
+                  rc=$?
+                  summary=$(grep '^{"type":"summary"' "$out" 2>/dev/null | tail -n 1)
+                  echo "[jobs-sync] HTTP ${status:-none}, curl exit $rc"
+                  if [ "$rc" -ne 0 ] || [ "${status#2}" = "$status" ]; then
+                    echo "[jobs-sync] FAILED: the request failed or answered non-2xx"
+                    tail -c 2000 "$out" 2>/dev/null
+                    exit 1
+                  fi
+                  if [ -z "$summary" ]; then
+                    echo "[jobs-sync] FAILED: the stream ended without a summary line (cut)"
+                    tail -n 3 "$out"
+                    exit 1
+                  fi
+                  echo "$summary"
+                  case "$summary" in
+                    '{"type":"summary","ok":true,'*) ;;
+                    *)
+                      echo "[jobs-sync] FAILED: the sync reported ok:false"
+                      exit 1
+                      ;;
+                  esac
+                  echo "[jobs-sync] ok"

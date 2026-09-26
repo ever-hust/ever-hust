@@ -6,7 +6,10 @@ import {
   IngestAbortedError,
   JobIngestor,
   looseIdentity,
+  DEDUP_CANDIDATE_PAGE_ROWS,
+  DEDUP_KEY_LOOKUP_IDS,
   MAX_CONSECUTIVE_ROW_FAILURES,
+  MAX_DEDUP_PROBE_CACHE_ROWS,
   type IngestCounters,
   type JobIngestorOptions,
 } from "./ingestor";
@@ -812,6 +815,33 @@ describe("JobIngestor — only rows that need it are written (spec D24, review f
     expectInvariant(counters);
   });
 
+  it("re-inserts a row deleted between the read-ahead and the last-seen refresh (spec D28, PR #106 review)", async () => {
+    const store = new FakeJobStore();
+    await ingestAll(setup({ store }).ingestor, [job("gone"), job("raced"), job("stale"), job("kept")]);
+    const longAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    for (const id of ["gone", "raced", "stale"]) store.rows.get(id)!.updatedAt = longAgo;
+    const readAhead = store.findWriteNeeds.bind(store);
+    store.findWriteNeeds = async (rows) => {
+      const needs = await readAhead(rows); // "gone", "raced", "stale": refresh
+      store.rows.delete("gone"); // e.g. the daily cleanup, right after the read-ahead
+      store.rows.get("raced")!.updatedAt = new Date(); // a concurrent run refreshed it first
+      return needs;
+    };
+    store.resetCalls();
+    const counters = await ingestAll(setup({ store, batchSize: 10 }).ingestor, [
+      job("gone"),
+      job("raced"),
+      job("stale"),
+      job("kept"),
+    ]);
+    expect(store.calls.refreshLastSeen).toEqual([["gone", "raced", "stale"]]);
+    // The refresh returned only "stale"; the other two went to the INSERT, whose WHERE tells them apart.
+    expect(store.calls.upsertBatch.map((b) => b.map((r) => r.externalId))).toEqual([["gone", "raced"]]);
+    expect(store.rows.has("gone")).toBe(true);
+    expect(counters).toMatchObject({ received: 4, inserted: 1, updated: 1, unchanged: 2, errors: 0 });
+    expectInvariant(counters);
+  });
+
   it("counts a failed refresh as errors and keeps the invariant", async () => {
     const store = new FakeJobStore();
     await ingestAll(setup({ store }).ingestor, [job("old")]);
@@ -870,7 +900,7 @@ describe("JobIngestor — bounded row-by-row fallback (spec D25, review finding 
 });
 
 describe("JobIngestor — dedup probe cache cap (review finding 9)", () => {
-  it("starts the probe cache over once it holds the cap, and probes again (never a wrong merge)", async () => {
+  it("starts the probe cache over once it holds the cap, reads what does not fit in pages, and probes again (never a wrong merge)", async () => {
     const store = new FakeJobStore();
     store.seed({ externalId: "s1", site: "lever", title: "T1", companyName: "Acme", rawData: { id: "s1", dedupKey: "k1" } });
     store.seed({ externalId: "s2", site: "lever", title: "T2", companyName: "Acme", rawData: { id: "s2", dedupKey: "k2" } });
@@ -881,12 +911,112 @@ describe("JobIngestor — dedup probe cache cap (review finding 9)", () => {
       job("n2", { title: "T2", dedupKey: "k2" }), // cache full → starts over, probes again
       job("n3", { title: "T1", dedupKey: "k1-other" }),
     ]);
+    // Each probe: Acme's 3 rows do not fit the room left (cap 2), so it pages on and keeps only
+    // the rows of its own job's identity; the third probe starts over (the cache holds the cap).
     expect(store.calls.findDedupCandidates).toEqual([
       { titles: ["T1"], companies: ["Acme"] },
+      { titles: ["T1"], companies: ["Acme"] },
+      { titles: ["T2"], companies: ["Acme"] },
       { titles: ["T2"], companies: ["Acme"] },
       { titles: ["T1"], companies: ["Acme"] },
+      { titles: ["T1"], companies: ["Acme"] },
+    ]);
+    expect(store.calls.dedupCandidatePages).toEqual([
+      { afterId: 0, limit: 3, rows: 3 },
+      { afterId: 3, limit: DEDUP_CANDIDATE_PAGE_ROWS, rows: 0 },
+      { afterId: 0, limit: 2, rows: 2 },
+      { afterId: 2, limit: DEDUP_CANDIDATE_PAGE_ROWS, rows: 1 },
+      { afterId: 0, limit: 3, rows: 3 },
+      { afterId: 3, limit: DEDUP_CANDIDATE_PAGE_ROWS, rows: 0 },
     ]);
     expect(counters).toMatchObject({ duplicatesMerged: 2, inserted: 1 });
     expect(store.rows.has("n3")).toBe(true);
+  });
+});
+
+describe("JobIngestor — the dedup probe is bounded (spec D29, PR #106 review)", () => {
+  /** One large employer: more stored rows than the probe cache may hold. */
+  function largeEmployer(store: FakeJobStore, roles: number, warehouseCities: number) {
+    for (let i = 0; i < roles; i++) {
+      store.seed({
+        externalId: `big-${i}`,
+        site: "workday",
+        title: `Role ${i}`,
+        companyName: "BigCo",
+        rawData: { id: `big-${i}`, dedupKey: `bigco|role ${i}|x` },
+      });
+    }
+    // One title in many cities: every one of these rows loosely matches a "Warehouse Associate" job.
+    for (let i = 0; i < warehouseCities; i++) {
+      store.seed({
+        externalId: `wa-${i}`,
+        site: "workday",
+        title: "Warehouse Associate",
+        companyName: "BigCo",
+        locationCity: `City ${i}`,
+        rawData: { id: `wa-${i}`, dedupKey: `bigco|warehouse associate|city ${i}` },
+      });
+    }
+  }
+
+  it("reads 60 000 candidate rows in pages, holds at most the cap, and still finds the merge", async () => {
+    const store = new FakeJobStore();
+    largeEmployer(store, 57_500, 2_500);
+    expect(store.rows.size).toBeGreaterThan(MAX_DEDUP_PROBE_CACHE_ROWS);
+    const { ingestor } = setup({ store, batchSize: 250 });
+    const counters = await ingestAll(ingestor, [
+      // The company differs by its suffix, the title is exact: a copy of wa-1234.
+      job("board-1", {
+        site: "indeed",
+        title: "Warehouse Associate",
+        companyName: "BigCo, Inc.",
+        dedupKey: "bigco|warehouse associate|city 1234",
+      }),
+      // "BigCo" verbatim: its 60 000 rows are candidates of this batch's query.
+      job("board-2", { site: "indeed", title: "Something New", companyName: "BigCo", dedupKey: "bigco|something new|x" }),
+    ]);
+    expect(counters).toMatchObject({ received: 2, duplicatesMerged: 1, inserted: 1, errors: 0 });
+    expect(store.rows.has("board-1")).toBe(false); // merged onto wa-1234
+    expect(store.rows.has("board-2")).toBe(true);
+    expectInvariant(counters);
+
+    // Every row was read (the same candidates as one unbounded query), never more than a page at a time.
+    const pages = store.calls.dedupCandidatePages;
+    expect(pages.every((pg) => pg.rows <= DEDUP_CANDIDATE_PAGE_ROWS && pg.limit <= DEDUP_CANDIDATE_PAGE_ROWS)).toBe(true);
+    expect(pages.reduce((n, pg) => n + pg.rows, 0)).toBe(60_000);
+    // Rows are kept while they fit (the cap + 1 says "does not fit"), then only the batch's own candidates.
+    expect(ingestor.probeCacheRows).toBe(2_500);
+    // Their stored keys are read in bounded IN lists.
+    expect(store.calls.findDedupKeys.map((ids) => ids.length)).toEqual([DEDUP_KEY_LOOKUP_IDS, DEDUP_KEY_LOOKUP_IDS, 500]);
+  });
+
+  it("keeps every candidate a job needs when only some fit, across batches (small cap and pages)", async () => {
+    const store = new FakeJobStore();
+    largeEmployer(store, 300, 40);
+    const { ingestor } = setup({
+      store,
+      batchSize: 2,
+      ingestor: { dedupProbeCacheRows: 100, dedupCandidatePageRows: 30 },
+    });
+    let maxHeld = 0;
+    const findKeys = store.findDedupKeys.bind(store);
+    store.findDedupKeys = async (ids) => {
+      maxHeld = Math.max(maxHeld, ingestor.probeCacheRows);
+      return findKeys(ids);
+    };
+    const counters = await ingestAll(ingestor, [
+      job("b-1", { site: "indeed", title: "Warehouse Associate", companyName: "BigCo", dedupKey: "bigco|warehouse associate|city 7" }),
+      job("b-2", { site: "indeed", title: "Role 250", companyName: "BIGCO", dedupKey: "bigco|role 250|x" }),
+      job("b-3", { site: "indeed", title: "Role 3", companyName: "BigCo", dedupKey: "bigco|role 3|x" }),
+      job("b-4", { site: "indeed", title: "warehouse associate", companyName: "BigCo LLC", dedupKey: "bigco|warehouse associate|city 39" }),
+      job("b-5", { site: "indeed", title: "Role 3", companyName: "BigCo", dedupKey: "bigco|role 3|somewhere else" }),
+    ]);
+    // b-1..b-4 are copies of stored rows (b-2 and b-4 match only loosely); b-5 is a new posting.
+    expect(counters).toMatchObject({ received: 5, duplicatesMerged: 4, inserted: 1, errors: 0 });
+    expect([...store.rows.keys()].filter((id) => id.startsWith("b-"))).toEqual(["b-5"]);
+    expect(store.calls.dedupCandidatePages.every((pg) => pg.rows <= 30)).toBe(true);
+    // At most the cap + 1 buffered; after a batch, at most the cap plus that batch's own candidates.
+    expect(maxHeld).toBeLessThanOrEqual(100 + 40);
+    expectInvariant(counters);
   });
 });

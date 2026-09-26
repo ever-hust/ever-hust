@@ -1,4 +1,4 @@
-import { and, asc, getTableColumns, inArray, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, getTableColumns, gt, inArray, or, sql, type SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import {
   db as defaultDb,
@@ -36,6 +36,16 @@ export interface ExistingJobRef {
   locationKey: string | null;
   /** The row's last-seen marker (`updated_at`); decides whether a merge may take the row over. */
   updatedAt: Date | null;
+}
+
+/** One page of {@link JobStore.findDedupCandidates}. */
+export interface DedupCandidateQuery {
+  titles: string[];
+  companies: string[];
+  /** Only rows with a larger id (0: from the start). */
+  afterId: number;
+  /** At most this many rows (at least 1). */
+  limit: number;
 }
 
 /** A stored row that may share a posting's identity: narrow columns only (no `raw_data`). */
@@ -82,11 +92,13 @@ export interface JobStore extends CoordsLookup {
   /** Existing rows for these external ids (primary lookup, unique index). */
   findExisting(externalIds: string[]): Promise<Map<string, ExistingJobRef>>;
   /**
-   * Rows that share an exact title or company name with the incoming jobs — the index-narrowed
-   * candidate set for cross-run dedupe (spec 01a D1). Narrow columns only: `raw_data` (which holds
-   * the whole DTO, description included, usually TOASTed) is NOT read here.
+   * One page of the rows that share an exact title or company name with the incoming jobs — the
+   * index-narrowed candidate set for cross-run dedupe (spec 01a D1): the rows with `id > afterId`,
+   * in `id` order, at most `limit` of them (keyset pages, spec D29: one title or company can
+   * share tens of thousands of rows). Narrow columns only: `raw_data` (which holds the whole DTO,
+   * description included, usually TOASTed) is NOT read here.
    */
-  findDedupCandidates(query: { titles: string[]; companies: string[] }): Promise<DedupCandidateRef[]>;
+  findDedupCandidates(query: DedupCandidateQuery): Promise<DedupCandidateRef[]>;
   /**
    * `raw_data->>'dedupKey'` of these rows (primary-key lookup), oldest first; rows without a key
    * are absent. Called only for the few candidates whose title and company match a job loosely.
@@ -106,7 +118,9 @@ export interface JobStore extends CoordsLookup {
    * Refresh the last-seen marker of unchanged rows not seen for {@link LAST_SEEN_REFRESH_DAYS}:
    * a narrow `UPDATE jobs SET updated_at` (spec D14/D24) instead of rewriting the whole row
    * (description and `raw_data` stored out of line again). Only rows still stale are touched (a
-   * concurrent run may have refreshed them); returns the external ids refreshed.
+   * concurrent run may have refreshed them); returns the external ids refreshed. The ingestor
+   * sends the rest to the upsert: a row missing from the answer was deleted or refreshed since the
+   * read-ahead (spec D28).
    */
   refreshLastSeen(externalIds: string[], seenAt: Date): Promise<string[]>;
   /**
@@ -499,25 +513,31 @@ export function buildStaleSourcesQuery(before: Date, limit: number): SQL {
  * Step 1 of the cross-run dedup probe: rows sharing an exact title or company (btree indexes on
  * both), narrow columns only. Reading `raw_data` here would detoast the whole stored DTO of every
  * row of every company in the batch (one new posting of a large employer = thousands of rows).
+ * With `page`, one keyset page of them (spec D29): `id > afterId`, in `id` order, `limit` rows.
  */
 export function buildDedupCandidateQuery(
   database: Database | SyncTx,
   titles: string[],
   companies: string[],
+  page?: { afterId: number; limit: number },
 ) {
   const narrow = [
     titles.length > 0 ? inArray(jobs.title, titles) : undefined,
     companies.length > 0 ? inArray(jobs.companyName, companies) : undefined,
   ].filter((c): c is SQL => c !== undefined);
-  return database
+  const query = database
     .select({
       id: jobs.id,
       externalId: jobs.externalId,
       title: jobs.title,
       companyName: jobs.companyName,
     })
-    .from(jobs)
-    .where(or(...narrow));
+    .from(jobs);
+  if (!page) return query.where(or(...narrow));
+  return query
+    .where(and(or(...narrow), gt(jobs.id, page.afterId)))
+    .orderBy(asc(jobs.id))
+    .limit(page.limit);
 }
 
 /**
@@ -639,9 +659,12 @@ export function createDrizzleJobStore(database: Database = defaultDb, options: D
       return out;
     },
 
-    async findDedupCandidates({ titles, companies }) {
+    async findDedupCandidates({ titles, companies, afterId, limit }) {
       if (titles.length === 0 && companies.length === 0) return [];
-      return read((tx) => buildDedupCandidateQuery(tx, titles, companies));
+      if (!Number.isInteger(limit) || limit < 1) {
+        throw new RangeError(`findDedupCandidates needs a positive integer limit, got ${limit}`);
+      }
+      return read((tx) => buildDedupCandidateQuery(tx, titles, companies, { afterId, limit }));
     },
 
     async findDedupKeys(ids) {

@@ -203,6 +203,14 @@ describe("buildDedupCandidateQuery", () => {
     const where = sql.slice(sql.indexOf(" where "));
     expect(where).toBe(` where "jobs"."title" in ($1)`);
   });
+
+  it("reads one keyset page: id > afterId, in id order, limit rows (spec D29)", () => {
+    const { sql, params } = buildDedupCandidateQuery(mockDb(), ["T"], ["Acme"], { afterId: 4_200, limit: 5_000 }).toSQL();
+    expect(sql).toBe(
+      'select "id", "external_id", "title", "company_name" from "jobs" where (("jobs"."title" in ($1) or "jobs"."company_name" in ($2)) and "jobs"."id" > $3) order by "jobs"."id" asc limit $4',
+    );
+    expect(params).toEqual(["T", "Acme", 4_200, 5_000]);
+  });
 });
 
 describe("buildDedupKeyQuery", () => {
@@ -281,12 +289,17 @@ describe("createDrizzleJobStore", () => {
   it("findDedupCandidates returns narrow rows and skips the query when nothing to probe", async () => {
     const { client, statements } = fakeClient([{ values: [[1, "a", "T", "Acme"], [2, "b", "T", null]] }]);
     const store = createDrizzleJobStore(drizzle(client as never, { schema }) as unknown as Database);
-    expect(await store.findDedupCandidates({ titles: [], companies: [] })).toEqual([]);
+    expect(await store.findDedupCandidates({ titles: [], companies: [], afterId: 0, limit: 10 })).toEqual([]);
     expect(statements).toHaveLength(0);
-    expect(await store.findDedupCandidates({ titles: ["T"], companies: [] })).toEqual([
+    expect(await store.findDedupCandidates({ titles: ["T"], companies: [], afterId: 0, limit: 10 })).toEqual([
       { id: 1, externalId: "a", title: "T", companyName: "Acme" },
       { id: 2, externalId: "b", title: "T", companyName: null },
     ]);
+    const select = statements.find((st) => st.query.startsWith("select \"id\""))!;
+    expect(select.query).toContain('order by "jobs"."id" asc limit');
+    expect(select.params.slice(-2)).toEqual([0, 10]);
+    // A page needs a limit: never an unbounded read.
+    await expect(store.findDedupCandidates({ titles: ["T"], companies: [], afterId: 0, limit: 0 })).rejects.toThrow(RangeError);
   });
 
   it("findDedupKeys returns each key with the row's source and content id; drops rows without a key", async () => {
@@ -443,7 +456,7 @@ describe("createDrizzleJobStore — statement bounds and the new calls (spec D24
       { rows: [] }, // findStaleSources
     ]);
     await store.findExisting(["a"]);
-    await store.findDedupCandidates({ titles: ["T"], companies: [] });
+    await store.findDedupCandidates({ titles: ["T"], companies: [], afterId: 0, limit: 10 });
     await store.findDedupKeys([1]);
     await store.findWriteNeeds([row("a")]);
     await store.findCoordsForLocations(["k"]);

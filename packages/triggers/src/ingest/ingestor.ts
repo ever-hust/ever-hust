@@ -5,6 +5,8 @@ import { locationKey, type RunGeocoder, type GeocodeRequest } from "./geocoder";
 import {
   MAX_UPSERT_ROWS_PER_STATEMENT,
   mergeMayTakeOver,
+  type DedupCandidate,
+  type DedupCandidateRef,
   type ExistingJobRef,
   type JobRow,
   type JobStore,
@@ -24,7 +26,8 @@ import {
  *      postings), and one copy absorbs at most one posting of each source,
  *   3. geocoding for rows without usable stored coordinates (see {@link RunGeocoder}),
  *   4. the upsert's `WHERE` read ahead for rows that exist (spec D24): unchanged rows are not sent,
- *      rows only due their weekly last-seen refresh get a narrow `UPDATE … SET updated_at`,
+ *      rows only due their weekly last-seen refresh get a narrow `UPDATE … SET updated_at`, and a
+ *      row that UPDATE did not return (deleted or refreshed meanwhile) goes to step 5 (spec D28),
  *   5. one `INSERT … ON CONFLICT … DO UPDATE … WHERE … IS DISTINCT FROM …` statement for new and
  *      changed rows, in its own bounded transaction (the jobs-writer rule,
  *      `packages/db/src/jobs-insert.ts`), with a row-by-row fallback only when that statement
@@ -117,6 +120,8 @@ export interface JobIngestorOptions {
   now?: () => number;
   /** Candidate rows the dedup probe caches before starting over (default {@link MAX_DEDUP_PROBE_CACHE_ROWS}). */
   dedupProbeCacheRows?: number;
+  /** Rows per page of the dedup candidate query (default {@link DEDUP_CANDIDATE_PAGE_ROWS}). */
+  dedupCandidatePageRows?: number;
   /** Called after every flushed batch (progress reporting). Must not throw. */
   onFlush?: () => void;
 }
@@ -138,6 +143,16 @@ export const MAX_CONSECUTIVE_ROW_FAILURES = 5;
  * first full run. Starting over only costs repeated probe queries, never a wrong merge.
  */
 export const MAX_DEDUP_PROBE_CACHE_ROWS = 50_000;
+
+/**
+ * Rows per page of the dedup candidate query (spec D29). One title or company can share tens of
+ * thousands of rows (a common title, a large employer); the probe reads them in pages instead of
+ * one unbounded result, so the cap above holds.
+ */
+export const DEDUP_CANDIDATE_PAGE_ROWS = 5_000;
+
+/** Ids per stored-dedupKey lookup (spec D29): one bounded `IN` list per statement. */
+export const DEDUP_KEY_LOOKUP_IDS = 1_000;
 
 /**
  * One source's jobs with one within-run identity: `seen` counts every job of that source the run
@@ -319,6 +334,12 @@ export class JobIngestor {
   private readonly candidatesByIdentity = new Map<string, Array<{ id: number; externalId: string }>>();
   private readonly groupedIds = new Set<number>();
   private readonly keyReadIds = new Set<number>();
+  /**
+   * (title | company, loose identity) pairs whose candidates are cached although the title or
+   * company as a whole is not: its rows did not fit the cache, so only those loosely matching a
+   * job were kept (spec D29).
+   */
+  private readonly probedPairs = new Set<string>();
 
   private consecutiveFailedBatches = 0;
   /** Rows the database accepted (inserted, rewritten, refreshed, unchanged, or merged onto another row). */
@@ -338,6 +359,14 @@ export class JobIngestor {
   /** Rows the database accepted so far (within-run duplicates are not writes and not counted). */
   get persisted(): number {
     return this.rowsPersisted;
+  }
+
+  /**
+   * Candidate rows the dedup probe holds now (spec D29): at most {@link MAX_DEDUP_PROBE_CACHE_ROWS}
+   * plus the candidates of the batch being written.
+   */
+  get probeCacheRows(): number {
+    return this.groupedIds.size;
   }
 
   /** Count a job line that failed validation upstream (the client's zod check). */
@@ -515,11 +544,14 @@ export class JobIngestor {
     // 3) Coordinates for rows that lack usable stored ones.
     await this.geocodeRows(rows, stored);
 
-    // 4) What the rows that exist actually need (spec D24).
+    // 4) What the rows that exist actually need (spec D24). A row the narrow refresh did not
+    //    return goes to the INSERT with the new and changed rows (spec D28).
     const { write, refresh, unchanged } = await this.sortByNeed(rows, stored);
     this.countWrite(unchanged, [], mergedTargets);
     let accepted = settled + unchanged.length;
-    accepted += await this.refreshLastSeen(refresh, mergedTargets);
+    const refreshed = await this.refreshLastSeen(refresh, mergedTargets);
+    accepted += refreshed.settled;
+    write.push(...refreshed.missed);
 
     // 5) New and changed rows.
     const { ok, failed } = await this.writeRows(write, mergedTargets);
@@ -626,26 +658,39 @@ export class JobIngestor {
     return out;
   }
 
-  /** The narrow last-seen refresh (spec D14/D24). Returns the rows settled (refreshed or not due). */
-  private async refreshLastSeen(rows: JobRow[], mergedTargets: Set<string>): Promise<number> {
-    if (rows.length === 0) return 0;
+  /**
+   * The narrow last-seen refresh (spec D14/D24). Returns how many rows it settled (refreshed) and
+   * the rows it did not return (spec D28): a row deleted since the read-ahead (e.g. by the
+   * cleanup) or one a concurrent run refreshed first. Those go to the INSERT, whose own `WHERE`
+   * tells them apart: the deleted row is stored again (inserted), the refreshed one is left alone
+   * (unchanged). Counting them `unchanged` here lost the deleted row until its next sighting.
+   */
+  private async refreshLastSeen(
+    rows: JobRow[],
+    mergedTargets: Set<string>,
+  ): Promise<{ settled: number; missed: JobRow[] }> {
+    if (rows.length === 0) return { settled: 0, missed: [] };
     const seenAt = new Date(Math.max(...rows.map((r) => r.updatedAt.getTime())));
+    let returned: string[];
     try {
-      const refreshed = await this.options.store.refreshLastSeen(
+      returned = await this.options.store.refreshLastSeen(
         rows.map((r) => r.externalId),
         seenAt,
       );
-      this.countWrite(
-        rows,
-        refreshed.map((externalId) => ({ externalId, inserted: false })),
-        mergedTargets,
-      );
-      return rows.length;
     } catch (err) {
       this.counters.errors += rows.length;
       this.recordError(`last-seen refresh of ${rows.length} rows failed: ${messageOf(err)}`);
-      return 0;
+      return { settled: 0, missed: [] };
     }
+    const ids = new Set(returned);
+    const done = rows.filter((r) => ids.has(r.externalId));
+    const missed = rows.filter((r) => !ids.has(r.externalId));
+    this.countWrite(
+      done,
+      done.map((r) => ({ externalId: r.externalId, inserted: false })),
+      mergedTargets,
+    );
+    return { settled: done.length, missed };
   }
 
   private siteOf(job: Pick<JobPostDto, "site">): string {
@@ -751,34 +796,33 @@ export class JobIngestor {
    *      title/company per run, through the btree indexes;
    *   2. the stored dedupKey (`raw_data`, usually TOASTed), with the row's source and the source id
    *      of its content, only for the candidates whose title AND company match an incoming job
-   *      loosely (case, punctuation, corporate suffix), by id.
-   * The cache of step 1 starts over once it holds {@link MAX_DEDUP_PROBE_CACHE_ROWS} rows.
+   *      loosely (case, punctuation, corporate suffix), by id, at most
+   *      {@link DEDUP_KEY_LOOKUP_IDS} ids per statement.
+   * The cache of step 1 starts over once it holds {@link MAX_DEDUP_PROBE_CACHE_ROWS} rows, and step
+   * 1 reads in pages: a batch whose candidates do not fit keeps only the rows that loosely match
+   * one of its own jobs (spec D29, see `readDedupCandidates`).
    */
   private async probeDedupCandidates(jobs: JobPostDto[]): Promise<void> {
     const { store } = this.options;
-    if (this.groupedIds.size >= (this.options.dedupProbeCacheRows ?? MAX_DEDUP_PROBE_CACHE_ROWS)) {
-      this.resetProbeCache();
-    }
-    const titles = new Set<string>();
-    const companies = new Set<string>();
+    const cap = Math.max(1, this.options.dedupProbeCacheRows ?? MAX_DEDUP_PROBE_CACHE_ROWS);
+    if (this.groupedIds.size >= cap) this.resetProbeCache();
+    // The exact titles / companies whose candidates are not cached yet for a job's loose identity.
+    const titles = new Map<string, Set<string>>();
+    const companies = new Map<string, Set<string>>();
     for (const j of jobs) {
-      if (!this.probedTitles.has(j.title)) titles.add(j.title);
-      if (j.companyName && !this.probedCompanies.has(j.companyName)) companies.add(j.companyName);
-    }
-    if (titles.size > 0 || companies.size > 0) {
-      const refs = await store.findDedupCandidates({ titles: [...titles], companies: [...companies] });
-      for (const t of titles) this.probedTitles.add(t);
-      for (const c of companies) this.probedCompanies.add(c);
-      for (const ref of refs) {
-        if (this.groupedIds.has(ref.id)) continue;
-        this.groupedIds.add(ref.id);
-        const identity = looseIdentity(ref.title, ref.companyName);
-        const group = this.candidatesByIdentity.get(identity);
-        const entry = { id: ref.id, externalId: ref.externalId };
-        if (group) group.push(entry);
-        else this.candidatesByIdentity.set(identity, [entry]);
+      const identity = looseIdentity(j.title, j.companyName);
+      if (!this.probedTitles.has(j.title) && !this.probedPairs.has(pairKey("title", j.title, identity))) {
+        addTo(titles, j.title, identity);
+      }
+      if (
+        j.companyName &&
+        !this.probedCompanies.has(j.companyName) &&
+        !this.probedPairs.has(pairKey("company", j.companyName, identity))
+      ) {
+        addTo(companies, j.companyName, identity);
       }
     }
+    if (titles.size > 0 || companies.size > 0) await this.readDedupCandidates(titles, companies, cap);
 
     const ids = new Set<number>();
     for (const j of jobs) {
@@ -786,29 +830,102 @@ export class JobIngestor {
         if (!this.keyReadIds.has(c.id)) ids.add(c.id);
       }
     }
-    if (ids.size === 0) return;
-    const keyed = await store.findDedupKeys([...ids]);
-    for (const id of ids) this.keyReadIds.add(id);
-    for (const c of keyed) {
-      const key = normaliseDedupKey(c.dedupKey);
-      if (!key) continue;
-      const owner: StoredOwner = { id: c.id, externalId: c.externalId, site: c.site, sourceId: c.sourceId };
-      const owners = this.storedByDedupKey.get(key);
-      if (!owners) {
-        this.storedByDedupKey.set(key, [owner]);
-        continue;
-      }
-      if (owners.some((o) => o.id === c.id)) continue;
-      // Oldest first: the oldest row of another source owns the key.
-      owners.push(owner);
-      owners.sort((a, b) => a.id - b.id);
+    const sorted = [...ids].sort((a, b) => a - b);
+    for (let i = 0; i < sorted.length; i += DEDUP_KEY_LOOKUP_IDS) {
+      const chunk = sorted.slice(i, i + DEDUP_KEY_LOOKUP_IDS);
+      const keyed = await store.findDedupKeys(chunk);
+      for (const id of chunk) this.keyReadIds.add(id);
+      for (const c of keyed) this.addStoredOwner(c);
     }
+  }
+
+  /**
+   * Step 1 of the probe, bounded (spec D29): the rows sharing one of `titles` or `companies`, read
+   * in pages of {@link DEDUP_CANDIDATE_PAGE_ROWS} (keyset on `id`). While they fit the cache's room
+   * (`cap` minus what it holds) they are all kept, and those titles / companies count as probed for
+   * the rest of the run. Once they do not fit (a broad title, a large employer), the rest is still
+   * paged through, but only the rows whose loose identity is one of this batch's jobs' are kept,
+   * and only those (title, identity) / (company, identity) pairs count as probed: a later job with
+   * another identity reads that title or company again. Either way every candidate of this batch's
+   * jobs is found (the same set as an unbounded read), and memory holds at most the cap plus one
+   * page plus the rows that loosely match the batch's own jobs, which it needs.
+   */
+  private async readDedupCandidates(
+    titles: Map<string, Set<string>>,
+    companies: Map<string, Set<string>>,
+    cap: number,
+  ): Promise<void> {
+    const { store } = this.options;
+    const pageRows = Math.max(1, this.options.dedupCandidatePageRows ?? DEDUP_CANDIDATE_PAGE_ROWS);
+    const room = Math.max(1, cap - this.groupedIds.size);
+    const wanted = new Set<string>();
+    for (const identities of [...titles.values(), ...companies.values()]) {
+      for (const identity of identities) wanted.add(identity);
+    }
+    const query = { titles: [...titles.keys()], companies: [...companies.keys()] };
+    /** Every row read so far while they fit the room; `null` once they did not. */
+    let all: DedupCandidateRef[] | null = [];
+    let afterId = 0;
+    for (;;) {
+      // While buffering, never read past room + 1 rows: the one extra row says "does not fit".
+      const limit: number = all === null ? pageRows : Math.min(pageRows, room + 1 - all.length);
+      const page = await store.findDedupCandidates({ ...query, afterId, limit });
+      if (all !== null) {
+        all.push(...page);
+        if (all.length > room) {
+          for (const ref of all) this.groupCandidate(ref, wanted);
+          all = null;
+        }
+      } else {
+        for (const ref of page) this.groupCandidate(ref, wanted);
+      }
+      if (page.length < limit) break;
+      afterId = page[page.length - 1]!.id;
+    }
+
+    if (all !== null) {
+      for (const ref of all) this.groupCandidate(ref);
+      for (const t of titles.keys()) this.probedTitles.add(t);
+      for (const c of companies.keys()) this.probedCompanies.add(c);
+      return;
+    }
+    for (const [t, identities] of titles) for (const i of identities) this.probedPairs.add(pairKey("title", t, i));
+    for (const [c, identities] of companies) for (const i of identities) this.probedPairs.add(pairKey("company", c, i));
+  }
+
+  /** Cache a candidate row under its loose identity (only when that identity is `wanted`, if given). */
+  private groupCandidate(ref: DedupCandidateRef, wanted?: Set<string>): void {
+    if (this.groupedIds.has(ref.id)) return;
+    const identity = looseIdentity(ref.title, ref.companyName);
+    if (wanted && !wanted.has(identity)) return;
+    this.groupedIds.add(ref.id);
+    const group = this.candidatesByIdentity.get(identity);
+    const entry = { id: ref.id, externalId: ref.externalId };
+    if (group) group.push(entry);
+    else this.candidatesByIdentity.set(identity, [entry]);
+  }
+
+  /** Record a stored row that owns a dedupKey; the owners of a key stay oldest first. */
+  private addStoredOwner(c: DedupCandidate): void {
+    const key = normaliseDedupKey(c.dedupKey);
+    if (!key) return;
+    const owner: StoredOwner = { id: c.id, externalId: c.externalId, site: c.site, sourceId: c.sourceId };
+    const owners = this.storedByDedupKey.get(key);
+    if (!owners) {
+      this.storedByDedupKey.set(key, [owner]);
+      return;
+    }
+    if (owners.some((o) => o.id === c.id)) return;
+    // Oldest first: the oldest row of another source owns the key.
+    owners.push(owner);
+    owners.sort((a, b) => a.id - b.id);
   }
 
   private resetProbeCache(): void {
     this.storedByDedupKey.clear();
     this.probedTitles.clear();
     this.probedCompanies.clear();
+    this.probedPairs.clear();
     this.candidatesByIdentity.clear();
     this.groupedIds.clear();
     this.keyReadIds.clear();
@@ -874,6 +991,17 @@ export function looseIdentity(title: string, company: string | null | undefined)
 export function fallbackDedupIdentity(job: Pick<JobPostDto, "title" | "companyName" | "location">): string {
   const loc = job.location ?? {};
   return `${looseIdentity(job.title, job.companyName)}|${[loc.city, loc.state, loc.country].map(looseText).join("|")}`;
+}
+
+/** Key of {@link JobIngestor.probedPairs}. */
+function pairKey(kind: "title" | "company", value: string, identity: string): string {
+  return `${kind}\u0000${value}\u0000${identity}`;
+}
+
+function addTo(map: Map<string, Set<string>>, key: string, value: string): void {
+  const set = map.get(key);
+  if (set) set.add(value);
+  else map.set(key, new Set([value]));
 }
 
 function isPersistable(job: JobPostDto): boolean {

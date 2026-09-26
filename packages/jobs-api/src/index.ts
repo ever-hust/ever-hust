@@ -37,7 +37,15 @@ export {
   emptyStreamStats,
 } from "./stream";
 export type { JobStreamEnd, JobStreamEvent, JobStreamStats, TruncationReason } from "./stream";
-export { createLongTimeoutDispatcher, getLongTimeoutDispatcher } from "./dispatcher";
+export {
+  createLongTimeoutDispatcher,
+  createLongTimeoutDispatcherCache,
+  getLongTimeoutDispatcher,
+  LONG_TIMEOUT_BUCKETS_MS,
+  longTimeoutBucketMs,
+  longTimeoutDispatcherCount,
+} from "./dispatcher";
+export type { LongTimeoutDispatcherCache } from "./dispatcher";
 
 const API_URL = process.env.EVER_JOBS_API_URL ?? "https://api.everjobs.ai";
 const API_KEY = process.env.EVER_JOBS_API_KEY;

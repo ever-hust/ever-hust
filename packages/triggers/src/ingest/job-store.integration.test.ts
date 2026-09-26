@@ -9,6 +9,7 @@ import type { JobPostDto, JobStreamEvent } from "@ever-hust/jobs-api";
 import { buildSyncPlan, type SyncEnvConfig } from "./config";
 import type { GeocodeFn } from "./geocoder";
 import { errorText } from "./errors";
+import { DEDUP_CANDIDATE_PAGE_ROWS, MAX_DEDUP_PROBE_CACHE_ROWS } from "./ingestor";
 import { createDrizzleJobStore, type JobStore } from "./job-store";
 import { runJobsSync, type UpstreamStream } from "./run-sync";
 
@@ -445,6 +446,83 @@ suite("job store against Postgres (opt-in)", () => {
     };
     expect(await syncWith(racing, [job("gone"), job("kept")], 10)).toMatchObject({ ok: true, inserted: 1, unchanged: 1, errors: 0 });
     expect((await client`SELECT count(*)::int AS n FROM jobs WHERE external_id = 'gone'`)[0]!.n).toBe(1);
+  });
+
+  // --- PR #106 review (Greptile) -------------------------------------------------------------
+
+  it("re-inserts a row deleted between the read-ahead and the last-seen refresh (spec D28)", async () => {
+    const batch = () => [job("gone"), job("raced"), job("stale"), job("kept")];
+    await sync(batch());
+    await client`UPDATE jobs SET updated_at = (now() AT TIME ZONE 'UTC') - interval '30 days' WHERE external_id IN ('gone', 'raced', 'stale')`;
+    const real = createDrizzleJobStore(db);
+    const refreshed: string[][] = [];
+    const racing: JobStore = {
+      ...real,
+      findWriteNeeds: async (rows) => {
+        const needs = await real.findWriteNeeds(rows); // "gone", "raced", "stale": refresh
+        // Between the two steps: the daily cleanup deletes one row, a concurrent run refreshes another.
+        await client`DELETE FROM jobs WHERE external_id = 'gone'`;
+        await client`UPDATE jobs SET updated_at = now() AT TIME ZONE 'UTC' WHERE external_id = 'raced'`;
+        return needs;
+      },
+      refreshLastSeen: async (ids, seenAt) => {
+        const done = await real.refreshLastSeen(ids, seenAt);
+        refreshed.push([...done].sort());
+        return done;
+      },
+    };
+    const before = await rowVersions();
+    const run = await syncWith(racing, batch(), 10);
+    expect(refreshed).toEqual([["stale"]]); // the UPDATE found neither "gone" nor a stale "raced"
+    // "gone" is stored again (inserted), "raced" is left alone by the INSERT's WHERE (unchanged).
+    expect(run).toMatchObject({ ok: true, inserted: 1, updated: 1, unchanged: 2, errors: 0 });
+    const gone = await client`SELECT title, updated_at > (now() AT TIME ZONE 'UTC') - interval '1 day' AS fresh FROM jobs WHERE external_id = 'gone'`;
+    expect(gone).toHaveLength(1);
+    expect(gone[0]).toMatchObject({ title: "Engineer gone", fresh: true });
+    const after = await rowVersions();
+    expect(after.kept).toBe(before.kept);
+    // Control: without the race the same batch writes nothing but the re-inserted row's coordinates
+    // (the batch did not geocode it: its stored ones were usable until the row vanished).
+    expect(await sync(batch(), 10)).toMatchObject({ ok: true, inserted: 0, updated: 1, unchanged: 3 });
+    expect(await sync(batch(), 10)).toMatchObject({ ok: true, inserted: 0, updated: 0, unchanged: 4 });
+  });
+
+  it("pages a candidate set larger than the probe cache and still merges the copy (spec D29)", async () => {
+    // One employer with more rows than the probe may cache; one of them is the posting the job copies.
+    const rows = MAX_DEDUP_PROBE_CACHE_ROWS + 10_000;
+    await client`
+      INSERT INTO jobs (external_id, site, title, company_name, location_city, raw_data, updated_at)
+      SELECT 'big-' || g, 'workday', 'Role ' || (g % 5000), 'BigCo', 'City ' || g,
+             jsonb_build_object('id', 'big-' || g, 'dedupKey', 'bigco|role ' || (g % 5000) || '|city ' || g),
+             now() AT TIME ZONE 'UTC'
+      FROM generate_series(1, ${rows}) AS g`;
+    await client`ANALYZE jobs`;
+    const real = createDrizzleJobStore(db);
+    const pages: number[] = [];
+    const counting: JobStore = {
+      ...real,
+      findDedupCandidates: async (q) => {
+        const page = await real.findDedupCandidates(q);
+        pages.push(page.length);
+        return page;
+      },
+    };
+    const started = Date.now();
+    const run = await syncWith(
+      counting,
+      [
+        // "BigCo" verbatim: every stored row is a candidate of this batch; the copy of big-4242.
+        job("board-1", { site: "indeed", title: "Role 4242", companyName: "BigCo", location: { city: "City 4242" }, dedupKey: "bigco|role 4242|city 4242" }),
+        job("board-2", { site: "indeed", title: "Something New", companyName: "BigCo", dedupKey: "bigco|something new|x" }),
+      ],
+      10,
+    );
+    expect(run).toMatchObject({ ok: true, received: 2, duplicatesMerged: 1, inserted: 1, errors: 0 });
+    expect(pages.reduce((a, b) => a + b, 0)).toBe(rows); // every candidate read …
+    expect(Math.max(...pages)).toBeLessThanOrEqual(DEDUP_CANDIDATE_PAGE_ROWS); // … one page at a time
+    const ids = await client`SELECT external_id FROM jobs WHERE external_id LIKE 'board-%' ORDER BY 1`;
+    expect(ids.map((r) => r.external_id)).toEqual(["board-2"]); // board-1 merged onto big-4242
+    expect(Date.now() - started).toBeLessThan(30_000);
   });
 
   it("the last-seen refresh locks its rows in external_id byte order, as the upsert does (review F4)", async () => {

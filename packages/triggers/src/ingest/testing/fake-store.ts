@@ -4,6 +4,7 @@ import {
   MAX_UPSERT_ROWS_PER_STATEMENT,
   mergeMayTakeOver,
   type DedupCandidate,
+  type DedupCandidateQuery,
   type DedupCandidateRef,
   type ExistingJobRef,
   type JobRow,
@@ -116,6 +117,8 @@ export class FakeJobStore implements JobStore {
   readonly calls = {
     findExisting: [] as string[][],
     findDedupCandidates: [] as Array<{ titles: string[]; companies: string[] }>,
+    /** The page of every `findDedupCandidates` call, and how many rows it returned. */
+    dedupCandidatePages: [] as Array<{ afterId: number; limit: number; rows: number }>,
     findDedupKeys: [] as number[][],
     findWriteNeeds: [] as string[][],
     refreshLastSeen: [] as string[][],
@@ -170,23 +173,31 @@ export class FakeJobStore implements JobStore {
     return out;
   }
 
-  async findDedupCandidates(query: { titles: string[]; companies: string[] }): Promise<DedupCandidateRef[]> {
+  async findDedupCandidates(query: DedupCandidateQuery): Promise<DedupCandidateRef[]> {
     this.calls.findDedupCandidates.push({ titles: [...query.titles], companies: [...query.companies] });
     if (this.down) throw new Error("connection refused");
-    return [...this.rows.values()]
+    if (!Number.isInteger(query.limit) || query.limit < 1) throw new RangeError(`bad limit ${query.limit}`);
+    const titles = new Set(query.titles);
+    const companies = new Set(query.companies);
+    const page = [...this.rows.values()]
       .filter(
         (r) =>
-          query.titles.includes(r.title) ||
-          (r.companyName != null && query.companies.includes(r.companyName)),
+          r.id > query.afterId &&
+          (titles.has(r.title) || (r.companyName != null && companies.has(r.companyName))),
       )
+      .sort((a, b) => a.id - b.id)
+      .slice(0, query.limit)
       .map((r) => ({ id: r.id, externalId: r.externalId, title: r.title, companyName: r.companyName ?? null }));
+    this.calls.dedupCandidatePages.push({ afterId: query.afterId, limit: query.limit, rows: page.length });
+    return page;
   }
 
   async findDedupKeys(ids: number[]): Promise<DedupCandidate[]> {
     this.calls.findDedupKeys.push([...ids]);
     if (this.down) throw new Error("connection refused");
+    const wanted = new Set(ids);
     return [...this.rows.values()]
-      .filter((r) => ids.includes(r.id) && typeof rawField(r, "dedupKey") === "string")
+      .filter((r) => wanted.has(r.id) && typeof rawField(r, "dedupKey") === "string")
       .sort((a, b) => a.id - b.id)
       .map((r) => ({
         id: r.id,

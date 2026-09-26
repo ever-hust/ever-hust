@@ -43,7 +43,7 @@ export const syncJobsTask = task({
 });
 
 // Scheduled keyword sync. Under SCHEDULER=cron an external scheduler owns the cadence and this
-// no-ops.
+// no-ops (the k8s fallback: `.deploy/k8s/sync-cronjob.yaml`).
 export const syncJobsSchedule = schedules.task({
   id: "sync-jobs-schedule",
   cron: "*/15 * * * *",
@@ -56,7 +56,8 @@ export const syncJobsSchedule = schedules.task({
   },
 });
 
-// Scheduled full (keyword-less) sync, offset from the quarter-hour keyword ticks.
+// Scheduled full (keyword-less) sync, offset from the quarter-hour keyword ticks. Under
+// SCHEDULER=cron this no-ops too; its k8s fallback is `.deploy/k8s/sync-full-cronjob.yaml` (spec D31).
 export const syncJobsFullSchedule = schedules.task({
   id: "sync-jobs-full-schedule",
   cron: "20 */6 * * *",

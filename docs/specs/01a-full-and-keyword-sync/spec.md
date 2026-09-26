@@ -82,7 +82,7 @@ Hust ingests its job corpus from the Ever Jobs API, but only ever stores **page 
 
 | ID    | Requirement | Target |
 | ----- | ----------- | ------ |
-| NFR-1 | Memory while ingesting a full run | O(batch) rows + O(run) id/key sets (no whole-response buffering on the NDJSON path) + the dedup probe cache, capped at 50 k candidate rows (D23; measured for 160 k keyed jobs: 30 MB retained, 90 MB without the cap) |
+| NFR-1 | Memory while ingesting a full run | O(batch) rows + O(run) id/key sets (no whole-response buffering on the NDJSON path) + the dedup probe cache, capped at 50 k candidate rows (D23; measured for 160 k keyed jobs: 30 MB retained, 90 MB without the cap), read in pages of 5 k rows; a batch whose candidates exceed the cap keeps only the rows that loosely match its own jobs (D29) |
 | NFR-2 | DB writes for an unchanged corpus | none per run: no row rewritten, locked or WAL-logged (read-ahead, D24); ≤ 1 narrow `updated_at` UPDATE per row per week (D14/D24) |
 | NFR-3 | DB statements per batch | ≤ 8 plus the bounded row-by-row fallback, most batches ≤ 3 (existence; dedup candidates + candidate keys, only for new ids with a `dedupKey`; merge-owner existence, only when merging; location reuse, only for locations the process memo does not know, at most twice per run before one load, D26; write-needs read-ahead, only when rows of the batch exist; upsert, only for new or changed rows; last-seen refresh, only for stale rows). Each runs in its own transaction bounded by `SET LOCAL` timeouts (D25): reads 30 s, refresh 60 s, upsert the jobs-writer rule's 60 s |
 | NFR-4 | Caller header/body timeouts | headers within ~15 s, a line at least every 10 s |
@@ -481,10 +481,49 @@ None blocking; see Decisions.
   failed source, a stale source is one Ever Jobs no longer lists (removed or renamed upstream): a
   warning only, or it would fail every full run until the cleanup deleted its rows. A failed read
   logs a warning and leaves the field out. `incompleteStreak` stays in the summary as information
-  only. Under `SCHEDULER=cron` the k8s CronJob (`curl -fsS`) sees only the HTTP status (200 once
-  the stream started), so neither `ok: false` nor this alarm reaches it: there, the app's
-  `[jobs-sync]` error lines are the signal. Raising the producer's deadline (D19 step 1) is a
-  deployment step on Ever Jobs, outside this repository.
+  only. Under `SCHEDULER=cron` the full k8s CronJob reads the summary line and fails its Job on
+  this alarm too (D31). Raising the producer's deadline (D19 step 1) is a deployment step on Ever
+  Jobs, outside this repository.
+
+- **D28 — a row the last-seen refresh did not return is written by the INSERT (PR #106 review,
+  2026-09-26).** Between the read-ahead (D24) and the narrow refresh, a row marked `refresh` can
+  be deleted (the daily cleanup) or refreshed by another run; the refresh's `RETURNING` then
+  lacks it, and the batch used to count it `unchanged`, so a deleted row stayed gone until its
+  next sighting. Now every row missing from the answer goes to the batch's INSERT with the new and
+  changed rows: its `ON CONFLICT … WHERE` stores a deleted row again (`inserted`, stamped
+  `JOBS_CREATED_AT`) and leaves a refreshed one alone (`unchanged`). Trade-off: the row
+  re-inserted this way has no coordinates (the batch did not geocode it, its stored ones being
+  usable), so its next sighting backfills them (one `updated`), as for the F3 case.
+- **D29 — the dedup probe is bounded (PR #106 review, 2026-09-26).** The cap check (NFR-1) ran
+  before the candidate query, whose result had no bound: one batch naming a large employer or a
+  common title read every row sharing it (tens of thousands) in one result, then one `IN` list of
+  every loosely matching id. Now the query reads keyset pages (`id > $after ORDER BY id LIMIT`,
+  5 k rows; on PostgreSQL 16 a rare title is planned as a bitmap OR of `jobs_title_idx` /
+  `jobs_company_name_idx`, a large employer as a `jobs_pkey` range scan). While the rows fit
+  the room left in the cache (the cap minus what it holds) they are all cached and those titles /
+  companies count as probed for the run, as before. Once they do not fit, the rest is still paged
+  through but only the rows whose loose identity is one of the batch's jobs' are kept, and only
+  those (title, identity) / (company, identity) pairs count as probed: the batch finds exactly the
+  candidates an unbounded read would, and a later job with another identity reads that title or
+  company again (a repeated read, never a missed or wrong merge). The stored keys are read at most
+  1 000 ids per statement. Memory: the cap plus one page plus the batch's own loose matches.
+- **D30 — one long-timeout Agent per timeout bucket (PR #106 review, 2026-09-26).** Every Ever
+  Jobs stream is opened with the time left before the run's deadline, and the dispatcher memo kept
+  one undici `Agent` per exact timeout, never evicted or closed: a new Agent per stream. A timeout
+  is now rounded UP to one of 7 buckets (5, 10, 30 min, 1, 2, 6, 24 h; above 24 h: 24 h), so a
+  process holds at most 7 Agents. Rounding up is safe: `headersTimeout` / `bodyTimeout` are idle
+  bounds, and each request's overall timeout is still its own abort signal.
+- **D31 — under `SCHEDULER=cron`, two CronJobs, and they check the summary (PR #106 review,
+  2026-09-26).** `SCHEDULER=cron` makes both Trigger schedules no-op, but the checked-in CronJob
+  (`.deploy/k8s/sync-cronjob.yaml`) ran every 15 min with no mode (keywords), so the full corpus
+  was never synced in that setup; and like every `curl -fsS` caller it passed on HTTP 200 whatever
+  the summary said. Now `.deploy/k8s/sync-full-cronjob.yaml` runs the full sync every 6 h
+  (`20 */6 * * *`, `{"mode":"full","deadlineMs":3550000}`, curl `-m 3570`,
+  `activeDeadlineSeconds: 3660`, no retry), and the keyword CronJob says its mode and budget
+  (`deadlineMs: 550000`, `-m 570`, 660 s; it no longer pins `resultsWanted`). Both save the
+  stream and fail the Job on a curl error, a non-2xx, a missing summary line or a summary that is
+  not `ok: true`; the full one also on the D27 alarm (warning only after a complete crawl). Both
+  stay suspended until `SCHEDULER=cron` is set (`docs/internal/CRON_ENDPOINTS.md`).
 
 **Implementation status (2026-09-24):** all tasks in [`tasks.md`](tasks.md) implemented on branch
 `feat/full-and-keyword-sync`; not yet deployed. Review fixes of 2026-09-25 (D2 revised, D1
@@ -495,7 +534,7 @@ two-step probe, D11 bounds, D16–D19) implemented on the same branch. Rebased o
 commit carries a jobs writer that predates the jobs-writer rule. Finisher review of 2026-09-26:
 D23 (one copy absorbs at most one posting per source), D24 (vanished rows, refresh lock order),
 D26 (no Google after a failed lookup) and D27 (the durable `staleSources` check) revised on the
-same branch. Verify after deploy: a full run's summary carries `staleSources` (empty once every
+same branch. PR #106 review (Greptile) of 2026-09-26: D28–D31 on the same branch. Verify after deploy: a full run's summary carries `staleSources` (empty once every
 source is refreshed); while
 Ever Jobs predates v1, `sync-jobs-full-schedule` runs end `ok:true` with `skipped` and keyword
 runs request 80 per source; once v1 is live (and D19 step 1 done), a full run ends `ok:true` with

@@ -21,7 +21,7 @@ import {
  *      written under itself (spec D23), whatever copies of it arrived before,
  *   2. within-run and cross-run dedupe for *new* external ids (spec D1/D2/D23): a job is a copy
  *      only of a posting from ANOTHER source with the same `dedupKey` (one source's two ids are two
- *      postings),
+ *      postings), and one copy absorbs at most one posting of each source,
  *   3. geocoding for rows without usable stored coordinates (see {@link RunGeocoder}),
  *   4. the upsert's `WHERE` read ahead for rows that exist (spec D24): unchanged rows are not sent,
  *      rows only due their weekly last-seen refresh get a narrow `UPDATE … SET updated_at`,
@@ -139,36 +139,135 @@ export const MAX_CONSECUTIVE_ROW_FAILURES = 5;
  */
 export const MAX_DEDUP_PROBE_CACHE_ROWS = 50_000;
 
-/** A mark kept for more than one source: any source's copy of it is then a copy of one of them. */
-const SEVERAL_SOURCES = "\u0000several";
-
-const isCopyOf = (mark: string | undefined, site: string) => mark !== undefined && mark !== site;
+/**
+ * One source's jobs with one within-run identity: `seen` counts every job of that source the run
+ * processed with it (kept, dropped as a copy, or merged onto a stored row), `kept` those that got
+ * a row of their own.
+ */
+interface SourceCount {
+  site: string;
+  seen: number;
+  kept: number;
+}
 
 /**
- * Within-run identities (a dedupKey, or the fallback identity of a job without one) marked with
- * the source they were kept for: the run's marks plus this batch's, committed only once the
- * batch's pre-queries succeeded.
+ * The within-run mark of one identity (a dedupKey, or the fallback identity of a job without one),
+ * per source. A plain string is the common case, kept small: one job of that source, kept.
+ */
+type Mark = string | readonly SourceCount[];
+
+function sourceCounts(mark: Mark | undefined): SourceCount[] {
+  if (mark === undefined) return [];
+  if (typeof mark === "string") return [{ site: mark, seen: 1, kept: 1 }];
+  return mark.map((c) => ({ ...c }));
+}
+
+/** `mark` with one source's counts moved by `seen` / `kept` (never below 0 kept). */
+function recount(mark: Mark | undefined, site: string, seen: number, kept: number): Mark {
+  if (mark === undefined && seen === 1 && kept === 1) return site;
+  const counts = sourceCounts(mark);
+  let entry = counts.find((c) => c.site === site);
+  if (!entry) {
+    entry = { site, seen: 0, kept: 0 };
+    counts.push(entry);
+  }
+  entry.seen += seen;
+  entry.kept = Math.max(0, entry.kept + kept);
+  const only = counts.length === 1 ? counts[0]! : undefined;
+  return only && only.seen === 1 && only.kept === 1 ? only.site : counts;
+}
+
+/**
+ * A job from `site` is a copy of a posting kept for another source while its own source has had
+ * fewer jobs with this identity than another source kept (spec D23): a row kept for one source
+ * absorbs at most one job of each other source, so one copy never swallows several postings of
+ * the source it copies. `counted`: the job itself is already among its source's `seen`.
+ */
+function isCopyOf(mark: Mark | undefined, site: string, counted = false): boolean {
+  if (mark === undefined) return false;
+  // One job of another source kept, none of this one's seen (a counted job always has an entry).
+  if (typeof mark === "string") return mark !== site;
+  let seen = counted ? -1 : 0;
+  let otherKept = 0;
+  for (const c of mark) {
+    if (c.site === site) seen += c.seen;
+    else if (c.kept > otherKept) otherKept = c.kept;
+  }
+  return seen < otherKept;
+}
+
+/**
+ * The run's within-run marks plus this batch's. The batch's are committed once its writes are
+ * done, without the rows that were not written (a copy must not be dropped for a row that does
+ * not exist), and not at all when a pre-query failed.
  */
 class BatchMarks {
-  private readonly added = new Map<string, string>();
-  constructor(private readonly run: Map<string, string>) {}
+  private readonly added = new Map<string, Mark>();
+  constructor(private readonly run: Map<string, Mark>) {}
 
-  private get(identity: string): string | undefined {
+  private get(identity: string): Mark | undefined {
     return this.added.get(identity) ?? this.run.get(identity);
   }
 
   /** A job from `site` with this identity is a copy of a posting kept for another source. */
-  isCopy(identity: string, site: string): boolean {
-    return isCopyOf(this.get(identity), site);
+  isCopy(identity: string, site: string, counted = false): boolean {
+    return isCopyOf(this.get(identity), site, counted);
   }
 
-  keep(identity: string, site: string): void {
+  /** Jobs of `site` with this identity that got a row of their own in the run so far. */
+  keptFor(identity: string, site: string): number {
     const mark = this.get(identity);
-    this.added.set(identity, mark === undefined || mark === site ? site : SEVERAL_SOURCES);
+    if (mark === undefined) return 0;
+    if (typeof mark === "string") return mark === site ? 1 : 0;
+    return mark.find((c) => c.site === site)?.kept ?? 0;
+  }
+
+  /** Count a job from `site`; `kept` when it gets a row of its own. */
+  count(identity: string, site: string, kept: boolean): void {
+    this.added.set(identity, recount(this.get(identity), site, 1, kept ? 1 : 0));
+  }
+
+  /** A counted job that gets a row of its own after all (the row it was to merge onto vanished). */
+  keepCounted(identity: string, site: string): void {
+    this.added.set(identity, recount(this.get(identity), site, 0, 1));
+  }
+
+  /** A kept job whose row was not written: it holds no row (it still counts as seen). */
+  withdraw(identity: string, site: string): void {
+    this.added.set(identity, recount(this.get(identity), site, 0, -1));
   }
 
   commit(): void {
     for (const [identity, mark] of this.added) this.run.set(identity, mark);
+  }
+}
+
+/**
+ * Stored rows (by id) that absorbed a new job this run, with the sources of those jobs: a stored
+ * row absorbs at most one new job per source per run (spec D23). The batch's entries are committed
+ * with its marks.
+ */
+class BatchAbsorptions {
+  private readonly added: Array<[number, string]> = [];
+  constructor(private readonly run: Map<number, string[]>) {}
+
+  has(rowId: number, site: string): boolean {
+    return (
+      (this.run.get(rowId)?.includes(site) ?? false) ||
+      this.added.some(([id, s]) => id === rowId && s === site)
+    );
+  }
+
+  add(rowId: number, site: string): void {
+    this.added.push([rowId, site]);
+  }
+
+  commit(): void {
+    for (const [id, site] of this.added) {
+      const sites = this.run.get(id);
+      if (sites) sites.push(site);
+      else this.run.set(id, [site]);
+    }
   }
 }
 
@@ -197,11 +296,14 @@ export class JobIngestor {
    * location), or for a job without a key (a pre-contract server) the same
    * {@link fallbackDedupIdentity}, was kept earlier in the run. One source's two ids with the
    * same key are two postings (one employer's new-grad and intern role with the same title in the
-   * same city, spec D23) and both are kept. Marks map the identity to the source it was kept for.
+   * same city, spec D23) and both are kept, and one copy absorbs at most one of them. Marks count
+   * each identity's jobs per source (see {@link isCopyOf}).
    */
   private readonly seenExternalIds = new Set<string>();
-  private readonly keptKeys = new Map<string, string>();
-  private readonly keptFallbacks = new Map<string, string>();
+  private readonly keptKeys = new Map<string, Mark>();
+  private readonly keptFallbacks = new Map<string, Mark>();
+  /** Stored rows that absorbed a new job this run, per source (see {@link BatchAbsorptions}). */
+  private readonly absorbed = new Map<number, string[]>();
   /** One string per source name, shared by every mark (the marks grow with the run). */
   private readonly siteNames = new Map<string, string>();
 
@@ -313,25 +415,26 @@ export class JobIngestor {
 
     const keys = new BatchMarks(this.keptKeys);
     const fallbacks = new BatchMarks(this.keptFallbacks);
+    const absorptions = new BatchAbsorptions(this.absorbed);
     const rows: JobRow[] = [];
     const targets = new Set<string>();
     const fresh: JobPostDto[] = [];
+    /** New ids given a row of their own in this batch (their marks go if the row is not written). */
+    const keptFresh = new Map<string, JobPostDto>();
     for (const job of batch) {
       if (!existing.has(job.id)) {
         fresh.push(job);
         continue;
       }
-      this.markKept(job, keys, fallbacks);
+      this.count(job, keys, fallbacks, true);
       targets.add(job.id);
       rows.push(mapJobToDb(job));
     }
 
-    // 2) Cross-run dedupe probe, only for new external ids with a dedupKey that are not already a
-    //    copy of a posting kept in this run.
-    const toProbe = fresh.filter((j) => {
-      const key = normaliseDedupKey(j.dedupKey);
-      return key !== undefined && !keys.isCopy(key, this.siteOf(j));
-    });
+    // 2) Cross-run dedupe probe for new external ids with a dedupKey. (Whether one is a copy of a
+    //    posting kept in this run depends on the jobs of its source before it in this batch, so
+    //    none is left out; the probe is cached per title / company anyway.)
+    const toProbe = fresh.filter((j) => normaliseDedupKey(j.dedupKey) !== undefined);
     if (toProbe.length > 0) await this.probeDedupCandidates(toProbe);
 
     // Pass 1: new ids, in stream order — a copy of a posting kept in this run is dropped, a copy
@@ -340,16 +443,19 @@ export class JobIngestor {
     const merges: Array<{ job: JobPostDto; owner: string }> = [];
     for (const job of fresh) {
       if (this.isCopy(job, keys, fallbacks)) {
+        this.count(job, keys, fallbacks, false);
         copies++;
         continue;
       }
       const key = normaliseDedupKey(job.dedupKey);
-      const owner = key !== undefined ? this.storedOwnerFor(key, job) : undefined;
+      const owner = key !== undefined ? this.storedOwnerFor(key, job, keys, absorptions) : undefined;
       if (owner) {
+        this.count(job, keys, fallbacks, false);
         merges.push({ job, owner: owner.externalId });
         continue;
       }
-      this.markKept(job, keys, fallbacks);
+      this.count(job, keys, fallbacks, true);
+      keptFresh.set(job.id, job);
       targets.add(job.id);
       rows.push(mapJobToDb(job));
     }
@@ -380,11 +486,13 @@ export class JobIngestor {
         // The owner vanished since the probe (e.g. the cleanup deleted it): this job gets its own
         // row, unless an earlier job of this pass took that place for another source.
         this.forgetStoredOwner(normaliseDedupKey(job.dedupKey), owner);
-        if (this.isCopy(job, keys, fallbacks)) {
+        const [marks, identity] = this.marksOf(job, keys, fallbacks);
+        if (marks.isCopy(identity, this.siteOf(job), true)) {
           copies++;
           continue;
         }
-        this.markKept(job, keys, fallbacks);
+        marks.keepCounted(identity, this.siteOf(job));
+        keptFresh.set(job.id, job);
         targets.add(job.id);
         rows.push(row);
         continue;
@@ -399,10 +507,8 @@ export class JobIngestor {
       rows.push(row);
     }
 
-    // Every pre-query succeeded: the batch's marks and dedupe outcomes become the run's. (If one
-    // had thrown, flush() counts the whole batch as errors and none of this happened.)
-    keys.commit();
-    fallbacks.commit();
+    // Every pre-query succeeded. (If one had thrown, flush() counts the whole batch as errors and
+    // none of this happened.)
     this.counters.duplicatesMerged += copies + keptMerges;
     const settled = copies + keptMerges;
 
@@ -414,14 +520,40 @@ export class JobIngestor {
     this.countWrite(unchanged, [], mergedTargets);
     let accepted = settled + unchanged.length;
     accepted += await this.refreshLastSeen(refresh, mergedTargets);
-    if (write.length === 0) return accepted;
 
-    // 5) One statement for the batch; a stable key order keeps concurrent runs deadlock-free.
+    // 5) New and changed rows.
+    const { ok, failed } = await this.writeRows(write, mergedTargets);
+
+    // The batch's marks and absorptions become the run's, without the new rows that were not
+    // written: another source's copy of one of those is not a copy of anything stored.
+    for (const externalId of failed) {
+      const job = keptFresh.get(externalId);
+      if (!job) continue;
+      const [marks, identity] = this.marksOf(job, keys, fallbacks);
+      marks.withdraw(identity, this.siteOf(job));
+    }
+    keys.commit();
+    fallbacks.commit();
+    absorptions.commit();
+    return accepted + ok;
+  }
+
+  /**
+   * One statement for the batch's rows (a stable key order keeps concurrent runs deadlock-free),
+   * and the bounded row-by-row fallback when it fails (spec D25). Returns how many rows were
+   * accepted and the external ids that were not written.
+   */
+  private async writeRows(
+    write: JobRow[],
+    mergedTargets: Set<string>,
+  ): Promise<{ ok: number; failed: string[] }> {
+    const { store } = this.options;
+    if (write.length === 0) return { ok: 0, failed: [] };
     write.sort((a, b) => (a.externalId < b.externalId ? -1 : a.externalId > b.externalId ? 1 : 0));
     try {
       const written = await store.upsertBatch(write);
       this.countWrite(write, written, mergedTargets);
-      return accepted + write.length;
+      return { ok: write.length, failed: [] };
     } catch (err) {
       this.recordError(
         `bulk upsert of ${write.length} rows failed, retrying row by row: ${messageOf(err)}`,
@@ -430,6 +562,7 @@ export class JobIngestor {
 
     let ok = 0;
     let failedInARow = 0;
+    const failed: string[] = [];
     for (const [i, row] of write.entries()) {
       const stop =
         failedInARow >= this.maxConsecutiveRowFailures
@@ -438,9 +571,10 @@ export class JobIngestor {
             ? "the run's deadline passed"
             : null;
       if (stop) {
-        const left = write.length - i;
-        this.counters.errors += left;
-        this.recordError(`row-by-row fallback stopped (${stop}); ${left} of ${write.length} rows not written`);
+        const left = write.slice(i);
+        this.counters.errors += left.length;
+        for (const r of left) failed.push(r.externalId);
+        this.recordError(`row-by-row fallback stopped (${stop}); ${left.length} of ${write.length} rows not written`);
         break;
       }
       try {
@@ -451,10 +585,11 @@ export class JobIngestor {
       } catch (rowErr) {
         this.counters.errors++;
         failedInARow++;
+        failed.push(row.externalId);
         this.recordError(`upsert of ${row.externalId} failed: ${messageOf(rowErr)}`);
       }
     }
-    return accepted + ok;
+    return { ok, failed };
   }
 
   /**
@@ -521,34 +656,50 @@ export class JobIngestor {
     return site;
   }
 
-  /** A job whose identity was kept in this run for another source (spec D23). */
-  private isCopy(job: JobPostDto, keys: BatchMarks, fallbacks: BatchMarks): boolean {
-    const site = this.siteOf(job);
+  /** The marks a job's within-run identity lives in: its dedupKey, else its fallback identity. */
+  private marksOf(job: JobPostDto, keys: BatchMarks, fallbacks: BatchMarks): [BatchMarks, string] {
     const key = normaliseDedupKey(job.dedupKey);
-    if (key !== undefined) return keys.isCopy(key, site);
-    return fallbacks.isCopy(fallbackDedupIdentity(job), site);
+    return key !== undefined ? [keys, key] : [fallbacks, fallbackDedupIdentity(job)];
   }
 
-  private markKept(job: JobPostDto, keys: BatchMarks, fallbacks: BatchMarks): void {
-    const site = this.siteOf(job);
-    const key = normaliseDedupKey(job.dedupKey);
-    if (key !== undefined) keys.keep(key, site);
-    else fallbacks.keep(fallbackDedupIdentity(job), site);
+  /** A job that is a copy of a posting kept in this run for another source (spec D23). */
+  private isCopy(job: JobPostDto, keys: BatchMarks, fallbacks: BatchMarks): boolean {
+    const [marks, identity] = this.marksOf(job, keys, fallbacks);
+    return marks.isCopy(identity, this.siteOf(job));
+  }
+
+  /** Count a job under its within-run identity; `kept` when it gets a row of its own. */
+  private count(job: JobPostDto, keys: BatchMarks, fallbacks: BatchMarks, kept: boolean): void {
+    const [marks, identity] = this.marksOf(job, keys, fallbacks);
+    marks.count(identity, this.siteOf(job), kept);
   }
 
   /**
-   * The stored row a new job is a copy of (spec D2/D23): the oldest row with the job's dedupKey
-   * that comes from another source, or that holds this very job's content (a row it took over
-   * earlier: its `raw_data.id` is the job's id). A row of the job's own source with another id is
-   * a different posting.
+   * The stored row a new job is a copy of (spec D2/D23), if any:
+   *   - the row that holds this very job's content (a row it took over earlier: its `raw_data.id`
+   *     is the job's id) — that row is the job;
+   *   - none when the job's source already has a row with this key (stored, or kept earlier in
+   *     this run): the job is another posting of that source, and another source's row with the
+   *     key is a copy of one the source already has;
+   *   - else the oldest row of another source that has not absorbed a job of this source yet in
+   *     this run: one copy absorbs at most one posting of each source.
+   * Recording the absorption is part of the answer (the batch commits it with its marks).
    */
-  private storedOwnerFor(key: string, job: JobPostDto): StoredOwner | undefined {
-    const owners = this.storedByDedupKey.get(key);
-    if (!owners) return undefined;
+  private storedOwnerFor(
+    key: string,
+    job: JobPostDto,
+    keys: BatchMarks,
+    absorptions: BatchAbsorptions,
+  ): StoredOwner | undefined {
+    const owners = this.storedByDedupKey.get(key)?.filter((o) => o.externalId !== job.id);
+    if (!owners || owners.length === 0) return undefined;
+    const content = owners.find((o) => o.sourceId === job.id);
+    if (content) return content;
     const site = this.siteOf(job);
-    return owners.find(
-      (o) => o.externalId !== job.id && (o.sourceId === job.id || this.siteOf(o) !== site),
-    );
+    if (keys.keptFor(key, site) > 0 || owners.some((o) => this.siteOf(o) === site)) return undefined;
+    const owner = owners.find((o) => !absorptions.has(o.id, site));
+    if (owner) absorptions.add(owner.id, site);
+    return owner;
   }
 
   private forgetStoredOwner(key: string | undefined, externalId: string): void {

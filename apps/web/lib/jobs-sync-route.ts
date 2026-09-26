@@ -4,6 +4,7 @@ import {
   buildSyncPlan,
   createDefaultSyncDeps,
   emptyCounters,
+  errorText,
   MAX_RESULTS_PER_SOURCE,
   processUpstreamContract,
   readSyncEnv,
@@ -157,8 +158,9 @@ function failure(status: number, body: Record<string, unknown>): Response {
   });
 }
 
+/** The error text for logs and summaries: a database error without its parameter list, capped (spec 01a D25). */
 function messageOf(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+  return errorText(err);
 }
 
 /**

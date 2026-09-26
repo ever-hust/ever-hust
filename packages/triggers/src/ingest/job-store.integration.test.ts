@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "@jest/globals";
 import * as postgresModule from "postgres";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import * as schema from "@ever-hust/db/schema";
 import type { Database } from "@ever-hust/db";
@@ -415,6 +416,86 @@ suite("job store against Postgres (opt-in)", () => {
       "berlin||de": { latitude: "52.5", longitude: "13.4" },
     });
     expect(await store.loadStoredCoords!(2)).toBeNull(); // three (key, coordinates) groups
+  });
+
+  // --- finisher round of 2026-09-26 -----------------------------------------------------------
+
+  it("one board copy absorbs at most one of an employer's postings, and none once it has rows of its own (review F1)", async () => {
+    const key = "amazon|warehouse associate|seattle";
+    const az = (id: string, extra: Partial<JobPostDto> = {}) =>
+      job(id, { site: "amazon", title: "Warehouse Associate", companyName: "Amazon", location: { city: "Seattle", state: "WA" }, dedupKey: key, ...extra });
+    expect(await sync([az("li-1", { site: "linkedin" })])).toMatchObject({ inserted: 1 });
+    const postings = [1, 2, 3, 4, 5].map((n) => az(`amzn-${n}`));
+    expect(await sync(postings, 250)).toMatchObject({ ok: true, inserted: 4, duplicatesMerged: 1, mergedWrites: 0 });
+    expect(await sync([...postings].reverse(), 1)).toMatchObject({ ok: true, inserted: 1, unchanged: 4, duplicatesMerged: 0 });
+    expect(await sync([...postings, az("li-1", { site: "linkedin" })], 250)).toMatchObject({ ok: true, inserted: 0, unchanged: 6 });
+    const ids = (await client`SELECT external_id FROM jobs ORDER BY external_id`).map((r) => r.external_id);
+    expect(ids).toEqual(["amzn-1", "amzn-2", "amzn-3", "amzn-4", "amzn-5", "li-1"]);
+  });
+
+  it("stores a row again when it was deleted between the existence lookup and the read-ahead (review F3)", async () => {
+    await sync([job("gone"), job("kept")]);
+    const real = createDrizzleJobStore(db);
+    const racing: JobStore = {
+      ...real,
+      findWriteNeeds: async (rows) => {
+        await client`DELETE FROM jobs WHERE external_id = 'gone'`; // e.g. the daily cleanup
+        return real.findWriteNeeds(rows);
+      },
+    };
+    expect(await syncWith(racing, [job("gone"), job("kept")], 10)).toMatchObject({ ok: true, inserted: 1, unchanged: 1, errors: 0 });
+    expect((await client`SELECT count(*)::int AS n FROM jobs WHERE external_id = 'gone'`)[0]!.n).toBe(1);
+  });
+
+  it("the last-seen refresh locks its rows in external_id byte order, as the upsert does (review F4)", async () => {
+    // Byte order: "Zeta" < "_mid" < "alpha". A linguistic collation (and this insertion order)
+    // puts "alpha" first, which is where a plain UPDATE … WHERE external_id IN (…) starts locking.
+    await client`
+      INSERT INTO jobs (external_id, site, title, updated_at)
+      VALUES ('alpha', 'x', 'T', (now() AT TIME ZONE 'UTC') - interval '30 days'),
+             ('_mid', 'x', 'T', (now() AT TIME ZONE 'UTC') - interval '30 days'),
+             ('Zeta', 'x', 'T', (now() AT TIME ZONE 'UTC') - interval '30 days')`;
+    const store = createDrizzleJobStore(db, { refreshTimeoutMs: 20_000 });
+    const locker = postgres(url!, { prepare: false, max: 1, onnotice: () => {} });
+    const checker = postgres(url!, { prepare: false, max: 1, onnotice: () => {} });
+    try {
+      let pending: Promise<string[]> | undefined;
+      await locker.begin(async (tx) => {
+        await tx.unsafe("SELECT 1 FROM jobs WHERE external_id = '_mid' FOR UPDATE");
+        pending = store.refreshLastSeen(["alpha", "_mid", "Zeta"], new Date());
+        // Wait until the refresh is blocked on "_mid".
+        for (let i = 0; i < 100; i++) {
+          const waiting = await checker`
+            SELECT count(*)::int AS n FROM pg_stat_activity
+            WHERE wait_event_type = 'Lock' AND query ILIKE 'update "jobs"%'`;
+          if (waiting[0]!.n > 0) break;
+          await new Promise((r) => setTimeout(r, 50));
+        }
+        // What the refresh already holds: the rows before "_mid" in byte order, i.e. "Zeta" only.
+        const free = (await checker.begin((c) =>
+          c.unsafe("SELECT external_id FROM jobs WHERE external_id IN ('alpha', 'Zeta') FOR UPDATE SKIP LOCKED"),
+        )) as unknown as Array<{ external_id: string }>;
+        expect(free.map((r) => r.external_id)).toEqual(["alpha"]);
+      });
+      expect((await pending!).sort()).toEqual(["Zeta", "_mid", "alpha"]);
+    } finally {
+      await locker.end({ timeout: 5 });
+      await checker.end({ timeout: 5 });
+    }
+  });
+
+  it("lists the sources no sync has seen for STALE_SOURCE_DAYS, with their last-seen time in UTC (spec D27, review F2)", async () => {
+    await sync([job("wd-1", { site: "workday" }), job("wd-2", { site: "Workday " }), job("gh-1")]);
+    // Through the column's encoder, like every updated_at the sync writes.
+    await db.update(schema.jobs).set({ updatedAt: new Date("2026-08-01T10:20:30.000Z") }).where(eq(schema.jobs.externalId, "wd-1"));
+    await db.update(schema.jobs).set({ updatedAt: new Date("2026-07-01T00:00:00.000Z") }).where(eq(schema.jobs.externalId, "wd-2"));
+
+    const stale = await createDrizzleJobStore(db).findStaleSources!(new Date(Date.now() - 10 * 24 * 60 * 60 * 1000), 20);
+    expect(stale).toEqual([{ site: "workday", lastSeen: "2026-08-01T10:20:30Z", rows: 2 }]);
+
+    // At the end of a full run (the stub's end line does not say complete): reported and alarming.
+    const run = await sync([job("gh-2")]);
+    expect(run).toMatchObject({ ok: true, complete: false, staleSources: stale });
   });
 });
 

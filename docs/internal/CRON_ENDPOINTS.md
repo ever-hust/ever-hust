@@ -89,6 +89,11 @@ Until 2026-09 six schedules opened the database from the Trigger worker and fail
   (`deadlineMs`) and bounds itself by it. Retries are off for both (the next tick is the retry).
   The run's summary line ends the stream: `ok: false` (or no summary) fails the run;
   `ok: true, complete: false` is a partial upstream crawl that was stored, logged as a warning.
+  A full run also lists `staleSources`: sources none of whose rows a sync has seen for 10 days,
+  read from the database at the end of the run. When there are any and the crawl was not complete
+  (or sources failed), the full task fails (spec 01a D27). Under `SCHEDULER=cron` the k8s CronJob
+  (`curl -fsS`) only sees the HTTP status, which is 200 once the stream has started: it sees
+  neither `ok: false` nor this alarm, so read the app's log lines (`[jobs-sync]` error lines) there.
   The on-demand `sync-jobs` task runs the sync in-process and needs `DATABASE_URL`, which the
   Trigger environments must not have: it is for local or manual runs, not for Trigger.dev.
 
@@ -257,9 +262,11 @@ only as `withBoundedJobsInsert(db, (tx) => buildUpsertQuery(tx, rows))` from the
   (an `ON CONFLICT DO UPDATE` whose `WHERE` is false still locks and WAL-logs the row: 20 k
   unchanged rows cost 22 MB of WAL and 20 k row locks on PostgreSQL 16, now 0 and 0).
 - **Weekly refresh is not an INSERT.** An unchanged row whose `updated_at` is over 7 days old gets
-  `UPDATE jobs SET updated_at = ... WHERE external_id IN (...) AND updated_at < ...`
-  (`buildLastSeenRefreshQuery`), which never touches `created_at` and so is outside this rule;
-  it runs in its own transaction with a local 60 s statement timeout.
+  `UPDATE jobs SET updated_at = ... WHERE id IN (SELECT ... AND updated_at < ... ORDER BY
+  external_id COLLATE "C" FOR UPDATE)` (`buildLastSeenRefreshQuery`), which never touches
+  `created_at` and so is outside this rule; it locks its rows in the order the INSERT's sorted
+  `VALUES` list does (no deadlock between the two), and runs in its own transaction with a local
+  60 s statement timeout.
 - **Fallback.** When the batch statement fails, the ingestor retries row by row, each row its own
   bounded transaction (one INSERT each); it stops after 5 rows in a row failed or once the run's
   deadline has passed (spec 01a D25). The reads (existence, dedup probe, the read-ahead, stored

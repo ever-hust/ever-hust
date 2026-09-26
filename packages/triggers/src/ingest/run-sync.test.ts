@@ -1,8 +1,16 @@
 import { describe, it, expect, jest } from "@jest/globals";
 import { TruncatedStreamError, type JobStreamEnd, type JobStreamEvent, type ScraperInput } from "@ever-hust/jobs-api";
 import { buildSyncPlan, type SyncEnvConfig } from "./config";
-import { formatSummaryLine, runJobsSync, type RunSyncDeps, type SyncProgress, type UpstreamStream } from "./run-sync";
-import { INCOMPLETE_FULL_RUNS_ALERT, IncompleteRunTracker } from "./incomplete-runs";
+import {
+  formatSummaryLine,
+  runJobsSync,
+  staleSourcesAlarm,
+  type RunSyncDeps,
+  type SyncProgress,
+  type UpstreamStream,
+} from "./run-sync";
+import { IncompleteRunTracker } from "./incomplete-runs";
+import { MAX_STALE_SOURCES_REPORTED, STALE_SOURCE_DAYS } from "./job-store";
 import { UpstreamContractTracker } from "./upstream-contract";
 import { FakeJobStore } from "./testing/fake-store";
 
@@ -288,38 +296,112 @@ describe("formatSummaryLine", () => {
   });
 });
 
-describe("runJobsSync — a full crawl that stays incomplete is escalated (spec D27)", () => {
+describe("runJobsSync — a source that stays unseen is escalated, from the database (spec D27, review F2)", () => {
   const END_PARTIAL: JobStreamEnd = { type: "end", total: 1, legacy: false, complete: false, stopReason: "deadline", sourcesSkipped: 12 };
   const END_WHOLE: JobStreamEnd = { type: "end", total: 1, legacy: false, complete: true, stopReason: null };
   const full = () => buildSyncPlan({ mode: "full" }, ENV, Date.now(), "v1");
+  const DAY = 24 * 60 * 60 * 1000;
 
-  it("counts incomplete full runs in a row, logs an error from the threshold on, and resets on a complete run", async () => {
-    const tracker = new IncompleteRunTracker();
-    const streaks: Array<number | undefined> = [];
-    let log = logger();
-    for (let i = 0; i < INCOMPLETE_FULL_RUNS_ALERT; i++) {
-      log = logger();
-      const s = await runJobsSync(full(), deps(async () => streamOf([jobEvent(`p${i}`), END_PARTIAL]), { incompleteRuns: tracker, logger: log }));
-      streaks.push(s.incompleteStreak);
-      expect(s).toMatchObject({ ok: true, complete: false });
-    }
-    expect(streaks).toEqual([1, 2, 3, 4]);
-    expect(log.error).toHaveBeenCalledWith(expect.stringContaining("full sync incomplete 4 runs in a row (stopReason=deadline sourcesSkipped=12)"));
-    expect(log.warn).not.toHaveBeenCalledWith(expect.stringContaining("full sync incomplete: stopReason"));
+  /** A store with one row per [site, days since a sync last saw it]. */
+  function storeWith(rows: Array<[string, number]>) {
+    const store = new FakeJobStore();
+    rows.forEach(([site, days], i) =>
+      store.seed({ externalId: `${site}-${i}`, site, title: "T", updatedAt: new Date(Date.now() - days * DAY) }),
+    );
+    return store;
+  }
 
-    const whole = await runJobsSync(full(), deps(async () => streamOf([END_WHOLE]), { incompleteRuns: tracker }));
-    expect(whole).toMatchObject({ complete: true, incompleteStreak: 0 });
-    expect(formatSummaryLine(whole)).toContain("incompleteStreak=0");
-    expect(tracker.current).toBe(0);
+  it("lists, after a full run, the sources none of whose rows was seen for STALE_SOURCE_DAYS, and alarms on an incomplete crawl", async () => {
+    // workday: every row old (two spellings of one source); greenhouse: its newest row is recent
+    // enough; ashby: stale, but this run sees it.
+    const store = storeWith([["lever", 1], ["workday", 12], ["Workday ", 30], ["greenhouse", 40], ["greenhouse", 9], ["ashby", 20]]);
+    const log = logger();
+    const ashby: JobStreamEvent = { type: "job", job: { id: "ashby-new", site: "ashby", title: "New" } };
+    const s = await runJobsSync(full(), deps(async () => streamOf([ashby, END_PARTIAL]), { store, logger: log }));
+
+    expect(s.staleSources).toEqual([{ site: "workday", lastSeen: expect.stringMatching(/Z$/), rows: 2 }]);
+    expect(staleSourcesAlarm(s)).toBe(true);
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining(`1 source(s) not seen for ${STALE_SOURCE_DAYS}+ days: workday (last seen `));
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining("stopReason=deadline sourcesSkipped=12 sourcesFailed=0"));
+    expect(formatSummaryLine(s)).toContain("staleSources=1");
+    expect(store.calls.findStaleSources).toHaveLength(1);
+    const { before, limit } = store.calls.findStaleSources[0]!;
+    expect(Math.abs(Date.now() - STALE_SOURCE_DAYS * DAY - before.getTime())).toBeLessThan(60_000);
+    expect(limit).toBe(MAX_STALE_SOURCES_REPORTED);
   });
 
-  it("ignores keyword runs, skipped runs, and runs without a tracker", async () => {
+  it("gives the same answer in any process, and on its first run: nothing is counted in memory", async () => {
+    const store = storeWith([["workday", 12]]);
+    for (const tracker of [new IncompleteRunTracker(), new IncompleteRunTracker()]) {
+      const s = await runJobsSync(full(), deps(async () => streamOf([END_PARTIAL]), { store, incompleteRuns: tracker }));
+      expect(s).toMatchObject({ incompleteStreak: 1, staleSources: [expect.objectContaining({ site: "workday" })] });
+      expect(staleSourcesAlarm(s)).toBe(true);
+    }
+  });
+
+  it("after a complete crawl, a stale source is a warning (no longer listed upstream), unless sources failed", async () => {
+    const store = storeWith([["oldboard", 50]]);
+    const log = logger();
+    const whole = await runJobsSync(full(), deps(async () => streamOf([END_WHOLE]), { store, logger: log }));
+    expect(whole).toMatchObject({ complete: true, staleSources: [expect.objectContaining({ site: "oldboard", rows: 1 })] });
+    expect(staleSourcesAlarm(whole)).toBe(false);
+    expect(log.error).not.toHaveBeenCalled();
+    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining("the crawl was complete, so Ever Jobs no longer lists them"));
+
+    const failing = await runJobsSync(full(), deps(async () => streamOf([{ ...END_WHOLE, sourcesFailed: 1 }]), { store }));
+    expect(staleSourcesAlarm(failing)).toBe(true);
+  });
+
+  it("no stale source: no alarm, however many incomplete runs this process counted (the streak is information only)", async () => {
+    const store = storeWith([["lever", 1]]);
+    const tracker = new IncompleteRunTracker();
+    for (let i = 1; i <= 6; i++) {
+      const log = logger();
+      const s = await runJobsSync(full(), deps(async () => streamOf([END_PARTIAL]), { store, incompleteRuns: tracker, logger: log }));
+      expect(s).toMatchObject({ incompleteStreak: i, staleSources: [] });
+      expect(staleSourcesAlarm(s)).toBe(false);
+      expect(log.error).not.toHaveBeenCalled();
+      expect(log.warn).toHaveBeenCalledWith(expect.stringContaining("full sync incomplete: stopReason=deadline"));
+      if (i === 6) expect(formatSummaryLine(s)).toContain("incompleteStreak=6 staleSources=0");
+    }
+    const whole = await runJobsSync(full(), deps(async () => streamOf([END_WHOLE]), { store, incompleteRuns: tracker }));
+    expect(whole).toMatchObject({ complete: true, incompleteStreak: 0 });
+  });
+
+  it("is not read for keyword, skipped or aborted runs; a failed read is a warning and leaves the field out", async () => {
+    const store = storeWith([["workday", 30]]);
+    await runJobsSync(buildSyncPlan({ mode: "keywords", searchTerms: ["a"] }, ENV, Date.now(), "v1"), deps(async () => streamOf([END]), { store }));
+    await runJobsSync(buildSyncPlan({ mode: "full" }, ENV, 0, "unknown"), deps(async () => streamOf([END_WHOLE]), { store }));
+    expect(store.calls.findStaleSources).toEqual([]);
+
+    const down = storeWith([]);
+    down.down = true;
+    const events = ["1", "2", "3", "4", "5", "6"].map(jobEvent);
+    const aborted = await runJobsSync(full(), deps(async () => streamOf([...events, END_PARTIAL]), { store: down, batchSize: 1 }));
+    expect(aborted).toMatchObject({ ok: false, stopReason: "aborted" });
+    expect(aborted.staleSources).toBeUndefined();
+    expect(down.calls.findStaleSources).toEqual([]);
+
+    const flaky = storeWith([["workday", 30]]);
+    flaky.findStaleSources = async () => {
+      throw new Error("canceling statement due to statement timeout");
+    };
+    const log = logger();
+    const s = await runJobsSync(full(), deps(async () => streamOf([END_PARTIAL]), { store: flaky, logger: log }));
+    expect(s).toMatchObject({ ok: true });
+    expect(s.staleSources).toBeUndefined();
+    expect(staleSourcesAlarm(s)).toBe(false);
+    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining("reading which sources went unseen failed: canceling statement"));
+  });
+
+  it("ignores keyword runs, skipped runs, and runs without a tracker for the streak", async () => {
     const tracker = new IncompleteRunTracker();
     const kw = await runJobsSync(
       buildSyncPlan({ mode: "keywords", searchTerms: ["a"] }, ENV, Date.now(), "v1"),
       deps(async () => streamOf([END_PARTIAL]), { incompleteRuns: tracker }),
     );
     expect(kw.incompleteStreak).toBeUndefined();
+    expect(kw.staleSources).toBeUndefined();
     const skipped = await runJobsSync(buildSyncPlan({ mode: "full" }, ENV, 0, "unknown"), deps(async () => streamOf([END_WHOLE]), { incompleteRuns: tracker }));
     expect(skipped.incompleteStreak).toBeUndefined();
     const untracked = await runJobsSync(full(), deps(async () => streamOf([END_PARTIAL])));

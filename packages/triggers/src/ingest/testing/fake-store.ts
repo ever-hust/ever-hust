@@ -8,6 +8,7 @@ import {
   type ExistingJobRef,
   type JobRow,
   type JobStore,
+  type StaleSource,
   type WriteNeed,
   type WrittenRow,
 } from "../job-store";
@@ -21,7 +22,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * identity get backfilled or its last-seen marker is older than the refresh window, and keeps
  * stored coordinates when the incoming row has none. A merge row (`rawData.id` ≠ `externalId`)
  * only rewrites an owner older than the takeover window. `findWriteNeeds` evaluates the same
- * predicate, split into "write" and "refresh"; `refreshLastSeen` only moves `updatedAt`.
+ * predicate, split into "write" and "refresh" (a missing row is "write"); `refreshLastSeen` only
+ * moves `updatedAt`; `findStaleSources` groups rows by source.
  */
 
 export interface StoredRow extends JobRow {
@@ -120,6 +122,7 @@ export class FakeJobStore implements JobStore {
     findCoordsForLocations: [] as string[][],
     loadStoredCoords: [] as number[],
     upsertBatch: [] as JobRow[][],
+    findStaleSources: [] as Array<{ before: Date; limit: number }>,
   };
   /** Make the next N `findWriteNeeds` calls throw. */
   failWriteNeeds = 0;
@@ -204,7 +207,8 @@ export class FakeJobStore implements JobStore {
     const out = new Map<string, WriteNeed>();
     for (const row of rows) {
       const current = this.rows.get(row.externalId);
-      const need = current ? needOf(current, row) : null;
+      // A row deleted since the existence lookup is written again (the query's LEFT JOIN).
+      const need = current ? needOf(current, row) : "write";
       if (need) out.set(row.externalId, need);
     }
     return out;
@@ -252,6 +256,25 @@ export class FakeJobStore implements JobStore {
       }
     }
     return out;
+  }
+
+  async findStaleSources(before: Date, limit: number): Promise<StaleSource[]> {
+    this.calls.findStaleSources.push({ before, limit });
+    if (this.down) throw new Error("connection refused");
+    const bySite = new Map<string, { newest: number; rows: number }>();
+    for (const r of this.rows.values()) {
+      if (!(r.updatedAt instanceof Date)) continue; // NOT NULL in the table
+      const site = r.site.trim().toLowerCase();
+      const entry = bySite.get(site) ?? { newest: Number.NEGATIVE_INFINITY, rows: 0 };
+      entry.newest = Math.max(entry.newest, r.updatedAt.getTime());
+      entry.rows++;
+      bySite.set(site, entry);
+    }
+    return [...bySite]
+      .filter(([, e]) => e.newest < before.getTime())
+      .sort((a, b) => a[1].newest - b[1].newest)
+      .slice(0, limit)
+      .map(([site, e]) => ({ site, lastSeen: new Date(e.newest).toISOString().replace(/\.\d{3}Z$/, "Z"), rows: e.rows }));
   }
 
   async upsertBatch(rows: JobRow[]): Promise<WrittenRow[]> {

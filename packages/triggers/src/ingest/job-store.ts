@@ -1,4 +1,4 @@
-import { and, asc, getTableColumns, inArray, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, getTableColumns, inArray, or, sql, type SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import {
   db as defaultDb,
@@ -96,7 +96,7 @@ export interface JobStore extends CoordsLookup {
    * For incoming rows whose `externalId` already exists: which ones the upsert would rewrite
    * (`"write"`: content, signals, coordinates or dedup identity changed, or a merge takes a stale
    * owner over) and which ones only need their last-seen marker refreshed (`"refresh"`). Rows
-   * that need nothing, and rows that do not exist, are absent. Read-only: the upsert's own
+   * that need nothing are absent; a row that does not exist (any more) is `"write"`. Read-only: the upsert's own
    * `WHERE` ({@link upsertChangedPredicate}) evaluated before the INSERT, so unchanged rows never
    * reach it: an `ON CONFLICT DO UPDATE … WHERE` that is false still locks and WAL-logs every
    * conflicting row (spec 01a D24).
@@ -114,6 +114,21 @@ export interface JobStore extends CoordsLookup {
    * Rows must have distinct `externalId`s; at most {@link MAX_UPSERT_ROWS_PER_STATEMENT} of them.
    */
   upsertBatch(rows: JobRow[]): Promise<WrittenRow[]>;
+  /**
+   * The sources (`site`, compared case- and space-insensitively) whose newest row was last seen
+   * before `before`, oldest first, at most `limit` of them (spec 01a D27). One bounded read of
+   * the whole table at the end of a full run.
+   */
+  findStaleSources?(before: Date, limit: number): Promise<StaleSource[]>;
+}
+
+/** A source none of whose rows a sync has seen for a while (see {@link JobStore.findStaleSources}). */
+export interface StaleSource {
+  site: string;
+  /** Its newest row's last-seen marker (`max(updated_at)`), ISO 8601 UTC. */
+  lastSeen: string;
+  /** Its rows: what the 90-day cleanup will delete if the source stays unseen. */
+  rows: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -200,6 +215,16 @@ export const LAST_SEEN_REFRESH_DAYS = 7;
  * row kept alive only by the other source is rewritten at most once per window.
  */
 export const MERGE_TAKEOVER_DAYS = 2 * LAST_SEEN_REFRESH_DAYS;
+
+/**
+ * A source none of whose rows a sync has seen for this long is reported at the end of a full run
+ * (spec 01a D27). Above the weekly refresh (a source seen by every run has a row refreshed at most
+ * {@link LAST_SEEN_REFRESH_DAYS} days plus one run interval ago), far below the 90-day cleanup.
+ */
+export const STALE_SOURCE_DAYS = 10;
+
+/** At most this many stale sources are reported per run. */
+export const MAX_STALE_SOURCES_REPORTED = 20;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -313,9 +338,11 @@ function comparedValue(row: JobRow, column: PgColumn): unknown {
  * The read-ahead of the upsert's `WHERE` (spec 01a D24): for the incoming rows whose external id
  * exists, whether the upsert would rewrite them (`write`) or they only need the last-seen refresh
  * (`refresh`, never for a merge row: a merge that does not take the owner over leaves it alone).
- * Rows needing neither are not returned. The incoming rows are a typed `VALUES` list: every value
- * is the parameter the INSERT would send (the column's own encoder), cast to the column's type, so
- * `incoming.x` equals the upsert's `excluded.x`.
+ * A row that no longer exists (deleted since the batch's existence lookup, e.g. by the cleanup) is
+ * `write`: the INSERT stores it again instead of it being counted unchanged. Rows needing neither
+ * are not returned. The incoming rows are a typed `VALUES` list: every value is the parameter the
+ * INSERT would send (the column's own encoder), cast to the column's type, so `incoming.x` equals
+ * the upsert's `excluded.x`.
  */
 export function buildWriteNeedsQuery(rows: JobRow[]): SQL {
   const alias = "incoming";
@@ -330,12 +357,13 @@ export function buildWriteNeedsQuery(rows: JobRow[]): SQL {
     COMPARED_COLUMNS.map((c) => sql.identifier(c.name)),
     sql`, `,
   );
+  const missing = sql`${jobs.id} IS NULL`;
   const write = sql`CASE WHEN ${isMergeRow(alias)} THEN ${takesOverOwner(alias)} ELSE ${contentChanged(alias)} END`;
   const refresh = sql`CASE WHEN ${isMergeRow(alias)} THEN false ELSE ${lastSeenStale(alias)} END`;
-  return sql`SELECT ${incomingColumn(alias, jobs.externalId.name)} AS external_id, (${write}) IS TRUE AS write, (${refresh}) IS TRUE AS refresh
+  return sql`SELECT ${incomingColumn(alias, jobs.externalId.name)} AS external_id, ${missing} OR (${write}) IS TRUE AS write, (${refresh}) IS TRUE AS refresh
     FROM (VALUES ${sql.join(tuples, sql`, `)}) AS ${sql.raw(alias)} (${names})
-    JOIN ${jobs} ON ${jobs.externalId} = ${incomingColumn(alias, jobs.externalId.name)}
-    WHERE (${write}) IS TRUE OR (${refresh}) IS TRUE`;
+    LEFT JOIN ${jobs} ON ${jobs.externalId} = ${incomingColumn(alias, jobs.externalId.name)}
+    WHERE ${missing} OR (${write}) IS TRUE OR (${refresh}) IS TRUE`;
 }
 
 /**
@@ -343,13 +371,22 @@ export function buildWriteNeedsQuery(rows: JobRow[]): SQL {
  * than the refresh window, so a row a concurrent run refreshed is left alone and nothing but the
  * marker is rewritten. An UPDATE, not an INSERT: the jobs-writer rule is about `created_at`, which
  * this never touches.
+ *
+ * The rows are locked first, in `external_id` byte order (`SELECT … ORDER BY … COLLATE "C" FOR
+ * UPDATE`, the order the upsert's sorted `VALUES` list locks them in): a plain
+ * `UPDATE … WHERE external_id IN (…)` locks in whatever order the scan meets them, so this
+ * statement and another run's upsert over the same rows could deadlock (review F4).
  */
 export function buildLastSeenRefreshQuery(database: Database | SyncTx, externalIds: string[], seenAt: Date) {
   const staleBefore = new Date(seenAt.getTime() - LAST_SEEN_REFRESH_DAYS * DAY_MS);
+  const locked = sql`SELECT l.id FROM ${jobs} AS l
+    WHERE l.external_id IN ${externalIds} AND l.updated_at < ${sql.param(staleBefore, jobs.updatedAt)}
+    ORDER BY l.external_id COLLATE "C"
+    FOR UPDATE`;
   return database
     .update(jobs)
     .set({ updatedAt: seenAt })
-    .where(and(inArray(jobs.externalId, externalIds), lt(jobs.updatedAt, staleBefore)))
+    .where(sql`${jobs.id} IN (${locked})`)
     .returning({ externalId: jobs.externalId });
 }
 
@@ -437,6 +474,24 @@ export function buildStoredCoordsQuery(limit: number): SQL {
       WHERE ${jobs.latitude} IS NOT NULL AND ${jobs.longitude} IS NOT NULL
     ) s
     GROUP BY s.k, s.latitude, s.longitude
+    LIMIT ${limit}`;
+}
+
+/**
+ * The sources whose newest row was last seen before `before` (spec 01a D27), oldest first: one
+ * scan of `jobs` grouped by source (compared case- and space-insensitively, as the ingestor does),
+ * run once at the end of a full run. The sync writes `updated_at` as UTC wall-clock time (the
+ * column encoder's ISO string, as `before` is sent here), so `last_seen` is rendered as UTC.
+ */
+export function buildStaleSourcesQuery(before: Date, limit: number): SQL {
+  const site = sql`lower(btrim(${jobs.site}))`;
+  return sql`SELECT ${site} AS site,
+      to_char(max(${jobs.updatedAt}), 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS last_seen,
+      count(*)::int AS row_count
+    FROM ${jobs}
+    GROUP BY ${site}
+    HAVING max(${jobs.updatedAt}) < ${sql.param(before, jobs.updatedAt)}
+    ORDER BY max(${jobs.updatedAt})
     LIMIT ${limit}`;
 }
 
@@ -615,7 +670,8 @@ export function createDrizzleJobStore(database: Database = defaultDb, options: D
 
     async refreshLastSeen(externalIds, seenAt) {
       if (externalIds.length === 0) return [];
-      // Sorted: concurrent runs lock rows in the same order (as the upsert does).
+      // Deduplicated and sorted for a stable statement; the lock order is the query's own
+      // (external_id byte order, as the upsert's), see buildLastSeenRefreshQuery.
       const ids = [...new Set(externalIds)].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
       const rows = await withSyncStatementBound(database, refreshTimeoutMs, (tx) =>
         buildLastSeenRefreshQuery(tx, ids, seenAt),
@@ -647,6 +703,15 @@ export function createDrizzleJobStore(database: Database = defaultDb, options: D
       }>;
       if (rows.length > limit) return null;
       return newestCoordsPerKey(rows);
+    },
+
+    async findStaleSources(before, limit) {
+      const rows = (await read((tx) => tx.execute(buildStaleSourcesQuery(before, limit)))) as unknown as Array<{
+        site: string;
+        last_seen: string;
+        row_count: number | string;
+      }>;
+      return rows.map((r) => ({ site: r.site, lastSeen: r.last_seen, rows: Number(r.row_count) }));
     },
 
     async upsertBatch(rows) {

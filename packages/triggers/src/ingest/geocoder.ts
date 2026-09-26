@@ -337,7 +337,12 @@ export class RunGeocoder {
           shared?.setCoords(key, coords);
           result.set(key, coords);
         } else if (stored) {
-          shared?.setStoredMiss(key); // (a failed query proves nothing)
+          shared?.setStoredMiss(key);
+        } else {
+          // The query failed, which proves nothing: these keys may well be stored, so they do not
+          // go to Google (a timed-out lookup would otherwise spend the run's call cap on them).
+          // Left without coordinates and not remembered: a later lookup, or the next run, retries.
+          result.set(key, null);
         }
       }
     }

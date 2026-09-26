@@ -108,11 +108,26 @@
 - [x] T27 — Stored coordinates: two targeted scans per run, then one load of every stored location
   (FR-8, D26).
 - [x] T28 — Escalation after 4 incomplete full runs in a row: error line, `incompleteStreak`, the
-  full task throws (FR-9, FR-12, D27).
+  full task throws (FR-9, FR-12, D27). Superseded by T31: the count is per pod and per restart.
 - [x] T29 — Tests: the content columns pinned literally; Postgres tests for a description-only
   change, row locks (`xmax`), the narrow refresh (TOAST/WAL), a read under a lock; CI runs the
   Postgres test in the E2E job; the branch history squashed so every commit follows the jobs-writer
   rule.
+
+## Phase 8 — Finisher review fixes (2026-09-26)
+
+- [x] T30 — One copy absorbs at most one posting of each source: within-run marks count jobs per
+  source (`seen` / `kept`); across runs a stored row absorbs at most one new job per source per
+  run, and none when the job's source already has a row with the key; a batch's marks are committed
+  after its writes, without the new rows that were not written (FR-6, D23; review F1, F5).
+- [x] T31 — `staleSources`: at the end of a full run, the sources unseen for 10 days, read from the
+  database; the full task fails when there are any and the crawl was not complete or sources
+  failed; `incompleteStreak` is information only (FR-9, FR-12, D27; review F2).
+- [x] T32 — The read-ahead left-joins `jobs` (a vanished row is written again); the last-seen
+  refresh locks its rows in byte order (D24; review F3, F4).
+- [x] T33 — A failed stored-coordinate lookup sends nothing to Google (D26; review F6).
+- [x] T34 — `errorText` cuts Drizzle's parameter list without a driver cause; the sync route uses
+  it (D25; review nits).
 
 ## Notes
 

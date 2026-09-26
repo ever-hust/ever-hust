@@ -594,6 +594,111 @@ describe("JobIngestor — one source's postings with one dedupKey (spec D23, E2E
   });
 });
 
+describe("JobIngestor — one copy absorbs at most one posting per source (spec D23, review F1)", () => {
+  // Amazon lists five warehouse postings with one title in one city: one dedupKey, five postings.
+  // A job board carries a copy of one of them.
+  const KEY = "amazon|warehouse associate|seattle";
+  const amazon = (n: number, extra: Partial<JobPostDto> = {}) =>
+    job(`amzn-${n}`, {
+      site: "amazon",
+      title: "Warehouse Associate",
+      companyName: "Amazon",
+      location: { city: "Seattle", state: "WA" },
+      dedupKey: KEY,
+      ...extra,
+    });
+  const boardCopy = (id = "li-1", extra: Partial<JobPostDto> = {}) => amazon(0, { id, site: "linkedin", ...extra });
+  const postings = [1, 2, 3, 4, 5].map((n) => amazon(n));
+
+  it("within a run, a board copy seen first swallows one posting, not all five (any batch size)", async () => {
+    for (const batchSize of [10, 1]) {
+      const { store, ingestor } = setup({ batchSize });
+      const counters = await ingestAll(ingestor, [boardCopy(), ...postings]);
+      expect([...store.rows.keys()].sort()).toEqual(["amzn-2", "amzn-3", "amzn-4", "amzn-5", "li-1"]);
+      expect(counters).toMatchObject({ received: 6, inserted: 5, duplicatesMerged: 1 });
+      expectInvariant(counters);
+    }
+  });
+
+  it("within a run, a board copy seen last is a copy of one of the postings", async () => {
+    const { store, ingestor } = setup({ batchSize: 2 });
+    const counters = await ingestAll(ingestor, [...postings, boardCopy()]);
+    expect([...store.rows.keys()].sort()).toEqual(["amzn-1", "amzn-2", "amzn-3", "amzn-4", "amzn-5"]);
+    expect(counters).toMatchObject({ inserted: 5, duplicatesMerged: 1 });
+  });
+
+  it("across runs, a stored board copy absorbs one posting per run, and none once the employer has rows of its own", async () => {
+    const store = new FakeJobStore();
+    // A keyword run stores the board copy before any full run saw Amazon's own postings.
+    await ingestAll(setup({ store }).ingestor, [boardCopy()]);
+
+    const first = await ingestAll(setup({ store, batchSize: 10 }).ingestor, postings);
+    expect(first).toMatchObject({ received: 5, inserted: 4, duplicatesMerged: 1, mergedWrites: 0 });
+    expect([...store.rows.keys()].sort()).toEqual(["amzn-2", "amzn-3", "amzn-4", "amzn-5", "li-1"]);
+    expectInvariant(first);
+
+    // Amazon now has rows with the key: its remaining posting is one of its own, whatever the order.
+    const second = await ingestAll(setup({ store, batchSize: 1 }).ingestor, [...postings].reverse());
+    expect(second).toMatchObject({ received: 5, inserted: 1, unchanged: 4, duplicatesMerged: 0 });
+    expect(store.rows.has("amzn-1")).toBe(true);
+    expectInvariant(second);
+
+    // Stable from here on: nothing new, nothing lost.
+    const third = await ingestAll(setup({ store, batchSize: 10 }).ingestor, [...postings, boardCopy()]);
+    expect(third).toMatchObject({ inserted: 0, unchanged: 6, duplicatesMerged: 0 });
+    expect(store.rows.size).toBe(6);
+  });
+
+  it("when both sources already have a row for the key, a new posting of either is its own, in a batch with them or alone", async () => {
+    const store = new FakeJobStore();
+    await ingestAll(setup({ store, batchSize: 10 }).ingestor, [amazon(1)]);
+    // Older data: the board copy got a row of its own too (before the merge rule).
+    store.seed({ externalId: "li-1", site: "linkedin", title: "Warehouse Associate", companyName: "Amazon", rawData: { id: "li-1", dedupKey: KEY } });
+
+    const together = await ingestAll(setup({ store, batchSize: 10 }).ingestor, [amazon(1), boardCopy(), amazon(2)]);
+    expect(together).toMatchObject({ inserted: 1, duplicatesMerged: 0 });
+    expect(store.rows.has("amzn-2")).toBe(true);
+
+    const alone = await ingestAll(setup({ store }).ingestor, [amazon(3)]);
+    expect(alone).toMatchObject({ inserted: 1, duplicatesMerged: 0 });
+    const board = await ingestAll(setup({ store }).ingestor, [boardCopy("li-2")]);
+    expect(board).toMatchObject({ inserted: 1, duplicatesMerged: 0 }); // linkedin has a row of its own too
+    expect(store.rows.size).toBe(5);
+  });
+
+  it("a stored posting absorbs at most one copy of each other source per run", async () => {
+    const store = new FakeJobStore();
+    await ingestAll(setup({ store }).ingestor, [amazon(1)]);
+    const counters = await ingestAll(setup({ store, batchSize: 1 }).ingestor, [
+      boardCopy("li-1"),
+      boardCopy("li-2"), // a second linkedin posting with the key: not a copy of amzn-1 as well
+      boardCopy("in-1", { site: "indeed" }), // another board's copy: absorbed too
+    ]);
+    expect(counters).toMatchObject({ received: 3, inserted: 1, duplicatesMerged: 2 });
+    expect([...store.rows.keys()].sort()).toEqual(["amzn-1", "li-2"]);
+    expectInvariant(counters);
+  });
+
+  it("without a dedupKey, the fallback identity follows the same count", async () => {
+    const { store, ingestor } = setup({ batchSize: 10 });
+    const plain = (id: string, site: string) =>
+      job(id, { site, title: "Technician, Manufacturing I", companyName: "AbbVie", location: { city: "Branchburg", state: "NJ" } });
+    const counters = await ingestAll(ingestor, [plain("in-1", "indeed"), plain("wd-1", "workday"), plain("wd-2", "workday"), plain("wd-3", "workday")]);
+    expect([...store.rows.keys()].sort()).toEqual(["in-1", "wd-2", "wd-3"]);
+    expect(counters).toMatchObject({ inserted: 3, duplicatesMerged: 1 });
+  });
+
+  it("another source's copy is not dropped for a row that was never written (review F5)", async () => {
+    const store = new FakeJobStore();
+    store.poisonIds.add("amzn-1"); // the database rejects this row, in bulk and alone
+    const { ingestor } = setup({ store, batchSize: 1 });
+    const counters = await ingestAll(ingestor, [amazon(1), boardCopy()]);
+    expect(counters).toMatchObject({ received: 2, errors: 1, inserted: 1, duplicatesMerged: 0 });
+    expect([...store.rows.keys()]).toEqual(["li-1"]);
+    expectInvariant(counters);
+  });
+});
+
 describe("JobIngestor — a copy streamed before the owner (review finding 2)", () => {
   const owner = (extra: Partial<JobPostDto> = {}) =>
     job("gh-9", { dedupKey: "k", title: "Engineer", description: "v1", ...extra });
@@ -690,6 +795,20 @@ describe("JobIngestor — only rows that need it are written (spec D24, review f
     const counters = await ingestAll(setup({ store, batchSize: 10 }).ingestor, [job("1"), job("2", { title: "New" })]);
     expect(store.calls.upsertBatch.map((b) => b.map((r) => r.externalId))).toEqual([["1", "2"]]);
     expect(counters).toMatchObject({ updated: 1, unchanged: 1, errors: 0 });
+    expectInvariant(counters);
+  });
+
+  it("stores a row again when it was deleted between the existence lookup and the read-ahead (review F3)", async () => {
+    const store = new FakeJobStore();
+    await ingestAll(setup({ store }).ingestor, [job("gone"), job("kept")]);
+    const readAhead = store.findWriteNeeds.bind(store);
+    store.findWriteNeeds = async (rows) => {
+      store.rows.delete("gone"); // e.g. the daily cleanup, while the batch was geocoding
+      return readAhead(rows);
+    };
+    const counters = await ingestAll(setup({ store, batchSize: 10 }).ingestor, [job("gone"), job("kept")]);
+    expect(store.rows.has("gone")).toBe(true);
+    expect(counters).toMatchObject({ received: 2, inserted: 1, unchanged: 1, errors: 0 });
     expectInvariant(counters);
   });
 

@@ -2,8 +2,8 @@ import { describe, it, expect, jest } from "@jest/globals";
 import type { JobStreamEvent } from "@ever-hust/jobs-api";
 import {
   createDefaultSyncDeps,
-  INCOMPLETE_FULL_RUNS_ALERT,
   IncompleteRunTracker,
+  STALE_SOURCE_DAYS,
   processGeocodeMemo,
   readSyncEnv,
   routeDeadlineMs,
@@ -193,23 +193,45 @@ describe("runScheduledSync (what the Trigger schedules run)", () => {
     expect(info).not.toHaveBeenCalledWith("[jobs-sync] full sync ok", expect.anything());
   });
 
-  it("THROWS once full runs have been incomplete INCOMPLETE_FULL_RUNS_ALERT times in a row (spec D27)", async () => {
-    const warn = jest.fn();
-    const below = { ...OK_SUMMARY, complete: false, stopReason: "deadline", sourcesSkipped: 3, incompleteStreak: INCOMPLETE_FULL_RUNS_ALERT - 1 };
-    await expect(
-      runScheduledSync("full", { fetchImpl: fetchReturning(ndjson([below])), dispatcher: null, logger: { info: jest.fn(), warn } }),
-    ).resolves.toMatchObject({ ok: true, incompleteStreak: INCOMPLETE_FULL_RUNS_ALERT - 1 });
-    expect(warn).toHaveBeenCalledTimes(1);
-
-    const atThreshold = { ...below, incompleteStreak: INCOMPLETE_FULL_RUNS_ALERT };
+  it("THROWS when a source went unseen for days while the crawl was not complete (spec D27, review F2)", async () => {
+    const stale = [{ site: "workday", lastSeen: "2026-09-10T06:20:00Z", rows: 812 }];
+    const partial = { ...OK_SUMMARY, complete: false, stopReason: "deadline", sourcesSkipped: 3, sourcesFailed: 0, incompleteStreak: 1, staleSources: stale };
     const err = await runScheduledSync("full", {
-      fetchImpl: fetchReturning(ndjson([atThreshold])),
+      fetchImpl: fetchReturning(ndjson([partial])),
       dispatcher: null,
       logger: quiet,
     }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(SyncRunFailedError);
-    expect((err as Error).message).toContain("full sync incomplete 4 runs in a row (stopReason=deadline sourcesSkipped=3)");
-    expect((err as SyncRunFailedError).summary).toMatchObject({ incompleteStreak: INCOMPLETE_FULL_RUNS_ALERT });
+    expect((err as Error).message).toContain(
+      `1 source(s) not seen for ${STALE_SOURCE_DAYS}+ days: workday (last seen 2026-09-10T06:20:00Z, 812 rows); this crawl did not cover every source (stopReason=deadline sourcesSkipped=3 sourcesFailed=0)`,
+    );
+    expect((err as SyncRunFailedError).summary).toMatchObject({ staleSources: stale });
+
+    // A complete crawl with a failed source: the same alarm.
+    const failedSource = { ...OK_SUMMARY, sourcesFailed: 2, staleSources: stale }; // complete: true
+    await expect(
+      runScheduledSync("full", { fetchImpl: fetchReturning(ndjson([failedSource])), dispatcher: null, logger: quiet }),
+    ).rejects.toThrow(/this crawl did not cover every source/);
+  });
+
+  it("does NOT throw on the per-process incomplete streak alone, nor on a stale source after a complete crawl", async () => {
+    const warn = jest.fn();
+    const streakOnly = { ...OK_SUMMARY, complete: false, stopReason: "deadline", sourcesSkipped: 3, incompleteStreak: 40, staleSources: [] };
+    await expect(
+      runScheduledSync("full", { fetchImpl: fetchReturning(ndjson([streakOnly])), dispatcher: null, logger: { info: jest.fn(), warn } }),
+    ).resolves.toMatchObject({ ok: true, incompleteStreak: 40 });
+    expect(warn).toHaveBeenCalledTimes(1);
+
+    // Complete, nothing failed: the source is no longer listed upstream; the app logged a warning.
+    const removedUpstream = { ...OK_SUMMARY, sourcesFailed: 0, staleSources: [{ site: "oldboard", lastSeen: "2026-08-01T00:00:00Z", rows: 3 }] };
+    await expect(
+      runScheduledSync("full", { fetchImpl: fetchReturning(ndjson([removedUpstream])), dispatcher: null, logger: quiet }),
+    ).resolves.toMatchObject({ ok: true, complete: true });
+    // An app that predates the check sends no staleSources: nothing to escalate on.
+    const older = { ...OK_SUMMARY, complete: false, stopReason: "deadline", incompleteStreak: 9 };
+    await expect(
+      runScheduledSync("full", { fetchImpl: fetchReturning(ndjson([older])), dispatcher: null, logger: quiet }),
+    ).resolves.toMatchObject({ ok: true });
   });
 
   it("reads a summary without completeness fields (an older app) as NOT known complete", async () => {
@@ -364,19 +386,21 @@ describe("runInProcessSync (the sync-jobs task)", () => {
     expect(whole).toMatchObject({ ok: true, complete: true, stopReason: null, sourcesFailed: 3 });
   });
 
-  it("throws in-process too once the tracker reaches the threshold", async () => {
-    const incompleteRuns = new IncompleteRunTracker();
-    const partialRun = () =>
+  it("throws in-process too when a source went unseen while the crawl was not complete, whatever this process counted", async () => {
+    const store = new FakeJobStore();
+    store.seed({ externalId: "wd-1", site: "workday", title: "t", updatedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) });
+    const partialRun = (incompleteRuns: IncompleteRunTracker) =>
       runInProcessSync(
         { mode: "full" },
         {
           ...baseDeps,
+          store,
           incompleteRuns,
           openStream: async () => stream([{ type: "end", legacy: false, complete: false, stopReason: "deadline", sourcesSkipped: 2 }]),
         },
       );
-    for (let i = 1; i < INCOMPLETE_FULL_RUNS_ALERT; i++) await expect(partialRun()).resolves.toMatchObject({ incompleteStreak: i });
-    await expect(partialRun()).rejects.toThrow(/full sync incomplete 4 runs in a row/);
+    // A fresh process (a new pod, or after a deploy): its first run already escalates.
+    await expect(partialRun(new IncompleteRunTracker())).rejects.toThrow("1 source(s) not seen for 10+ days: workday");
   });
 
   it("skips a full run (no upstream call, no throw) while the contract is unknown", async () => {

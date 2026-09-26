@@ -9,6 +9,7 @@ import {
   buildDedupKeyQuery,
   buildLastSeenRefreshQuery,
   buildLocationReuseQuery,
+  buildStaleSourcesQuery,
   buildStoredCoordsQuery,
   buildUpsertQuery,
   buildWriteNeedsQuery,
@@ -308,10 +309,10 @@ describe("buildWriteNeedsQuery — the upsert's WHERE, read ahead (spec D24)", (
   });
   const { sql, params } = dialect.sqlToQuery(buildWriteNeedsQuery([withRaw, row("b")]));
 
-  it("sends the incoming rows as a typed VALUES list joined to jobs by external_id", () => {
+  it("sends the incoming rows as a typed VALUES list left-joined to jobs by external_id", () => {
     const names = COMPARED_COLUMNS.map((c) => `"${c.name}"`).join(", ");
     expect(sql).toContain(`) AS incoming (${names})`);
-    expect(sql).toContain(`JOIN "jobs" ON "jobs"."external_id" = incoming."external_id"`);
+    expect(sql).toContain(`LEFT JOIN "jobs" ON "jobs"."external_id" = incoming."external_id"`);
     // every value is cast to its column's type, so incoming.x compares like the upsert's excluded.x
     expect(sql).toContain(`$1::text, $2::text, $3::text`);
     expect(sql).toMatch(/::numeric, \$\d+::jsonb, \$\d+::timestamp\), \(/);
@@ -331,8 +332,12 @@ describe("buildWriteNeedsQuery — the upsert's WHERE, read ahead (spec D24)", (
     expect(sql).toContain(
       `CASE WHEN (incoming."raw_data" ->> 'id') IS NOT NULL AND (incoming."raw_data" ->> 'id') <> incoming."external_id" THEN false ELSE "jobs"."updated_at" < incoming."updated_at" - interval '7 days' END`,
     );
-    expect(sql).toMatch(/WHERE \(CASE .* END\) IS TRUE OR \(CASE .* END\) IS TRUE$/s);
+    expect(sql).toMatch(/WHERE "jobs"\."id" IS NULL OR \(CASE .* END\) IS TRUE OR \(CASE .* END\) IS TRUE$/s);
     expect(sql).not.toMatch(/insert|update "jobs"/i);
+  });
+
+  it("reports a row deleted since the batch's existence lookup as write, so the INSERT stores it again (review F3)", () => {
+    expect(sql).toMatch(/^SELECT incoming\."external_id" AS external_id, "jobs"\."id" IS NULL OR \(CASE .* END\) IS TRUE AS write, /s);
   });
 
   it("sends exactly the values the INSERT sends for the same row (raw_data trimmed to the keys the predicate reads)", () => {
@@ -363,10 +368,30 @@ describe("buildLastSeenRefreshQuery — the narrow weekly refresh (spec D14/D24)
   it("sets updated_at only, on the given rows, and only where it is still older than the refresh window", () => {
     const seenAt = new Date("2026-09-25T12:00:00.000Z");
     const { sql, params } = buildLastSeenRefreshQuery(mockDb(), ["a", "b"], seenAt).toSQL();
-    expect(sql).toBe(
-      'update "jobs" set "updated_at" = $1 where ("jobs"."external_id" in ($2, $3) and "jobs"."updated_at" < $4) returning "external_id"',
+    expect(sql.replace(/\s+/g, " ")).toBe(
+      'update "jobs" set "updated_at" = $1 where "jobs"."id" IN (SELECT l.id FROM "jobs" AS l WHERE l.external_id IN ($2, $3) AND l.updated_at < $4 ORDER BY l.external_id COLLATE "C" FOR UPDATE) returning "external_id"',
     );
     expect(params).toEqual(["2026-09-25T12:00:00.000Z", "a", "b", "2026-09-18T12:00:00.000Z"]);
+  });
+
+  it("locks the rows in external_id byte order first, the order the upsert's sorted VALUES list locks them in (review F4)", () => {
+    const { sql } = buildLastSeenRefreshQuery(mockDb(), ["b", "a"], new Date()).toSQL();
+    expect(sql).toMatch(/ORDER BY l\.external_id COLLATE "C"\s+FOR UPDATE\)/);
+    // The upsert's order: ingestor sorts by JS string comparison, which is byte order for ASCII ids.
+    expect(["b", "B", "a-1", "a_1", "a"].sort((x, y) => (x < y ? -1 : x > y ? 1 : 0))).toEqual(["B", "a", "a-1", "a_1", "b"]);
+  });
+});
+
+describe("buildStaleSourcesQuery — the sources no sync has seen for a while (spec D27, review F2)", () => {
+  it("groups jobs by normalised source, keeps those whose newest row is older than the bound, oldest first, bounded", () => {
+    const before = new Date("2026-09-16T00:00:00.000Z");
+    const { sql, params } = new PgDialect().sqlToQuery(buildStaleSourcesQuery(before, 20));
+    const flat = sql.replace(/\s+/g, " ");
+    expect(flat).toContain(`SELECT lower(btrim("jobs"."site")) AS site,`);
+    expect(flat).toContain(`to_char(max("jobs"."updated_at"), 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS last_seen, count(*)::int AS row_count FROM "jobs"`);
+    expect(flat).toContain(`GROUP BY lower(btrim("jobs"."site")) HAVING max("jobs"."updated_at") < $1 ORDER BY max("jobs"."updated_at") LIMIT $2`);
+    // The bound goes through the column's encoder, like every updated_at the sync writes.
+    expect(params).toEqual(["2026-09-16T00:00:00.000Z", 20]);
   });
 });
 
@@ -415,6 +440,7 @@ describe("createDrizzleJobStore — statement bounds and the new calls (spec D24
       { rows: [] }, // findWriteNeeds
       { rows: [] }, // findCoordsForLocations
       { rows: [] }, // loadStoredCoords
+      { rows: [] }, // findStaleSources
     ]);
     await store.findExisting(["a"]);
     await store.findDedupCandidates({ titles: ["T"], companies: [] });
@@ -422,8 +448,9 @@ describe("createDrizzleJobStore — statement bounds and the new calls (spec D24
     await store.findWriteNeeds([row("a")]);
     await store.findCoordsForLocations(["k"]);
     await store.loadStoredCoords!(10);
+    await store.findStaleSources!(new Date(), 20);
     const read = ["BEGIN", `bound ${SYNC_READ_TIMEOUT_MS}`, "statement", "COMMIT"];
-    expect(shape(statements)).toEqual([...read, ...read, ...read, ...read, ...read, ...read]);
+    expect(shape(statements)).toEqual([...read, ...read, ...read, ...read, ...read, ...read, ...read]);
     expect(statements[1]!.query).toContain("set_config('idle_in_transaction_session_timeout', $2, true)");
   });
 
@@ -457,6 +484,13 @@ describe("createDrizzleJobStore — statement bounds and the new calls (spec D24
     expect(shape(statements)).toEqual(["BEGIN", `bound ${SYNC_REFRESH_TIMEOUT_MS}`, "statement", "COMMIT"]);
     expect(statements[2]!.query).toMatch(/^update "jobs" set "updated_at" = \$1 where/);
     expect(statements[2]!.params.slice(1, 3)).toEqual(["a", "c"]);
+  });
+
+  it("findStaleSources maps each row to site, lastSeen and a numeric row count", async () => {
+    const { store } = storeOf([{ rows: [{ site: "workday", last_seen: "2026-09-10T06:20:00Z", row_count: "812" }] }]);
+    expect(await store.findStaleSources!(new Date(), 20)).toEqual([
+      { site: "workday", lastSeen: "2026-09-10T06:20:00Z", rows: 812 },
+    ]);
   });
 
   it("loadStoredCoords answers null when there are more locations than the limit", async () => {

@@ -20,7 +20,8 @@ import {
  *
  * Both THROW when the route reports `ok:false`, answers non-2xx, or the stream is cut, so a failed
  * sync is a FAILED run. A run that is ok on a partial upstream crawl (`complete: false`, spec 01a
- * D21) is NOT failed: the task logs a warning and returns the summary with its `stopReason`.
+ * D21) is NOT failed: the task logs a warning and returns the summary with its `stopReason` —
+ * unless a source has gone unseen for days meanwhile (`staleSources`, spec 01a D27).
  * Retries are off (spec D7): the next tick is the retry, and re-running a failed full sync would
  * re-scrape every source.
  */

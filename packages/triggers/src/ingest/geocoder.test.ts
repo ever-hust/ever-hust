@@ -116,18 +116,39 @@ describe("RunGeocoder", () => {
     expect(out.get("b")).toBeNull();
   });
 
-  it("survives a failing stored-coordinate lookup and memoises transient errors for the run", async () => {
-    const lookup: CoordsLookup = {
-      findCoordsForLocations: async () => {
-        throw new Error("db down");
-      },
-    };
+  it("memoises transient Google errors for the run", async () => {
+    const lookup: CoordsLookup = { findCoordsForLocations: async () => new Map() };
     const geocode = jest.fn<GeocodeFn>(async () => ({ status: "error" as const, message: "timeout" }));
     const g = new RunGeocoder({ lookup, geocode, maxCalls: 10, logger: silent });
     await g.resolve([{ key: "a", parts: { city: "A" } }]);
     await g.resolve([{ key: "a", parts: { city: "A" } }]);
     expect(geocode).toHaveBeenCalledTimes(1);
     expect(g.stoppedReason).toBeNull();
+  });
+
+  it("does not send the keys of a failed stored-coordinate lookup to Google; a later lookup retries them (review F6)", async () => {
+    let fail = true;
+    const lookup: CoordsLookup = {
+      findCoordsForLocations: async (keys) => {
+        if (fail) throw new Error("canceling statement due to statement timeout");
+        return new Map(keys.map((k) => [k, { latitude: "1", longitude: "2" }]));
+      },
+    };
+    const geocode = jest.fn<GeocodeFn>(async () => ({ status: "ok" as const, coords: { latitude: "9", longitude: "9" } }));
+    const g = new RunGeocoder({ lookup, geocode, maxCalls: 10, logger: silent });
+    const first = await g.resolve([
+      { key: "a", parts: { city: "A" } },
+      { key: "b", parts: { city: "B" } },
+    ]);
+    expect(first.get("a")).toBeNull();
+    expect(first.get("b")).toBeNull();
+    expect(geocode).not.toHaveBeenCalled();
+    expect(g.calls).toBe(0);
+
+    fail = false;
+    const second = await g.resolve([{ key: "a", parts: { city: "A" } }]);
+    expect(second.get("a")).toEqual({ latitude: "1", longitude: "2" });
+    expect(geocode).not.toHaveBeenCalled();
   });
 });
 

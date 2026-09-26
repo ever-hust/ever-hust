@@ -7,8 +7,9 @@ import {
   type IngestCounters,
   type IngestLogger,
 } from "./ingestor";
-import { INCOMPLETE_FULL_RUNS_ALERT, type IncompleteRunTracker } from "./incomplete-runs";
-import type { JobStore } from "./job-store";
+import { errorText } from "./errors";
+import type { IncompleteRunTracker } from "./incomplete-runs";
+import { MAX_STALE_SOURCES_REPORTED, STALE_SOURCE_DAYS, type JobStore, type StaleSource } from "./job-store";
 import type { UpstreamContractTracker } from "./upstream-contract";
 
 /**
@@ -54,10 +55,18 @@ export interface SyncSummary extends SyncCounters {
   skipped?: string;
   /**
    * Full runs only (with a tracker): the full runs in a row, this one included, that were not
-   * complete in this process; 0 when this one was (spec 01a D27). From
-   * {@link INCOMPLETE_FULL_RUNS_ALERT} on, the scheduled full task fails.
+   * complete in this process; 0 when this one was. Informational only: the count is per process
+   * (each web pod counts the runs it served, and a restart resets it), so it is logged, never
+   * alerted on; {@link staleSources} is the escalation (spec 01a D27).
    */
   incompleteStreak?: number;
+  /**
+   * Full runs only: the sources none of whose rows a sync has seen for {@link STALE_SOURCE_DAYS}
+   * days, oldest first, at most {@link MAX_STALE_SOURCES_REPORTED} (spec 01a D27). Read from the
+   * database at the end of the run, so it holds across pods and restarts. Absent when the check did
+   * not run (a skipped or aborted run, a failed read). See {@link staleSourcesAlarm}.
+   */
+  staleSources?: StaleSource[];
 }
 
 /**
@@ -286,6 +295,9 @@ export async function runJobsSync(plan: SyncPlan, deps: RunSyncDeps): Promise<Sy
 
   const incompleteStreak =
     plan.mode === "full" && !plan.skipped && deps.incompleteRuns ? deps.incompleteRuns.record(complete) : undefined;
+  // Spec D27: what went unseen, from the database (not from this process's memory).
+  const staleSources =
+    plan.mode === "full" && !plan.skipped && !fatal ? await findStaleSources(deps.store, now(), logger) : undefined;
 
   const summary: SyncSummary = {
     ok,
@@ -304,14 +316,71 @@ export async function runJobsSync(plan: SyncPlan, deps: RunSyncDeps): Promise<Sy
     errorMessages: [...upstreamErrors, ...ingestor.errorMessages].slice(0, 25),
     ...(plan.skipped ? { skipped: plan.skipped } : {}),
     ...(incompleteStreak !== undefined ? { incompleteStreak } : {}),
+    ...(staleSources !== undefined ? { staleSources } : {}),
   };
 
   if (plan.skipped) logger.warn(`[jobs-sync] ${plan.mode} sync skipped: ${plan.skipped}`);
-  else if (incompleteStreak !== undefined && incompleteStreak >= INCOMPLETE_FULL_RUNS_ALERT) {
-    logger.error(formatIncompleteStreakLine(summary));
-  } else if (ok && !complete) logger.warn(formatIncompleteLine(summary));
+  else if (ok && !complete) logger.warn(formatIncompleteLine(summary));
+  if (staleSourcesAlarm(summary)) logger.error(formatStaleSourcesLine(summary));
+  else if (staleSources !== undefined && staleSources.length > 0) logger.warn(formatStaleSourcesLine(summary));
   logger.info(formatSummaryLine(summary));
   return summary;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** The sources unseen for {@link STALE_SOURCE_DAYS} days, or undefined when that cannot be read. */
+async function findStaleSources(
+  store: JobStore,
+  at: number,
+  logger: IngestLogger,
+): Promise<StaleSource[] | undefined> {
+  if (!store.findStaleSources) return undefined;
+  try {
+    return await store.findStaleSources(new Date(at - STALE_SOURCE_DAYS * DAY_MS), MAX_STALE_SOURCES_REPORTED);
+  } catch (err) {
+    logger.warn(`[jobs-sync] reading which sources went unseen failed: ${errorText(err)}`);
+    return undefined;
+  }
+}
+
+/**
+ * Whether a full run's {@link SyncSummary.staleSources} is an alarm (spec 01a D27): a source went
+ * unseen for {@link STALE_SOURCE_DAYS} days AND this crawl did not cover every source (not
+ * complete, or sources failed), so the producer's bounds are the likely cause and the 90-day
+ * cleanup will delete that source's postings while they may still be open. Then the scheduled
+ * and in-process full tasks fail. After a complete crawl with no failed source, a stale source is
+ * one Ever Jobs no longer lists (removed or renamed upstream): a warning only, or it would fail
+ * every full run until the cleanup has deleted its rows. Takes the route's parsed summary too.
+ */
+export function staleSourcesAlarm(
+  summary: Partial<Pick<SyncSummary, "mode" | "staleSources" | "complete" | "sourcesFailed">>,
+): boolean {
+  return (
+    summary.mode === "full" &&
+    Array.isArray(summary.staleSources) &&
+    summary.staleSources.length > 0 &&
+    (summary.complete !== true || (typeof summary.sourcesFailed === "number" && summary.sourcesFailed > 0))
+  );
+}
+
+/** The stale sources of a full run (spec 01a D27): an error with {@link staleSourcesAlarm}, else a warning. */
+export function formatStaleSourcesLine(
+  s: Partial<Pick<SyncSummary, "mode" | "staleSources" | "complete" | "stopReason" | "sourcesSkipped" | "sourcesFailed">>,
+): string {
+  const stale = Array.isArray(s.staleSources) ? s.staleSources : [];
+  const list = stale
+    .map((x) => `${String(x?.site)} (last seen ${String(x?.lastSeen)}, ${String(x?.rows)} rows)`)
+    .join(", ");
+  const head = `[jobs-sync] full sync: ${stale.length} source(s) not seen for ${STALE_SOURCE_DAYS}+ days: ${list}`;
+  if (staleSourcesAlarm(s)) {
+    return (
+      `${head}; this crawl did not cover every source (stopReason=${s.stopReason ?? "not_reported"}` +
+      ` sourcesSkipped=${s.sourcesSkipped ?? 0} sourcesFailed=${s.sourcesFailed ?? 0}): their postings are not` +
+      ` refreshed and the 90-day cleanup will delete them; raise Ever Jobs' fan-out deadline or fix the failing sources (spec 01a D19/D27)`
+    );
+  }
+  return `${head}; the crawl was complete, so Ever Jobs no longer lists them (removed or renamed upstream?): their rows age out with the 90-day cleanup`;
 }
 
 /**
@@ -323,18 +392,6 @@ export function formatIncompleteLine(s: SyncSummary): string {
     `[jobs-sync] ${s.mode} sync incomplete: stopReason=${s.stopReason ?? "not_reported"}` +
     ` sourcesSkipped=${s.sourcesSkipped} sourcesFailed=${s.sourcesFailed} received=${s.received}` +
     ` upstreamTotal=${s.upstreamTotal}; the upstream crawl did not cover every source (what arrived is stored)`
-  );
-}
-
-/**
- * The error for a full crawl that stayed incomplete {@link INCOMPLETE_FULL_RUNS_ALERT}+ runs in a
- * row (spec 01a D27).
- */
-export function formatIncompleteStreakLine(s: SyncSummary): string {
-  return (
-    `[jobs-sync] full sync incomplete ${s.incompleteStreak ?? "?"} runs in a row (stopReason=${s.stopReason ?? "not_reported"}` +
-    ` sourcesSkipped=${s.sourcesSkipped}): postings of the skipped sources are not refreshed and the 90-day cleanup` +
-    ` may delete open ones; raise Ever Jobs' fan-out deadline (spec 01a D19)`
   );
 }
 
@@ -350,6 +407,7 @@ export function formatSummaryLine(s: SyncSummary): string {
     ` complete=${s.complete} stopReason=${s.stopReason ?? "-"} sourcesSkipped=${s.sourcesSkipped}` +
     ` sourcesFailed=${s.sourcesFailed} legacyServer=${s.legacyServer} durationMs=${s.durationMs}` +
     (s.incompleteStreak !== undefined ? ` incompleteStreak=${s.incompleteStreak}` : "") +
+    (s.staleSources !== undefined ? ` staleSources=${s.staleSources.length}` : "") +
     (s.skipped ? ` skipped=true` : "")
   );
 }

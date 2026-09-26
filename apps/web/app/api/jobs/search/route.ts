@@ -1,6 +1,6 @@
 import { db } from "@ever-hust/db";
 import { jobs } from "@ever-hust/db";
-import { and, desc, sql } from "drizzle-orm";
+import { and, sql } from "drizzle-orm";
 import { jobSearchParamsSchema } from "../../../../lib/api-schemas";
 import { applyRateLimit } from "../../../../lib/rate-limit";
 import { apiSuccess, apiBadRequest, apiError } from "../../../../lib/api-response";
@@ -8,6 +8,7 @@ import { getSessionUser } from "../../../../lib/get-session-user";
 import {
   buildJobFilterConditions,
   hiddenJobsExclusion,
+  newestFirst,
 } from "../../../../lib/job-search-filters";
 
 export async function GET(req: Request) {
@@ -86,7 +87,7 @@ export async function GET(req: Request) {
         })
         .from(jobs)
         .where(where)
-        .orderBy(desc(jobs.datePosted))
+        .orderBy(newestFirst())
         .limit(limit)
         .offset(offset),
       db

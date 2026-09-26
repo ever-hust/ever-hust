@@ -56,6 +56,15 @@ export function buildJobFilterConditions(p: JobFilterParams): SQL[] {
 }
 
 /**
+ * "Newest first" ordering for job lists. Postgres sorts NULLs FIRST under `DESC` by default, so a
+ * plain `desc(date_posted)` put every job without a posted date at the top of page 1 (and filled
+ * the map cap with them). Dated jobs come first, newest first; undated ones last.
+ */
+export function newestFirst(): SQL {
+  return sql`${jobs.datePosted} DESC NULLS LAST`;
+}
+
+/**
  * Exclude jobs the signed-in user has hidden (`user_jobs.status = 'hidden'`).
  * Fast anti-join — covered by the `user_jobs_status_idx (user_id, status)` and
  * the `(user_id, job_id)` unique index.

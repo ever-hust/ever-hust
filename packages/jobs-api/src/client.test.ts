@@ -418,15 +418,68 @@ describe("EverJobsClient -- searchJobs", () => {
     expect(urlStr).toContain("page_size=25");
   });
 
-  it("requests the corpus signals (liveness + legitimacy) by default", async () => {
+  describe("corpus signals (liveness + legitimacy) default", () => {
+    const original = process.env.EVER_JOBS_REQUEST_SIGNALS;
+    afterEach(() => {
+      if (original === undefined) delete process.env.EVER_JOBS_REQUEST_SIGNALS;
+      else process.env.EVER_JOBS_REQUEST_SIGNALS = original;
+    });
+
+    it("does NOT request the signals by default (liveness probes are opt-in)", async () => {
+      delete process.env.EVER_JOBS_REQUEST_SIGNALS;
+      const client = createClient();
+      fetchMock.mockImplementation(() => Promise.resolve(RESP_OK()));
+
+      await client.searchJobs(SEARCH_INPUT);
+
+      const urlStr = String(fetchMock.mock.calls[0]![0]);
+      expect(urlStr).not.toContain("liveness=");
+      expect(urlStr).not.toContain("legitimacy=");
+    });
+
+    it("keeps them off for EVER_JOBS_REQUEST_SIGNALS=false and any non-true value", async () => {
+      const client = createClient();
+      fetchMock.mockImplementation(() => Promise.resolve(RESP_OK()));
+      for (const value of ["false", "", "1", "yes"]) {
+        process.env.EVER_JOBS_REQUEST_SIGNALS = value;
+        await client.searchJobs(SEARCH_INPUT);
+      }
+      for (const call of fetchMock.mock.calls) {
+        expect(String(call[0])).not.toContain("liveness=");
+      }
+    });
+
+    it("requests both signals when EVER_JOBS_REQUEST_SIGNALS=true", async () => {
+      process.env.EVER_JOBS_REQUEST_SIGNALS = "true";
+      const client = createClient();
+      fetchMock.mockImplementation(() => Promise.resolve(RESP_OK()));
+
+      await client.searchJobs(SEARCH_INPUT);
+
+      const urlStr = String(fetchMock.mock.calls[0]![0]);
+      expect(urlStr).toContain("liveness=true");
+      expect(urlStr).toContain("legitimacy=true");
+    });
+
+    it("a per-call signals:true wins over the env default", async () => {
+      delete process.env.EVER_JOBS_REQUEST_SIGNALS;
+      const client = createClient();
+      fetchMock.mockImplementation(() => Promise.resolve(RESP_OK()));
+
+      await client.searchJobs(SEARCH_INPUT, { signals: true });
+
+      expect(String(fetchMock.mock.calls[0]![0])).toContain("liveness=true");
+    });
+  });
+
+  it("drops a blank searchTerm from the body (list mode)", async () => {
     const client = createClient();
     fetchMock.mockImplementation(() => Promise.resolve(RESP_OK()));
 
-    await client.searchJobs(SEARCH_INPUT);
+    await client.searchJobs({ ...SEARCH_INPUT, searchTerm: "   " });
 
-    const urlStr = String(fetchMock.mock.calls[0]![0]);
-    expect(urlStr).toContain("liveness=true");
-    expect(urlStr).toContain("legitimacy=true");
+    const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string);
+    expect(body).not.toHaveProperty("searchTerm");
   });
 
   it("omits the signal flags when signals:false is passed", async () => {

@@ -1,116 +1,71 @@
-import { task, schedules } from "@trigger.dev/sdk";
-import { db, jobs, JOBS_CREATED_AT, withBoundedJobsInsert } from "@ever-hust/db";
-import { everJobsClient } from "@ever-hust/jobs-api";
-import { mapJobToDb, geocodeLocation, SEARCH_TERMS } from "./map-job";
+import { task, schedules, logger } from "@trigger.dev/sdk";
+import type { SyncMode } from "./ingest";
 import { runsOnTrigger, SKIPPED } from "./scheduler";
+import {
+  FULL_SYNC_MAX_DURATION_S,
+  KEYWORD_SYNC_MAX_DURATION_S,
+  runInProcessSync,
+  runScheduledSync,
+} from "./sync-runner";
 
 /**
- * Portable sync trigger: POST the app's own /api/jobs/sync endpoint so the sync executes in the
- * app's runtime — which can reach the Ever Jobs API (including an internal/ClusterIP one) wherever
- * the app is deployed (k8s, Vercel, …). Used by the Trigger.dev schedule; an external scheduler
- * (k8s CronJob / Vercel Cron) hits the same endpoint directly.
+ * Job-corpus sync (spec 01a). Two schedules, both portable: they POST the app's own
+ * `/api/jobs/sync` endpoint so the sync executes in the app's runtime — which can reach the Ever
+ * Jobs API (including an internal/ClusterIP one) wherever the app is deployed (k8s, Vercel, …) —
+ * and follow its NDJSON progress stream. An external scheduler (k8s CronJob / Vercel Cron) can
+ * hit the same endpoint directly.
+ *
+ * - `sync-jobs-schedule`      every 15 min, mode=keywords (rotating term, keyword-capable sources)
+ * - `sync-jobs-full-schedule` every 6 h,    mode=full     (keyword-less list of every source)
+ *
+ * Both THROW when the route reports `ok:false`, answers non-2xx, or the stream is cut, so a failed
+ * sync is a FAILED run. A run that is ok on a partial upstream crawl (`complete: false`, spec 01a
+ * D21) is NOT failed: the task logs a warning and returns the summary with its `stopReason` —
+ * unless a source has gone unseen for days meanwhile (`staleSources`, spec 01a D27).
+ * Retries are off (spec D7): the next tick is the retry, and re-running a failed full sync would
+ * re-scrape every source.
  */
-async function triggerRemoteSync(): Promise<{ ok: boolean; status: number }> {
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:8443";
-  const secret = process.env.CRON_SECRET;
-  const res = await fetch(`${base}/api/jobs/sync`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
-    },
-    body: JSON.stringify({ resultsWanted: 80 }),
-  });
-  return { ok: res.ok, status: res.status };
-}
 
-async function syncJobs() {
-  // Rotate through search terms
-  const termIndex = Math.floor(Date.now() / (15 * 60 * 1000)) % SEARCH_TERMS.length;
-  const searchTerm = SEARCH_TERMS[termIndex]!;
+const triggerLogger = {
+  info: (message: string, data?: Record<string, unknown>) => logger.info(message, data),
+  warn: (message: string, data?: Record<string, unknown>) => logger.warn(message, data),
+};
 
-  let totalUpserted = 0;
-
-  try {
-    const response = await everJobsClient.searchJobs(
-      {
-        searchTerm,
-        resultsWanted: 50,
-        descriptionFormat: "markdown",
-        distance: 50,
-        country: "USA",
-      },
-      { pageSize: 50 }
-    );
-
-    for (const dto of response.jobs) {
-      try {
-        // Skip DTOs with missing required fields (defensive against malformed API responses)
-        if (!dto.id || !dto.site || !dto.title) {
-          console.warn(
-            `[sync-jobs] Skipping job with missing required fields: id=${dto.id}, site=${dto.site}, title=${dto.title}`
-          );
-          continue;
-        }
-
-        const mapped = mapJobToDb(dto);
-
-        // Geocode job location → lat/lng (non-fatal if it fails)
-        const coords = await geocodeLocation({
-          city: mapped.locationCity,
-          state: mapped.locationState,
-          country: mapped.locationCountry,
-        });
-
-        // Atomic upsert: insert new job or update existing by externalId.
-        // Eliminates the race condition from a separate SELECT + INSERT/UPDATE.
-        // Jobs-writer rule (packages/db/src/jobs-insert.ts): created_at is the database's stamp
-        // of this INSERT (JOBS_CREATED_AT, last so nothing overrides it; never in the conflict
-        // set), and the insert runs in a transaction with bounded duration. Job alerts rely on both.
-        await withBoundedJobsInsert(db, (tx) =>
-          tx
-            .insert(jobs)
-            .values({ ...mapped, ...(coords ?? {}), createdAt: JOBS_CREATED_AT })
-            .onConflictDoUpdate({
-              target: jobs.externalId,
-              set: { ...mapped, ...(coords ?? {}) },
-            }),
-        );
-
-        totalUpserted++;
-      } catch (error) {
-        console.error(
-          `Failed to upsert job ${dto.id}:`,
-          error instanceof Error ? error.message : error
-        );
-      }
-    }
-  } catch (error) {
-    console.error(
-      `Failed to sync jobs for "${searchTerm}":`,
-      error instanceof Error ? error.message : error
-    );
-  }
-
-  return { searchTerm, totalUpserted };
-}
-
-// Direct in-process sync (kept for in-cluster/manual runs where this code can reach Ever Jobs).
+// Direct in-process sync (kept for in-cluster/manual runs where this code can reach Ever Jobs and
+// the database). Payload: { mode?: "keywords" | "full", searchTerms?: string[] }.
 export const syncJobsTask = task({
   id: "sync-jobs",
-  run: async () => {
-    return syncJobs();
+  maxDuration: FULL_SYNC_MAX_DURATION_S,
+  retry: { maxAttempts: 1 },
+  run: async (payload?: { mode?: SyncMode; searchTerms?: string[] }) => {
+    return runInProcessSync({ mode: payload?.mode, searchTerms: payload?.searchTerms });
   },
 });
 
-// Scheduled sync. When Trigger.dev is the active scheduler it delegates to the app's HTTP
-// endpoint (portable — runs in the app's runtime, which can reach Ever Jobs); under SCHEDULER=cron
-// an external scheduler (k8s CronJob / Vercel Cron) hits the same endpoint and this no-ops.
+// Scheduled keyword sync. Under SCHEDULER=cron an external scheduler owns the cadence and this
+// no-ops (the k8s fallback: `.deploy/k8s/sync-cronjob.yaml`).
 export const syncJobsSchedule = schedules.task({
   id: "sync-jobs-schedule",
   cron: "*/15 * * * *",
+  maxDuration: KEYWORD_SYNC_MAX_DURATION_S,
+  queue: { name: "sync-jobs-keywords", concurrencyLimit: 1 },
+  retry: { maxAttempts: 1 },
   run: async () => {
     if (!runsOnTrigger()) return SKIPPED;
-    return triggerRemoteSync();
+    return runScheduledSync("keywords", { logger: triggerLogger });
+  },
+});
+
+// Scheduled full (keyword-less) sync, offset from the quarter-hour keyword ticks. Under
+// SCHEDULER=cron this no-ops too; its k8s fallback is `.deploy/k8s/sync-full-cronjob.yaml` (spec D31).
+export const syncJobsFullSchedule = schedules.task({
+  id: "sync-jobs-full-schedule",
+  cron: "20 */6 * * *",
+  maxDuration: FULL_SYNC_MAX_DURATION_S,
+  queue: { name: "sync-jobs-full", concurrencyLimit: 1 },
+  retry: { maxAttempts: 1 },
+  run: async () => {
+    if (!runsOnTrigger()) return SKIPPED;
+    return runScheduledSync("full", { logger: triggerLogger });
   },
 });

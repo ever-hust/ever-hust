@@ -1,6 +1,6 @@
 import { db } from "@ever-hust/db";
 import { jobs } from "@ever-hust/db";
-import { and, desc, isNotNull } from "drizzle-orm";
+import { and, isNotNull } from "drizzle-orm";
 import { jobSearchParamsSchema } from "../../../../lib/api-schemas";
 import { applyRateLimit } from "../../../../lib/rate-limit";
 import { apiSuccess, apiBadRequest, apiError } from "../../../../lib/api-response";
@@ -8,6 +8,7 @@ import { getSessionUser } from "../../../../lib/get-session-user";
 import {
   buildJobFilterConditions,
   hiddenJobsExclusion,
+  newestFirst,
 } from "../../../../lib/job-search-filters";
 
 /**
@@ -65,7 +66,7 @@ export async function GET(req: Request) {
       })
       .from(jobs)
       .where(and(...conditions))
-      .orderBy(desc(jobs.datePosted))
+      .orderBy(newestFirst())
       .limit(MAP_CAP + 1);
 
     const capped = rows.length > MAP_CAP;

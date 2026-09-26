@@ -1,0 +1,96 @@
+# In-cluster FULL job-corpus sync (spec 01a) — the `SCHEDULER=cron` FALLBACK for Trigger.dev's
+# `sync-jobs-full-schedule`. Under SCHEDULER=cron both Trigger schedules no-op, so this CronJob
+# (every 6 h, mode "full": the keyword-less list of every Ever Jobs source) and `sync-cronjob.yaml`
+# (every 15 min, mode "keywords") together replace them. SUSPENDED by default because the active
+# scheduler is Trigger.dev: to use it, set SCHEDULER=cron on the app, then flip `suspend: false`
+# here and in sync-cronjob.yaml. Full mode also needs JOBS_SYNC_FULL_ENABLED on the app and Ever
+# Jobs contract v1 (spec D18/D19); until then the run ends ok with `skipped` and this Job succeeds.
+#
+# Budgets mirror the Trigger task (maxDuration 3600 s, call timeout 3570 s): the route is told a
+# 3550 s budget (`deadlineMs`) so it stops reading Ever Jobs and sends its summary line before
+# curl gives up at 3570 s (`-m`), inside the Job's activeDeadlineSeconds (3660 s: curl plus pod
+# start-up and the check). No retry (backoffLimit 0, spec D7): re-running a failed full sync would
+# re-scrape every source; the next tick is the retry.
+#
+# The route answers HTTP 200 as soon as its NDJSON stream starts, so `curl -f` cannot see a failed
+# run. The script fails the Job, like the Trigger task fails its run (FR-12), when:
+#   - the request failed, timed out, or answered non-2xx (401/400/409/502/503…);
+#   - the stream ended without a summary line (cut);
+#   - the summary line says `"ok":false`;
+#   - a source went unseen for 10+ days while the crawl was not complete or sources failed
+#     (`staleSources`, spec D27); after a complete crawl that is a warning only.
+# The summary is printed to the Job's log either way.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hust-jobs-sync-full
+spec:
+  suspend: true
+  # Offset from the quarter-hour keyword runs, as the Trigger schedule (`20 */6 * * *`).
+  schedule: "20 */6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 3660
+      backoffLimit: 0
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: sync
+              image: curlimages/curl:8.11.1
+              env:
+                - name: CRON_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: hust-prod-web-env
+                      key: CRON_SECRET
+              command:
+                - sh
+                - -c
+                - |
+                  out=/tmp/jobs-sync.ndjson
+                  status=$(curl -sS -m 3570 -o "$out" -w '%{http_code}' \
+                    -X POST http://hust-prod-web-lb/api/jobs/sync \
+                    -H "Authorization: Bearer $CRON_SECRET" \
+                    -H 'Content-Type: application/json' \
+                    -H 'Accept: application/x-ndjson' \
+                    -H 'Accept-Encoding: identity' \
+                    -d '{"mode":"full","deadlineMs":3550000}')
+                  rc=$?
+                  summary=$(grep '^{"type":"summary"' "$out" 2>/dev/null | tail -n 1)
+                  echo "[jobs-sync-full] HTTP ${status:-none}, curl exit $rc"
+                  if [ "$rc" -ne 0 ] || [ "${status#2}" = "$status" ]; then
+                    echo "[jobs-sync-full] FAILED: the request failed or answered non-2xx"
+                    tail -c 2000 "$out" 2>/dev/null
+                    exit 1
+                  fi
+                  if [ -z "$summary" ]; then
+                    echo "[jobs-sync-full] FAILED: the stream ended without a summary line (cut)"
+                    tail -n 3 "$out"
+                    exit 1
+                  fi
+                  echo "$summary"
+                  case "$summary" in
+                    '{"type":"summary","ok":true,'*) ;;
+                    *)
+                      echo "[jobs-sync-full] FAILED: the sync reported ok:false"
+                      exit 1
+                      ;;
+                  esac
+                  case "$summary" in
+                    *'"staleSources":[{'*)
+                      case "$summary" in
+                        *'"complete":true,'*'"sourcesFailed":0,'*)
+                          echo "[jobs-sync-full] WARNING: sources unseen for 10+ days after a complete crawl (no longer listed upstream?)"
+                          ;;
+                        *)
+                          echo "[jobs-sync-full] FAILED: sources unseen for 10+ days while the crawl was not complete; the 90-day cleanup will delete their postings (spec 01a D27)"
+                          exit 1
+                          ;;
+                      esac
+                      ;;
+                  esac
+                  echo "[jobs-sync-full] ok"

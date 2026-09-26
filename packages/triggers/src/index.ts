@@ -5,9 +5,15 @@ export {
   weeklyAlertSchedule,
 } from "./send-job-alerts";
 
-export { syncJobsTask, syncJobsSchedule } from "./sync-jobs";
+export { syncJobsTask, syncJobsSchedule, syncJobsFullSchedule } from "./sync-jobs";
+export {
+  runScheduledSync,
+  runInProcessSync,
+  KEYWORD_SYNC_MAX_DURATION_S,
+  FULL_SYNC_MAX_DURATION_S,
+} from "./sync-runner";
 export { inboxSyncTask, inboxSyncSchedule } from "./inbox-sync";
-export { mapJobToDb, geocodeLocation, SEARCH_TERMS } from "./map-job";
+export { mapJobToDb, geocodeLocation, resolveJobLevel, SEARCH_TERMS } from "./map-job";
 
 export { cleanupTask, cleanupSchedule } from "./cleanup";
 

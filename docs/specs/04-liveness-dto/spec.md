@@ -84,7 +84,9 @@ above covers the acceptance criteria more cheaply. Still open for a future enhan
 - **Persisted liveness column (now shipped, simplified)** — rather than the planned
   `liveness_verdict` / `liveness_code` / `liveness_checked_at` triple, a single nullable
   `jobs.liveness` text column now persists the corpus verdict (migration
-  `drizzle/0002_jittery_talisman.sql`). The jobs-api client requests `?liveness=true` by default,
+  `drizzle/0002_jittery_talisman.sql`). The jobs-api client requested `?liveness=true` by default
+  until spec [01a](../01a-full-and-keyword-sync/spec.md); it is now **opt-in**
+  (`EVER_JOBS_REQUEST_SIGNALS=true`) because every liveness verdict is an outbound probe upstream,
   `packages/triggers/src/map-job.ts` persists it, and the read paths (`searchJobs`,
   `/api/jobs/search`, `/api/jobs/[id]`, `/api/user/favorites/list`) select it so the card's
   freshness badge can prefer the explicit signal over the date heuristic. `checked_at` is not

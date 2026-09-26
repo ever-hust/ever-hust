@@ -1,6 +1,6 @@
 # Cron endpoints & the cleanup mode
 
-_Last updated: 2026-09-25_
+_Last updated: 2026-09-26_
 
 Hust's scheduled and background tasks are defined in Trigger.dev (`packages/triggers/src`), but
 **the work runs inside the web app**. The Trigger.dev environment carries only two variables,
@@ -25,7 +25,7 @@ Until 2026-09 six schedules opened the database from the Trigger worker and fail
 | `daily-funnel-snapshots` (02:00), `funnel-snapshots` | `POST /api/cron/funnel-snapshots` | `processFunnelSnapshots` | 290 s |
 | `batch-evaluate` (on demand) | `POST /api/cron/batch-evaluate` `{ userId, jobIds, scoreFloor?, max? }` | `runBatchEvaluate` | 290 s |
 | `inbox-sync-hourly`, `inbox-sync` | `POST /api/inbox/cron-sync` | inbox IMAP sync | 290 s |
-| `sync-jobs-schedule` | `POST /api/jobs/sync` | jobs corpus sync | (owned by the sync rewrite) |
+| `sync-jobs-schedule` (every 15 min, keywords), `sync-jobs-full-schedule` (every 6 h, full); under `SCHEDULER=cron`, two k8s CronJobs ([below](#the-jobs-sync-under-schedulercron-k8s-cronjobs)) | `POST /api/jobs/sync` `{ mode, deadlineMs, ... }` | `runJobsSync` (NDJSON progress stream; spec `docs/specs/01a-full-and-keyword-sync`) | 570 s / 3570 s |
 
 - **Code layout.** The work functions live in `packages/triggers/src/work/*`, exported as
   `@ever-hust/triggers/work`. That entry point never imports `@trigger.dev/sdk`, and a test checks
@@ -44,8 +44,9 @@ Until 2026-09 six schedules opened the database from the Trigger worker and fail
     `timingSafeEqual`.
   - If `CRON_SECRET` is unset and `NODE_ENV=production`, the endpoint **fails closed** with a 503.
   - If `CRON_SECRET` is unset outside production, the endpoint stays open for local development.
-  - `/api/jobs/sync` still uses its own guard. It belongs to the sync rewrite and should adopt
-    this guard when that work lands.
+  - `/api/jobs/sync` uses the same guard (`apps/web/lib/jobs-sync-route.ts`). Its refusals keep
+    the sync route's own body shape (`{"type":"summary","ok":false,"error":…}`, spec 01a D10)
+    with the guard's status (401, or 503 when `CRON_SECRET` is unset in production).
   - Trigger.dev reaches the app through the in-cluster Service. These endpoints never need to be
     reachable from outside the cluster, and each environment should have its own `CRON_SECRET`.
 - **Failures are never reported as a 2xx.** The task's `callAppEndpoint()` throws on any non-2xx
@@ -79,6 +80,54 @@ Until 2026-09 six schedules opened the database from the Trigger worker and fail
   (`APP_ENDPOINT_TASK_MAX_DURATION_S`), which covers 3 attempts x 290 s plus backoff even if
   Trigger sums the attempts. The project default (600 s) would not. Check `usageDurationMs` on a
   retried run to see which way this Trigger version counts.
+- **The jobs sync is the exception to the 290 s cap** (spec `01a`). `/api/jobs/sync` sends its
+  headers within `JOBS_SYNC_OPEN_GRACE_MS` (15 s) and then streams NDJSON progress lines at least
+  every 10 s, so the header limit never applies; the tasks read that stream with their own client
+  (`runSyncViaRoute`, `packages/triggers/src/ingest/route-client.ts`, not `callAppEndpoint()`)
+  through a long-timeout dispatcher. `sync-jobs-schedule` (keywords) has `maxDuration` 600 s and waits 570 s,
+  `sync-jobs-full-schedule` 3600 s and 3570 s; the route is told a budget 20 s shorter
+  (`deadlineMs`) and bounds itself by it. Retries are off for both (the next tick is the retry).
+  The run's summary line ends the stream: `ok: false` (or no summary) fails the run;
+  `ok: true, complete: false` is a partial upstream crawl that was stored, logged as a warning.
+  A full run also lists `staleSources`: sources none of whose rows a sync has seen for 10 days,
+  read from the database at the end of the run. When there are any and the crawl was not complete
+  (or sources failed), the full task fails (spec 01a D27).
+  The on-demand `sync-jobs` task runs the sync in-process and needs `DATABASE_URL`, which the
+  Trigger environments must not have: it is for local or manual runs, not for Trigger.dev.
+
+### The jobs sync under `SCHEDULER=cron` (k8s CronJobs)
+
+With `SCHEDULER=cron` on the app, both Trigger sync schedules return `skipped` and do nothing;
+two k8s CronJobs take their place (spec 01a D31). Both are checked in **suspended**
+(`suspend: true`); they are not applied by any workflow.
+
+| CronJob | Manifest | Schedule | Body | curl `-m` | `activeDeadlineSeconds` | Retries |
+|---|---|---|---|---|---|---|
+| `hust-jobs-sync` (keywords) | `.deploy/k8s/sync-cronjob.yaml` | `*/15 * * * *` | `{"mode":"keywords","deadlineMs":550000}` | 570 s | 660 | 1 |
+| `hust-jobs-sync-full` (full) | `.deploy/k8s/sync-full-cronjob.yaml` | `20 */6 * * *` | `{"mode":"full","deadlineMs":3550000}` | 3570 s | 3660 | 0 |
+
+- **Switch to them together.** Set `SCHEDULER=cron` on the app, then set `suspend: false` on
+  **both** CronJobs. With only the keyword CronJob running, the full corpus is never synced (PR
+  #106 review). Both are live changes: claim them on `MAINTENANCE.md` first.
+- **Budgets mirror the Trigger tasks** (`maxDuration` 600 s / 3600 s, call timeout 570 s /
+  3570 s). The route is told a budget 20 s shorter than curl's `-m` (`deadlineMs`), so it stops
+  reading Ever Jobs and sends its summary line before curl gives up; `activeDeadlineSeconds` adds
+  90 s for pod start-up and the check. Both have `concurrencyPolicy: Forbid` (the route also
+  answers 409 to a second run of the same mode). The full CronJob never retries (spec D7: a retry
+  re-scrapes every source; the next tick is the retry). Neither sends `resultsWanted`: like the
+  Trigger tasks, they let the app choose the per-source count (spec D18).
+- **The Job fails when the run failed.** The route answers HTTP 200 as soon as its stream starts,
+  so `curl -f` cannot see a failed run. The CronJobs do not use `-f`: they save the stream and
+  fail the Job (exit 1) when curl failed or timed out, the answer was not 2xx, the stream has no
+  `{"type":"summary",…}` line (cut), or the summary line does not start with
+  `{"type":"summary","ok":true,`. The full CronJob also fails on the stale-sources alarm: a
+  non-empty `staleSources` while the crawl was not `"complete":true` or `sourcesFailed` is not
+  0, which is where the Trigger full task throws (spec D27); after a complete crawl it only logs a
+  warning. A skipped run (full mode gated off, spec D18) is `ok` and succeeds. The Job log shows
+  the HTTP status, curl's exit code and the summary line. A test runs both scripts, with a stub
+  `curl`, against the route's real output (`apps/web/lib/jobs-sync-cronjob.test.ts`).
+- A full run without Ever Jobs contract v1 (and without `JOBS_SYNC_FULL_ENABLED=true`) ends
+  `ok` with `skipped`, so the full CronJob succeeds without syncing anything until then.
 
 ## Environments (Trigger.dev)
 
@@ -223,10 +272,40 @@ any other `createdAt` in the values (`new Date()`, `now()`, a local copy of the 
 `JOBS_CREATED_AT` not imported from the helper module or shadowed, a stamp that is not the last
 key); any `createdAt` in the conflict `set`; a callback that is not one INSERT expression
 (`.then()` chains, two INSERTs, extra statements); an `await` in the callback; raw SQL. The dev seed
-(`packages/db/src/seed.ts`) follows the rule too, so the guard has no exceptions. A sync branch
-written against the earlier rules fails this guard when it is rebased: stamp each row with
-`createdAt: JOBS_CREATED_AT` and wrap the insert (a builder such as
-`buildUpsertQuery(tx: JobsInsertTx, rows)` called as `withBoundedJobsInsert(db, (tx) => buildUpsertQuery(tx, rows))`).
+(`packages/db/src/seed.ts`) follows the rule too, so the guard has no exceptions.
+
+The jobs corpus sync (spec 01a, `/api/jobs/sync` and the `sync-jobs` task) has one writer:
+`buildUpsertQuery(tx: JobsInsertTx, rows)` in `packages/triggers/src/ingest/job-store.ts`, called
+only as `withBoundedJobsInsert(db, (tx) => buildUpsertQuery(tx, rows))` from the store's
+`upsertBatch`. Per ingest batch:
+
+- **One statement, one bounded transaction.** A multi-row `INSERT ... VALUES (...), (...)
+  ON CONFLICT (external_id) DO UPDATE SET ... WHERE <changed> RETURNING ...`, which is ONE
+  statement, so every row of the batch gets the same `created_at`. A batch holds at most
+  `MAX_UPSERT_ROWS_PER_STATEMENT` (250) rows: the ingestor never builds a larger one and the store
+  refuses one (checked on PostgreSQL 16: 250 rows with the change predicate take milliseconds,
+  far inside the 60 s statement timeout).
+- **Stamp and conflict set.** Every row ends with `createdAt: JOBS_CREATED_AT`; the conflict
+  `set` (`upsertSet()`) never lists `created_at`, so a rewritten row keeps its first insert's stamp.
+- **Skip unchanged.** The `WHERE` of the `DO UPDATE` (`... IS DISTINCT FROM ...`, plus the weekly
+  last-seen refresh and the merge-takeover rule) is unchanged by the rule: an unchanged row is not
+  rewritten at all. It is also read ahead (spec 01a D24): before the INSERT, one read-only query
+  evaluates the same predicate for the batch's rows that exist, so unchanged rows are never sent
+  (an `ON CONFLICT DO UPDATE` whose `WHERE` is false still locks and WAL-logs the row: 20 k
+  unchanged rows cost 22 MB of WAL and 20 k row locks on PostgreSQL 16, now 0 and 0).
+- **Weekly refresh is not an INSERT.** An unchanged row whose `updated_at` is over 7 days old gets
+  `UPDATE jobs SET updated_at = ... WHERE id IN (SELECT ... AND updated_at < ... ORDER BY
+  external_id COLLATE "C" FOR UPDATE)` (`buildLastSeenRefreshQuery`), which never touches
+  `created_at` and so is outside this rule; it locks its rows in the order the INSERT's sorted
+  `VALUES` list does (no deadlock between the two), and runs in its own transaction with a local
+  60 s statement timeout. A row it does not return was deleted (e.g. by the cleanup) or refreshed
+  by another run since the read-ahead: it goes to the batch's INSERT, which stores a deleted row
+  again (stamped `JOBS_CREATED_AT` like any insert) and leaves a refreshed one alone (spec 01a D28).
+- **Fallback.** When the batch statement fails, the ingestor retries row by row, each row its own
+  bounded transaction (one INSERT each); it stops after 5 rows in a row failed or once the run's
+  deadline has passed (spec 01a D25). The reads (existence, dedup probe, the read-ahead, stored
+  coordinates, each in its own transaction with a local 30 s statement timeout) and Google
+  geocoding all happen before the INSERT's transaction opens.
 
 The column keeps its `now()` default (no migration); no writer relies on it any more.
 

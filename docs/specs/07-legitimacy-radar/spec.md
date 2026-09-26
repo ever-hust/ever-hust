@@ -80,7 +80,9 @@ The tier vocabulary shipped as `verified` / `likely` / `uncertain` (not the spec
 
 **Hust — trust badge + corpus consumption (now wired end-to-end):**
 - `packages/jobs-api/src/index.ts` — the client opts into `?legitimacy=true` (alongside
-  `?liveness=true`) by default; per-call `signals:false` or `EVER_JOBS_REQUEST_SIGNALS=false` opt out.
+  `?liveness=true`) only when `EVER_JOBS_REQUEST_SIGNALS=true` or per-call `signals:true`
+  (default OFF since spec [01a](../01a-full-and-keyword-sync/spec.md): liveness probes every
+  returned posting upstream). Hust falls back to its own heuristics when the signal is absent.
 - `packages/jobs-api/src/types.ts` — DTO carries the optional corpus signal
   `legitimacy?: { state, reasons[] }` (forward-compatible; Hust derives a heuristic when absent).
 - `packages/db/src/schema/jobs.ts` — nullable `legitimacy` + `legitimacy_reasons` columns

@@ -6,7 +6,8 @@
   "license": "AGPL-3.0-or-later",
   "exports": {
     ".": "./src/index.ts",
-    "./work": "./src/work/index.ts"
+    "./work": "./src/work/index.ts",
+    "./ingest": "./src/ingest/index.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit"

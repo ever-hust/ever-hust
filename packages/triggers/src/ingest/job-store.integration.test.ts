@@ -43,6 +43,12 @@ const ENV: SyncEnvConfig = {
 };
 const quiet = { info: () => {}, warn: () => {}, error: () => {} };
 
+/**
+ * Jest timeout of the tests that load or sync hundreds to tens of thousands of rows: the default
+ * 5 s is too little on a slow CI runner (the spec D29 test ran out of it there).
+ */
+const HEAVY_TEST_TIMEOUT_MS = 120_000;
+
 function job(id: string, extra: Partial<JobPostDto> = {}): JobPostDto {
   return {
     id,
@@ -290,7 +296,7 @@ suite("job store against Postgres (opt-in)", () => {
              bool_and(created_at BETWEEN (now() AT TIME ZONE 'UTC') - interval '2 minutes' AND (now() AT TIME ZONE 'UTC')) AS recent
       FROM jobs`;
     expect(stamps[0]).toMatchObject({ n: 1, recent: true });
-  });
+  }, HEAVY_TEST_TIMEOUT_MS);
 
   it("keeps the first insert's created_at when a later run rewrites the row", async () => {
     await sync([job("a")]);
@@ -348,7 +354,7 @@ suite("job store against Postgres (opt-in)", () => {
     const control = await syncWith(bypass, corpus, 250);
     expect(control).toMatchObject({ ok: true, inserted: 0, updated: 0, unchanged: 40 });
     expect(await lockedOrTouched()).toBe(40);
-  });
+  }, HEAVY_TEST_TIMEOUT_MS);
 
   it("detects a description-only change (review finding 5)", async () => {
     await sync([job("d", { description: "first text" })]);
@@ -490,12 +496,37 @@ suite("job store against Postgres (opt-in)", () => {
   it("pages a candidate set larger than the probe cache and still merges the copy (spec D29)", async () => {
     // One employer with more rows than the probe may cache; one of them is the posting the job copies.
     const rows = MAX_DEDUP_PROBE_CACHE_ROWS + 10_000;
-    await client`
-      INSERT INTO jobs (external_id, site, title, company_name, location_city, raw_data, updated_at)
-      SELECT 'big-' || g, 'workday', 'Role ' || (g % 5000), 'BigCo', 'City ' || g,
-             jsonb_build_object('id', 'big-' || g, 'dedupKey', 'bigco|role ' || (g % 5000) || '|city ' || g),
-             now() AT TIME ZONE 'UTC'
-      FROM generate_series(1, ${rows}) AS g`;
+    // One INSERT … SELECT, with the secondary indexes dropped and rebuilt around it in the same
+    // transaction: building each once over 60 000 rows takes about half the time of maintaining
+    // them row by row. Their definitions come from the catalog, so the table ends with exactly the
+    // indexes it had (and a failure rolls the drop back).
+    const indexDefs = async () =>
+      (
+        await client<Array<{ def: string }>>`
+          SELECT pg_get_indexdef(indexrelid) AS def FROM pg_index WHERE indrelid = 'jobs'::regclass ORDER BY 1`
+      ).map((r) => r.def);
+    const indexesBefore = await indexDefs();
+    await client.begin(async (tx) => {
+      const indexes = (await tx.unsafe(`
+        SELECT i.indexrelid::regclass::text AS name, pg_get_indexdef(i.indexrelid) AS def
+        FROM pg_index i
+        WHERE i.indrelid = 'jobs'::regclass
+          AND NOT EXISTS (SELECT 1 FROM pg_constraint c WHERE c.conindid = i.indexrelid)`)) as unknown as Array<{
+        name: string;
+        def: string;
+      }>;
+      for (const ix of indexes) await tx.unsafe(`DROP INDEX ${ix.name}`);
+      await tx.unsafe(
+        `INSERT INTO jobs (external_id, site, title, company_name, location_city, raw_data, updated_at)
+         SELECT 'big-' || g, 'workday', 'Role ' || (g % 5000), 'BigCo', 'City ' || g,
+                jsonb_build_object('id', 'big-' || g, 'dedupKey', 'bigco|role ' || (g % 5000) || '|city ' || g),
+                now() AT TIME ZONE 'UTC'
+         FROM generate_series(1, $1::int) AS g`,
+        [rows],
+      );
+      for (const ix of indexes) await tx.unsafe(ix.def);
+    });
+    expect(await indexDefs()).toEqual(indexesBefore); // every index is back, as it was
     await client`ANALYZE jobs`;
     const real = createDrizzleJobStore(db);
     const pages: number[] = [];
@@ -523,7 +554,7 @@ suite("job store against Postgres (opt-in)", () => {
     const ids = await client`SELECT external_id FROM jobs WHERE external_id LIKE 'board-%' ORDER BY 1`;
     expect(ids.map((r) => r.external_id)).toEqual(["board-2"]); // board-1 merged onto big-4242
     expect(Date.now() - started).toBeLessThan(30_000);
-  });
+  }, HEAVY_TEST_TIMEOUT_MS);
 
   it("the last-seen refresh locks its rows in external_id byte order, as the upsert does (review F4)", async () => {
     // Byte order: "Zeta" < "_mid" < "alpha". A linguistic collation (and this insertion order)

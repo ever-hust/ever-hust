@@ -1019,4 +1019,24 @@ describe("JobIngestor — the dedup probe is bounded (spec D29, PR #106 review)"
     expect(maxHeld).toBeLessThanOrEqual(100 + 40);
     expectInvariant(counters);
   });
+
+  it("a later job whose title AND company an overflowing batch probed still merges (only that batch's pairs count as probed)", async () => {
+    const store = new FakeJobStore();
+    largeEmployer(store, 300, 40);
+    const { ingestor } = setup({ store, batchSize: 2, ingestor: { dedupProbeCacheRows: 100 } });
+    const counters = await ingestAll(ingestor, [
+      // Batch 1 probes the titles "Role 3" and "Warehouse Associate" and the companies "Globex" and
+      // "BigCo": BigCo's 340 rows overflow the cache, so only these two jobs' identities are kept
+      // ("role 3|globex": none; "warehouse associate|bigco": wa-0 … wa-39), not big-3.
+      job("b-1", { site: "indeed", title: "Role 3", companyName: "Globex", dedupKey: "globex|role 3|x" }),
+      job("b-2", { site: "indeed", title: "Warehouse Associate", companyName: "BigCo", dedupKey: "bigco|warehouse associate|city 7" }),
+      // Batch 2: an exact title and an exact company batch 1 queried, in a pair it did not. Only a
+      // fresh probe finds big-3; counting "Role 3" and "BigCo" as wholly probed would store a duplicate.
+      job("b-3", { site: "indeed", title: "Role 3", companyName: "BigCo", dedupKey: "bigco|role 3|x" }),
+    ]);
+    expect(counters).toMatchObject({ received: 3, inserted: 1, duplicatesMerged: 2, errors: 0 });
+    expect([...store.rows.keys()].filter((id) => id.startsWith("b-"))).toEqual(["b-1"]); // b-2 → wa-7, b-3 → big-3
+    expect(ingestor.probeCacheRows).toBeLessThan(100); // no start-over hid the pair: the cache never filled
+    expectInvariant(counters);
+  });
 });

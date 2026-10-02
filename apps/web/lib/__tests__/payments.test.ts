@@ -1,4 +1,3 @@
-/* eslint-disable turbo/no-undeclared-env-vars */
 import { classifyChatError, ChatRequestError } from "../chat-error";
 import {
   PAYMENTS_ENABLED,

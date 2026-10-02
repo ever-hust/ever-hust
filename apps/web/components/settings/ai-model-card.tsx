@@ -13,6 +13,7 @@ import {
   type ByokProviderId,
   type ProviderId,
 } from "@ever-hust/plugin";
+import { modelRequiresProMessage } from "@/lib/payments";
 
 interface AIModelCardProps {
   subscriptionStatus: string;
@@ -56,7 +57,7 @@ export function AIModelCard({
   const handleSelect = useCallback(
     (modelKey: string, locked: boolean) => {
       if (locked) {
-        toast.error("Upgrade to Pro to use this model");
+        toast.error(modelRequiresProMessage());
         return;
       }
       modelMutation.mutate(modelKey);

@@ -3,6 +3,7 @@ import {
   PAYMENTS_ENABLED,
   PRO_COMING_SOON,
   alertsRequireProMessage,
+  messageLimitFallback,
   messageLimitMessage,
   modelRequiresProMessage,
   outOfCreditsMessage,
@@ -115,6 +116,17 @@ describe("the chat banner still recognises the daily cap with the payments-off w
   it("also by the text fallback, so a response without limitType is still the daily cap", () => {
     const err = new ChatRequestError(messageLimitMessage(false), { status: 429 });
     expect(classifyChatError(err).kind).toBe("upgrade-limit");
+  });
+
+  it("the banner's own fallback (a 429 with no message) does not advise upgrading either", () => {
+    const err = new ChatRequestError("", { status: 429, limitType: "messages" });
+    const info = classifyChatError(err);
+    expect(info.kind).toBe("upgrade-limit");
+    expect(info.description).toBe(messageLimitFallback());
+    expect(info.description).not.toMatch(UPGRADE);
+    expect(messageLimitFallback(true)).toBe(
+      "You've reached today's free message limit. Upgrade to Pro for unlimited messages.",
+    );
   });
 
   it("control: an unrelated 429 is a rate limit, not the daily cap", () => {

@@ -25,6 +25,37 @@ export function freeLimitGuidance(unlimited: string, resetsWithin: string): stri
         "Do not suggest upgrading or paying: Pro plans are not on sale yet.";
 }
 
+/**
+ * A Pro-only tool's refusal for a free user (applyJob, interviewPrep, submitAnswers). The tools
+ * also return requiresUpgrade: true, which the model reads as "tell them to upgrade" - so while
+ * payments are off the error itself says not to.
+ *
+ * @param onSale the original refusal, returned unchanged while payments are on
+ */
+export function proOnlyToolError(onSale: string): string {
+  return paymentsEnabled()
+    ? onSale
+    : `${onSale.replace(/\.\s*$/, "")}, and Pro plans are not on sale yet. ` +
+        "Do not suggest upgrading or paying.";
+}
+
+/**
+ * Appended to the orchestrator system prompt while payments are off. The default prompt (and the
+ * Langfuse copy derived from it) says "Only Pro subscribers can..." and, for job alerts,
+ * "suggest upgrading"; this overrides that advice without editing the prompt text itself, so
+ * turning payments on restores the authored prompt exactly.
+ */
+export const PAYMENTS_OFF_PROMPT_NOTE =
+  "## Payments\n" +
+  "Pro plans are not on sale yet: nobody can upgrade, subscribe or buy credits today. " +
+  "Never suggest upgrading, subscribing, paying or topping up, even where an instruction above says to. " +
+  "When a feature is Pro-only, say it is part of Pro, which is coming soon, and offer what the free plan can do instead.";
+
+/** The orchestrator prompt as the assistant should receive it for the current flag state. */
+export function withPaymentsNote(prompt: string): string {
+  return paymentsEnabled() ? prompt : `${prompt}\n\n${PAYMENTS_OFF_PROMPT_NOTE}`;
+}
+
 /** The create-alert tool's refusal for a free user. */
 export function alertsRequireProError(): string {
   return paymentsEnabled()

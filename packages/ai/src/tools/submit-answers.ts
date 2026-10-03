@@ -2,6 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { db } from "@ever-hust/db";
 import { applications, agentInstances, users } from "@ever-hust/db";
+import { proOnlyToolError } from "../payments";
 import { eq, and } from "drizzle-orm";
 
 export const submitAnswersTool = tool({
@@ -42,7 +43,7 @@ export const submitAnswersTool = tool({
     if (userResult[0]!.subscriptionStatus !== "active" && userResult[0]!.subscriptionStatus !== "past_due") {
       return {
         submitted: false,
-        error: "Submitting application answers requires a Pro subscription.",
+        error: proOnlyToolError("Submitting application answers requires a Pro subscription."),
         requiresUpgrade: true,
       };
     }

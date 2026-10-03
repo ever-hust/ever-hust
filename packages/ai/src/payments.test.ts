@@ -1,4 +1,11 @@
-import { alertsRequireProError, freeLimitGuidance, paymentsEnabled } from "./payments";
+import {
+  alertsRequireProError,
+  freeLimitGuidance,
+  paymentsEnabled,
+  PAYMENTS_OFF_PROMPT_NOTE,
+  proOnlyToolError,
+  withPaymentsNote,
+} from "./payments";
 
 const KEY = "NEXT_PUBLIC_HUST_PAYMENTS_ENABLED";
 const UPGRADE_ADVICE = /upgrade to pro|upgrade to get/i;
@@ -44,7 +51,41 @@ describe("what the assistant is told while payments are OFF", () => {
   });
 });
 
+describe("the Pro-only tools and the system prompt while payments are OFF", () => {
+  const REFUSALS = [
+    "Job applications require a Pro subscription.",
+    "Interview prep requires a Pro subscription.",
+    "Submitting application answers requires a Pro subscription.",
+  ];
+
+  it.each(REFUSALS)("%p tells the model not to suggest upgrading", (onSale) => {
+    const text = withFlag(undefined, () => proOnlyToolError(onSale));
+    expect(text).not.toMatch(UPGRADE_ADVICE);
+    expect(text).toContain("Pro plans are not on sale yet");
+    expect(text).toContain("Do not suggest upgrading or paying.");
+    // The refusal itself is kept: the feature is still Pro-only.
+    expect(text.startsWith(onSale.replace(/\.$/, ""))).toBe(true);
+  });
+
+  it("appends the no-upgrade note to the orchestrator prompt", () => {
+    const prompt = "5. Only Pro subscribers can use the application agent.";
+    const text = withFlag(undefined, () => withPaymentsNote(prompt));
+    expect(text.startsWith(prompt)).toBe(true);
+    expect(text.endsWith(PAYMENTS_OFF_PROMPT_NOTE)).toBe(true);
+    expect(PAYMENTS_OFF_PROMPT_NOTE).toContain("Never suggest upgrading");
+  });
+});
+
 describe("what the assistant is told while payments are ON (the original wording)", () => {
+  it("returns the Pro-only refusals and the prompt unchanged", () => {
+    withFlag("true", () => {
+      expect(proOnlyToolError("Interview prep requires a Pro subscription.")).toBe(
+        "Interview prep requires a Pro subscription.",
+      );
+      expect(withPaymentsNote("prompt")).toBe("prompt");
+    });
+  });
+
   it("restores the upgrade advice exactly", () => {
     withFlag("true", () => {
       expect(freeLimitGuidance("searches", "a day")).toBe(

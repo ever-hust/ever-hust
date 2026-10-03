@@ -37,6 +37,16 @@ export function messageLimitMessage(enabled: boolean = PAYMENTS_ENABLED): string
     : "Daily message limit reached. Your free messages refill within 24 hours.";
 }
 
+/**
+ * The chat banner's own fallback for the daily cap, used only when the 429 carries no message
+ * (lib/chat-error.ts). The CTA button is gated separately; this keeps the text from advising it.
+ */
+export function messageLimitFallback(enabled: boolean = PAYMENTS_ENABLED): string {
+  return enabled
+    ? "You've reached today's free message limit. Upgrade to Pro for unlimited messages."
+    : "You've reached today's free message limit. Your free messages refill within 24 hours.";
+}
+
 /** 402 body when credit enforcement is on and the balance is spent (app/api/ai/chat). */
 export function outOfCreditsMessage(enabled: boolean = PAYMENTS_ENABLED): string {
   return enabled

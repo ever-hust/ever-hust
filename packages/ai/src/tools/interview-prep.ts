@@ -2,6 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { db } from "@ever-hust/db";
 import { users, jobs } from "@ever-hust/db";
+import { proOnlyToolError } from "../payments";
 import { eq } from "drizzle-orm";
 
 export const interviewPrepTool = tool({
@@ -47,7 +48,7 @@ export const interviewPrepTool = tool({
     if (user.subscriptionStatus !== "active" && user.subscriptionStatus !== "past_due") {
       return {
         prepared: false,
-        error: "Interview prep requires a Pro subscription.",
+        error: proOnlyToolError("Interview prep requires a Pro subscription."),
         requiresUpgrade: true,
       };
     }

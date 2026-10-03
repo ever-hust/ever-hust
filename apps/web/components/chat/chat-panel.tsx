@@ -10,6 +10,7 @@ import { ChatHistory } from "./chat-history";
 import { AgentStatus, type AgentState } from "./agent-status";
 import { useChatPersistence } from "@/hooks/use-chat-persistence";
 import { createLimitAwareFetch, classifyChatError } from "@/lib/chat-error";
+import { PAYMENTS_ENABLED } from "@/lib/payments";
 import { MessageSquarePlus, RefreshCcw, ArrowDown, Sparkles } from "lucide-react";
 import { Button } from "@ever-hust/ui/button";
 import Link from "next/link";
@@ -347,7 +348,8 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt, initialP
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                {errorInfo.upgradeHref && (
+                {/* No upgrade CTA while payments are off (lib/payments.ts): Pro cannot be bought yet. */}
+                {PAYMENTS_ENABLED && errorInfo.upgradeHref && (
                   <Button size="sm" asChild className="gap-1.5">
                     <Link href={errorInfo.upgradeHref}>
                       <Sparkles className="h-3 w-3" aria-hidden="true" />

@@ -9,6 +9,7 @@ import { Card } from "@ever-hust/ui/card";
 import { Separator } from "@ever-hust/ui/separator";
 import { toast } from "sonner";
 import { safeExternalUrl } from "@/lib/safe-url";
+import { PAYMENTS_ENABLED, PRO_COMING_SOON_BUTTON } from "@/lib/payments";
 
 interface SubscriptionCardProps {
   subscriptionStatus: string;
@@ -109,7 +110,12 @@ export function SubscriptionCard({ subscriptionStatus }: SubscriptionCardProps) 
           </div>
         </div>
         <div className="mt-4">
-          {!isPro ? (
+          {!isPro && !PAYMENTS_ENABLED ? (
+            // Payments are off (lib/payments.ts): there is no Pro to buy, so no checkout call.
+            <Button className="w-full" variant="outline" disabled aria-disabled="true">
+              {PRO_COMING_SOON_BUTTON}
+            </Button>
+          ) : !isPro ? (
             <Button
               className="w-full"
               onClick={() => upgradeMutation.mutate()}

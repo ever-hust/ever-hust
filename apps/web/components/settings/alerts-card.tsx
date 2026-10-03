@@ -9,6 +9,7 @@ import { Card } from "@ever-hust/ui/card";
 import { Skeleton } from "@ever-hust/ui/skeleton";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { PAYMENTS_ENABLED, PRO_COMING_SOON } from "@/lib/payments";
 import type { Alert } from "./types";
 
 interface AlertsCardProps {
@@ -99,8 +100,9 @@ export function AlertsCard({
           {!isPro ? (
             <>
               <p className="text-sm text-muted-foreground">
-                Upgrade to Pro to enable job alerts and get notified when new
-                jobs match your criteria.
+                {PAYMENTS_ENABLED
+                  ? "Upgrade to Pro to enable job alerts and get notified when new jobs match your criteria."
+                  : `Job alerts notify you when new jobs match your criteria. They are a Pro feature. ${PRO_COMING_SOON}`}
               </p>
               <div className="mt-3 rounded-md border bg-muted/30 p-4 text-center">
                 <Bell
@@ -108,7 +110,7 @@ export function AlertsCard({
                   aria-hidden="true"
                 />
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Upgrade to Pro to enable job alerts.
+                  {PAYMENTS_ENABLED ? "Upgrade to Pro to enable job alerts." : PRO_COMING_SOON}
                 </p>
               </div>
             </>

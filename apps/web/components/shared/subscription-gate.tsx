@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Lock, Sparkles } from "lucide-react";
 import { Button } from "@ever-hust/ui/button";
 import { Card } from "@ever-hust/ui/card";
+import { PAYMENTS_ENABLED, proFeatureDescription } from "@/lib/payments";
 
 interface SubscriptionGateProps {
   /** Whether the user has an active subscription. */
@@ -49,11 +50,11 @@ export function SubscriptionGate({
       <div className="space-y-1">
         <h3 className="text-sm font-semibold">{featureName}</h3>
         <p className="max-w-xs text-xs text-muted-foreground">
-          {description ??
-            `${featureName} is a Pro feature. Upgrade to unlock unlimited access.`}
+          {description ?? proFeatureDescription(featureName)}
         </p>
       </div>
-      {onUpgrade ? (
+      {/* No upgrade button while payments are off (lib/payments.ts). */}
+      {!PAYMENTS_ENABLED ? null : onUpgrade ? (
         <Button size="sm" onClick={onUpgrade} className="gap-1.5">
           <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
           Upgrade to Pro

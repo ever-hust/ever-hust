@@ -4,6 +4,7 @@ import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { checkSubscription } from "../../../../lib/subscription-gate";
+import { alertsRequireProMessage } from "../../../../lib/payments";
 import { applyRateLimit } from "../../../../lib/rate-limit";
 import {
   alertCreateSchema,
@@ -71,7 +72,7 @@ export async function POST(req: Request) {
     // Only subscribed users can create alerts
     const gate = await checkSubscription(user.id);
     if (!gate.isActive) {
-      return apiForbidden("Upgrade to Pro to create job alerts.");
+      return apiForbidden(alertsRequireProMessage());
     }
 
     const [alert] = await db

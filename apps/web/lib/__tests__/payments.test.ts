@@ -13,9 +13,18 @@ const UPGRADE = /upgrade|top up/i;
 
 describe("the payments flag", () => {
   it("is OFF when the build does not set NEXT_PUBLIC_HUST_PAYMENTS_ENABLED", () => {
-    // The test run does not set the variable: this is what a build without it bakes.
-    expect(process.env.NEXT_PUBLIC_HUST_PAYMENTS_ENABLED).toBeUndefined();
-    expect(PAYMENTS_ENABLED).toBe(false);
+    // Reload the module with the variable removed, so the result does not depend on the
+    // environment the tests happen to run in: this is what a build without it bakes.
+    jest.isolateModules(() => {
+      const previous = process.env.NEXT_PUBLIC_HUST_PAYMENTS_ENABLED;
+      delete process.env.NEXT_PUBLIC_HUST_PAYMENTS_ENABLED;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        expect(require("../payments").PAYMENTS_ENABLED).toBe(false);
+      } finally {
+        if (previous !== undefined) process.env.NEXT_PUBLIC_HUST_PAYMENTS_ENABLED = previous;
+      }
+    });
   });
 
   it.each([["TRUE"], ["1"], ["yes"], [" true"], [""]])(
@@ -37,12 +46,14 @@ describe("the payments flag", () => {
 
   it('is ON for exactly "true"', () => {
     jest.isolateModules(() => {
+      const previous = process.env.NEXT_PUBLIC_HUST_PAYMENTS_ENABLED;
       process.env.NEXT_PUBLIC_HUST_PAYMENTS_ENABLED = "true";
       try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
         expect(require("../payments").PAYMENTS_ENABLED).toBe(true);
       } finally {
-        delete process.env.NEXT_PUBLIC_HUST_PAYMENTS_ENABLED;
+        if (previous === undefined) delete process.env.NEXT_PUBLIC_HUST_PAYMENTS_ENABLED;
+        else process.env.NEXT_PUBLIC_HUST_PAYMENTS_ENABLED = previous;
       }
     });
   });
@@ -69,9 +80,9 @@ describe("copy while payments are OFF", () => {
     );
   });
 
-  it("uses the module default (OFF in this run) when no argument is passed", () => {
-    expect(messageLimitMessage()).toBe(messageLimitMessage(false));
-    expect(outOfCreditsMessage()).toBe(outOfCreditsMessage(false));
+  it("uses the module's flag when no argument is passed", () => {
+    expect(messageLimitMessage()).toBe(messageLimitMessage(PAYMENTS_ENABLED));
+    expect(outOfCreditsMessage()).toBe(outOfCreditsMessage(PAYMENTS_ENABLED));
   });
 });
 

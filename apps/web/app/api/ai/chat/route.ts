@@ -18,6 +18,7 @@ import { requireSessionUser } from "../../../../lib/get-session-user";
 import { chatRequestSchema } from "../../../../lib/api-schemas";
 import { applyRateLimit } from "../../../../lib/rate-limit";
 import { apiBadRequest, apiError, safeJsonParse } from "../../../../lib/api-response";
+import { messageLimitMessage, outOfCreditsMessage } from "../../../../lib/payments";
 
 export async function POST(req: Request) {
   let user;
@@ -83,8 +84,10 @@ export async function POST(req: Request) {
     if (!gate.isActive) {
       const { allowed, remaining } = await checkMessageLimit(userId);
       if (!allowed) {
+        // limitType is what the chat banner keys on (lib/chat-error.ts), so the wording can
+        // follow the payments flag without changing how the cap is recognised.
         return apiError(
-          "Daily message limit reached. Upgrade to Pro for unlimited messages.",
+          messageLimitMessage(),
           429,
           { limitType: "messages", remaining: 0 },
         );
@@ -171,8 +174,7 @@ export async function POST(req: Request) {
         if (balance !== null && balance <= 0) {
           return NextResponse.json(
             {
-              error:
-                "You're out of credits. Upgrade to Pro or top up to keep using Hust AI.",
+              error: outOfCreditsMessage(),
               code: "INSUFFICIENT_CREDITS",
             },
             { status: 402 },

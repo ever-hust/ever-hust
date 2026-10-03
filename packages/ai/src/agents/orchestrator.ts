@@ -43,6 +43,7 @@ import {
 } from "../tools";
 import { checkSearchLimit, checkCoverLetterLimit } from "../rate-limit";
 import { getOrchestratorPrompt } from "../prompts";
+import { freeLimitGuidance } from "../payments";
 
 /** Maximum agentic tool-use steps the orchestrator may take per chat turn. */
 const MAX_AI_STEPS_PER_TURN = 5;
@@ -118,7 +119,8 @@ export async function createOrchestratorStream({
               return {
                 error:
                   "The user has reached their free-tier search limit (5 searches/day). " +
-                  "Let them know they can upgrade to Pro for unlimited searches.",
+                  // No upgrade advice while Pro is not on sale (payments.ts).
+                  freeLimitGuidance("searches", "a day"),
                 limitType: "searches",
                 remaining: 0,
                 requiresUpgrade: true,
@@ -167,7 +169,7 @@ export async function createOrchestratorStream({
               return {
                 error:
                   "The user has reached their free-tier cover letter limit (1 per week). " +
-                  "Let them know they can upgrade to Pro for unlimited cover letters.",
+                  freeLimitGuidance("cover letters", "a week"),
                 limitType: "coverLetters",
                 remaining: 0,
                 requiresUpgrade: true,

@@ -1,5 +1,6 @@
 import { LangfuseClient } from "@langfuse/client";
 import { APP_NAME } from "@ever-hust/utils";
+import { withPaymentsNote } from "./payments";
 
 /**
  * Langfuse Prompt Management
@@ -180,7 +181,7 @@ export async function getOrchestratorPrompt(
   const client = getLangfuseClient();
 
   if (!client) {
-    return { text: DEFAULT_ORCHESTRATOR_PROMPT };
+    return { text: withPaymentsNote(DEFAULT_ORCHESTRATOR_PROMPT) };
   }
 
   try {
@@ -193,7 +194,7 @@ export async function getOrchestratorPrompt(
       : prompt.compile();
 
     return {
-      text: compiled,
+      text: withPaymentsNote(compiled),
       langfusePrompt: prompt.toJSON(),
     };
   } catch (error) {
@@ -201,7 +202,7 @@ export async function getOrchestratorPrompt(
       "[langfuse] Failed to fetch prompt, using default:",
       error instanceof Error ? error.message : error,
     );
-    return { text: DEFAULT_ORCHESTRATOR_PROMPT };
+    return { text: withPaymentsNote(DEFAULT_ORCHESTRATOR_PROMPT) };
   }
 }
 

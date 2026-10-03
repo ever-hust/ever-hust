@@ -16,6 +16,8 @@
  *    `{ title, description, upgradeHref, canRetry }`, preferring the server copy.
  */
 
+import { messageLimitFallback } from "./payments";
+
 /**
  * Error carrying the server's real message + metadata, thrown by the chat
  * transport's fetch wrapper on a non-OK response.
@@ -91,10 +93,7 @@ export function classifyChatError(error: unknown): ClassifiedChatError {
     return {
       kind: "upgrade-limit",
       title: "Daily message limit reached",
-      description:
-        serverMessage ||
-        rawMessage ||
-        "You've reached today's free message limit. Upgrade to Pro for unlimited messages.",
+      description: serverMessage || rawMessage || messageLimitFallback(),
       upgradeHref: "/settings",
       canRetry: false,
     };

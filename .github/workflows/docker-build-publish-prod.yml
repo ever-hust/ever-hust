@@ -30,6 +30,13 @@ permissions:
   contents: read
   packages: write
 
+# docker/build-push-action uploads a build record artifact and a job summary for every build.
+# The record holds every build-arg value in plain text, and on a public repo anyone signed in to
+# GitHub can download it, so neither is produced. (BuildKit `secrets:` are never recorded.)
+env:
+  DOCKER_BUILD_RECORD_UPLOAD: false
+  DOCKER_BUILD_SUMMARY: false
+
 jobs:
   build-web:
     runs-on: ${{ vars.RUNNER_LINUX_X64_8 || 'ubuntu-latest' }}
@@ -87,9 +94,13 @@ jobs:
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
             NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=${{ env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY }}
             NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${{ secrets.HUST_MAPS_BROWSER_KEY }}
-            # Error tracking + analytics (public keys, same value across envs).
-            NEXT_PUBLIC_SENTRY_DSN=https://e3deaad715f494351a6f377e1d32b1ef@o51327.ingest.us.sentry.io/4511781940035584
+            # Error tracking + analytics. The Sentry DSN is a repo variable, not a literal: forks do not inherit
+            # variables, so a fork's build cannot report into Ever's Sentry project.
+            NEXT_PUBLIC_SENTRY_DSN=${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
             NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
+            # Pro / credit purchases in the app (apps/web/lib/payments.ts). OFF unless the repository
+            # variable is exactly "true"; unset bakes as empty, which is OFF. Keep it off until Ever Hust has Stripe.
+            NEXT_PUBLIC_HUST_PAYMENTS_ENABLED=${{ vars.NEXT_PUBLIC_HUST_PAYMENTS_ENABLED }}
             # PostHog project key — public phc_ key (Ever Hust project 525078), safe to inline
             # into the client bundle (same value across all envs).
             NEXT_PUBLIC_POSTHOG_KEY=phc_zy7MRvWMzTCSa9pwreMh72EfRHyRk9erTh6x6shu7EZY

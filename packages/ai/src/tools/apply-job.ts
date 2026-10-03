@@ -2,6 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { db } from "@ever-hust/db";
 import { users, jobs, applications, agentInstances, userJobs } from "@ever-hust/db";
+import { proOnlyToolError } from "../payments";
 import { eq, and } from "drizzle-orm";
 
 export const applyJobTool = tool({
@@ -40,7 +41,7 @@ export const applyJobTool = tool({
     if (user.subscriptionStatus !== "active" && user.subscriptionStatus !== "past_due") {
       return {
         applied: false,
-        error: "Job applications require a Pro subscription.",
+        error: proOnlyToolError("Job applications require a Pro subscription."),
         requiresUpgrade: true,
       };
     }

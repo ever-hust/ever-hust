@@ -7,6 +7,7 @@ import { Button } from "@ever-hust/ui/button";
 import { Badge } from "@ever-hust/ui/badge";
 import { toast } from "sonner";
 import { safeExternalUrl } from "@/lib/safe-url";
+import { PAYMENTS_ENABLED } from "@/lib/payments";
 
 interface CreditsResponse {
   plan: "free" | "pro";
@@ -96,25 +97,28 @@ export function CreditsCard() {
               </div>
             </div>
 
-            <div>
-              <p className="mb-2 text-sm font-medium">Buy more credits</p>
-              <div className="flex flex-wrap gap-2">
-                {PACKS.map((p) => (
-                  <Button
-                    key={p.id}
-                    variant="outline"
-                    size="sm"
-                    disabled={topUp.isPending}
-                    onClick={() => topUp.mutate(p.id)}
-                  >
-                    {topUp.isPending && topUp.variables === p.id ? (
-                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                    ) : null}
-                    {p.label} — {fmtCredits(p.credits)} / {p.price}
-                  </Button>
-                ))}
+            {/* Credit packs are Stripe purchases: hidden while payments are off (lib/payments.ts). */}
+            {PAYMENTS_ENABLED && (
+              <div>
+                <p className="mb-2 text-sm font-medium">Buy more credits</p>
+                <div className="flex flex-wrap gap-2">
+                  {PACKS.map((p) => (
+                    <Button
+                      key={p.id}
+                      variant="outline"
+                      size="sm"
+                      disabled={topUp.isPending}
+                      onClick={() => topUp.mutate(p.id)}
+                    >
+                      {topUp.isPending && topUp.variables === p.id ? (
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                      ) : null}
+                      {p.label} — {fmtCredits(p.credits)} / {p.price}
+                    </Button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {data.recent.length > 0 && (
               <div>

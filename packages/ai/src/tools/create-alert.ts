@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@ever-hust/db";
 import { userAlerts, users } from "@ever-hust/db";
 import { eq } from "drizzle-orm";
+import { alertsRequireProError } from "../payments";
 
 export const createAlertTool = tool({
   description:
@@ -75,7 +76,8 @@ export const createAlertTool = tool({
     if (user.subscriptionStatus !== "active" && user.subscriptionStatus !== "past_due") {
       return {
         created: false,
-        error: "Job alerts require a Pro subscription. Upgrade to get alerts.",
+        // No upgrade advice while Pro is not on sale (payments.ts).
+        error: alertsRequireProError(),
         requiresUpgrade: true,
       };
     }

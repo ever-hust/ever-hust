@@ -54,6 +54,12 @@ const config: Config = {
       ...sharedConfig,
     },
     {
+      displayName: "auth",
+      rootDir,
+      testMatch: [`${rootDir}/packages/auth/src/**/*.test.ts`],
+      ...sharedConfig,
+    },
+    {
       displayName: "stripe",
       rootDir,
       testMatch: [`${rootDir}/packages/stripe/src/**/*.test.ts`],
@@ -105,12 +111,14 @@ const config: Config = {
       displayName: "web-lib",
       rootDir,
       testMatch: [`${rootDir}/apps/web/lib/**/*.test.ts`],
+      // sharedConfig first: spreading it last replaced this moduleNameMapper
+      // and silently dropped the "@/" alias.
+      ...sharedConfig,
       moduleNameMapper: {
         ...workspaceModuleMapper,
         // Next.js path alias resolution for the web app
         "^@/(.*)$": `${rootDir}/apps/web/$1`,
       },
-      ...sharedConfig,
     },
   ],
 };

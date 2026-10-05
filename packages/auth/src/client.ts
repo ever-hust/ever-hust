@@ -14,3 +14,6 @@ export const {
   linkSocial,
   listAccounts,
 } = authClient;
+
+/** Re-send the email-verification link (used by the login page's "Resend email"). */
+export const { sendVerificationEmail } = authClient;

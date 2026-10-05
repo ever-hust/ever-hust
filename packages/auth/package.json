@@ -6,7 +6,8 @@
   "license": "AGPL-3.0-or-later",
   "exports": {
     ".": "./src/index.ts",
-    "./client": "./src/client.ts"
+    "./client": "./src/client.ts",
+    "./providers": "./src/providers.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit"

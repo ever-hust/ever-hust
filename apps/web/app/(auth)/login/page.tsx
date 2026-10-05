@@ -7,9 +7,11 @@ import { Button } from "@ever-hust/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@ever-hust/ui/card";
 import { Separator } from "@ever-hust/ui/separator";
 import { Skeleton } from "@ever-hust/ui/skeleton";
-import { BriefcaseBusiness, Linkedin, Shield, Sparkles, Search, FileText, Github, Twitter, Mail, Eye, EyeOff } from "lucide-react";
+import { BriefcaseBusiness, Linkedin, Shield, Sparkles, Search, FileText, Github, Twitter, Mail, MailCheck, Eye, EyeOff } from "lucide-react";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
-import { signIn, signUp } from "@ever-hust/auth/client";
+import { signIn, signUp, sendVerificationEmail } from "@ever-hust/auth/client";
+import type { SocialProviderId } from "@ever-hust/auth/providers";
+import { authErrorMessage } from "@/lib/auth-errors";
 import { Input } from "@ever-hust/ui/input";
 import { Label } from "@ever-hust/ui/label";
 import { toast } from "sonner";
@@ -94,33 +96,63 @@ function LoginButtons() {
     }
   }, [refCode]);
 
-  // Check for error query param (set by BetterAuth on failed OAuth)
+  // Error from a failed OAuth round-trip (Better Auth → /login?error=…).
+  // Shown inline (toasts are easy to miss) and once as a toast.
   const errorParam = searchParams.get("error");
+  const [authError, setAuthError] = useState<string | null>(() => authErrorMessage(errorParam));
   useEffect(() => {
-    if (errorParam === "unable_to_link_account") {
-      toast.error(
-        "No account found with that email. Please sign in with LinkedIn first to create your account, then you can connect other providers."
-      );
-    } else if (errorParam) {
-      toast.error("Sign-in failed. Please try again.");
+    const message = authErrorMessage(errorParam);
+    if (message) {
+      setAuthError(message);
+      toast.error(message);
+      // Shown once: a refresh or a later attempt shouldn't resurface it.
+      const url = new URL(window.location.href);
+      url.searchParams.delete("error");
+      window.history.replaceState(window.history.state, "", url);
     }
   }, [errorParam]);
 
-  const handleSocialLogin = async (provider: "linkedin" | "github" | "google" | "facebook" | "twitter") => {
+  // Only offer providers this deployment has credentials for.
+  const [enabledProviders, setEnabledProviders] = useState<SocialProviderId[] | null>(null);
+  useEffect(() => {
+    let active = true;
+    fetch("/api/auth-providers")
+      .then((res) => (res.ok ? res.json() : { providers: [] }))
+      .then((data: { providers?: SocialProviderId[] }) => {
+        if (active) setEnabledProviders(data.providers ?? []);
+      })
+      .catch(() => {
+        if (active) setEnabledProviders([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleSocialLogin = async (provider: SocialProviderId) => {
     setLoadingProvider(provider);
+    setAuthError(null);
+    const fail = (message: string) => {
+      setAuthError(message);
+      toast.error(message);
+      setLoadingProvider(null);
+    };
     try {
-      await signIn.social({
+      // Better Auth returns errors (it doesn't throw) — e.g. a provider that
+      // isn't configured — so check the result, or the spinner never stops.
+      const { error } = await signIn.social({
         provider,
         callbackURL: callbackUrl,
+        errorCallbackURL: "/login",
       });
+      if (error) fail("This sign-in option isn't available right now. Please use another one.");
     } catch {
-      toast.error("Failed to start sign-in. Please try again.");
-      setLoadingProvider(null);
+      fail("Failed to start sign-in. Please try again.");
     }
   };
 
   const ProviderButton = ({ provider, label, icon: Icon }: {
-    provider: "linkedin" | "github" | "google" | "facebook" | "twitter";
+    provider: SocialProviderId;
     label: string;
     icon: React.ComponentType<{ className?: string }>;
   }) => (
@@ -142,7 +174,7 @@ function LoginButtons() {
 
   // Compact icon-only button for the secondary providers (keeps the card short).
   const IconProviderButton = ({ provider, label, icon: Icon }: {
-    provider: "github" | "google" | "facebook" | "twitter";
+    provider: Exclude<SocialProviderId, "linkedin">;
     label: string;
     icon: React.ComponentType<{ className?: string }>;
   }) => (
@@ -163,39 +195,93 @@ function LoginButtons() {
     </Button>
   );
 
+  const secondaryProviders = SECONDARY_PROVIDERS.filter((p) => enabledProviders?.includes(p.id));
+  const linkedinEnabled = enabledProviders?.includes("linkedin") ?? false;
+  const anySocial = linkedinEnabled || secondaryProviders.length > 0;
+
   return (
     <div className="space-y-3">
-      <ProviderButton provider="linkedin" label="LinkedIn" icon={Linkedin} />
+      {authError && <FormAlert tone="error">{authError}</FormAlert>}
 
-      {/* Secondary providers — compact icon row */}
-      <div className="grid grid-cols-4 gap-2">
-        <IconProviderButton provider="google" label="Google" icon={GoogleIcon} />
-        <IconProviderButton provider="github" label="GitHub" icon={Github} />
-        <IconProviderButton provider="facebook" label="Facebook" icon={FacebookIcon} />
-        <IconProviderButton provider="twitter" label="X (Twitter)" icon={Twitter} />
-      </div>
+      {enabledProviders === null ? (
+        <Skeleton className="h-11 w-full rounded-md" />
+      ) : (
+        <>
+          {linkedinEnabled && <ProviderButton provider="linkedin" label="LinkedIn" icon={Linkedin} />}
 
-      <p className="text-[10px] text-center text-muted-foreground/70">
-        First time? Continue with LinkedIn to create your account.
-      </p>
+          {/* Secondary providers — compact icon row */}
+          {secondaryProviders.length > 0 && (
+            <div
+              className="grid gap-2"
+              style={{ gridTemplateColumns: `repeat(${secondaryProviders.length}, minmax(0, 1fr))` }}
+            >
+              {secondaryProviders.map((p) => (
+                <IconProviderButton key={p.id} provider={p.id} label={p.label} icon={p.icon} />
+              ))}
+            </div>
+          )}
 
-      {/* Email/Password separator */}
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <Separator />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-card px-2 text-muted-foreground">or use email</span>
-        </div>
-      </div>
+          {linkedinEnabled && (
+            <p className="text-[10px] text-center text-muted-foreground/70">
+              First time? Continue with LinkedIn to create your account.
+            </p>
+          )}
 
-      <EmailPasswordForm callbackUrl={callbackUrl} />
+          {/* Email/Password separator */}
+          {anySocial && (
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <Separator />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">or use email</span>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      <EmailPasswordForm callbackUrl={callbackUrl} onAttempt={() => setAuthError(null)} />
+    </div>
+  );
+}
+
+const SECONDARY_PROVIDERS: {
+  id: Exclude<SocialProviderId, "linkedin">;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}[] = [
+  { id: "google", label: "Google", icon: GoogleIcon },
+  { id: "github", label: "GitHub", icon: Github },
+  { id: "facebook", label: "Facebook", icon: FacebookIcon },
+  { id: "twitter", label: "X (Twitter)", icon: Twitter },
+];
+
+/** Inline status box — toasts alone were easy to miss on this page. */
+function FormAlert({ tone, children }: { tone: "error" | "info"; children: React.ReactNode }) {
+  return (
+    <div
+      role={tone === "error" ? "alert" : "status"}
+      className={
+        tone === "error"
+          ? "rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+          : "rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-foreground"
+      }
+    >
+      {children}
     </div>
   );
 }
 
 /** Email/password sign-in / sign-up form with toggle */
-function EmailPasswordForm({ callbackUrl }: { callbackUrl: string }) {
+function EmailPasswordForm({
+  callbackUrl,
+  onAttempt,
+}: {
+  callbackUrl: string;
+  /** Called when the user submits — clears an earlier social sign-in error. */
+  onAttempt?: () => void;
+}) {
   const searchParams = useSearchParams();
   const [mode, setMode] = useState<"signin" | "signup">(
     searchParams.get("mode") === "signup" ? "signup" : "signin",
@@ -207,6 +293,9 @@ function EmailPasswordForm({ callbackUrl }: { callbackUrl: string }) {
   const [loading, setLoading] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  /** Set once a confirmation email is pending → show "check your inbox". */
+  const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -238,37 +327,64 @@ function EmailPasswordForm({ callbackUrl }: { callbackUrl: string }) {
       }
 
       setLoading(true);
+      setFormError(null);
+      onAttempt?.();
+      const fail = (message: string) => {
+        setFormError(message);
+        toast.error(message);
+      };
       try {
         if (mode === "signup") {
-          const { error } = await signUp.email({
+          const { data, error } = await signUp.email({
             email,
             password,
             name: name || email.split("@")[0] || "User",
             callbackURL: callbackUrl,
           });
           if (error) {
-            toast.error(error.message ?? "Sign-up failed. Please try again.");
+            fail(error.message ?? "Sign-up failed. Please try again.");
+          } else if (data?.token) {
+            // Signed in straight away (email verification not required).
+            window.location.href = callbackUrl;
           } else {
-            toast.success("Account created! Signing you in…");
+            // Verification required: no session until the emailed link is clicked.
+            setVerificationEmail(email);
           }
         } else {
-          const { error } = await signIn.email({
+          const { data, error } = await signIn.email({
             email,
             password,
             callbackURL: callbackUrl,
           });
-          if (error) {
-            toast.error(error.message ?? "Invalid email or password.");
+          if (error?.code === "EMAIL_NOT_VERIFIED") {
+            setVerificationEmail(email);
+          } else if (error) {
+            fail(error.message ?? "Invalid email or password.");
+          } else if (data?.token) {
+            window.location.href = callbackUrl;
           }
         }
       } catch {
-        toast.error("Something went wrong. Please try again.");
+        fail("Something went wrong. Please try again.");
       } finally {
         setLoading(false);
       }
     },
-    [email, password, name, mode, forgotMode, callbackUrl]
+    [email, password, name, mode, forgotMode, callbackUrl, onAttempt]
   );
+
+  if (verificationEmail) {
+    return (
+      <CheckEmailPanel
+        email={verificationEmail}
+        callbackUrl={callbackUrl}
+        onBack={() => {
+          setVerificationEmail(null);
+          setMode("signin");
+        }}
+      />
+    );
+  }
 
   if (forgotMode) {
     return (
@@ -306,6 +422,8 @@ function EmailPasswordForm({ callbackUrl }: { callbackUrl: string }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
+      {formError && <FormAlert tone="error">{formError}</FormAlert>}
+
       {mode === "signup" && (
         <div className="space-y-1.5">
           <Label htmlFor="signup-name" className="text-xs">Full name</Label>
@@ -389,6 +507,79 @@ function EmailPasswordForm({ callbackUrl }: { callbackUrl: string }) {
         )}
       </p>
     </form>
+  );
+}
+
+/** Cooldown between "Resend email" clicks (s). */
+const RESEND_COOLDOWN_S = 30;
+
+/**
+ * Shown after an email sign-up (or a sign-in with an unconfirmed address):
+ * there is no session until the emailed link is clicked, so say so plainly
+ * instead of leaving the form looking like nothing happened.
+ */
+function CheckEmailPanel({
+  email,
+  callbackUrl,
+  onBack,
+}: {
+  email: string;
+  callbackUrl: string;
+  onBack: () => void;
+}) {
+  const [cooldown, setCooldown] = useState(RESEND_COOLDOWN_S);
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
+
+  const resend = async () => {
+    setSending(true);
+    try {
+      const { error } = await sendVerificationEmail({ email, callbackURL: callbackUrl });
+      // The API only confirms the request: it answers the same for unknown
+      // addresses (no account enumeration) and mail failures are logged
+      // server-side, so don't claim delivery.
+      if (error) toast.error(error.message ?? "Couldn't request a new email. Please try again.");
+      else toast.success("New confirmation email requested — it can take a minute to arrive.");
+      setCooldown(RESEND_COOLDOWN_S);
+    } catch {
+      toast.error("Couldn't resend the email. Please try again.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4 rounded-lg border border-primary/30 bg-primary/5 p-4 text-center" role="status">
+      <MailCheck className="mx-auto h-8 w-8 text-primary" aria-hidden="true" />
+      <div className="space-y-1">
+        <p className="font-semibold">Check your inbox</p>
+        <p className="text-sm text-muted-foreground">
+          We sent a confirmation link to <span className="font-medium text-foreground">{email}</span>.
+          Click it to activate your account — you&apos;ll be signed in automatically.
+        </p>
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full"
+        onClick={resend}
+        disabled={sending || cooldown > 0}
+      >
+        {sending ? "Sending…" : cooldown > 0 ? `Resend email (${cooldown}s)` : "Resend email"}
+      </Button>
+      <p className="text-xs text-muted-foreground">
+        Not seeing it? Check your spam folder, or{" "}
+        <button type="button" onClick={onBack} className="font-medium text-primary hover:underline">
+          use a different email
+        </button>
+        .
+      </p>
+    </div>
   );
 }
 

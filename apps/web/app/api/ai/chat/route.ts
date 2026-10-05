@@ -4,7 +4,8 @@ export const maxDuration = 60;
 
 import { MAX_CHAT_PAYLOAD_CHARS } from "@/lib/constants";
 
-import { createOrchestratorStream, getModelForUser, getOrgAiConfig, mergeOrgConfig, ensureMonthlyGrant, getCreditBalance } from "@ever-hust/ai";
+import { createOrchestratorStream, getModelForUser, getOrgAiConfig, mergeOrgConfig, ensureMonthlyGrant, getCreditBalance, type FallbackState } from "@ever-hust/ai";
+import type { ChatMessageMetadata } from "@/lib/chat-metadata";
 import { findModelByKey, DEFAULT_HUST_FREE_KEY, DEFAULT_HUST_PRO_KEY } from "@ever-hust/plugin";
 import { db, users, organizationMembers } from "@ever-hust/db";
 import { convertToModelMessages, type UIMessage } from "ai";
@@ -146,10 +147,16 @@ export async function POST(req: Request) {
       );
     }
 
-    const model = getModelForUser({
-      subscriptionStatus: gate.isActive ? "active" : "free",
-      preferences: mergedPreferences,
-    });
+    // Flipped by the model wrapper when Hust's OpenRouter credits ran out and a
+    // free model answered instead — surfaced to the UI as message metadata.
+    const fallbackState: FallbackState = { usedFallback: false };
+    const model = getModelForUser(
+      {
+        subscriptionStatus: gate.isActive ? "active" : "free",
+        preferences: mergedPreferences,
+      },
+      { fallbackState },
+    );
 
     // ── Credit metering (item 14) ────────────────────────────────────────────
     // Meter platform (Hust) model calls; BYOK calls (user's own key) are free.
@@ -198,6 +205,8 @@ export async function POST(req: Request) {
     return result.toUIMessageStreamResponse({
       headers: responseHeaders,
       generateMessageId: () => crypto.randomUUID(),
+      messageMetadata: (): ChatMessageMetadata | undefined =>
+        fallbackState.usedFallback ? { aiFallback: "free-models" } : undefined,
     });
   } catch (error) {
     console.error(

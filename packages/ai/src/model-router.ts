@@ -13,6 +13,11 @@ import { openaiPlugin } from "@ever-hust/plugin-openai";
 import { openrouterPlugin } from "@ever-hust/plugin-openrouter";
 import { googlePlugin } from "@ever-hust/plugin-google";
 import { decryptApiKey } from "./crypto";
+import {
+  FREE_FALLBACK_MODEL_ID,
+  withFreeModelFallback,
+  type FallbackState,
+} from "./credit-fallback";
 
 /**
  * BYOK provider plugin registry. Adding a provider = drop a package under
@@ -52,18 +57,22 @@ function getOpenRouterProvider(): ReturnType<typeof createOpenRouter> | null {
  */
 const ANTHROPIC_ROUTE_FALLBACK: Record<string, string> = {
   "anthropic/claude-haiku-4.5": "claude-haiku-4-5-20251001",
-  "anthropic/claude-opus-4.8": "claude-opus-4-8",
-  "anthropic/claude-sonnet-4.6": "claude-sonnet-4-6",
+  "anthropic/claude-opus-5.5": "claude-opus-5-5",
+  "anthropic/claude-sonnet-5.5": "claude-sonnet-5-5",
 };
 
 /**
  * Serve a "hust" platform model. Their modelIds are OpenRouter routes
- * (e.g. "anthropic/claude-opus-4.8") billed to Hust's OpenRouter key. Falls back
- * to direct Anthropic when no platform OpenRouter key is configured.
+ * (e.g. "anthropic/claude-opus-5.5") billed to Hust's OpenRouter key. If that
+ * account runs out of credits the call is retried on free OpenRouter models
+ * (see credit-fallback.ts). Falls back to direct Anthropic when no platform
+ * OpenRouter key is configured.
  */
-function getPlatformModel(modelId: string): LanguageModel {
+function getPlatformModel(modelId: string, fallbackState?: FallbackState): LanguageModel {
   const or = getOpenRouterProvider();
-  if (or) return or.chat(modelId);
+  if (or) {
+    return withFreeModelFallback(or.chat(modelId), or.chat(FREE_FALLBACK_MODEL_ID), fallbackState);
+  }
   // No platform OpenRouter key → best-effort direct Anthropic.
   const mapped = ANTHROPIC_ROUTE_FALLBACK[modelId];
   if (mapped) return anthropic(mapped);
@@ -75,6 +84,11 @@ function getPlatformModel(modelId: string): LanguageModel {
 
 function platformModelIdForKey(key: string): string {
   return findModelByKey(key)?.modelId ?? "anthropic/claude-haiku-4.5";
+}
+
+export interface ModelForUserOptions {
+  /** Set to `usedFallback: true` when a free model answered for want of platform credits. */
+  fallbackState?: FallbackState;
 }
 
 /**
@@ -107,7 +121,10 @@ function decryptKeys(
  * - Anything else (no selection, BYOK without a key, unknown/legacy id) →
  *   the Hust default for the tier.
  */
-export function getModelForUser(user: UserForModel): LanguageModel {
+export function getModelForUser(
+  user: UserForModel,
+  { fallbackState }: ModelForUserOptions = {},
+): LanguageModel {
   const keys = decryptKeys(user.preferences?.apiKeys);
   const isPaid =
     user.subscriptionStatus === "active" || user.subscriptionStatus === "past_due";
@@ -125,7 +142,7 @@ export function getModelForUser(user: UserForModel): LanguageModel {
     } else {
       // Hust platform model. Free users are capped to free-tier Hust models.
       if (isPaid || selected.tier === "free") {
-        return getPlatformModel(selected.modelId);
+        return getPlatformModel(selected.modelId, fallbackState);
       }
     }
   }
@@ -133,5 +150,6 @@ export function getModelForUser(user: UserForModel): LanguageModel {
   // Default / fallback for the tier.
   return getPlatformModel(
     platformModelIdForKey(isPaid ? DEFAULT_HUST_PRO_KEY : DEFAULT_HUST_FREE_KEY),
+    fallbackState,
   );
 }

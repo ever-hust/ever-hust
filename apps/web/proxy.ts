@@ -92,6 +92,10 @@ export function proxy(request: NextRequest) {
     // Logged-out visitors to the app root land on the in-app login page —
     // app.hust.so must be usable directly, not bounce to the marketing site.
     const loginUrl = new URL("/login", request.url);
+    // Keep an auth error (e.g. a failed OAuth callback → "/?error=…") so the
+    // login page can tell the user what went wrong.
+    const authError = request.nextUrl.searchParams.get("error");
+    if (authError) loginUrl.searchParams.set("error", authError);
     return NextResponse.redirect(loginUrl);
   }
 

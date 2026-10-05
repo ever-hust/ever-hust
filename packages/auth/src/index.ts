@@ -4,6 +4,14 @@ import { anonymous } from "better-auth/plugins";
 import { eq } from "drizzle-orm";
 import { db } from "@ever-hust/db/client";
 import * as schema from "@ever-hust/db/schema";
+import { getProviderCredentials } from "./providers";
+import { userAdditionalFields } from "./user-fields";
+
+const linkedinCredentials = getProviderCredentials("linkedin");
+const githubCredentials = getProviderCredentials("github");
+const googleCredentials = getProviderCredentials("google");
+const facebookCredentials = getProviderCredentials("facebook");
+const twitterCredentials = getProviderCredentials("twitter");
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -20,15 +28,16 @@ export const auth = betterAuth({
 
   // Declare custom columns on the users table so Better Auth can persist them
   user: {
-    additionalFields: {
-      linkedinId: { type: "string", required: false, input: false },
-      linkedinData: { type: "string", required: false, input: false, fieldName: "linkedin_data" },
-      headline: { type: "string", required: false, input: false },
-      photoUrl: { type: "string", required: false, input: false, fieldName: "photo_url" },
-    },
+    additionalFields: userAdditionalFields,
   },
   baseURL: process.env.BETTER_AUTH_URL,
   secret: process.env.BETTER_AUTH_SECRET,
+
+  // Failed OAuth callbacks land on the login page (which shows the error)
+  // instead of the default `/?error=…`, whose redirect to /login drops it.
+  onAPIError: {
+    errorURL: "/login",
+  },
 
   // ---------------------------------------------------------------------------
   // Email & Password authentication (fallback for users without social accounts)
@@ -98,40 +107,31 @@ export const auth = betterAuth({
     },
   },
 
+  // Only providers with credentials are registered (see providers.ts); the
+  // login page asks /api/auth-providers which ones to show.
   socialProviders: {
-    linkedin: {
-      clientId: process.env.LINKEDIN_CLIENT_ID ?? "",
-      clientSecret: process.env.LINKEDIN_CLIENT_SECRET ?? "",
-      scope: ["openid", "profile", "email"],
-      mapProfileToUser: (profile) => {
-        const raw = profile as unknown as Record<string, unknown>;
-        return {
-          name: profile.name,
-          email: profile.email,
-          image: profile.picture,
-          linkedinId: profile.sub,
-          linkedinData: raw,
-          headline: (raw.headline as string) ?? null,
-          photoUrl: profile.picture ?? null,
-        };
+    ...(linkedinCredentials && {
+      linkedin: {
+        ...linkedinCredentials,
+        scope: ["openid", "profile", "email"],
+        mapProfileToUser: (profile) => {
+          const raw = profile as unknown as Record<string, unknown>;
+          return {
+            name: profile.name,
+            email: profile.email,
+            image: profile.picture,
+            linkedinId: profile.sub,
+            linkedinData: raw,
+            headline: (raw.headline as string) ?? null,
+            photoUrl: profile.picture ?? null,
+          };
+        },
       },
-    },
-    github: {
-      clientId: process.env.GITHUB_CLIENT_ID ?? "",
-      clientSecret: process.env.GITHUB_CLIENT_SECRET ?? "",
-    },
-    google: {
-      clientId: process.env.GOOGLE_CLIENT_ID ?? "",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
-    },
-    facebook: {
-      clientId: process.env.FACEBOOK_CLIENT_ID ?? "",
-      clientSecret: process.env.FACEBOOK_CLIENT_SECRET ?? "",
-    },
-    twitter: {
-      clientId: process.env.TWITTER_CLIENT_ID ?? "",
-      clientSecret: process.env.TWITTER_CLIENT_SECRET ?? "",
-    },
+    }),
+    ...(githubCredentials && { github: githubCredentials }),
+    ...(googleCredentials && { google: googleCredentials }),
+    ...(facebookCredentials && { facebook: facebookCredentials }),
+    ...(twitterCredentials && { twitter: twitterCredentials }),
   },
   session: {
     cookieCache: {

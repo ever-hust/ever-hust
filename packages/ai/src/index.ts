@@ -1,4 +1,7 @@
 export { getModelForUser } from "./model-router";
+export type { ModelForUserOptions } from "./model-router";
+export { FREE_FALLBACK_MODEL_ID } from "./credit-fallback";
+export type { FallbackState } from "./credit-fallback";
 export { createOrchestratorStream } from "./agents/orchestrator";
 export { checkSearchLimit, checkCoverLetterLimit } from "./rate-limit";
 export {

@@ -132,7 +132,10 @@ function parseMarkdown(text: string): React.ReactNode[] {
   const elements: React.ReactNode[] = [];
   let i = 0;
   let listItems: React.ReactNode[] = [];
-  let orderedItems: React.ReactNode[] = [];
+  /** Numbered items, each with the indented bullets written under it. */
+  let orderedItems: { content: React.ReactNode; children: React.ReactNode[] }[] = [];
+  /** Number of the first item of the pending ordered list (keeps "2." as 2). */
+  let orderedStart = 1;
   let codeBlock: string[] | null = null;
   let codeLanguage = "";
 
@@ -153,17 +156,33 @@ function parseMarkdown(text: string): React.ReactNode[] {
       elements.push(
         <ol
           key={`ol-${i}`}
-          className="my-1.5 ml-4 list-decimal space-y-0.5"
+          start={orderedStart === 1 ? undefined : orderedStart}
+          className="my-1.5 ml-4 list-decimal space-y-1"
         >
           {orderedItems.map((item, idx) => (
             <li key={idx} className="text-sm">
-              {item}
+              {item.content}
+              {item.children.length > 0 && (
+                <ul className="mt-0.5 ml-4 list-disc space-y-0.5">
+                  {item.children.map((child, cIdx) => (
+                    <li key={cIdx}>{child}</li>
+                  ))}
+                </ul>
+              )}
             </li>
           ))}
         </ol>
       );
       orderedItems = [];
     }
+  };
+
+  /** Next non-blank line after `from`, or undefined. */
+  const nextContentLine = (from: number): string | undefined => {
+    for (let j = from + 1; j < lines.length; j++) {
+      if (lines[j]!.trim() !== "") return lines[j];
+    }
+    return undefined;
   };
 
   while (i < lines.length) {
@@ -248,19 +267,27 @@ function parseMarkdown(text: string): React.ReactNode[] {
     }
 
     // Unordered list item (- or *)
-    const ulMatch = line.match(/^\s*[-*]\s+(.+)$/);
+    const ulMatch = line.match(/^(\s*)[-*]\s+(.+)$/);
     if (ulMatch) {
+      const indented = ulMatch[1]!.length >= 2;
+      // An indented bullet under a numbered item belongs to that item.
+      if (indented && orderedItems.length > 0) {
+        orderedItems.at(-1)!.children.push(parseInline(ulMatch[2]!));
+        i++;
+        continue;
+      }
       if (orderedItems.length > 0) flushList();
-      listItems.push(parseInline(ulMatch[1]!));
+      listItems.push(parseInline(ulMatch[2]!));
       i++;
       continue;
     }
 
     // Ordered list item
-    const olMatch = line.match(/^\s*\d+\.\s+(.+)$/);
+    const olMatch = line.match(/^\s*(\d+)\.\s+(.+)$/);
     if (olMatch) {
       if (listItems.length > 0) flushList();
-      orderedItems.push(parseInline(olMatch[1]!));
+      if (orderedItems.length === 0) orderedStart = Number(olMatch[1]);
+      orderedItems.push({ content: parseInline(olMatch[2]!), children: [] });
       i++;
       continue;
     }
@@ -275,9 +302,15 @@ function parseMarkdown(text: string): React.ReactNode[] {
       continue;
     }
 
-    // Empty line
+    // Empty line — ends a list unless the list carries on after it (a
+    // "loose" list: blank lines between items or before nested bullets).
     if (line.trim() === "") {
-      flushList();
+      const next = nextContentLine(i);
+      const listContinues =
+        next !== undefined &&
+        ((orderedItems.length > 0 && /^(\s*\d+\.\s|\s{2,}[-*]\s)/.test(next)) ||
+          (listItems.length > 0 && /^\s*[-*]\s/.test(next)));
+      if (!listContinues) flushList();
       i++;
       continue;
     }

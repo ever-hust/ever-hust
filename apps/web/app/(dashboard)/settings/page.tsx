@@ -21,6 +21,7 @@ import {
   BYOK_PROVIDER_IDS,
   DEFAULT_HUST_FREE_KEY,
   DEFAULT_HUST_PRO_KEY,
+  resolveModelKey,
   type ByokProviderId,
 } from "@ever-hust/plugin";
 
@@ -50,8 +51,10 @@ export default function SettingsPage() {
 
   const isPaid =
     subscriptionStatus === "active" || subscriptionStatus === "past_due";
+  // resolveModelKey follows renamed/retired models so a legacy saved key still
+  // shows its successor as Active instead of nothing.
   const initialModel =
-    prefs?.aiModel ?? (isPaid ? DEFAULT_HUST_PRO_KEY : DEFAULT_HUST_FREE_KEY);
+    resolveModelKey(prefs?.aiModel) ?? (isPaid ? DEFAULT_HUST_PRO_KEY : DEFAULT_HUST_FREE_KEY);
 
   const initialApiKeys: Record<ByokProviderId, boolean> = {
     openrouter: !!prefs?.apiKeys?.openrouter,

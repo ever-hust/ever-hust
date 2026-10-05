@@ -26,6 +26,21 @@ export type CreditPackId = keyof typeof CREDIT_PACKS;
 
 /** Approx. provider price in USD per 1M tokens [input, output]. Tunable. */
 const MODEL_COSTS: Record<string, { in: number; out: number }> = {
+  "claude-fable-5.1": { in: 10, out: 50 },
+  "claude-fable-5-1": { in: 10, out: 50 },
+  "claude-opus-5.5": { in: 4, out: 20 },
+  "claude-opus-5-5": { in: 4, out: 20 },
+  "claude-sonnet-5.5": { in: 2, out: 10 },
+  "claude-sonnet-5-5": { in: 2, out: 10 },
+  "gpt-6-astra": { in: 10, out: 50 },
+  "gpt-6.1-sol": { in: 2, out: 10 },
+  "gpt-6-luna": { in: 0.1, out: 0.5 },
+  "gemini-3.8-flash": { in: 0.75, out: 3.75 },
+  "grok-4.7": { in: 2, out: 6 },
+  "deepseek-v4.1-flash": { in: 0.3, out: 1.2 },
+  "qwen3.8-max": { in: 2, out: 6 },
+  "kimi-k3": { in: 0.67, out: 14 },
+  "glm-5.3": { in: 0.05, out: 7 },
   "claude-sonnet-4.6": { in: 3, out: 15 },
   "claude-sonnet-4-6": { in: 3, out: 15 },
   "claude-haiku-4.5": { in: 0.8, out: 4 },

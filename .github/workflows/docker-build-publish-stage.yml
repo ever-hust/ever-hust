@@ -91,8 +91,9 @@ jobs:
             NEXT_PUBLIC_SENTRY_DSN=${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
             NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
             # Pro / credit purchases in the app (apps/web/lib/payments.ts). OFF unless the repository
-            # variable is exactly "true"; unset bakes as empty, which is OFF. Keep it off until Ever Hust has Stripe.
-            NEXT_PUBLIC_HUST_PAYMENTS_ENABLED=${{ vars.NEXT_PUBLIC_HUST_PAYMENTS_ENABLED }}
+            # variable is exactly "true"; unset bakes as empty, which is OFF. NEXT_PUBLIC_HUST_PAYMENTS_ENABLED_STAGE
+            # overrides it for this environment only, so dev / stage / prod can be switched on one at a time.
+            NEXT_PUBLIC_HUST_PAYMENTS_ENABLED=${{ vars.NEXT_PUBLIC_HUST_PAYMENTS_ENABLED_STAGE || vars.NEXT_PUBLIC_HUST_PAYMENTS_ENABLED }}
             # PostHog project key — public phc_ key (Ever Hust project 525078), safe to inline
             # into the client bundle (same value across all envs).
             NEXT_PUBLIC_POSTHOG_KEY=phc_zy7MRvWMzTCSa9pwreMh72EfRHyRk9erTh6x6shu7EZY

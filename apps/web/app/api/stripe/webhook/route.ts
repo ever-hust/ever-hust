@@ -42,11 +42,16 @@ async function claimEvent(eventId: string): Promise<boolean> {
   }
 }
 
-/** Map plan ID to display info for emails. */
+/**
+ * Map plan ID to display info for emails. The amount is what Stripe charges
+ * for one period (it must match the price), not a per-month equivalent.
+ * `quarterly` is gated (never sold) and kept only so a record naming it still
+ * renders.
+ */
 const PLAN_INFO: Record<string, { name: string; amount: string; cycle: string }> = {
   monthly: { name: "Pro Monthly", amount: "$20", cycle: "month" },
-  quarterly: { name: "Pro Quarterly", amount: "$12/mo", cycle: "quarter" },
-  annual: { name: "Pro Annual", amount: "$7/mo", cycle: "year" },
+  annual: { name: "Pro Annual", amount: "$168", cycle: "year" },
+  quarterly: { name: "Pro Quarterly", amount: "$36", cycle: "quarter" },
 };
 
 export async function POST(req: Request) {
@@ -99,7 +104,9 @@ export async function POST(req: Request) {
       payment_status?: string;
     };
     const meta = session.metadata ?? {};
-    if (meta.type === "credits") {
+    // Only Hust's own top-ups (marker set by createCreditCheckoutSession): the
+    // Stripe account is shared by every Ever product.
+    if (meta.type === "credits" && meta.app === "hust") {
       try {
         const amount = parseInt(meta.credits ?? "0", 10);
         if (session.payment_status === "paid" && meta.userId && Number.isFinite(amount) && amount > 0) {

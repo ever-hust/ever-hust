@@ -1,6 +1,10 @@
 import type Stripe from "stripe";
 import { PLANS } from "./plans";
 
+/** Mirrors HUST_APP_MARKER in checkout.ts (kept local to avoid an import cycle with ./index). */
+const HUST_APP_KEY = "app";
+const HUST_APP_VALUE = "hust";
+
 export type StripeWebhookEvent =
   | { type: "checkout.session.completed"; data: CheckoutCompleted }
   | { type: "invoice.paid"; data: InvoicePaid }
@@ -50,6 +54,12 @@ export function parseWebhookEvent(
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
+      // The Stripe account is shared by every Ever product, so this receives
+      // their completed checkouts too. Only Hust's own sessions carry the
+      // marker createCheckoutSession stamps; anything else is not ours.
+      if (session.metadata?.[HUST_APP_KEY] !== HUST_APP_VALUE) {
+        return null;
+      }
       const userId = session.metadata?.userId ?? session.client_reference_id;
       const planId = session.metadata?.planId;
       const stripeCustomerId = session.customer;

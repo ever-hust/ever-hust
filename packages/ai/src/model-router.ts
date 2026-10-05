@@ -15,6 +15,7 @@ import { googlePlugin } from "@ever-hust/plugin-google";
 import { decryptApiKey } from "./crypto";
 import {
   FREE_FALLBACK_MODEL_ID,
+  FREE_FALLBACK_PROVIDER_ROUTING,
   withFreeModelFallback,
   type FallbackState,
 } from "./credit-fallback";
@@ -71,7 +72,11 @@ const ANTHROPIC_ROUTE_FALLBACK: Record<string, string> = {
 function getPlatformModel(modelId: string, fallbackState?: FallbackState): LanguageModel {
   const or = getOpenRouterProvider();
   if (or) {
-    return withFreeModelFallback(or.chat(modelId), or.chat(FREE_FALLBACK_MODEL_ID), fallbackState);
+    return withFreeModelFallback(
+      or.chat(modelId),
+      or.chat(FREE_FALLBACK_MODEL_ID, { provider: FREE_FALLBACK_PROVIDER_ROUTING }),
+      fallbackState,
+    );
   }
   // No platform OpenRouter key → best-effort direct Anthropic.
   const mapped = ANTHROPIC_ROUTE_FALLBACK[modelId];
@@ -79,8 +84,19 @@ function getPlatformModel(modelId: string, fallbackState?: FallbackState): Langu
   if (modelId.startsWith("anthropic/")) {
     return anthropic(modelId.slice("anthropic/".length));
   }
+  // Non-Anthropic Hust routes need the platform OpenRouter key. Every deployed
+  // env has it (startup checks warn when it is missing); say so rather than
+  // swapping models silently on a key-less dev setup.
+  if (!warnedNoRouteFor.has(modelId)) {
+    warnedNoRouteFor.add(modelId);
+    console.warn(
+      `[ai] OPENROUTER_API_KEY is not set: "${modelId}" cannot run without it — answering with Claude Haiku 4.5 instead.`,
+    );
+  }
   return anthropic("claude-haiku-4-5-20251001");
 }
+
+const warnedNoRouteFor = new Set<string>();
 
 function platformModelIdForKey(key: string): string {
   return findModelByKey(key)?.modelId ?? "anthropic/claude-haiku-4.5";

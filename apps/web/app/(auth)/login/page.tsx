@@ -540,8 +540,11 @@ function CheckEmailPanel({
     setSending(true);
     try {
       const { error } = await sendVerificationEmail({ email, callbackURL: callbackUrl });
-      if (error) toast.error(error.message ?? "Couldn't resend the email. Please try again.");
-      else toast.success("Confirmation email sent again.");
+      // The API only confirms the request: it answers the same for unknown
+      // addresses (no account enumeration) and mail failures are logged
+      // server-side, so don't claim delivery.
+      if (error) toast.error(error.message ?? "Couldn't request a new email. Please try again.");
+      else toast.success("New confirmation email requested — it can take a minute to arrive.");
       setCooldown(RESEND_COOLDOWN_S);
     } catch {
       toast.error("Couldn't resend the email. Please try again.");

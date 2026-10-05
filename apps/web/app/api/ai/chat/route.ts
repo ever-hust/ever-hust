@@ -198,6 +198,7 @@ export async function POST(req: Request) {
       isSubscribed: gate.isActive,
       modelKey,
       meterCredits,
+      fallbackState,
     });
 
     // UUID message ids so persisted assistant messages satisfy the chat_messages

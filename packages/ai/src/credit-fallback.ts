@@ -21,6 +21,17 @@ type LanguageModelV3 = Parameters<typeof wrapLanguageModel>[0]["model"];
 export const FREE_FALLBACK_MODEL_ID = "openrouter/free";
 
 /**
+ * OpenRouter routing for the fallback: chat carries profile, CV and inbox
+ * content, so only providers that neither retain nor train on prompts, and only
+ * ones that support every request parameter (tool calls). Verified live
+ * 2026-10-05: `openrouter/free` still answers with tool calls under this.
+ */
+export const FREE_FALLBACK_PROVIDER_ROUTING = {
+  data_collection: "deny",
+  require_parameters: true,
+} as const;
+
+/**
  * Output cap for platform calls that set none. Without it OpenRouter reserves
  * the model's maximum (65,536 tokens for Sonnet), so a low balance rejects even
  * a one-line answer.

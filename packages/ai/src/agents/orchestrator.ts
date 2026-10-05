@@ -6,6 +6,7 @@ import {
 } from "ai";
 import type { LanguageModel } from "ai";
 import { recordChatUsage } from "../credits";
+import type { FallbackState } from "../credit-fallback";
 import {
   searchJobsTool,
   updateFiltersTool,
@@ -58,6 +59,8 @@ interface OrchestratorOptions {
   modelKey?: string;
   /** When true, debit credits for this call (platform/Hust model, not BYOK). */
   meterCredits?: boolean;
+  /** Set by the model wrapper when a free fallback model answered (see credit-fallback.ts). */
+  fallbackState?: FallbackState;
 }
 
 export async function createOrchestratorStream({
@@ -67,6 +70,7 @@ export async function createOrchestratorStream({
   isSubscribed = false,
   modelKey,
   meterCredits = false,
+  fallbackState,
 }: OrchestratorOptions): Promise<StreamTextResult<any, any>> {
   // Fetch system prompt from Langfuse (falls back to hardcoded default)
   const { text: systemPrompt, langfusePrompt } =
@@ -80,6 +84,10 @@ export async function createOrchestratorStream({
     // user's own key and are not charged. Never throws into the stream.
     onFinish: meterCredits
       ? async ({ usage }) => {
+          // A free model answered because platform credits ran out: the user did
+          // not get (and must not pay for) the selected model. If credits ran out
+          // mid-turn, the earlier paid steps go unbilled too — in the user's favour.
+          if (fallbackState?.usedFallback) return;
           try {
             const u = usage as
               | { inputTokens?: number; outputTokens?: number; promptTokens?: number; completionTokens?: number }

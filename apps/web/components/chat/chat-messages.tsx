@@ -2,10 +2,11 @@
 
 import { useState, useCallback, useEffect, useRef, useMemo, memo } from "react";
 import type { UIMessage } from "ai";
-import { Bot, User, Copy, Check } from "lucide-react";
-import { Avatar, AvatarFallback } from "@ever-hust/ui/avatar";
+import { Copy, Check, AlertTriangle, Loader2, X } from "lucide-react";
 import { cn } from "@ever-hust/ui/lib/utils";
+import { answeredByFreeFallback } from "@/lib/chat-metadata";
 import { MarkdownText } from "./markdown-text";
+import { toolChipLabel, type ToolChipState } from "./tool-labels";
 
 interface ChatMessagesProps {
   messages: UIMessage[];
@@ -60,142 +61,176 @@ const CopyButton = memo(function CopyButton({ text }: { text: string }) {
 /** CSS class suffixes for the three typing dots */
 const TYPING_DOT_CLASSES = ["typing-dot-1", "typing-dot-2", "typing-dot-3"] as const;
 
+/** Assistant reply surface: full column width, hairline border, faint tint. */
+const ASSISTANT_SURFACE = "rounded-xl border border-border/60 bg-card/40";
+
 /** Memoized typing indicator — static content that never needs to re-render */
 const TypingIndicator = memo(function TypingIndicator() {
   return (
-    <div className="flex gap-2 sm:gap-3" role="status" aria-label="Assistant is typing">
-      <Avatar className="mt-0.5 hidden h-7 w-7 shrink-0 sm:flex">
-        <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-          <Bot className="h-4 w-4" aria-hidden="true" />
-        </AvatarFallback>
-      </Avatar>
-      <div className="flex items-center gap-1.5 rounded-xl bg-muted px-4 py-3">
-        {TYPING_DOT_CLASSES.map((cls) => (
-          <div
-            key={cls}
-            className={`h-2 w-2 rounded-full bg-muted-foreground/60 typing-dot ${cls}`}
-          />
-        ))}
-      </div>
+    <div
+      className={cn(ASSISTANT_SURFACE, "flex w-fit items-center gap-1.5 px-3.5 py-3")}
+      role="status"
+      aria-label="Assistant is typing"
+    >
+      {TYPING_DOT_CLASSES.map((cls) => (
+        <div
+          key={cls}
+          className={`h-1.5 w-1.5 rounded-full bg-muted-foreground/60 typing-dot ${cls}`}
+        />
+      ))}
       <span className="sr-only">Assistant is thinking...</span>
     </div>
   );
 });
 
-/** Memoized single message bubble to avoid re-renders when new messages arrive */
+type MessagePart = UIMessage["parts"][number];
+
+interface ToolChip {
+  key: string;
+  toolName: string;
+  state: ToolChipState;
+}
+
+type Segment =
+  | { kind: "text"; key: string; text: string }
+  | { kind: "tools"; key: string; tools: ToolChip[] };
+
+function isToolPart(part: MessagePart): boolean {
+  return part.type === "dynamic-tool" || part.type.startsWith("tool-");
+}
+
+function toToolChip(part: MessagePart, index: number): ToolChip {
+  const p = part as { type: string; toolName?: string; toolCallId?: string; state?: string };
+  const toolName = p.toolName ?? (p.type.startsWith("tool-") ? p.type.slice(5) : "tool");
+  const state: ToolChipState =
+    p.state === "output-available" ? "done" : p.state === "output-error" ? "failed" : "running";
+  return { key: p.toolCallId ?? `tool-${index}`, toolName, state };
+}
+
+/**
+ * Message parts in display order, with consecutive tool calls grouped into one
+ * chip row so a burst of tools reads as a single status line.
+ */
+function toSegments(parts: UIMessage["parts"]): Segment[] {
+  const segments: Segment[] = [];
+  parts.forEach((part, i) => {
+    if (part.type === "text") {
+      if (part.text.trim()) segments.push({ kind: "text", key: `text-${i}`, text: part.text });
+      return;
+    }
+    if (!isToolPart(part)) return;
+    const last = segments.at(-1);
+    const chip = toToolChip(part, i);
+    if (last?.kind === "tools") last.tools.push(chip);
+    else segments.push({ kind: "tools", key: `tools-${i}`, tools: [chip] });
+  });
+  return segments;
+}
+
+const ToolChipRow = memo(function ToolChipRow({ tools }: { tools: ToolChip[] }) {
+  return (
+    <ul className="flex flex-wrap gap-1.5" aria-label="Assistant actions">
+      {tools.map((tool) => (
+        <li
+          key={tool.key}
+          className={cn(
+            "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs",
+            tool.state === "failed"
+              ? "border-destructive/40 text-destructive"
+              : "border-border/70 text-muted-foreground",
+          )}
+        >
+          {tool.state === "running" && (
+            <Loader2 className="h-3 w-3 shrink-0 animate-spin" aria-hidden="true" />
+          )}
+          {tool.state === "done" && (
+            <Check className="h-3 w-3 shrink-0 text-emerald-500" aria-hidden="true" />
+          )}
+          {tool.state === "failed" && <X className="h-3 w-3 shrink-0" aria-hidden="true" />}
+          <span className="truncate">{toolChipLabel(tool.toolName, tool.state)}</span>
+        </li>
+      ))}
+    </ul>
+  );
+});
+
+/** Memoized single message to avoid re-renders when new messages arrive */
 const MessageBubble = memo(function MessageBubble({
   message,
 }: {
   message: UIMessage;
 }) {
-  // Memoize text extraction so it only recomputes when parts change
+  const segments = useMemo(() => toSegments(message.parts), [message.parts]);
   const textContent = useMemo(
     () =>
-      message.parts
-        .filter((p) => p.type === "text")
-        .map((p) => (p as { type: "text"; text: string }).text)
+      segments
+        .filter((s): s is Extract<Segment, { kind: "text" }> => s.kind === "text")
+        .map((s) => s.text)
         .join("\n"),
-    [message.parts],
+    [segments],
   );
 
-  return (
-    <div
-      role="article"
-      aria-label={message.role === "user" ? "Your message" : "Assistant message"}
-      className={cn(
-        "flex gap-2 sm:gap-3",
-        message.role === "user" ? "justify-end" : "justify-start"
-      )}
-    >
-      {message.role !== "user" && (
-        <Avatar className="mt-0.5 hidden h-7 w-7 shrink-0 sm:flex">
-          <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-            <Bot className="h-4 w-4" aria-hidden="true" />
-          </AvatarFallback>
-        </Avatar>
-      )}
-
-      <div className="flex flex-col gap-0.5">
-        <div
-          className={cn(
-            "group relative max-w-[92%] rounded-xl px-3 py-2 text-sm leading-relaxed sm:max-w-[85%] sm:px-4 sm:py-2.5",
-            message.role === "user"
-              ? "bg-primary text-primary-foreground"
-              : "bg-muted"
-          )}
-        >
-          {message.parts.map((part, i) => {
-            if (part.type === "text") {
-              if (message.role === "assistant") {
-                return <MarkdownText key={i} text={part.text} />;
-              }
-              return (
-                <div key={i} className="whitespace-pre-wrap">
-                  {part.text}
-                </div>
-              );
-            }
-            if (part.type === "dynamic-tool" || part.type.startsWith("tool-")) {
-              const toolPart = part as {
-                type: string;
-                toolName?: string;
-                state: string;
-              };
-              const toolName =
-                toolPart.toolName ??
-                (toolPart.type.startsWith("tool-")
-                  ? toolPart.type.slice(5)
-                  : "tool");
-              return (
-                <div
-                  key={i}
-                  className="my-1 rounded border bg-background/50 p-2 text-xs text-muted-foreground"
-                >
-                  <span className="font-medium">{toolName}</span>
-                  {toolPart.state === "output-available" && (
-                    <span className="ml-2 text-green-600 dark:text-green-400">
-                      Done
-                    </span>
-                  )}
-                  {(toolPart.state === "input-streaming" ||
-                    toolPart.state === "input-available") && (
-                    <span className="ml-2 text-yellow-600 dark:text-yellow-400">
-                      Running...
-                    </span>
-                  )}
-                </div>
-              );
-            }
-            return null;
-          })}
-
-          {/* Copy button for assistant messages */}
-          {message.role === "assistant" && textContent.length > 0 && (
-            <CopyButton text={textContent} />
-          )}
+  if (message.role === "user") {
+    return (
+      <div role="article" aria-label="Your message" className="flex justify-end">
+        <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-primary px-3.5 py-2 text-sm leading-relaxed text-primary-foreground">
+          {textContent}
         </div>
+      </div>
+    );
+  }
 
+  if (segments.length === 0) return null;
+
+  return (
+    <div role="article" aria-label="Assistant message" className="flex flex-col gap-1">
+      <div
+        className={cn(
+          ASSISTANT_SURFACE,
+          "group relative min-w-0 space-y-2.5 px-3.5 py-3 text-sm leading-relaxed sm:px-4",
+        )}
+      >
+        {segments.map((segment) =>
+          segment.kind === "tools" ? (
+            <ToolChipRow key={segment.key} tools={segment.tools} />
+          ) : (
+            <div key={segment.key} className="min-w-0 break-words">
+              <MarkdownText text={segment.text} />
+            </div>
+          ),
+        )}
+
+        {textContent.length > 0 && <CopyButton text={textContent} />}
       </div>
 
-      {message.role === "user" && (
-        <Avatar className="mt-0.5 hidden h-7 w-7 shrink-0 sm:flex">
-          <AvatarFallback className="text-xs">
-            <User className="h-4 w-4" aria-hidden="true" />
-          </AvatarFallback>
-        </Avatar>
+      {answeredByFreeFallback(message.metadata) && (
+        <p className="flex items-center gap-1 px-1 text-[11px] text-amber-600 dark:text-amber-400">
+          <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" />
+          Answered by a free backup model — premium AI is temporarily unavailable.
+        </p>
       )}
     </div>
   );
 });
 
 export const ChatMessages = memo(function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
+  // The dots cover waits where the reply itself shows no progress: before it
+  // starts, and between finished tool calls and the first words of the answer.
+  const last = messages.at(-1);
+  const replyShowsProgress =
+    last?.role === "assistant" &&
+    toSegments(last.parts).some(
+      (s) => s.kind === "text" || s.tools.some((t) => t.state === "running"),
+    );
+  const showTyping = isLoading && !replyShowsProgress;
+
   return (
-    <div className="space-y-4" role="log" aria-live="polite" aria-label="Conversation">
+    <div className="space-y-3" role="log" aria-live="polite" aria-label="Conversation">
       {messages.map((message) => (
         <MessageBubble key={message.id} message={message} />
       ))}
 
-      {isLoading && <TypingIndicator />}
+      {showTyping && <TypingIndicator />}
     </div>
   );
 });

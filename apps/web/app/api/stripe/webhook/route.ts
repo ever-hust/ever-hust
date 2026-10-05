@@ -104,7 +104,9 @@ export async function POST(req: Request) {
       payment_status?: string;
     };
     const meta = session.metadata ?? {};
-    if (meta.type === "credits") {
+    // Only Hust's own top-ups (marker set by createCreditCheckoutSession): the
+    // Stripe account is shared by every Ever product.
+    if (meta.type === "credits" && meta.app === "hust") {
       try {
         const amount = parseInt(meta.credits ?? "0", 10);
         if (session.payment_status === "paid" && meta.userId && Number.isFinite(amount) && amount > 0) {

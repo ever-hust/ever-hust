@@ -1,4 +1,5 @@
 import { getStripe } from "./index";
+import { HUST_APP_MARKER } from "./checkout";
 
 /**
  * Credit packs. Prices are **auto-provisioned** in the connected Stripe account
@@ -21,7 +22,9 @@ async function ensureCreditProduct(): Promise<string> {
   const stripe = getStripe();
   try {
     const found = await stripe.products.search({
-      query: "metadata['hust_credits']:'1' AND active:'true'",
+      // Stripe's search syntax needs DOUBLE quotes; single quotes are a 400,
+      // which used to fall through to creating a duplicate product.
+      query: 'metadata["hust_credits"]:"1" AND active:"true"',
       limit: 1,
     });
     if (found.data[0]) return found.data[0].id;
@@ -93,7 +96,9 @@ export async function createCreditCheckoutSession({
     customer: stripeCustomerId ?? undefined,
     customer_email: stripeCustomerId ? undefined : email,
     client_reference_id: userId,
-    metadata: { userId, type: "credits", packId, credits: String(pack.credits) },
+    // app=hust: the Stripe account is shared by every Ever product, and the
+    // webhook only grants credits for a session that carries this marker.
+    metadata: { userId, type: "credits", packId, credits: String(pack.credits), ...HUST_APP_MARKER },
   });
 
   return { url: session.url, sessionId: session.id };

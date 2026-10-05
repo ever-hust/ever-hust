@@ -17,8 +17,16 @@ export function getStripe(): Stripe {
 }
 
 export { Stripe };
-export { PLANS, FREE_LIMITS, type Plan } from "./plans";
-export { createCheckoutSession } from "./checkout";
+export {
+  PLANS,
+  FREE_LIMITS,
+  GATED_PLANS,
+  CLOUD_TRIAL_DAYS,
+  PRO_MONTHLY_USD,
+  yearlyMonthlyUsd,
+  type Plan,
+} from "./plans";
+export { createCheckoutSession, HUST_APP_MARKER } from "./checkout";
 export { createCreditCheckoutSession, CREDIT_PACKS } from "./credits-checkout";
 export { createPortalSession } from "./portal";
 export { parseWebhookEvent, type StripeWebhookEvent } from "./webhook";

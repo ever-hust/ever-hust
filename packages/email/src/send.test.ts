@@ -272,9 +272,9 @@ describe("sendSubscriptionConfirmedEmail", () => {
   const params = {
     to: "subscriber@example.com",
     userName: "Bob",
-    planName: "Quarterly",
-    amount: "$29.99",
-    billingCycle: "quarterly",
+    planName: "Annual",
+    amount: "$168",
+    billingCycle: "year",
   };
 
   it("should send subscription confirmed email", async () => {
@@ -288,7 +288,7 @@ describe("sendSubscriptionConfirmedEmail", () => {
     expect(mockSend).toHaveBeenCalledWith(
       expect.objectContaining({
         to: "subscriber@example.com",
-        subject: "Your Hust Pro subscription is active — Quarterly plan",
+        subject: "Your Hust Pro subscription is active — Annual plan",
       }),
     );
   });

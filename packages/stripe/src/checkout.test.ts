@@ -18,6 +18,7 @@ jest.mock("./index", () => ({
 
 // Mock PLANS with valid test stripePriceIds (env vars are not set in test)
 jest.mock("./plans", () => ({
+  CLOUD_TRIAL_DAYS: 90,
   PLANS: [
     {
       id: "monthly",
@@ -29,23 +30,14 @@ jest.mock("./plans", () => ({
       features: ["Unlimited AI conversations"],
     },
     {
-      id: "quarterly",
-      name: "Quarterly",
-      price: 36,
-      interval: "quarter",
-      pricePerMonth: 12,
-      stripePriceId: "price_test_quarterly",
-      features: ["Everything in Monthly"],
-      popular: true,
-    },
-    {
       id: "annual",
       name: "Annual",
-      price: 84,
+      price: 168,
       interval: "year",
-      pricePerMonth: 7,
+      pricePerMonth: 14,
       stripePriceId: "price_test_annual",
-      features: ["Everything in Quarterly"],
+      features: ["Everything in Monthly"],
+      popular: true,
     },
   ],
 }));
@@ -94,10 +86,11 @@ describe("createCheckoutSession", () => {
     expect(args.success_url).toBe(baseParams.successUrl);
     expect(args.cancel_url).toBe(baseParams.cancelUrl);
     expect(args.client_reference_id).toBe("user_1");
-    expect(args.metadata).toEqual({ userId: "user_1", planId: "monthly" });
+    expect(args.metadata).toEqual({ userId: "user_1", planId: "monthly", app: "hust" });
     expect(args.subscription_data.metadata).toEqual({
       userId: "user_1",
       planId: "monthly",
+      app: "hust",
     });
   });
 
@@ -140,12 +133,11 @@ describe("createCheckoutSession", () => {
     expect(args.customer_email).toBe("user@example.com");
   });
 
-  it("works for the quarterly plan", async () => {
-    await createCheckoutSession({ ...baseParams, planId: "quarterly" });
-
-    const args = mockCreate.mock.calls[0][0];
-    expect(args.line_items[0].price).toBe("price_test_quarterly");
-    expect(args.metadata.planId).toBe("quarterly");
+  it("refuses the quarterly plan: it is gated, not on sale", async () => {
+    await expect(
+      createCheckoutSession({ ...baseParams, planId: "quarterly" })
+    ).rejects.toThrow("Invalid plan: quarterly");
+    expect(mockCreate).not.toHaveBeenCalled();
   });
 
   it("works for the annual plan", async () => {
@@ -176,12 +168,37 @@ describe("createCheckoutSession", () => {
     );
   });
 
-  it("includes subscription_data with metadata", async () => {
-    await createCheckoutSession({ ...baseParams, planId: "quarterly" });
+  it("starts Cloud Pro with the 90-day free trial and takes the card up front", async () => {
+    await createCheckoutSession({ ...baseParams, planId: "annual" });
 
     const args = mockCreate.mock.calls[0][0];
+    expect(args.payment_method_collection).toBe("always");
     expect(args.subscription_data).toEqual({
-      metadata: { userId: "user_1", planId: "quarterly" },
+      trial_period_days: 90,
+      metadata: { userId: "user_1", planId: "annual", app: "hust" },
     });
+  });
+
+  it("leaves Stripe Tax off unless STRIPE_AUTOMATIC_TAX=true", async () => {
+    delete process.env.STRIPE_AUTOMATIC_TAX;
+    await createCheckoutSession({ ...baseParams, stripeCustomerId: "cus_1" });
+    const off = mockCreate.mock.calls[0][0];
+    expect(off.automatic_tax).toBeUndefined();
+    expect(off.customer_update).toBeUndefined();
+
+    process.env.STRIPE_AUTOMATIC_TAX = "true";
+    try {
+      await createCheckoutSession({ ...baseParams, stripeCustomerId: "cus_1" });
+      await createCheckoutSession(baseParams);
+    } finally {
+      delete process.env.STRIPE_AUTOMATIC_TAX;
+    }
+    const withCustomer = mockCreate.mock.calls[1][0];
+    expect(withCustomer.automatic_tax).toEqual({ enabled: true });
+    expect(withCustomer.customer_update).toEqual({ address: "auto", name: "auto" });
+    // customer_update needs a customer object; an email-only session omits it.
+    const emailOnly = mockCreate.mock.calls[2][0];
+    expect(emailOnly.automatic_tax).toEqual({ enabled: true });
+    expect(emailOnly.customer_update).toBeUndefined();
   });
 });

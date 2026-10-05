@@ -65,7 +65,7 @@ export function useSubscription(): SubscriptionInfo {
   const status = data ?? "free";
   const isSubscribed = useMemo(() => status === "active" || status === "past_due", [status]);
 
-  const upgrade = useCallback(async (planId = "quarterly") => {
+  const upgrade = useCallback(async (planId = "monthly") => {
     try {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",

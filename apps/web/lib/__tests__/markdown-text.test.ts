@@ -2,6 +2,14 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MarkdownText } from "../../components/chat/markdown-text";
 
+// Icons/clipboard are irrelevant to list markup, and lucide-react's CJS build
+// can't be require()d by this CJS Jest on Linux CI ("Must use import to load
+// ES Module") — keep the test independent of both.
+jest.mock("lucide-react", () => ({ Check: () => null, Copy: () => null }));
+jest.mock("@/hooks/use-copy-to-clipboard", () => ({
+  useCopyToClipboard: () => ({ copied: false, copy: () => {} }),
+}));
+
 const render = (text: string) => renderToStaticMarkup(createElement(MarkdownText, { text }));
 
 describe("MarkdownText lists", () => {

@@ -112,8 +112,10 @@ export const profilePatchSchema = z.object({
 });
 
 // === Stripe Checkout Route ===
+// Pro is sold monthly or yearly (owner 2026-10-05: no quarterly — the plan is
+// gated in packages/stripe GATED_PLANS, never checked out).
 export const checkoutSchema = z.object({
-  planId: z.enum(["monthly", "quarterly", "annual"]),
+  planId: z.enum(["monthly", "annual"]),
 });
 
 // === Favorites Route ===

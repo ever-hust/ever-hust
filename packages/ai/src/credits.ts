@@ -19,8 +19,8 @@ export const PLAN_MONTHLY_CREDITS = {
 /** Credit packs available for top-up (id → credits). $ = credits / 1000. */
 export const CREDIT_PACKS = {
   small: 5000, // $5
-  medium: 12000, // $12 (20% bonus)
-  large: 30000, // $30 (25% bonus)
+  medium: 12000, // $12 (no bonus: 1,000 credits per $1)
+  large: 30000, // $30 (no bonus: 1,000 credits per $1)
 } as const;
 export type CreditPackId = keyof typeof CREDIT_PACKS;
 

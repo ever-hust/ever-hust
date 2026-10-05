@@ -25,9 +25,9 @@ interface SubscriptionConfirmedEmailProps {
 
 export function SubscriptionConfirmedEmail({
   userName = "there",
-  planName = "Quarterly",
-  amount = "$12/month",
-  billingCycle = "$36 billed every 3 months",
+  planName = "Monthly",
+  amount = "$20/month",
+  billingCycle = "billed monthly",
   chatUrl = "https://hust.so/chat",
   manageUrl = "https://hust.so/settings",
 }: SubscriptionConfirmedEmailProps) {

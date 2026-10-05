@@ -42,11 +42,16 @@ async function claimEvent(eventId: string): Promise<boolean> {
   }
 }
 
-/** Map plan ID to display info for emails. */
+/**
+ * Map plan ID to display info for emails. The amount is what Stripe charges
+ * for one period (it must match the price), not a per-month equivalent.
+ * `quarterly` is gated (never sold) and kept only so a record naming it still
+ * renders.
+ */
 const PLAN_INFO: Record<string, { name: string; amount: string; cycle: string }> = {
   monthly: { name: "Pro Monthly", amount: "$20", cycle: "month" },
-  quarterly: { name: "Pro Quarterly", amount: "$12/mo", cycle: "quarter" },
-  annual: { name: "Pro Annual", amount: "$7/mo", cycle: "year" },
+  annual: { name: "Pro Annual", amount: "$168", cycle: "year" },
+  quarterly: { name: "Pro Quarterly", amount: "$36", cycle: "quarter" },
 };
 
 export async function POST(req: Request) {

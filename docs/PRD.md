@@ -932,10 +932,10 @@ This means the chat and canvas are synchronized through the AI tool result strea
 5. **How It Works** (3-step flow):
    - Connect LinkedIn -> Chat with AI -> Land Your Job
 
-6. **Pricing Section** (3 cards):
-   - Monthly: $20/mo
-   - Quarterly: $12/mo ($36 billed quarterly) - "Most Popular"
-   - Annual: $7/mo ($84 billed annually) - "Best Value"
+6. **Pricing Section** (owner 2026-10-05: Free + Pro, monthly or yearly, no quarterly):
+   - Pro Monthly: $20/mo
+   - Pro Yearly: $14/mo ($168 billed yearly, save 30%)
+   - Cloud Pro starts with a 90-day free trial; self-hosted Pro costs the same, charged at purchase
    - Free tier callout
 
 7. **Testimonials**: 3 cards with quotes, names, roles
@@ -1131,8 +1131,9 @@ Topics to explore naturally during conversation (NOT hardcoded question sequence
 | Plan      | Price     | Billing            | Badge        |
 | --------- | --------- | ------------------ | ------------ |
 | Monthly   | $20/month | Monthly            | -            |
-| Quarterly | $12/month | $36 every 3 months | Most Popular |
-| Annual    | $7/month  | $84 annually       | Best Value   |
+| Annual    | $14/month | $168 yearly        | Save 30%     |
+
+No quarterly plan (owner 2026-10-05; gated in code, not deleted). Cloud Pro: 90-day free trial.
 
 **Free Tier Limitations**:
 
@@ -1579,7 +1580,7 @@ use-canvas-sync hook dispatches:
 User clicks "Subscribe" on Quarterly plan
   |
   v
-POST /api/stripe/checkout { planType: "quarterly" }
+POST /api/stripe/checkout { planId: "monthly" | "annual" }
   |
   v
 Server creates Stripe Checkout Session
@@ -1669,7 +1670,7 @@ DELETE /api/user/alerts/:id -> 204
 ### Stripe
 
 ```
-POST /api/stripe/checkout { planType: "quarterly" } -> 200 { url: "https://checkout.stripe.com/..." }
+POST /api/stripe/checkout { planId: "annual" } -> 200 { url: "https://checkout.stripe.com/..." }
 POST /api/stripe/portal -> 200 { url: "https://billing.stripe.com/..." }
 POST /api/stripe/webhook (Stripe payload + signature) -> 200 { received: true }
 ```

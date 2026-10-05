@@ -213,8 +213,11 @@ describe("chatRequestSchema", () => {
 describe("checkoutSchema", () => {
   it("accepts valid plan IDs", () => {
     expect(checkoutSchema.safeParse({ planId: "monthly" }).success).toBe(true);
-    expect(checkoutSchema.safeParse({ planId: "quarterly" }).success).toBe(true);
     expect(checkoutSchema.safeParse({ planId: "annual" }).success).toBe(true);
+  });
+
+  it("rejects the gated quarterly plan", () => {
+    expect(checkoutSchema.safeParse({ planId: "quarterly" }).success).toBe(false);
   });
 
   it("rejects invalid plan ID", () => {

@@ -118,7 +118,7 @@ test.describe("Authentication - API Endpoint Protection", () => {
 
   test("Stripe checkout returns 401", async ({ request }) => {
     const response = await request.post("/api/stripe/checkout", {
-      data: { planId: "quarterly" },
+      data: { planId: "monthly" },
     });
     expect(response.status()).toBe(401);
   });

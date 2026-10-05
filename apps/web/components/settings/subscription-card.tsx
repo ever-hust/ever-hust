@@ -10,6 +10,7 @@ import { Separator } from "@ever-hust/ui/separator";
 import { toast } from "sonner";
 import { safeExternalUrl } from "@/lib/safe-url";
 import { PAYMENTS_ENABLED, PRO_COMING_SOON_BUTTON } from "@/lib/payments";
+import { PRO_PRICING } from "@/lib/pro-pricing";
 
 interface SubscriptionCardProps {
   subscriptionStatus: string;
@@ -22,11 +23,11 @@ export function SubscriptionCard({ subscriptionStatus }: SubscriptionCardProps) 
     subscriptionStatus === "past_due";
 
   const upgradeMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (planId: "monthly" | "annual") => {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId: "quarterly" }),
+        body: JSON.stringify({ planId }),
       });
       if (!res.ok) throw new Error("Failed to start checkout");
       return (await res.json()) as { url: string };
@@ -116,16 +117,31 @@ export function SubscriptionCard({ subscriptionStatus }: SubscriptionCardProps) 
               {PRO_COMING_SOON_BUTTON}
             </Button>
           ) : !isPro ? (
-            <Button
-              className="w-full"
-              onClick={() => upgradeMutation.mutate()}
-              disabled={stripeLoading}
-            >
-              {stripeLoading ? (
-                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
-              ) : null}
-              Upgrade to Pro
-            </Button>
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Pro starts with a {PRO_PRICING.trialDays}-day free trial. Your card is
+                charged when it ends, unless you cancel first.
+              </p>
+              <Button
+                className="w-full"
+                onClick={() => upgradeMutation.mutate("monthly")}
+                disabled={stripeLoading}
+              >
+                {stripeLoading ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : null}
+                Upgrade to Pro: ${PRO_PRICING.monthlyUsd}/month
+              </Button>
+              <Button
+                className="w-full"
+                variant="outline"
+                onClick={() => upgradeMutation.mutate("annual")}
+                disabled={stripeLoading}
+              >
+                Yearly: ${PRO_PRICING.yearlyMonthlyUsd}/month, billed $
+                {PRO_PRICING.yearlyTotalUsd} a year (save 30%)
+              </Button>
+            </div>
           ) : (
             <Button
               variant="outline"

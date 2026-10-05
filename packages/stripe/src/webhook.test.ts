@@ -22,7 +22,7 @@ function checkoutEvent(
   overrides: Record<string, unknown> = {}
 ): Stripe.Event {
   return makeEvent("checkout.session.completed", {
-    metadata: { userId: "user_1", planId: "monthly" },
+    metadata: { userId: "user_1", planId: "monthly", app: "hust" },
     client_reference_id: null,
     customer: "cus_abc",
     subscription: "sub_xyz",
@@ -86,7 +86,7 @@ describe("parseWebhookEvent", () => {
     it("falls back to client_reference_id when metadata.userId is absent", () => {
       const result = parseWebhookEvent(
         checkoutEvent({
-          metadata: { planId: "monthly" },
+          metadata: { planId: "monthly", app: "hust" },
           client_reference_id: "user_fallback",
         })
       );
@@ -102,10 +102,21 @@ describe("parseWebhookEvent", () => {
       });
     });
 
+    it("ignores a completed checkout from another Ever product (no Hust marker)", () => {
+      // e.g. a GitHands session: client_reference_id is an org id, no app marker.
+      const result = parseWebhookEvent(
+        checkoutEvent({
+          metadata: { userId: "someone_else", planId: "monthly" },
+          client_reference_id: "org_from_another_product",
+        })
+      );
+      expect(result).toBeNull();
+    });
+
     it("returns null when userId is missing from both metadata and client_reference_id", () => {
       const result = parseWebhookEvent(
         checkoutEvent({
-          metadata: { planId: "monthly" },
+          metadata: { planId: "monthly", app: "hust" },
           client_reference_id: null,
         })
       );
@@ -116,7 +127,7 @@ describe("parseWebhookEvent", () => {
     it("returns null when planId is missing from metadata", () => {
       const result = parseWebhookEvent(
         checkoutEvent({
-          metadata: { userId: "user_1" },
+          metadata: { userId: "user_1", app: "hust" },
         })
       );
 

@@ -97,3 +97,6 @@ jobs:
             # PostHog project key — public phc_ key (Ever Hust project 525078), safe to inline
             # into the client bundle (same value across all envs).
             NEXT_PUBLIC_POSTHOG_KEY=phc_zy7MRvWMzTCSa9pwreMh72EfRHyRk9erTh6x6shu7EZY
+            # Build identity: the commit this image was built from. The Dockerfile sets it as GIT_SHA in the
+            # runtime image and /api/health reports it as `commit`, so a deploy can be verified per env.
+            GIT_SHA=${{ github.sha }}

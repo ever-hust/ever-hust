@@ -503,6 +503,17 @@ export interface StaleSourceVerdict {
 }
 
 /**
+ * A summary's stale-source fields as any app version sends them: an app before the per-source rule
+ * sends stale sources without a verdict and no counts (the route's parsed summary is read here).
+ */
+export type StaleSummaryView = Partial<
+  Pick<
+    SyncSummary,
+    "mode" | "staleSourcesTotal" | "staleSourcesAlarming" | "complete" | "stopReason" | "sourcesSkipped" | "sourcesFailed"
+  >
+> & { staleSources?: Array<StaleSource & Partial<StaleSourceVerdict>> };
+
+/**
  * The per-source D27 rule (spec 01a, revised 2026-10-08). A stale source (no row seen for
  * {@link STALE_SOURCE_DAYS} days) is an ALARM only when this run did not crawl it for a reason
  * that points at breakage:
@@ -548,9 +559,7 @@ function judgeListing({ reason, stopReason }: SourceListing): StaleSourceVerdict
  * crawl-wide, as before: a stale source AND a crawl that was not complete or had failed sources.
  * Takes the route's parsed summary too.
  */
-export function staleSourcesAlarm(
-  summary: Partial<Pick<SyncSummary, "mode" | "staleSources" | "staleSourcesAlarming" | "complete" | "sourcesFailed">>,
-): boolean {
+export function staleSourcesAlarm(summary: StaleSummaryView): boolean {
   if (summary.mode !== "full" || !Array.isArray(summary.staleSources) || summary.staleSources.length === 0) {
     return false;
   }
@@ -573,21 +582,7 @@ function warnHint(thisRun: string): string {
 }
 
 /** The stale sources of a full run (spec 01a D27): an error with {@link staleSourcesAlarm}, else a warning. */
-export function formatStaleSourcesLine(
-  s: Partial<
-    Pick<
-      SyncSummary,
-      | "mode"
-      | "staleSources"
-      | "staleSourcesTotal"
-      | "staleSourcesAlarming"
-      | "complete"
-      | "stopReason"
-      | "sourcesSkipped"
-      | "sourcesFailed"
-    >
-  >,
-): string {
+export function formatStaleSourcesLine(s: StaleSummaryView): string {
   const stale: Array<Partial<JudgedStaleSource>> = Array.isArray(s.staleSources) ? s.staleSources : [];
   const total =
     typeof s.staleSourcesTotal === "number" && s.staleSourcesTotal > stale.length ? s.staleSourcesTotal : stale.length;

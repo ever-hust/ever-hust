@@ -200,9 +200,15 @@ marker. Per alert, the run does **send, then advance**:
    the minimum gap, and reads that marker (`previous`). The cutoff is taken from `windowEnd`, not
    from the clock. So every attempt sees the same alerts, and a marker never moves backwards.
 2. The digest lists the matching jobs with `created_at` in (`previous` − 10 min,
-   `windowEnd` − 10 min], newest first (ties broken by id), at most 20. For a never-sent alert, the
-   period starts 24 h before `windowEnd`. The 10-minute lag (`ALERT_JOBS_SETTLE_MS`) is explained
-   below.
+   `windowEnd` − 10 min] that were also **posted** recently: `date_posted` no earlier than 3 days
+   before the period's start, or no `date_posted` at all (`created_at` stands in;
+   `ALERT_POSTED_GRACE_MS`). Without that bound a full (keyword-less) sync, which creates rows for
+   months-old postings, and a re-inserted row (spec 01a D28) would be mailed as new. The jobs are
+   ordered by `coalesce(date_posted, created_at)` desc, then `created_at` desc, then `id` desc (a
+   total order); up to 60 are read, copies of one posting (same stored `dedupKey`, or for rows
+   without one the ingestor's loose company + title + location identity) are collapsed to their
+   first row, and at most 20 go out. For a never-sent alert, the period starts 24 h before
+   `windowEnd`. The 10-minute lag (`ALERT_JOBS_SETTLE_MS`) is explained below.
 3. The run sends the digest with the key
    `job-alert/<alertId>/<previous in ms, or "first">/<windowEnd in ms>`.
 4. Only after Resend has taken the email does the run move the marker to exactly `windowEnd`,
@@ -362,7 +368,9 @@ original response, and sends nothing new. It answers a repeat with a different p
 
 Counters: `sent` means Resend accepted the email and this run recorded the period. `deduplicated`
 means Resend reported the key as used, or an overlapping request recorded a period first. The job
-alerts response also returns the run's `windowEnd`.
+alerts response also returns the run's `windowEnd`, and `duplicatesCollapsed` (per frequency and in
+total): the copies of one posting left out of digests. A steady non-zero value means the ingest's
+dedupe lets copies through.
 
 Limits of the guarantee:
 

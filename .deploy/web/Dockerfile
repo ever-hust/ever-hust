@@ -75,6 +75,12 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
 
+# Build identity: the commit this image was built from (CI passes `GIT_SHA=${{ github.sha }}`).
+# Runtime-only (read by /api/health as `commit`, apps/web/lib/build-info.ts), so it is declared
+# here, after the COPYs, and never invalidates the builder's cached layers. Unset → empty → null.
+ARG GIT_SHA=""
+ENV GIT_SHA=$GIT_SHA
+
 USER nextjs
 EXPOSE 3000
 CMD ["node", "apps/web/server.js"]

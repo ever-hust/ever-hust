@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 import { applyRateLimit } from "../../../lib/rate-limit";
 import { apiSuccess } from "../../../lib/api-response";
+import { buildCommit } from "../../../lib/build-info";
 
 /**
  * Health check endpoint for monitoring, uptime checks, and load balancers.
@@ -11,7 +12,9 @@ import { apiSuccess } from "../../../lib/api-response";
  * GET  /api/health — Returns JSON health status
  * HEAD /api/health — Returns 200/503 with no body (for load balancer pings)
  *
- * Public consumers get a basic response (status, timestamp, version, uptime).
+ * Public consumers get a basic response (status, timestamp, version, commit, uptime).
+ * `commit` is the full git sha the container image was built from (the `GIT_SHA` build-arg, see
+ * lib/build-info.ts), or null when unknown; `version` keeps its Vercel meaning ("local" on k8s).
  * Internal callers that provide a valid `x-health-token` header also get
  * memory usage and detailed dependency check info.
  *
@@ -92,6 +95,7 @@ export async function GET(req: NextRequest) {
     status: isHealthy ? "healthy" : "unhealthy",
     timestamp: new Date().toISOString(),
     version: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
+    commit: buildCommit(),
     uptime: Math.round((Date.now() - startedAt) / 1000),
   };
 

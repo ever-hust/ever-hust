@@ -29,6 +29,21 @@ export type JobStreamEvent =
  *   producer's reason, kept verbatim), `null` when complete.
  * - `sourcesSkipped` — selected sources that contributed nothing because the fan-out stopped.
  * - `sourcesFailed` — sources that ran and failed on their own (not a completeness signal).
+ *
+ * And, per source (Ever Jobs Spec 1721 FR-20/FR-21, additive too):
+ *
+ * - `sourcesPartial` — sources that returned some jobs and then failed (`partial`).
+ * - `problemSources` — every selected source whose result must not be read as "its whole list",
+ *   `{ site, reason }` in fan-out order: a failure reason (`blocked`, `fetch_error`, `timeout`, …),
+ *   `partial`, `skipped` (a bound left it unstarted or abandoned it), `results_wanted` (it returned
+ *   at least `resultsWanted` jobs, so its list was probably cut there) or `keyword_required` (list
+ *   mode does not query it). A selected source NOT listed ran to the end, did not fail and was not
+ *   cut — but only when the list is whole: see `problemSourcesTotal`. Kept only when it is an
+ *   array of well-typed entries; one ill-typed entry drops the whole field (a list with a hole
+ *   would make a problem source look clean), never coerced.
+ * - `problemSourcesTotal` — how many sources qualified before the producer's cap. Larger than
+ *   `problemSources.length` (or absent) ⇔ the list is truncated, and then no unlisted source may
+ *   be assumed clean.
  */
 export interface JobStreamEnd {
   type: "end";
@@ -40,7 +55,25 @@ export interface JobStreamEnd {
   stopReason?: string | null;
   sourcesSkipped?: number;
   sourcesFailed?: number;
+  sourcesPartial?: number;
+  problemSources?: ProblemSource[];
+  problemSourcesTotal?: number;
 }
+
+/** One entry of {@link JobStreamEnd.problemSources}: a source and why its list is not whole. */
+export interface ProblemSource {
+  /** The source as the producer names it (trimmed, case kept). */
+  site: string;
+  /** The producer's reason, kept verbatim (trimmed): a newer producer may add reasons. */
+  reason: string;
+}
+
+/**
+ * Most `problemSources` entries the client keeps from one end line. The producer caps its list at
+ * 2 500 (its whole catalogue fits, Spec 1721 FR-21); a longer list is cut here, which makes it
+ * read as truncated (`problemSourcesTotal` > length), never as "the rest are clean".
+ */
+export const MAX_PROBLEM_SOURCES_PARSED = 5000;
 
 export type TruncationReason = "missing_end" | "error_line" | "aborted" | "read_failed";
 
@@ -92,6 +125,26 @@ function num(value: unknown): number | undefined {
 /** A non-negative integer count, else undefined. */
 function count(value: unknown): number | undefined {
   return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : undefined;
+}
+
+/**
+ * The end line's `problemSources` (Spec 1721 FR-20): an array of `{ site, reason }` with
+ * non-blank strings, else undefined — one ill-typed entry drops the whole list (see
+ * {@link JobStreamEnd.problemSources}). Longer than {@link MAX_PROBLEM_SOURCES_PARSED}: cut there.
+ */
+export function parseProblemSources(value: unknown): ProblemSource[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const out: ProblemSource[] = [];
+  for (const entry of value.slice(0, MAX_PROBLEM_SOURCES_PARSED)) {
+    if (entry === null || typeof entry !== "object" || Array.isArray(entry)) return undefined;
+    const { site, reason } = entry as { site?: unknown; reason?: unknown };
+    if (typeof site !== "string" || typeof reason !== "string") return undefined;
+    const s = site.trim();
+    const r = reason.trim();
+    if (s === "" || r === "") return undefined;
+    out.push({ site: s, reason: r });
+  }
+  return out;
 }
 
 /**
@@ -158,6 +211,10 @@ export async function* iterateSearchResponse(
               typeof obj.stopReason === "string" ? obj.stopReason : obj.stopReason === null ? null : undefined,
             sourcesSkipped: count(obj.sourcesSkipped),
             sourcesFailed: count(obj.sourcesFailed),
+            // Per source (additive, Spec 1721 FR-20); absent from a producer before FR-20.
+            sourcesPartial: count(obj.sourcesPartial),
+            problemSources: parseProblemSources(obj.problemSources),
+            problemSourcesTotal: count(obj.problemSourcesTotal),
           };
           // The end line is terminal: stop reading (returning cancels the body).
           return;

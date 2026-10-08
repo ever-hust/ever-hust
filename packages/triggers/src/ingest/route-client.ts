@@ -79,6 +79,7 @@ function summarise(summary: Record<string, unknown>): string {
     "complete",
     "stopReason",
     "incompleteStreak",
+    "staleSourcesAlarming",
   ];
   const parts = pick.filter((k) => k in summary).map((k) => `${k}=${String(summary[k])}`);
   const messages = Array.isArray(summary.errorMessages) ? summary.errorMessages.slice(0, 3) : [];
@@ -162,6 +163,7 @@ export async function runSyncViaRoute(options: RouteSyncOptions): Promise<RouteS
       stopReason: "not_reported",
       sourcesSkipped: 0,
       sourcesFailed: 0,
+      sourcesPartial: 0,
       errorMessages: errors.slice(0, 25),
     };
     if (!legacy.ok) {
@@ -219,7 +221,7 @@ export async function runSyncViaRoute(options: RouteSyncOptions): Promise<RouteS
  */
 export function completenessOf(
   summary: Record<string, unknown>,
-): Pick<SyncSummary, "complete" | "stopReason" | "sourcesSkipped" | "sourcesFailed"> {
+): Pick<SyncSummary, "complete" | "stopReason" | "sourcesSkipped" | "sourcesFailed" | "sourcesPartial"> {
   const complete = summary.complete === true;
   const reason = typeof summary.stopReason === "string" && summary.stopReason.trim() !== "" ? summary.stopReason : null;
   const count = (v: unknown) => (typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : 0);
@@ -228,5 +230,6 @@ export function completenessOf(
     stopReason: complete ? null : (reason ?? "not_reported"),
     sourcesSkipped: count(summary.sourcesSkipped),
     sourcesFailed: count(summary.sourcesFailed),
+    sourcesPartial: count(summary.sourcesPartial),
   };
 }

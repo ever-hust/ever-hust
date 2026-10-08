@@ -2,15 +2,18 @@ import { describe, it, expect, jest } from "@jest/globals";
 import { TruncatedStreamError, type JobStreamEnd, type JobStreamEvent, type ScraperInput } from "@ever-hust/jobs-api";
 import { buildSyncPlan, type SyncEnvConfig } from "./config";
 import {
+  formatStaleSourcesLine,
   formatSummaryLine,
+  judgeStaleSource,
   runJobsSync,
+  SourceReportBuilder,
   staleSourcesAlarm,
   type RunSyncDeps,
   type SyncProgress,
   type UpstreamStream,
 } from "./run-sync";
 import { IncompleteRunTracker } from "./incomplete-runs";
-import { MAX_STALE_SOURCES_REPORTED, STALE_SOURCE_DAYS } from "./job-store";
+import { MAX_STALE_SOURCES_READ, MAX_STALE_SOURCES_REPORTED, STALE_SOURCE_DAYS } from "./job-store";
 import { UpstreamContractTracker } from "./upstream-contract";
 import { FakeJobStore } from "./testing/fake-store";
 
@@ -319,15 +322,22 @@ describe("runJobsSync — a source that stays unseen is escalated, from the data
     const ashby: JobStreamEvent = { type: "job", job: { id: "ashby-new", site: "ashby", title: "New" } };
     const s = await runJobsSync(full(), deps(async () => streamOf([ashby, END_PARTIAL]), { store, logger: log }));
 
-    expect(s.staleSources).toEqual([{ site: "workday", lastSeen: expect.stringMatching(/Z$/), rows: 2 }]);
+    // This producer sends no per-source list (before FR-20): the crawl-wide rule judges the source.
+    expect(s.staleSources).toEqual([
+      { site: "workday", lastSeen: expect.stringMatching(/Z$/), rows: 2, thisRun: "unknown", alarm: true },
+    ]);
+    expect(s).toMatchObject({ staleSourcesTotal: 1, staleSourcesAlarming: 1 });
+    expect(s.problemSourcesTotal).toBeUndefined();
     expect(staleSourcesAlarm(s)).toBe(true);
     expect(log.error).toHaveBeenCalledWith(expect.stringContaining(`1 source(s) not seen for ${STALE_SOURCE_DAYS}+ days: workday (last seen `));
     expect(log.error).toHaveBeenCalledWith(expect.stringContaining("stopReason=deadline sourcesSkipped=12 sourcesFailed=0"));
-    expect(formatSummaryLine(s)).toContain("staleSources=1");
+    expect(formatSummaryLine(s)).toContain("staleSources=1 staleSourcesAlarming=1");
     expect(store.calls.findStaleSources).toHaveLength(1);
     const { before, limit } = store.calls.findStaleSources[0]!;
     expect(Math.abs(Date.now() - STALE_SOURCE_DAYS * DAY - before.getTime())).toBeLessThan(60_000);
-    expect(limit).toBe(MAX_STALE_SOURCES_REPORTED);
+    // Every stale source is read and judged, not only the reported ones.
+    expect(limit).toBe(MAX_STALE_SOURCES_READ);
+    expect(MAX_STALE_SOURCES_READ).toBeGreaterThan(MAX_STALE_SOURCES_REPORTED);
   });
 
   it("gives the same answer in any process, and on its first run: nothing is counted in memory", async () => {
@@ -407,5 +417,196 @@ describe("runJobsSync — a source that stays unseen is escalated, from the data
     const untracked = await runJobsSync(full(), deps(async () => streamOf([END_PARTIAL])));
     expect(untracked.incompleteStreak).toBeUndefined();
     expect(tracker.current).toBe(0);
+  });
+});
+
+describe("the per-source stale-source rule (spec 01a D27, revised 2026-10-08; Ever Jobs Spec 1721 FR-20)", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const full = () => buildSyncPlan({ mode: "full" }, ENV, Date.now(), "v1");
+  function storeWith(rows: Array<[string, number]>) {
+    const store = new FakeJobStore();
+    rows.forEach(([site, days], i) =>
+      store.seed({ externalId: `${site}-${i}`, site, title: "T", updatedAt: new Date(Date.now() - days * DAY) }),
+    );
+    return store;
+  }
+  /** What every full run looked like on 2026-10-05: cut by the job ceiling, with failed sources. */
+  const ceilingEnd = (
+    problemSources: Array<{ site: string; reason: string }>,
+    extra: Partial<JobStreamEnd> = {},
+  ): JobStreamEnd => ({
+    type: "end",
+    total: 1,
+    legacy: false,
+    complete: false,
+    stopReason: "job_ceiling",
+    sourcesSkipped: 978,
+    sourcesFailed: 91,
+    sourcesPartial: 3,
+    problemSources,
+    problemSourcesTotal: problemSources.length,
+    ...extra,
+  });
+  const reportOf = (ends: JobStreamEnd[], crawl = { complete: false, sourcesFailed: 1 }, planned = ends.length) => {
+    const builder = new SourceReportBuilder();
+    for (const end of ends) builder.add(end);
+    return builder.build(planned, crawl);
+  };
+
+  it.each([
+    // [listed reason, stream stopReason, verdict label, alarm]
+    ["blocked", "job_ceiling", "blocked", true],
+    ["fetch_error", null, "fetch_error", true],
+    ["timeout", "deadline", "timeout", true],
+    ["circuit_open", "job_ceiling", "circuit_open", true],
+    ["rate_limited", "job_ceiling", "rate_limited", true],
+    ["partial", "job_ceiling", "partial", true],
+    ["skipped", "job_ceiling", "skipped (job_ceiling)", false],
+    ["skipped", "deadline", "skipped (deadline)", true],
+    ["skipped", null, "skipped (no stopReason)", true],
+    ["skipped", "some_new_bound", "skipped (some_new_bound)", true],
+    ["keyword_required", "job_ceiling", "keyword_required", false],
+    ["results_wanted", null, "results_wanted", false],
+    ["a_reason_hust_does_not_know", null, "a_reason_hust_does_not_know", true],
+  ] as const)("a stale source listed %s (stream stopReason %s) → %s, alarm=%s", (reason, stopReason, thisRun, alarm) => {
+    const report = reportOf([ceilingEnd([{ site: "Workday ", reason }], { stopReason, complete: stopReason === null })]);
+    expect(judgeStaleSource("workday", report)).toEqual({ thisRun, alarm });
+  });
+
+  it("a stale source a whole report does not list is not an alarm, whatever the crawl-wide counters say", () => {
+    const report = reportOf([ceilingEnd([{ site: "indeed", reason: "blocked" }])], { complete: false, sourcesFailed: 91 });
+    expect(report.exhaustive).toBe(true);
+    expect(judgeStaleSource("oldboard", report)).toEqual({ thisRun: "not_listed", alarm: false });
+  });
+
+  it("without a whole report, an unlisted stale source falls back to the crawl-wide rule (unknown)", () => {
+    const listed = [{ site: "indeed", reason: "blocked" }];
+    const truncated = reportOf([ceilingEnd(listed, { problemSourcesTotal: 2 })], { complete: true, sourcesFailed: 0 });
+    const noTotal = reportOf([ceilingEnd(listed, { problemSourcesTotal: undefined })], { complete: true, sourcesFailed: 0 });
+    // One planned stream never reported (e.g. a stream that broke): not whole either.
+    const missingStream = reportOf([ceilingEnd(listed)], { complete: true, sourcesFailed: 0 }, 2);
+    for (const r of [truncated, noTotal, missingStream]) {
+      expect(r.exhaustive).toBe(false);
+      // Crawl complete, nothing failed: the old rule's warning.
+      expect(judgeStaleSource("oldboard", r)).toEqual({ thisRun: "unknown", alarm: false });
+      // A listed source is still judged by its listing.
+      expect(judgeStaleSource("indeed", r)).toEqual({ thisRun: "blocked", alarm: true });
+    }
+    expect(judgeStaleSource("oldboard", { ...truncated, sourcesFailed: 1 })).toEqual({ thisRun: "unknown", alarm: true });
+    expect(judgeStaleSource("oldboard", { ...truncated, complete: false })).toEqual({ thisRun: "unknown", alarm: true });
+
+    const preFr20 = reportOf([{ type: "end", total: 1, legacy: false, complete: false, stopReason: "deadline" }], {
+      complete: false,
+      sourcesFailed: 0,
+    });
+    expect(preFr20.listedStreams).toBe(0);
+    expect(judgeStaleSource("oldboard", preFr20)).toEqual({ thisRun: "unknown", alarm: true });
+  });
+
+  it("a source listed by two streams is an alarm if either listing is", () => {
+    const report = reportOf([
+      ceilingEnd([{ site: "lever", reason: "skipped" }]),
+      ceilingEnd([{ site: "lever", reason: "blocked" }], { stopReason: null, complete: true }),
+    ]);
+    expect(judgeStaleSource("LEVER", report)).toEqual({ thisRun: "blocked", alarm: true });
+    expect(report.listed.get("lever")).toHaveLength(2);
+  });
+
+  it("a job-ceiling crawl with failed sources no longer fails for stale sources it cut or no longer lists (H-3 / FS-1)", async () => {
+    // Before: any stale source + complete:false (job_ceiling on every run) = a FAILED run, every 6 hours.
+    const store = storeWith([["lever", 1], ["zipboard", 30], ["oldboard", 50], ["remotive", 20]]);
+    const log = logger();
+    const end = ceilingEnd([
+      { site: "indeed", reason: "blocked" }, // failed, but not stale (no rows)
+      { site: "zipboard", reason: "skipped" }, // stale, cut by the job ceiling
+      { site: "remotive", reason: "keyword_required" }, // stale, list mode does not query it
+    ]);
+    const s = await runJobsSync(full(), deps(async () => streamOf([jobEvent("1"), end]), { store, logger: log }));
+    expect(s).toMatchObject({
+      ok: true,
+      complete: false,
+      stopReason: "job_ceiling",
+      sourcesPartial: 3,
+      problemSourcesTotal: 3,
+      problemReasons: { blocked: 1, skipped: 1, keyword_required: 1 },
+      staleSourcesTotal: 3,
+      staleSourcesAlarming: 0,
+    });
+    expect(s.staleSources!.map((x) => [x.site, x.thisRun, x.alarm])).toEqual([
+      ["oldboard", "not_listed", false],
+      ["zipboard", "skipped (job_ceiling)", false],
+      ["remotive", "keyword_required", false],
+    ]);
+    expect(staleSourcesAlarm(s)).toBe(false);
+    expect(log.error).not.toHaveBeenCalled();
+    // The warning line stays, and says per source what to do.
+    const warning = log.warn.mock.calls.map((c) => String(c[0])).find((m) => m.includes("not seen for"))!;
+    expect(warning).toContain(`3 source(s) not seen for ${STALE_SOURCE_DAYS}+ days`);
+    expect(warning).toContain("zipboard (last seen ");
+    expect(warning).toContain("this run: skipped (job_ceiling)");
+    expect(warning).toContain("none of them points at breakage this run");
+    expect(warning).toContain("JOBS_SYNC_FULL_RESULTS_PER_SOURCE");
+    expect(formatSummaryLine(s)).toContain("sourcesPartial=3 problemSources=3");
+    expect(formatSummaryLine(s)).toContain("staleSources=3 staleSourcesAlarming=0");
+  });
+
+  it("FAILS when a stale source failed, went partial, or was cut by the deadline; alarming ones are reported first", async () => {
+    // 25 warning-only stale sources, all older than the broken one: it still gets a verdict and a place in the report.
+    const rows: Array<[string, number]> = Array.from({ length: 25 }, (_, i): [string, number] => [`gone${i}`, 80 - i]);
+    rows.push(["workday", 11]);
+    const log = logger();
+    const s = await runJobsSync(
+      full(),
+      deps(async () => streamOf([ceilingEnd([{ site: "workday", reason: "blocked" }])]), { store: storeWith(rows), logger: log }),
+    );
+    expect(s).toMatchObject({ staleSourcesTotal: 26, staleSourcesAlarming: 1 });
+    expect(s.staleSources).toHaveLength(MAX_STALE_SOURCES_REPORTED);
+    expect(s.staleSources![0]).toMatchObject({ site: "workday", thisRun: "blocked", alarm: true });
+    // Then the rest, oldest first.
+    expect(s.staleSources![1]).toMatchObject({ site: "gone0", thisRun: "not_listed", alarm: false });
+    expect(staleSourcesAlarm(s)).toBe(true);
+    const line = String(log.error.mock.calls[0]![0]);
+    expect(line).toContain(`26 source(s) not seen for ${STALE_SOURCE_DAYS}+ days (the first ${MAX_STALE_SOURCES_REPORTED} listed)`);
+    expect(line).toContain("this run: blocked [alarm]");
+    expect(line).toContain("1 of them were not crawled this run for a reason that points at breakage");
+
+    for (const [reason, stopReason] of [
+      ["partial", "job_ceiling"],
+      ["skipped", "deadline"],
+    ] as const) {
+      const again = await runJobsSync(
+        full(),
+        deps(async () => streamOf([ceilingEnd([{ site: "workday", reason }], { stopReason })]), {
+          store: storeWith([["workday", 12]]),
+        }),
+      );
+      expect(again.staleSourcesAlarming).toBe(1);
+      expect(staleSourcesAlarm(again)).toBe(true);
+    }
+  });
+
+  it("caps the reasons it counts, so a garbled producer cannot grow the summary", () => {
+    const builder = new SourceReportBuilder();
+    builder.add(ceilingEnd(Array.from({ length: 50 }, (_, i) => ({ site: `s${i}`, reason: `r${i}` }))));
+    const { reasons } = builder.build(1, { complete: false, sourcesFailed: 0 });
+    expect(Object.keys(reasons)).toHaveLength(33);
+    expect(reasons["(other)"]).toBe(18);
+    expect(reasons.r0).toBe(1);
+  });
+
+  it("staleSourcesAlarm reads the app's per-source count, and an older app's summary crawl-wide", () => {
+    const stale = [{ site: "workday", lastSeen: "2026-09-10T06:20:00Z", rows: 812 }];
+    const base = { mode: "full" as const, complete: false, sourcesFailed: 91, staleSources: stale };
+    expect(staleSourcesAlarm({ ...base, staleSourcesAlarming: 0 })).toBe(false);
+    expect(staleSourcesAlarm({ ...base, staleSourcesAlarming: 2 })).toBe(true);
+    // No count (an app before the per-source rule), or a garbled one: the old crawl-wide rule.
+    expect(staleSourcesAlarm(base)).toBe(true);
+    expect(staleSourcesAlarm({ ...base, staleSourcesAlarming: -1 })).toBe(true);
+    expect(staleSourcesAlarm({ ...base, complete: true, sourcesFailed: 0 })).toBe(false);
+    // Never for keyword runs or without stale sources.
+    expect(staleSourcesAlarm({ ...base, mode: "keywords" })).toBe(false);
+    expect(staleSourcesAlarm({ ...base, staleSources: [], staleSourcesAlarming: 0 })).toBe(false);
+    // An older app's line keeps its wording.
+    expect(formatStaleSourcesLine(base)).toContain("812 rows); this crawl did not cover every source (stopReason=not_reported");
   });
 });

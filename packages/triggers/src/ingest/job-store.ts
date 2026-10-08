@@ -10,6 +10,7 @@ import {
 } from "@ever-hust/db";
 import type { mapJobToDb } from "../map-job";
 import { locationKey, type Coords, type CoordsLookup } from "./geocoder";
+import { withTransientRetry, type TransientRetryOptions } from "./transient-retry";
 
 /**
  * Database access for the job sync, behind a small interface so the ingest core is testable
@@ -22,6 +23,8 @@ import { locationKey, type Coords, type CoordsLookup } from "./geocoder";
  * run. The upsert follows the jobs-writer rule (`packages/db/src/jobs-insert.ts`, enforced by
  * `packages/db/src/jobs-insert-guard.test.ts`): one INSERT per `withBoundedJobsInsert`
  * transaction, every row stamped `createdAt: JOBS_CREATED_AT`, never `created_at` on conflict.
+ * A statement that fails on a transient connection error (a DNS blip, a reset socket) is retried
+ * a few times, the whole bounded transaction each time (`./transient-retry.ts`); an SQL error never.
  */
 
 /** A row ready for `jobs`: the mapped DTO plus optional coordinates. */
@@ -239,6 +242,14 @@ export const STALE_SOURCE_DAYS = 10;
 
 /** At most this many stale sources are reported per run. */
 export const MAX_STALE_SOURCES_REPORTED = 20;
+
+/**
+ * At most this many stale sources are read and judged per run (spec 01a D27): above Ever Jobs'
+ * catalogue (~1 860 sources), so every stale source gets a verdict, not only the oldest
+ * {@link MAX_STALE_SOURCES_REPORTED}. The read groups the whole table either way; the bound only
+ * caps the answer.
+ */
+export const MAX_STALE_SOURCES_READ = 2500;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -620,12 +631,22 @@ export interface DrizzleJobStoreOptions {
   readTimeoutMs?: number;
   /** Default {@link SYNC_REFRESH_TIMEOUT_MS}. */
   refreshTimeoutMs?: number;
+  /**
+   * The bounded retry of a statement that failed on a transient connection error (a DNS blip,
+   * a reset socket; `withTransientRetry`). On by default; `false` turns it off.
+   */
+  transientRetry?: TransientRetryOptions | false;
 }
 
 export function createDrizzleJobStore(database: Database = defaultDb, options: DrizzleJobStoreOptions = {}): JobStore {
   const readTimeoutMs = options.readTimeoutMs ?? SYNC_READ_TIMEOUT_MS;
   const refreshTimeoutMs = options.refreshTimeoutMs ?? SYNC_REFRESH_TIMEOUT_MS;
-  const read = <T>(run: (tx: SyncTx) => PromiseLike<T>) => withSyncStatementBound(database, readTimeoutMs, run);
+  const retryOptions = options.transientRetry;
+  // Each attempt is the whole bounded transaction again (see transient-retry.ts).
+  const retry = <T>(run: () => Promise<T>): Promise<T> =>
+    retryOptions === false ? run() : withTransientRetry(run, retryOptions);
+  const read = <T>(run: (tx: SyncTx) => PromiseLike<T>) =>
+    retry(() => withSyncStatementBound(database, readTimeoutMs, run));
   return {
     async findExisting(externalIds) {
       const out = new Map<string, ExistingJobRef>();
@@ -696,8 +717,8 @@ export function createDrizzleJobStore(database: Database = defaultDb, options: D
       // Deduplicated and sorted for a stable statement; the lock order is the query's own
       // (external_id byte order, as the upsert's), see buildLastSeenRefreshQuery.
       const ids = [...new Set(externalIds)].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-      const rows = await withSyncStatementBound(database, refreshTimeoutMs, (tx) =>
-        buildLastSeenRefreshQuery(tx, ids, seenAt),
+      const rows = await retry(() =>
+        withSyncStatementBound(database, refreshTimeoutMs, (tx) => buildLastSeenRefreshQuery(tx, ids, seenAt)),
       );
       return rows.map((r) => r.externalId);
     },
@@ -746,7 +767,8 @@ export function createDrizzleJobStore(database: Database = defaultDb, options: D
       }
       // Jobs-writer rule: one INSERT in a transaction bounded by SET LOCAL timeouts, stamped by the
       // database (JOBS_CREATED_AT). Everything else (reads, geocoding) happened before this call.
-      const returned = await withBoundedJobsInsert(database, (tx) => buildUpsertQuery(tx, rows));
+      // A transient connection error retries the whole bounded transaction (a fresh stamp each time).
+      const returned = await retry(() => withBoundedJobsInsert(database, (tx) => buildUpsertQuery(tx, rows)));
       return returned.map((r) => ({ externalId: r.externalId, inserted: r.inserted === true }));
     },
   };

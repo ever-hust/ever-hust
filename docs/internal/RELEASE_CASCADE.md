@@ -53,6 +53,32 @@ A changed image digest proves nothing about which code a pod runs; `commit` does
 keeps its Vercel meaning and reads `local` on k8s.) The Trigger.dev deploy does not wait for this
 yet, so check `commit` before re-running `trigger-selfhosted-deploy.yml` by hand.
 
+## Deploy windows (the full job sync)
+
+A hust-web rollout during a full job sync kills the sync (the route runs in the web pod). Each
+environment's full sync starts at minute 20 of its own hours (spec 01a D33), so **do not roll
+hust-web in xx:15–xx:35Z** of:
+
+| Env | Trigger task | Full-sync hours (UTC) |
+|-----|--------------|-----------------------|
+| prod | `sync-jobs-full-schedule` | 00, 06, 12, 18 |
+| stage | `sync-jobs-full-schedule-stage` | 02, 08, 14, 20 |
+| dev (Trigger preview `develop`) | `sync-jobs-full-schedule-dev` | 04, 10, 16, 22 |
+
+A full run usually ends within ~10 min, but can take up to an hour (`maxDuration` 3600 s):
+check that no full run is executing in that environment's Trigger dashboard before rolling.
+
+While a sync runs, the web pod holds a marker file `/tmp/hust-jobs-sync-inflight-<mode>`
+(`apps/web/lib/jobs-sync-inflight-marker.ts`; created and removed with the route's single-flight
+slot). A deployment can make rollouts wait for it with a `preStop` hook, plus a
+`terminationGracePeriodSeconds` above the wait (e.g. 3600):
+
+```sh
+sh -c 'i=0; while ls /tmp/hust-jobs-sync-inflight-* >/dev/null 2>&1 && [ "$i" -lt 3540 ]; do sleep 5; i=$((i+5)); done'
+```
+
+The runtime image (`node:24-alpine`, `.deploy/web/Dockerfile`) has busybox `sh`, `ls` and `sleep`.
+
 ## Activating stage (one-time)
 
 The stage workflows + manifest are in the repo but inert until the stage env exists.

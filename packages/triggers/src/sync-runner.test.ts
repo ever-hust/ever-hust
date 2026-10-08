@@ -234,6 +234,55 @@ describe("runScheduledSync (what the Trigger schedules run)", () => {
     ).resolves.toMatchObject({ ok: true });
   });
 
+  it("follows the app's per-source verdict (spec D27 rev. 2026-10-08): a job-ceiling crawl with only warning-level stale sources is ok, with a warning", async () => {
+    const warn = jest.fn();
+    const judged = [
+      { site: "zipboard", lastSeen: "2026-09-10T06:20:00Z", rows: 40, thisRun: "skipped (job_ceiling)", alarm: false },
+      { site: "oldboard", lastSeen: "2026-08-01T00:00:00Z", rows: 3, thisRun: "not_listed", alarm: false },
+    ];
+    // What every full run reported on 2026-10-05 (job_ceiling, failed sources), now judged per source.
+    const ceiling = {
+      ...OK_SUMMARY,
+      complete: false,
+      stopReason: "job_ceiling",
+      sourcesSkipped: 978,
+      sourcesFailed: 91,
+      sourcesPartial: 3,
+      problemSourcesTotal: 1100,
+      staleSources: judged,
+      staleSourcesTotal: 2,
+      staleSourcesAlarming: 0,
+    };
+    const result = await runScheduledSync("full", {
+      fetchImpl: fetchReturning(ndjson([ceiling])),
+      dispatcher: null,
+      logger: { info: jest.fn(), warn },
+    });
+    expect(result).toMatchObject({ ok: true, stopReason: "job_ceiling", sourcesPartial: 3, staleSourcesAlarming: 0 });
+    const lines = warn.mock.calls.map((c) => String(c[0]));
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toContain("2 source(s) not seen for");
+    expect(lines[0]).toContain("zipboard (last seen 2026-09-10T06:20:00Z, 40 rows, this run: skipped (job_ceiling))");
+    expect(lines[0]).toContain("none of them points at breakage this run");
+    expect(lines[1]).toContain("full sync ok but INCOMPLETE: stopReason=job_ceiling");
+
+    // The same run with one stale source that is broken: FAILED, and the message names it.
+    const broken = {
+      ...ceiling,
+      staleSources: [{ site: "workday", lastSeen: "2026-09-27T00:00:00Z", rows: 812, thisRun: "blocked", alarm: true }, ...judged],
+      staleSourcesTotal: 3,
+      staleSourcesAlarming: 1,
+    };
+    const err = await runScheduledSync("full", {
+      fetchImpl: fetchReturning(ndjson([broken])),
+      dispatcher: null,
+      logger: quiet,
+    }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SyncRunFailedError);
+    expect((err as Error).message).toContain("workday (last seen 2026-09-27T00:00:00Z, 812 rows, this run: blocked [alarm])");
+    expect((err as Error).message).toContain("1 of them were not crawled this run for a reason that points at breakage");
+  });
+
   it("reads a summary without completeness fields (an older app) as NOT known complete", async () => {
     const warn = jest.fn();
     const older: Record<string, unknown> = { ...OK_SUMMARY };

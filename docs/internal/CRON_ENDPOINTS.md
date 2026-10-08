@@ -25,7 +25,7 @@ Until 2026-09 six schedules opened the database from the Trigger worker and fail
 | `daily-funnel-snapshots` (02:00), `funnel-snapshots` | `POST /api/cron/funnel-snapshots` | `processFunnelSnapshots` | 290 s |
 | `batch-evaluate` (on demand) | `POST /api/cron/batch-evaluate` `{ userId, jobIds, scoreFloor?, max? }` | `runBatchEvaluate` | 290 s |
 | `inbox-sync-hourly`, `inbox-sync` | `POST /api/inbox/cron-sync` | inbox IMAP sync | 290 s |
-| `sync-jobs-schedule` (every 15 min, keywords), `sync-jobs-full-schedule` (every 6 h, full); under `SCHEDULER=cron`, two k8s CronJobs ([below](#the-jobs-sync-under-schedulercron-k8s-cronjobs)) | `POST /api/jobs/sync` `{ mode, deadlineMs, ... }` | `runJobsSync` (NDJSON progress stream; spec `docs/specs/01a-full-and-keyword-sync`) | 570 s / 3570 s |
+| `sync-jobs-schedule` (every 15 min, keywords), `sync-jobs-full-schedule` / `-stage` / `-dev` (every 6 h, full, one per Trigger environment at staggered hours, spec 01a D33); under `SCHEDULER=cron`, two k8s CronJobs ([below](#the-jobs-sync-under-schedulercron-k8s-cronjobs)) | `POST /api/jobs/sync` `{ mode, deadlineMs, ... }` | `runJobsSync` (NDJSON progress stream; spec `docs/specs/01a-full-and-keyword-sync`) | 570 s / 3570 s |
 
 - **Code layout.** The work functions live in `packages/triggers/src/work/*`, exported as
   `@ever-hust/triggers/work`. That entry point never imports `@trigger.dev/sdk`, and a test checks
@@ -85,13 +85,26 @@ Until 2026-09 six schedules opened the database from the Trigger worker and fail
   every 10 s, so the header limit never applies; the tasks read that stream with their own client
   (`runSyncViaRoute`, `packages/triggers/src/ingest/route-client.ts`, not `callAppEndpoint()`)
   through a long-timeout dispatcher. `sync-jobs-schedule` (keywords) has `maxDuration` 600 s and waits 570 s,
-  `sync-jobs-full-schedule` 3600 s and 3570 s; the route is told a budget 20 s shorter
+  every full schedule 3600 s and 3570 s; the route is told a budget 20 s shorter
   (`deadlineMs`) and bounds itself by it. Retries are off for both (the next tick is the retry).
+  All sync tasks share one queue (`sync-jobs`, concurrency 1), so a keyword and a full sync never
+  run at once against one Ever Jobs; scheduled runs have a TTL (keyword 10 min, full 1 h) and expire
+  instead of piling up; a keyword tick that starts more than 10 min late returns
+  `skipped: "late_tick"` (spec 01a D33). The full sync has one schedule per Trigger environment:
+
+  | Task | Cron (UTC) | Trigger env | Do not roll hust-web |
+  |---|---|---|---|
+  | `sync-jobs-full-schedule` | `20 */6 * * *` | prod (`PRODUCTION`) | xx:15–xx:35Z at 00/06/12/18h |
+  | `sync-jobs-full-schedule-stage` | `20 2-23/6 * * *` | staging (`STAGING`) | xx:15–xx:35Z at 02/08/14/20h |
+  | `sync-jobs-full-schedule-dev` | `20 4-23/6 * * *` | preview `develop` (`PREVIEW`) and local dev | xx:15–xx:35Z at 04/10/16/22h |
   The run's summary line ends the stream: `ok: false` (or no summary) fails the run;
   `ok: true, complete: false` is a partial upstream crawl that was stored, logged as a warning.
   A full run also lists `staleSources`: sources none of whose rows a sync has seen for 10 days,
-  read from the database at the end of the run. When there are any and the crawl was not complete
-  (or sources failed), the full task fails (spec 01a D27).
+  read from the database at the end of the run, each judged against Ever Jobs' per-source report
+  (`problemSources`). The full task fails only when one of them was not crawled this run for a
+  reason that points at breakage (it failed, went partial, or was skipped by the fan-out deadline:
+  `staleSourcesAlarming` > 0); stale sources the job ceiling cut, that list mode does not query,
+  or that Ever Jobs no longer lists are a warning line (spec 01a D27/D32).
   The on-demand `sync-jobs` task runs the sync in-process and needs `DATABASE_URL`, which the
   Trigger environments must not have: it is for local or manual runs, not for Trigger.dev.
 
@@ -121,9 +134,10 @@ two k8s CronJobs take their place (spec 01a D31). Both are checked in **suspende
   fail the Job (exit 1) when curl failed or timed out, the answer was not 2xx, the stream has no
   `{"type":"summary",…}` line (cut), or the summary line does not start with
   `{"type":"summary","ok":true,`. The full CronJob also fails on the stale-sources alarm: a
-  non-empty `staleSources` while the crawl was not `"complete":true` or `sourcesFailed` is not
-  0, which is where the Trigger full task throws (spec D27); after a complete crawl it only logs a
-  warning. A skipped run (full mode gated off, spec D18) is `ok` and succeeds. The Job log shows
+  non-empty `staleSources` with `"staleSourcesAlarming"` above 0, which is where the Trigger full
+  task throws (spec D27/D32); with 0 it only logs a warning. A summary without that count (an app
+  before D32) is judged crawl-wide as before: an alarm unless the crawl was `"complete":true`
+  with `sourcesFailed` 0. A skipped run (full mode gated off, spec D18) is `ok` and succeeds. The Job log shows
   the HTTP status, curl's exit code and the summary line. A test runs both scripts, with a stub
   `curl`, against the route's real output (`apps/web/lib/jobs-sync-cronjob.test.ts`).
 - A full run without Ever Jobs contract v1 (and without `JOBS_SYNC_FULL_ENABLED=true`) ends
@@ -186,9 +200,22 @@ marker. Per alert, the run does **send, then advance**:
    the minimum gap, and reads that marker (`previous`). The cutoff is taken from `windowEnd`, not
    from the clock. So every attempt sees the same alerts, and a marker never moves backwards.
 2. The digest lists the matching jobs with `created_at` in (`previous` − 10 min,
-   `windowEnd` − 10 min], newest first (ties broken by id), at most 20. For a never-sent alert, the
-   period starts 24 h before `windowEnd`. The 10-minute lag (`ALERT_JOBS_SETTLE_MS`) is explained
-   below.
+   `windowEnd` − 10 min] that were also **posted** recently: `coalesce(date_posted, created_at)`
+   no earlier than 3 days (`ALERT_POSTED_GRACE_MS`) before the period's start, where the start
+   used for this bound is capped at `ALERT_POSTED_PERIOD_CAP_MS` before the period's end (daily
+   24 h, twice_daily 24 h, weekly 7 days: the longest period a digest covers in normal
+   operation). Without the bound a full (keyword-less) sync, which creates rows for months-old
+   postings, and a re-inserted row (spec 01a D28) would be mailed as new. Without the cap, an alert
+   whose marker went stale (weeks without a match, paused, or a lapsed subscription: the marker
+   only moves when a digest goes out) would accept postings as old as that marker. The cap only
+   narrows the posted bound; the `created_at` period still starts at the marker, so each job is
+   considered by exactly one period. The jobs are ordered by `coalesce(date_posted, created_at)`
+   desc, then `created_at` desc, then `id` desc (a total order) and read in pages of 60. Copies of
+   one posting (same stored `dedupKey`, or for rows without one the ingestor's loose company +
+   title + location identity) are collapsed to their first row over everything read so far. The
+   next page is read until 20 distinct jobs are found, a page comes back short, or 25 pages were
+   read (`ALERT_CANDIDATE_MAX_PAGES`). At most 20 go out. For a never-sent alert, the period starts
+   24 h before `windowEnd`. The 10-minute lag (`ALERT_JOBS_SETTLE_MS`) is explained below.
 3. The run sends the digest with the key
    `job-alert/<alertId>/<previous in ms, or "first">/<windowEnd in ms>`.
 4. Only after Resend has taken the email does the run move the marker to exactly `windowEnd`,
@@ -348,7 +375,9 @@ original response, and sends nothing new. It answers a repeat with a different p
 
 Counters: `sent` means Resend accepted the email and this run recorded the period. `deduplicated`
 means Resend reported the key as used, or an overlapping request recorded a period first. The job
-alerts response also returns the run's `windowEnd`.
+alerts response also returns the run's `windowEnd`, and `duplicatesCollapsed` (per frequency and in
+total): the copies of one posting left out of digests. A steady non-zero value means the ingest's
+dedupe lets copies through.
 
 Limits of the guarantee:
 

@@ -16,8 +16,10 @@ import {
   type UpstreamContractTracker,
   type UpstreamStream,
 } from "@ever-hust/triggers/ingest";
+import { randomUUID } from "node:crypto";
 import { generateRequestId } from "./api-response";
 import { verifyCronRequest } from "./cron-auth";
+import { fileInFlightMarker, safely, type InFlightMarker } from "./jobs-sync-inflight-marker";
 
 /**
  * `POST /api/jobs/sync` — the job-corpus sync endpoint (spec 01a FR-11).
@@ -116,6 +118,12 @@ export interface JobsSyncRouteDeps {
   upstreamContract: UpstreamContractTracker;
   /** Runs in flight in this process, by mode (single-flight guard). */
   inFlight: Map<SyncMode, InFlightRun>;
+  /**
+   * The in-flight marker file per mode (`${os.tmpdir()}/hust-jobs-sync-inflight-<mode>`), created
+   * with the single-flight slot and removed with it, so a pod's `preStop` hook can wait for a
+   * running sync without HTTP (H-12; `./jobs-sync-inflight-marker.ts`). Best effort.
+   */
+  inFlightMarker: InFlightMarker;
 }
 
 export interface InFlightRun {
@@ -143,6 +151,7 @@ function defaultDeps(): JobsSyncRouteDeps {
     logger: console,
     upstreamContract: processUpstreamContract,
     inFlight: IN_FLIGHT,
+    inFlightMarker: fileInFlightMarker(),
   };
 }
 
@@ -246,8 +255,13 @@ export async function handleJobsSync(
   }
   const token = Symbol(plan.mode);
   deps.inFlight.set(plan.mode, { startedAt: receivedAt, expiresAt: deadlineAt + STALE_RUN_GRACE_MS, token });
+  // The marker file goes with the slot (H-12): a preStop hook waits while it exists. It holds
+  // this run's own token, so a run that outlived its slot never removes the next run's marker.
+  const markerToken = randomUUID();
+  safely(() => deps.inFlightMarker.create(plan.mode, markerToken, receivedAt));
   const release = () => {
     if (deps.inFlight.get(plan.mode)?.token === token) deps.inFlight.delete(plan.mode);
+    safely(() => deps.inFlightMarker.remove(plan.mode, markerToken));
   };
 
   try {

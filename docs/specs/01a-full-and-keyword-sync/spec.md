@@ -70,10 +70,10 @@ Hust ingests its job corpus from the Ever Jobs API, but only ever stores **page 
 | FR-6  | A shared ingest core consumes the stream in batches of 250 with bounded memory; maps with `mapJobToDb`; skips invalid rows; asks Ever Jobs for every observation (`dedup=false`, D22) and dedupes within the run itself by `external_id`, and drops a job as a copy when a posting from **another source** with the same `dedupKey` (C9), or for a job without a key the same company + title + location, was kept earlier in the run; one source's two ids with one key are two postings, one copy absorbs at most one posting of each source, and an `external_id` that already exists is always written under itself (D23); prevents a second row when a `dedupKey` already exists on another source's row under a different `external_id` (cross-run merge, D2). | must |
 | FR-7  | One bulk upsert statement per batch: `INSERT … ON CONFLICT (external_id) DO UPDATE … WHERE (content columns) IS DISTINCT FROM (excluded content columns)`, so unchanged rows are not rewritten; that predicate is read ahead for the rows that exist, so unchanged rows are not sent at all and rows only due their weekly refresh get a narrow `UPDATE … SET updated_at` (D24); falls back to row-by-row only when the batch statement fails, and stops the fallback after 5 rows in a row failed or past the run's deadline (D25). Every statement (the batch's, and each fallback row's) follows the jobs-writer rule (D20): it runs alone in `withBoundedJobsInsert`, every row ends with `createdAt: JOBS_CREATED_AT`, the conflict `SET` never touches `created_at`, and a statement holds at most 250 rows. | must |
 | FR-8  | Geocode only rows that lack coordinates, memoised per normalised `(city,state,country)` within the run **and across runs of the process** (coordinates and ZERO_RESULTS 24 h, failed calls 1 h, "no stored coordinates" 6 h; bounded to 20 k entries), reusing coordinates already stored for the same location key (one batched query per batch, only for locations the process memo does not know; after two such queries in a run, one load of every stored location for the rest of the run, D26) before calling Google; stop calling Google for the rest of the run after the first `OVER_QUERY_LIMIT` (also `REQUEST_DENIED`) and keep it off for the process for 1 h; cap Google calls per run (`JOBS_SYNC_GEOCODE_MAX_CALLS`, default 500, for full runs; `JOBS_SYNC_KEYWORD_GEOCODE_MAX_CALLS`, default 100 and never above the former, for keyword runs). | must |
-| FR-9  | Counters per run: `received, inserted, updated, unchanged, invalid, duplicatesMerged, mergedWrites, geocodeCalls, geocodeReused, errors, durationMs` (`mergedWrites` = merges that rewrote the owning row, a subset of `duplicatesMerged`), plus the upstream crawl completeness `complete, stopReason, sourcesSkipped, sourcesFailed` (D21) and, for full runs, `staleSources` and the per-process `incompleteStreak` (information only) (D27); one summary log line per run, one warning line when an ok run is not complete, an error line when a source has gone unseen for 10 days while the crawl was not complete or sources failed (a warning line after a complete crawl). | must |
+| FR-9  | Counters per run: `received, inserted, updated, unchanged, invalid, duplicatesMerged, mergedWrites, geocodeCalls, geocodeReused, errors, durationMs` (`mergedWrites` = merges that rewrote the owning row, a subset of `duplicatesMerged`), plus the upstream crawl completeness `complete, stopReason, sourcesSkipped, sourcesFailed` (D21) and, for full runs, `staleSources` (each with this run's verdict), `staleSourcesTotal`, `staleSourcesAlarming` and the per-process `incompleteStreak` (information only) (D27, D32), plus the producer's per-source report `sourcesPartial`, `problemSourcesTotal`, `problemReasons` (D32); one summary log line per run, one warning line when an ok run is not complete, an error line when a source has gone unseen for 10 days and this run did not crawl it for a reason that points at breakage (D32; a warning line for the other stale sources). | must |
 | FR-10 | Two modes. `full`: no `searchTerm`, no `siteCategories`, `resultsWanted = JOBS_SYNC_FULL_RESULTS_PER_SOURCE` (default 1000), `country: "USA"` kept only as the Indeed-style hint; runs only once the process has seen Ever Jobs answer in NDJSON (D18, `JOBS_SYNC_FULL_ENABLED`). `keywords`: rotating term(s), `siteCategories = JOBS_SYNC_KEYWORD_SITE_CATEGORIES` (default `job-board,niche,regional,remote,government,freelance`), `resultsWanted = JOBS_SYNC_KEYWORD_RESULTS_PER_SOURCE` (default 100; 80 until contract v1 is seen, D18). Any per-source count is capped at 1000. | must |
 | FR-11 | `POST /api/jobs/sync` is guarded by the shared cron guard `verifyCronRequest` (`apps/web/lib/cron-auth.ts`: `CRON_SECRET`, constant-time, fail closed in production), accepts `{ mode?, searchTerms?, resultsWanted?, siteCategories?, deadlineMs? }`, returns non-2xx if it fails **before** streaming (auth 401, no `CRON_SECRET` in production 503, bad body 400, same mode already running in this process 409, upstream refused 502), otherwise streams NDJSON progress lines (≤ every 10 s) and ends with exactly one `{"type":"summary","ok":…,…counters}` line. `ok` is never `true` when the upstream failed or a stream was truncated. | must |
-| FR-12 | Trigger.dev: `sync-jobs-schedule` (`*/15`) runs `mode=keywords`; new `sync-jobs-full-schedule` (`20 */6 * * *`) runs `mode=full` with `maxDuration` 3600 s and a `concurrencyLimit: 1` queue. Both read the route's progress stream, parse the summary, return the counters and **throw** when `ok` is false or the summary is missing. A run that is `ok` on a partial crawl (`complete: false`, D21) does **not** throw: the task logs a warning with the `stopReason` and returns the summary — unless a source has gone unseen for 10 days while the crawl was not complete or sources failed (`staleSources`, D27): then the full task throws. | must |
+| FR-12 | Trigger.dev: `sync-jobs-schedule` (`*/15`) runs `mode=keywords`; new `sync-jobs-full-schedule` (`20 */6 * * *`) runs `mode=full` with `maxDuration` 3600 s and a `concurrencyLimit: 1` queue. Both read the route's progress stream, parse the summary, return the counters and **throw** when `ok` is false or the summary is missing. A run that is `ok` on a partial crawl (`complete: false`, D21) does **not** throw: the task logs a warning with the `stopReason` and returns the summary — unless a source has gone unseen for 10 days and this run did not crawl it for a reason that points at breakage (`staleSourcesAlarming` > 0, D27/D32): then the full task throws. Since D33 every sync task runs on one queue (`sync-jobs`, concurrency 1), scheduled runs have a TTL (10 min keyword, 1 h full), a keyword tick that starts over 10 min late skips itself, and the full schedule is one declaration per Trigger environment at staggered hours (prod keeps `sync-jobs-full-schedule`, `20 */6 * * *`). | must |
 | FR-13 | `SEARCH_TERMS` gains intern / new-grad / entry-level / quant terms. | must |
 | FR-14 | `mapJobToDb`: `job_level ← careerLevel.level` (C7) when present and not `unknown`, else the source `jobLevel`; `careerLevel` and `dedupKey` stay in `raw_data`. | must |
 | FR-15 | `/api/jobs/search` orders by `date_posted DESC NULLS LAST`. | must |
@@ -98,6 +98,11 @@ Hust ingests its job corpus from the Ever Jobs API, but only ever stores **page 
   `complete: false` means the producer's fan-out deadline or job ceiling left sources unscraped;
   a missing or non-true `complete` (an older producer, the legacy JSON fallback) is read as "not
   known complete" (D21).
+- End-line per-source report (Ever Jobs Spec 1721 FR-20/FR-21, additive):
+  `"sourcesPartial":n,"problemSources":[{"site":"…","reason":"…"}],"problemSourcesTotal":n` — every
+  selected source whose list is not whole (a failure reason, `partial`, `skipped`, `results_wanted`,
+  `keyword_required`); `problemSourcesTotal` larger than the list means it was truncated. The
+  client keeps the list only when every entry is well-typed (one bad entry drops it) (D32).
 - `?dedup=false` opts out of the producer's cross-source dedup (its default is on); every job still
   carries its `dedupKey`. The sync always sends it (D22).
 
@@ -524,6 +529,106 @@ None blocking; see Decisions.
   stream and fail the Job on a curl error, a non-2xx, a missing summary line or a summary that is
   not `ok: true`; the full one also on the D27 alarm (warning only after a complete crawl). Both
   stay suspended until `SCHEDULER=cron` is set (`docs/internal/CRON_ENDPOINTS.md`).
+  Since D32 the full one reads the app's per-source count (`"staleSourcesAlarming":N`; the
+  crawl-wide rule only for an app that does not send it).
+
+- **D32 — the stale-source alarm is per source (H-3 / FS-1, 2026-10-08).** D27 failed a full run
+  whenever any source was stale and the crawl was not complete or any source failed. Every full
+  run on dev, stage and prod since 2026-10-05 is cut by Ever Jobs' job ceiling
+  (`stopReason: job_ceiling`, ~978 sources skipped) and has ~91 failed sources (a catalogue crawl
+  always has some), so every full run showed FAILED in Trigger although its summary was `ok`, and
+  a permanently red run hides a new failure. Ever Jobs now reports per source which selected
+  sources must not be read as their whole list (`problemSources`, Spec 1721 FR-20). The client
+  parses it (`JobStreamEnd`), the run collects every end line's list, and at the end of a full run
+  every stale source (up to `MAX_STALE_SOURCES_READ` = 2 500, above the catalogue, so a newly
+  broken source is judged even behind many older warning-only ones) gets a verdict
+  (`judgeStaleSource`, `packages/triggers/src/ingest/run-sync.ts`):
+
+  | this run's report on the stale source | verdict |
+  |---|---|
+  | listed with a failure reason (`blocked`, `fetch_error`, `timeout`, `bad_input`, `browser_unavailable`, `circuit_open`, `not_registered`, `rate_limited`, `unknown`) | **alarm**: it used to deliver (it has rows) and now fails |
+  | listed `partial` | **alarm** |
+  | listed `skipped`, its stream stopped on `job_ceiling` | warning: a sizing matter (Ever Jobs' `EVER_JOBS_MAX_JOBS_PER_SEARCH`, Hust's `JOBS_SYNC_FULL_RESULTS_PER_SOURCE`), not breakage |
+  | listed `skipped`, stopped on `deadline`, on no reason or on one Hust does not know | **alarm** (D19 step 1, D27's original case) |
+  | listed `keyword_required` (list mode does not query it) or `results_wanted` (it delivered jobs) | warning |
+  | listed with a reason Hust does not know | **alarm** |
+  | not listed, and every stream's list is whole | warning (`not_listed`: it ran clean, or Ever Jobs no longer selects it) |
+  | not listed, and some stream sent no list (a producer before FR-20) or a truncated one | D27's crawl-wide rule (`unknown`): alarm unless the crawl was complete with no failed source |
+
+  A source listed by several streams is an alarm if any listing is. The summary reports the
+  stale sources with their verdict (`thisRun`, `alarm`), the alarming ones first, at most 20, plus
+  `staleSourcesTotal` and `staleSourcesAlarming`; the run logs an error line when
+  `staleSourcesAlarming` > 0 and a warning line naming each stale source's verdict and what to do
+  otherwise (the Trigger task logs that warning too). The scheduled and in-process full tasks and
+  the full CronJob fail only on `staleSourcesAlarming` > 0; a summary without the count (an app
+  before D32, read by a newer task during a deploy) is judged crawl-wide as before. Trade-offs: a
+  source the job ceiling cuts on every run stays a warning and its postings age out with the
+  90-day cleanup until the crawl is sized (H-2 step 8); a source whose `site` in the per-source
+  report differs from the `site` its jobs carry is judged `not_listed` (warning). Nothing is
+  deleted or expired on the basis of this report (absence-based expiry is spec 01b).
+- **D33 — one sync queue, TTLs, late keyword ticks skipped, and staggered full schedules (H-4,
+  T-3, FS-3 / H-1 step 4; 2026-10-08).**
+  1. **One queue.** The keyword and full schedules each had their own concurrency-1 queue
+     (`sync-jobs-keywords`, `sync-jobs-full`) and the route's single-flight guard is per mode, so
+     a full crawl overlapped up to four keyword fan-outs against the same Ever Jobs (one replica
+     with a 2.5 GB heap on dev and stage; on 2026-10-05 a stage full run overlapped the :15 keyword
+     run). Now `sync-jobs-schedule`, every full schedule and the on-demand `sync-jobs` task share
+     `queue({ name: "sync-jobs", concurrencyLimit: 1 })`. The old queues stay unused.
+  2. **Late keyword ticks skip.** Behind a full run (up to an hour) the keyword ticks wait on the
+     shared queue and would then fire back to back, each taking its term from the clock at plan
+     time (`rotationTerm`), so the same term again. A tick that starts more than 10 min after its
+     scheduled time (`payload.timestamp`) returns `{ ok: true, skipped: "late_tick", … }` without
+     calling the app (not a failure; the next tick runs). Below the 15-min interval, so a tick
+     never runs in the next tick's rotation slot.
+  3. **TTL.** Scheduled runs that cannot start in time expire instead of piling up behind a stuck
+     queue (on 2026-10-05, 556 runs piled up behind a phantom run): `ttl: "10m"` on the keyword
+     schedule, `"1h"` on the full ones (task-level `ttl`, `@trigger.dev/sdk` 4.4.6). An expired
+     run shows EXPIRED, not FAILED. The on-demand `sync-jobs` task has none.
+  4. **Staggered full schedules.** dev, stage and prod all fired `20 */6 * * *` at the same minute
+     against the same external sites and the same Postgres cluster, which also hosts Gauzy
+     production. The full schedule is now three declarations sharing one run function, each with
+     the SDK's declarative `environments` filter:
+
+     | task id | cron (UTC) | Trigger environments | fires at |
+     |---|---|---|---|
+     | `sync-jobs-full-schedule` (unchanged id) | `20 */6 * * *` | `PRODUCTION` | 00/06/12/18:20Z |
+     | `sync-jobs-full-schedule-stage` | `20 2-23/6 * * *` | `STAGING` | 02/08/14/20:20Z |
+     | `sync-jobs-full-schedule-dev` | `20 4-23/6 * * *` | `PREVIEW` (branch `develop` = hust-dev), `DEVELOPMENT` | 04/10/16/22:20Z |
+
+     Prod keeps its id and cron, so its schedule and run history continue. A run that still
+     fires in an environment its declaration is not for (a platform that ignores the filter)
+     returns `{ ok: true, skipped: "wrong_environment", … }` without calling the app. After the
+     Trigger deploy of each environment, check that it has exactly one full schedule: the
+     `sync-jobs-full-schedule` instances of stage and preview/develop must be gone.
+  5. **Deploy windows.** A hust-web rollout during a full run kills the run (H-12), so do not roll
+     hust-web in xx:15–xx:35Z of that environment's full-sync hours: prod 00/06/12/18h, stage
+     02/08/14/20h, dev 04/10/16/22h (`docs/internal/RELEASE_CASCADE.md`).
+
+  The `SCHEDULER=cron` fallback is unchanged: every schedule no-ops first, and the checked-in
+  full CronJob (`.deploy/k8s/sync-full-cronjob.yaml`, the prod manifest) keeps `20 */6 * * *`; a
+  stage or dev copy should take its environment's hours from the table above.
+- **D34 — a statement that fails on a transient connection error is retried (H-2 follow-up (a),
+  2026-10-08).** On 2026-09-27 a hust-dev full run aborted after three batches in a row failed
+  with `getaddrinfo EAI_AGAIN pg-rw…` (a cluster DNS blip): D25's consecutive-failure abort threw
+  the run away over seconds of DNS. Every Drizzle job-store statement (reads, the last-seen
+  refresh, the batch upsert) now runs under `withTransientRetry`
+  (`packages/triggers/src/ingest/transient-retry.ts`): up to 4 attempts, waiting 0.5 / 1.5 / 4.5 s,
+  only for `EAI_AGAIN`, `ENOTFOUND`, `ECONNRESET`, `ETIMEDOUT` or postgres.js `CONNECT_TIMEOUT` on
+  the error or its `cause` chain, and never when the server answered (a `PostgresError` with a
+  SQLSTATE: statement timeouts, constraint violations, serialization failures). Each attempt is
+  the whole bounded transaction again (a new `SET LOCAL`, a new `statement_timestamp()` stamp), so
+  D20/D25 hold per attempt; re-running a statement whose COMMIT may have landed is safe (the
+  upsert's `WHERE <changed>` leaves its own rows alone, the refresh touches only stale rows). A
+  database that is really down still fails each batch within ≈ 7 s more than before, and D25's
+  abort still applies. Each retry logs one warning line.
+- **D35 — a marker file while a sync runs (H-12 / FS-5, 2026-10-08).** Next.js exits at once on
+  SIGTERM, so a hust-web rollout during a full sync killed the run. The route writes
+  `${os.tmpdir()}/hust-jobs-sync-inflight-<mode>` (start time and a per-run token) when it takes
+  the mode's single-flight slot and removes it where it frees the slot, only if the file still
+  holds its token (a run that outlived its slot never removes the next run's marker). A pod's
+  `preStop` hook waits while `/tmp/hust-jobs-sync-inflight-*` exists (`docs/internal/RELEASE_CASCADE.md`).
+  Best effort: a marker error is a warning, never a failed or blocked sync; the file calls are
+  synchronous so a create is never overtaken by its own remove.
 
 **Implementation status (2026-09-24):** all tasks in [`tasks.md`](tasks.md) implemented on branch
 `feat/full-and-keyword-sync`; not yet deployed. Review fixes of 2026-09-25 (D2 revised, D1

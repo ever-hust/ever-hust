@@ -621,6 +621,14 @@ None blocking; see Decisions.
   upsert's `WHERE <changed>` leaves its own rows alone, the refresh touches only stale rows). A
   database that is really down still fails each batch within ≈ 7 s more than before, and D25's
   abort still applies. Each retry logs one warning line.
+- **D35 — a marker file while a sync runs (H-12 / FS-5, 2026-10-08).** Next.js exits at once on
+  SIGTERM, so a hust-web rollout during a full sync killed the run. The route writes
+  `${os.tmpdir()}/hust-jobs-sync-inflight-<mode>` (start time and a per-run token) when it takes
+  the mode's single-flight slot and removes it where it frees the slot, only if the file still
+  holds its token (a run that outlived its slot never removes the next run's marker). A pod's
+  `preStop` hook waits while `/tmp/hust-jobs-sync-inflight-*` exists (`docs/internal/RELEASE_CASCADE.md`).
+  Best effort: a marker error is a warning, never a failed or blocked sync; the file calls are
+  synchronous so a create is never overtaken by its own remove.
 
 **Implementation status (2026-09-24):** all tasks in [`tasks.md`](tasks.md) implemented on branch
 `feat/full-and-keyword-sync`; not yet deployed. Review fixes of 2026-09-25 (D2 revised, D1

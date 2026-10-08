@@ -35,8 +35,10 @@ export {
   iterateSearchResponse,
   isNdjsonContentType,
   emptyStreamStats,
+  parseProblemSources,
+  MAX_PROBLEM_SOURCES_PARSED,
 } from "./stream";
-export type { JobStreamEnd, JobStreamEvent, JobStreamStats, TruncationReason } from "./stream";
+export type { JobStreamEnd, JobStreamEvent, JobStreamStats, ProblemSource, TruncationReason } from "./stream";
 export {
   createLongTimeoutDispatcher,
   createLongTimeoutDispatcherCache,

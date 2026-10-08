@@ -25,7 +25,7 @@ Until 2026-09 six schedules opened the database from the Trigger worker and fail
 | `daily-funnel-snapshots` (02:00), `funnel-snapshots` | `POST /api/cron/funnel-snapshots` | `processFunnelSnapshots` | 290 s |
 | `batch-evaluate` (on demand) | `POST /api/cron/batch-evaluate` `{ userId, jobIds, scoreFloor?, max? }` | `runBatchEvaluate` | 290 s |
 | `inbox-sync-hourly`, `inbox-sync` | `POST /api/inbox/cron-sync` | inbox IMAP sync | 290 s |
-| `sync-jobs-schedule` (every 15 min, keywords), `sync-jobs-full-schedule` (every 6 h, full); under `SCHEDULER=cron`, two k8s CronJobs ([below](#the-jobs-sync-under-schedulercron-k8s-cronjobs)) | `POST /api/jobs/sync` `{ mode, deadlineMs, ... }` | `runJobsSync` (NDJSON progress stream; spec `docs/specs/01a-full-and-keyword-sync`) | 570 s / 3570 s |
+| `sync-jobs-schedule` (every 15 min, keywords), `sync-jobs-full-schedule` / `-stage` / `-dev` (every 6 h, full, one per Trigger environment at staggered hours, spec 01a D33); under `SCHEDULER=cron`, two k8s CronJobs ([below](#the-jobs-sync-under-schedulercron-k8s-cronjobs)) | `POST /api/jobs/sync` `{ mode, deadlineMs, ... }` | `runJobsSync` (NDJSON progress stream; spec `docs/specs/01a-full-and-keyword-sync`) | 570 s / 3570 s |
 
 - **Code layout.** The work functions live in `packages/triggers/src/work/*`, exported as
   `@ever-hust/triggers/work`. That entry point never imports `@trigger.dev/sdk`, and a test checks
@@ -85,8 +85,18 @@ Until 2026-09 six schedules opened the database from the Trigger worker and fail
   every 10 s, so the header limit never applies; the tasks read that stream with their own client
   (`runSyncViaRoute`, `packages/triggers/src/ingest/route-client.ts`, not `callAppEndpoint()`)
   through a long-timeout dispatcher. `sync-jobs-schedule` (keywords) has `maxDuration` 600 s and waits 570 s,
-  `sync-jobs-full-schedule` 3600 s and 3570 s; the route is told a budget 20 s shorter
+  every full schedule 3600 s and 3570 s; the route is told a budget 20 s shorter
   (`deadlineMs`) and bounds itself by it. Retries are off for both (the next tick is the retry).
+  All sync tasks share one queue (`sync-jobs`, concurrency 1), so a keyword and a full sync never
+  run at once against one Ever Jobs; scheduled runs have a TTL (keyword 10 min, full 1 h) and expire
+  instead of piling up; a keyword tick that starts more than 10 min late returns
+  `skipped: "late_tick"` (spec 01a D33). The full sync has one schedule per Trigger environment:
+
+  | Task | Cron (UTC) | Trigger env | Do not roll hust-web |
+  |---|---|---|---|
+  | `sync-jobs-full-schedule` | `20 */6 * * *` | prod (`PRODUCTION`) | xx:15–xx:35Z at 00/06/12/18h |
+  | `sync-jobs-full-schedule-stage` | `20 2-23/6 * * *` | staging (`STAGING`) | xx:15–xx:35Z at 02/08/14/20h |
+  | `sync-jobs-full-schedule-dev` | `20 4-23/6 * * *` | preview `develop` (`PREVIEW`) and local dev | xx:15–xx:35Z at 04/10/16/22h |
   The run's summary line ends the stream: `ok: false` (or no summary) fails the run;
   `ok: true, complete: false` is a partial upstream crawl that was stored, logged as a warning.
   A full run also lists `staleSources`: sources none of whose rows a sync has seen for 10 days,

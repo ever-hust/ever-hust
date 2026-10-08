@@ -73,7 +73,7 @@ Hust ingests its job corpus from the Ever Jobs API, but only ever stores **page 
 | FR-9  | Counters per run: `received, inserted, updated, unchanged, invalid, duplicatesMerged, mergedWrites, geocodeCalls, geocodeReused, errors, durationMs` (`mergedWrites` = merges that rewrote the owning row, a subset of `duplicatesMerged`), plus the upstream crawl completeness `complete, stopReason, sourcesSkipped, sourcesFailed` (D21) and, for full runs, `staleSources` (each with this run's verdict), `staleSourcesTotal`, `staleSourcesAlarming` and the per-process `incompleteStreak` (information only) (D27, D32), plus the producer's per-source report `sourcesPartial`, `problemSourcesTotal`, `problemReasons` (D32); one summary log line per run, one warning line when an ok run is not complete, an error line when a source has gone unseen for 10 days and this run did not crawl it for a reason that points at breakage (D32; a warning line for the other stale sources). | must |
 | FR-10 | Two modes. `full`: no `searchTerm`, no `siteCategories`, `resultsWanted = JOBS_SYNC_FULL_RESULTS_PER_SOURCE` (default 1000), `country: "USA"` kept only as the Indeed-style hint; runs only once the process has seen Ever Jobs answer in NDJSON (D18, `JOBS_SYNC_FULL_ENABLED`). `keywords`: rotating term(s), `siteCategories = JOBS_SYNC_KEYWORD_SITE_CATEGORIES` (default `job-board,niche,regional,remote,government,freelance`), `resultsWanted = JOBS_SYNC_KEYWORD_RESULTS_PER_SOURCE` (default 100; 80 until contract v1 is seen, D18). Any per-source count is capped at 1000. | must |
 | FR-11 | `POST /api/jobs/sync` is guarded by the shared cron guard `verifyCronRequest` (`apps/web/lib/cron-auth.ts`: `CRON_SECRET`, constant-time, fail closed in production), accepts `{ mode?, searchTerms?, resultsWanted?, siteCategories?, deadlineMs? }`, returns non-2xx if it fails **before** streaming (auth 401, no `CRON_SECRET` in production 503, bad body 400, same mode already running in this process 409, upstream refused 502), otherwise streams NDJSON progress lines (≤ every 10 s) and ends with exactly one `{"type":"summary","ok":…,…counters}` line. `ok` is never `true` when the upstream failed or a stream was truncated. | must |
-| FR-12 | Trigger.dev: `sync-jobs-schedule` (`*/15`) runs `mode=keywords`; new `sync-jobs-full-schedule` (`20 */6 * * *`) runs `mode=full` with `maxDuration` 3600 s and a `concurrencyLimit: 1` queue. Both read the route's progress stream, parse the summary, return the counters and **throw** when `ok` is false or the summary is missing. A run that is `ok` on a partial crawl (`complete: false`, D21) does **not** throw: the task logs a warning with the `stopReason` and returns the summary — unless a source has gone unseen for 10 days and this run did not crawl it for a reason that points at breakage (`staleSourcesAlarming` > 0, D27/D32): then the full task throws. | must |
+| FR-12 | Trigger.dev: `sync-jobs-schedule` (`*/15`) runs `mode=keywords`; new `sync-jobs-full-schedule` (`20 */6 * * *`) runs `mode=full` with `maxDuration` 3600 s and a `concurrencyLimit: 1` queue. Both read the route's progress stream, parse the summary, return the counters and **throw** when `ok` is false or the summary is missing. A run that is `ok` on a partial crawl (`complete: false`, D21) does **not** throw: the task logs a warning with the `stopReason` and returns the summary — unless a source has gone unseen for 10 days and this run did not crawl it for a reason that points at breakage (`staleSourcesAlarming` > 0, D27/D32): then the full task throws. Since D33 every sync task runs on one queue (`sync-jobs`, concurrency 1), scheduled runs have a TTL (10 min keyword, 1 h full), a keyword tick that starts over 10 min late skips itself, and the full schedule is one declaration per Trigger environment at staggered hours (prod keeps `sync-jobs-full-schedule`, `20 */6 * * *`). | must |
 | FR-13 | `SEARCH_TERMS` gains intern / new-grad / entry-level / quant terms. | must |
 | FR-14 | `mapJobToDb`: `job_level ← careerLevel.level` (C7) when present and not `unknown`, else the source `jobLevel`; `careerLevel` and `dedupKey` stay in `raw_data`. | must |
 | FR-15 | `/api/jobs/search` orders by `date_posted DESC NULLS LAST`. | must |
@@ -566,6 +566,47 @@ None blocking; see Decisions.
   90-day cleanup until the crawl is sized (H-2 step 8); a source whose `site` in the per-source
   report differs from the `site` its jobs carry is judged `not_listed` (warning). Nothing is
   deleted or expired on the basis of this report (absence-based expiry is spec 01b).
+- **D33 — one sync queue, TTLs, late keyword ticks skipped, and staggered full schedules (H-4,
+  T-3, FS-3 / H-1 step 4; 2026-10-08).**
+  1. **One queue.** The keyword and full schedules each had their own concurrency-1 queue
+     (`sync-jobs-keywords`, `sync-jobs-full`) and the route's single-flight guard is per mode, so
+     a full crawl overlapped up to four keyword fan-outs against the same Ever Jobs (one replica
+     with a 2.5 GB heap on dev and stage; on 2026-10-05 a stage full run overlapped the :15 keyword
+     run). Now `sync-jobs-schedule`, every full schedule and the on-demand `sync-jobs` task share
+     `queue({ name: "sync-jobs", concurrencyLimit: 1 })`. The old queues stay unused.
+  2. **Late keyword ticks skip.** Behind a full run (up to an hour) the keyword ticks wait on the
+     shared queue and would then fire back to back, each taking its term from the clock at plan
+     time (`rotationTerm`), so the same term again. A tick that starts more than 10 min after its
+     scheduled time (`payload.timestamp`) returns `{ ok: true, skipped: "late_tick", … }` without
+     calling the app (not a failure; the next tick runs). Below the 15-min interval, so a tick
+     never runs in the next tick's rotation slot.
+  3. **TTL.** Scheduled runs that cannot start in time expire instead of piling up behind a stuck
+     queue (on 2026-10-05, 556 runs piled up behind a phantom run): `ttl: "10m"` on the keyword
+     schedule, `"1h"` on the full ones (task-level `ttl`, `@trigger.dev/sdk` 4.4.6). An expired
+     run shows EXPIRED, not FAILED. The on-demand `sync-jobs` task has none.
+  4. **Staggered full schedules.** dev, stage and prod all fired `20 */6 * * *` at the same minute
+     against the same external sites and the same Postgres cluster, which also hosts Gauzy
+     production. The full schedule is now three declarations sharing one run function, each with
+     the SDK's declarative `environments` filter:
+
+     | task id | cron (UTC) | Trigger environments | fires at |
+     |---|---|---|---|
+     | `sync-jobs-full-schedule` (unchanged id) | `20 */6 * * *` | `PRODUCTION` | 00/06/12/18:20Z |
+     | `sync-jobs-full-schedule-stage` | `20 2-23/6 * * *` | `STAGING` | 02/08/14/20:20Z |
+     | `sync-jobs-full-schedule-dev` | `20 4-23/6 * * *` | `PREVIEW` (branch `develop` = hust-dev), `DEVELOPMENT` | 04/10/16/22:20Z |
+
+     Prod keeps its id and cron, so its schedule and run history continue. A run that still
+     fires in an environment its declaration is not for (a platform that ignores the filter)
+     returns `{ ok: true, skipped: "wrong_environment", … }` without calling the app. After the
+     Trigger deploy of each environment, check that it has exactly one full schedule: the
+     `sync-jobs-full-schedule` instances of stage and preview/develop must be gone.
+  5. **Deploy windows.** A hust-web rollout during a full run kills the run (H-12), so do not roll
+     hust-web in xx:15–xx:35Z of that environment's full-sync hours: prod 00/06/12/18h, stage
+     02/08/14/20h, dev 04/10/16/22h (`docs/internal/RELEASE_CASCADE.md`).
+
+  The `SCHEDULER=cron` fallback is unchanged: every schedule no-ops first, and the checked-in
+  full CronJob (`.deploy/k8s/sync-full-cronjob.yaml`, the prod manifest) keeps `20 */6 * * *`; a
+  stage or dev copy should take its environment's hours from the table above.
 
 **Implementation status (2026-09-24):** all tasks in [`tasks.md`](tasks.md) implemented on branch
 `feat/full-and-keyword-sync`; not yet deployed. Review fixes of 2026-09-25 (D2 revised, D1

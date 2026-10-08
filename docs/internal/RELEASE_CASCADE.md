@@ -36,6 +36,21 @@ feature work ──► develop ──(PR)──► stage ──(PR)──► mai
 
 Use **merge commits** for promotion PRs (preserve history); never squash a promotion.
 
+## Deploy windows (the full job sync)
+
+A hust-web rollout during a full job sync kills the sync (the route runs in the web pod). Each
+environment's full sync starts at minute 20 of its own hours (spec 01a D33), so **do not roll
+hust-web in xx:15–xx:35Z** of:
+
+| Env | Trigger task | Full-sync hours (UTC) |
+|-----|--------------|-----------------------|
+| prod | `sync-jobs-full-schedule` | 00, 06, 12, 18 |
+| stage | `sync-jobs-full-schedule-stage` | 02, 08, 14, 20 |
+| dev (Trigger preview `develop`) | `sync-jobs-full-schedule-dev` | 04, 10, 16, 22 |
+
+A full run usually ends within ~10 min, but can take up to an hour (`maxDuration` 3600 s):
+check that no full run is executing in that environment's Trigger dashboard before rolling.
+
 ## Activating stage (one-time)
 
 The stage workflows + manifest are in the repo but inert until the stage env exists.

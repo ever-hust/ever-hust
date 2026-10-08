@@ -5,12 +5,21 @@ export {
   weeklyAlertSchedule,
 } from "./send-job-alerts";
 
-export { syncJobsTask, syncJobsSchedule, syncJobsFullSchedule } from "./sync-jobs";
+export {
+  syncJobsTask,
+  syncJobsSchedule,
+  syncJobsFullSchedule,
+  syncJobsFullScheduleStage,
+  syncJobsFullScheduleDev,
+  syncJobsQueue,
+} from "./sync-jobs";
 export {
   runScheduledSync,
   runInProcessSync,
   KEYWORD_SYNC_MAX_DURATION_S,
   FULL_SYNC_MAX_DURATION_S,
+  FULL_SYNC_SCHEDULES,
+  SYNC_JOBS_QUEUE,
 } from "./sync-runner";
 export { inboxSyncTask, inboxSyncSchedule } from "./inbox-sync";
 export { mapJobToDb, geocodeLocation, resolveJobLevel, SEARCH_TERMS } from "./map-job";

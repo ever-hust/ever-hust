@@ -30,7 +30,9 @@ metadata:
   name: hust-jobs-sync-full
 spec:
   suspend: true
-  # Offset from the quarter-hour keyword runs, as the Trigger schedule (`20 */6 * * *`).
+  # Offset from the quarter-hour keyword runs, as the prod Trigger schedule (`20 */6 * * *`). A
+  # stage or dev copy takes its environment's staggered hours (spec 01a D33): stage
+  # `20 2-23/6 * * *`, dev `20 4-23/6 * * *`.
   schedule: "20 */6 * * *"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 2

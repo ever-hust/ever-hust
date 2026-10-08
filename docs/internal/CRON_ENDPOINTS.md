@@ -186,15 +186,22 @@ marker. Per alert, the run does **send, then advance**:
    the minimum gap, and reads that marker (`previous`). The cutoff is taken from `windowEnd`, not
    from the clock. So every attempt sees the same alerts, and a marker never moves backwards.
 2. The digest lists the matching jobs with `created_at` in (`previous` − 10 min,
-   `windowEnd` − 10 min] that were also **posted** recently: `date_posted` no earlier than 3 days
-   before the period's start, or no `date_posted` at all (`created_at` stands in;
-   `ALERT_POSTED_GRACE_MS`). Without that bound a full (keyword-less) sync, which creates rows for
-   months-old postings, and a re-inserted row (spec 01a D28) would be mailed as new. The jobs are
-   ordered by `coalesce(date_posted, created_at)` desc, then `created_at` desc, then `id` desc (a
-   total order); up to 60 are read, copies of one posting (same stored `dedupKey`, or for rows
-   without one the ingestor's loose company + title + location identity) are collapsed to their
-   first row, and at most 20 go out. For a never-sent alert, the period starts 24 h before
-   `windowEnd`. The 10-minute lag (`ALERT_JOBS_SETTLE_MS`) is explained below.
+   `windowEnd` − 10 min] that were also **posted** recently: `coalesce(date_posted, created_at)`
+   no earlier than 3 days (`ALERT_POSTED_GRACE_MS`) before the period's start, where the start
+   used for this bound is capped at `ALERT_POSTED_PERIOD_CAP_MS` before the period's end (daily
+   24 h, twice_daily 24 h, weekly 7 days: the longest period a digest covers in normal
+   operation). Without the bound a full (keyword-less) sync, which creates rows for months-old
+   postings, and a re-inserted row (spec 01a D28) would be mailed as new. Without the cap, an alert
+   whose marker went stale (weeks without a match, paused, or a lapsed subscription: the marker
+   only moves when a digest goes out) would accept postings as old as that marker. The cap only
+   narrows the posted bound; the `created_at` period still starts at the marker, so each job is
+   considered by exactly one period. The jobs are ordered by `coalesce(date_posted, created_at)`
+   desc, then `created_at` desc, then `id` desc (a total order) and read in pages of 60. Copies of
+   one posting (same stored `dedupKey`, or for rows without one the ingestor's loose company +
+   title + location identity) are collapsed to their first row over everything read so far. The
+   next page is read until 20 distinct jobs are found, a page comes back short, or 25 pages were
+   read (`ALERT_CANDIDATE_MAX_PAGES`). At most 20 go out. For a never-sent alert, the period starts
+   24 h before `windowEnd`. The 10-minute lag (`ALERT_JOBS_SETTLE_MS`) is explained below.
 3. The run sends the digest with the key
    `job-alert/<alertId>/<previous in ms, or "first">/<windowEnd in ms>`.
 4. Only after Resend has taken the email does the run move the marker to exactly `windowEnd`,

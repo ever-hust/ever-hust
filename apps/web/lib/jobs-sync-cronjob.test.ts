@@ -90,6 +90,7 @@ describe("the SCHEDULER=cron CronJobs: budgets and requests", () => {
       expect(script).toContain(`'{"type":"summary","ok":true,'*) ;;`);
     }
     expect(scriptOf(FULL)).toContain(`*'"staleSources":[{'*)`);
+    expect(scriptOf(FULL)).toContain(`*'"staleSourcesAlarming":0,'*|*'"staleSourcesAlarming":0}'*)`);
   });
 });
 
@@ -276,6 +277,41 @@ withSh("the CronJob check scripts, run with a stub curl against the route's real
     // Control: the same stale source with a failed source is the alarm again.
     const failedSource = await routeOutput("full", () => streamOf([job("a"), { ...complete, sourcesFailed: 2 } as JobStreamEvent]), { stale });
     expect(run(FULL, failedSource).code).toBe(1);
+  });
+
+  it("follows the app's per-source verdict (spec D27 rev. 2026-10-08): a job-ceiling cut only WARNS, a broken source FAILS", async () => {
+    const ceiling = (reason: string): JobStreamEvent => ({
+      type: "end",
+      total: 1,
+      legacy: false,
+      complete: false,
+      stopReason: "job_ceiling",
+      sourcesSkipped: 978,
+      sourcesFailed: 91,
+      sourcesPartial: 3,
+      problemSources: [
+        { site: "indeed", reason: "blocked" },
+        { site: "workday", reason },
+      ],
+      problemSourcesTotal: 2,
+    });
+    const cut = await routeOutput("full", () => streamOf([job("a"), ceiling("skipped")]), { stale });
+    expect(cut.body).toContain('"staleSourcesAlarming":0');
+    const warned = run(FULL, cut);
+    expect(warned.code).toBe(0);
+    expect(warned.log).toContain("WARNING: sources unseen for 10+ days, none of them broken this run");
+
+    const broken = await routeOutput("full", () => streamOf([job("a"), ceiling("blocked")]), { stale });
+    expect(broken.body).toContain('"staleSourcesAlarming":1');
+    const failed = run(FULL, broken);
+    expect(failed.code).toBe(1);
+    expect(failed.log).toContain("did not crawl for a reason that points at breakage");
+
+    // Control: an app before the per-source rule (no count) is judged crawl-wide, as before.
+    const older = { ...cut, body: cut.body.replace(/,"staleSourcesTotal":\d+,"staleSourcesAlarming":\d+/, "") };
+    expect(older.body).not.toContain("staleSourcesAlarming");
+    expect(older.body).toContain('"staleSources":[{');
+    expect(run(FULL, older).code).toBe(1);
   });
 
   it("passes a partial crawl without stale sources, and a skipped full run (gated off, spec D18)", async () => {

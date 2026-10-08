@@ -17,8 +17,12 @@
 #   - the request failed, timed out, or answered non-2xx (401/400/409/502/503…);
 #   - the stream ended without a summary line (cut);
 #   - the summary line says `"ok":false`;
-#   - a source went unseen for 10+ days while the crawl was not complete or sources failed
-#     (`staleSources`, spec D27); after a complete crawl that is a warning only.
+#   - a source went unseen for 10+ days and this run did not crawl it for a reason that points at
+#     breakage: the app judges every stale source against Ever Jobs' per-source report and says
+#     how many alarm (`"staleSourcesAlarming":N`, spec D27 revised 2026-10-08); 0 is a warning only
+#     (e.g. sources the job ceiling cut, or no longer listed upstream). A summary without that
+#     count (an app before the per-source rule) is judged crawl-wide, as before: an alarm unless
+#     the crawl was complete with no failed source.
 # The summary is printed to the Job's log either way.
 apiVersion: batch/v1
 kind: CronJob
@@ -83,6 +87,13 @@ spec:
                   case "$summary" in
                     *'"staleSources":[{'*)
                       case "$summary" in
+                        *'"staleSourcesAlarming":0,'*|*'"staleSourcesAlarming":0}'*)
+                          echo "[jobs-sync-full] WARNING: sources unseen for 10+ days, none of them broken this run (cut by the job ceiling, not queried in list mode, or no longer listed upstream; see staleSources)"
+                          ;;
+                        *'"staleSourcesAlarming":'*)
+                          echo "[jobs-sync-full] FAILED: sources unseen for 10+ days that this run did not crawl for a reason that points at breakage; the 90-day cleanup will delete their postings (spec 01a D27)"
+                          exit 1
+                          ;;
                         *'"complete":true,'*'"sourcesFailed":0,'*)
                           echo "[jobs-sync-full] WARNING: sources unseen for 10+ days after a complete crawl (no longer listed upstream?)"
                           ;;

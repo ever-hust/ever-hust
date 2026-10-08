@@ -240,6 +240,14 @@ export const STALE_SOURCE_DAYS = 10;
 /** At most this many stale sources are reported per run. */
 export const MAX_STALE_SOURCES_REPORTED = 20;
 
+/**
+ * At most this many stale sources are read and judged per run (spec 01a D27): above Ever Jobs'
+ * catalogue (~1 860 sources), so every stale source gets a verdict, not only the oldest
+ * {@link MAX_STALE_SOURCES_REPORTED}. The read groups the whole table either way; the bound only
+ * caps the answer.
+ */
+export const MAX_STALE_SOURCES_READ = 2500;
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** True when a merge may take over a row last seen at `ownerUpdatedAt` (see {@link MERGE_TAKEOVER_DAYS}). */

@@ -51,7 +51,10 @@ export function maxDurationFor(mode: SyncMode): number {
  * PARTIAL upstream crawl (`complete: false`, e.g. `stopReason: "deadline"`, spec 01a D21) does not
  * throw: it is logged as a warning and returned with its `complete` / `stopReason` /
  * `sourcesSkipped` / `sourcesFailed`, so the Trigger run shows it — unless a source has gone
- * unseen for days while the crawl is not complete (`staleSources`, spec D27): then it throws.
+ * unseen for days and this run did not crawl it for a reason that points at breakage (the
+ * per-source rule, `staleSourcesAlarming`, spec D27): then it throws. Stale sources that are not
+ * an alarm (cut by the job ceiling, not queried in list mode, no longer listed upstream, …) are
+ * logged as a warning.
  */
 export async function runScheduledSync(
   mode: SyncMode,
@@ -75,7 +78,18 @@ export async function runScheduledSync(
     logger.info(`[jobs-sync] ${mode} sync skipped: ${summary.skipped}`, { ...summary });
   } else if (staleSourcesAlarm(summary)) {
     throw staleSourcesError(summary);
-  } else if (summary.complete !== true) {
+  } else {
+    if (Array.isArray(summary.staleSources) && summary.staleSources.length > 0) {
+      logger.warn(formatStaleSourcesLine(summary), { staleSources: summary.staleSources });
+    }
+    logOutcome(mode, summary, logger);
+  }
+  return summary;
+}
+
+/** The run's own line: a warning for a partial crawl (spec D21), else info. */
+function logOutcome(mode: SyncMode, summary: RouteSyncResult, logger: SyncRunnerLogger): void {
+  if (summary.complete !== true) {
     logger.warn(
       `[jobs-sync] ${mode} sync ok but INCOMPLETE: stopReason=${summary.stopReason ?? "not_reported"}` +
         ` sourcesSkipped=${summary.sourcesSkipped ?? 0} sourcesFailed=${summary.sourcesFailed ?? 0}` +
@@ -85,7 +99,6 @@ export async function runScheduledSync(
   } else {
     logger.info(`[jobs-sync] ${mode} sync ok`, { ...summary });
   }
-  return summary;
 }
 
 /**
@@ -111,8 +124,9 @@ export async function runInProcessSync(
 }
 
 /**
- * A source unseen for days while the crawl is not complete (spec 01a D27): the run stored what it
- * received, but that source's postings are not refreshed and the 90-day cleanup will delete them.
+ * A source unseen for days that this run did not crawl for a reason that points at breakage (spec
+ * 01a D27): the run stored what it received, but that source's postings are not refreshed and the
+ * 90-day cleanup will delete them.
  */
 function staleSourcesError(summary: SyncSummary): SyncRunFailedError {
   return new SyncRunFailedError(formatStaleSourcesLine(summary), undefined, { ...summary });

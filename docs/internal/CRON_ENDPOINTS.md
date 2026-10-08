@@ -90,8 +90,11 @@ Until 2026-09 six schedules opened the database from the Trigger worker and fail
   The run's summary line ends the stream: `ok: false` (or no summary) fails the run;
   `ok: true, complete: false` is a partial upstream crawl that was stored, logged as a warning.
   A full run also lists `staleSources`: sources none of whose rows a sync has seen for 10 days,
-  read from the database at the end of the run. When there are any and the crawl was not complete
-  (or sources failed), the full task fails (spec 01a D27).
+  read from the database at the end of the run, each judged against Ever Jobs' per-source report
+  (`problemSources`). The full task fails only when one of them was not crawled this run for a
+  reason that points at breakage (it failed, went partial, or was skipped by the fan-out deadline:
+  `staleSourcesAlarming` > 0); stale sources the job ceiling cut, that list mode does not query,
+  or that Ever Jobs no longer lists are a warning line (spec 01a D27/D32).
   The on-demand `sync-jobs` task runs the sync in-process and needs `DATABASE_URL`, which the
   Trigger environments must not have: it is for local or manual runs, not for Trigger.dev.
 
@@ -121,9 +124,10 @@ two k8s CronJobs take their place (spec 01a D31). Both are checked in **suspende
   fail the Job (exit 1) when curl failed or timed out, the answer was not 2xx, the stream has no
   `{"type":"summary",…}` line (cut), or the summary line does not start with
   `{"type":"summary","ok":true,`. The full CronJob also fails on the stale-sources alarm: a
-  non-empty `staleSources` while the crawl was not `"complete":true` or `sourcesFailed` is not
-  0, which is where the Trigger full task throws (spec D27); after a complete crawl it only logs a
-  warning. A skipped run (full mode gated off, spec D18) is `ok` and succeeds. The Job log shows
+  non-empty `staleSources` with `"staleSourcesAlarming"` above 0, which is where the Trigger full
+  task throws (spec D27/D32); with 0 it only logs a warning. A summary without that count (an app
+  before D32) is judged crawl-wide as before: an alarm unless the crawl was `"complete":true`
+  with `sourcesFailed` 0. A skipped run (full mode gated off, spec D18) is `ok` and succeeds. The Job log shows
   the HTTP status, curl's exit code and the summary line. A test runs both scripts, with a stub
   `curl`, against the route's real output (`apps/web/lib/jobs-sync-cronjob.test.ts`).
 - A full run without Ever Jobs contract v1 (and without `JOBS_SYNC_FULL_ENABLED=true`) ends

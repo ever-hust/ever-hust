@@ -607,6 +607,20 @@ None blocking; see Decisions.
   The `SCHEDULER=cron` fallback is unchanged: every schedule no-ops first, and the checked-in
   full CronJob (`.deploy/k8s/sync-full-cronjob.yaml`, the prod manifest) keeps `20 */6 * * *`; a
   stage or dev copy should take its environment's hours from the table above.
+- **D34 — a statement that fails on a transient connection error is retried (H-2 follow-up (a),
+  2026-10-08).** On 2026-09-27 a hust-dev full run aborted after three batches in a row failed
+  with `getaddrinfo EAI_AGAIN pg-rw…` (a cluster DNS blip): D25's consecutive-failure abort threw
+  the run away over seconds of DNS. Every Drizzle job-store statement (reads, the last-seen
+  refresh, the batch upsert) now runs under `withTransientRetry`
+  (`packages/triggers/src/ingest/transient-retry.ts`): up to 4 attempts, waiting 0.5 / 1.5 / 4.5 s,
+  only for `EAI_AGAIN`, `ENOTFOUND`, `ECONNRESET`, `ETIMEDOUT` or postgres.js `CONNECT_TIMEOUT` on
+  the error or its `cause` chain, and never when the server answered (a `PostgresError` with a
+  SQLSTATE: statement timeouts, constraint violations, serialization failures). Each attempt is
+  the whole bounded transaction again (a new `SET LOCAL`, a new `statement_timestamp()` stamp), so
+  D20/D25 hold per attempt; re-running a statement whose COMMIT may have landed is safe (the
+  upsert's `WHERE <changed>` leaves its own rows alone, the refresh touches only stale rows). A
+  database that is really down still fails each batch within ≈ 7 s more than before, and D25's
+  abort still applies. Each retry logs one warning line.
 
 **Implementation status (2026-09-24):** all tasks in [`tasks.md`](tasks.md) implemented on branch
 `feat/full-and-keyword-sync`; not yet deployed. Review fixes of 2026-09-25 (D2 revised, D1

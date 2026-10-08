@@ -1,6 +1,7 @@
 import { db as defaultDb, escapeIlike, userAlerts, jobs, users, JOBS_INSERT_MAX_LATENCY_MS } from "@ever-hust/db";
 import { sendJobAlertEmail } from "@ever-hust/email";
-import { and, desc, eq, gt, ilike, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, ilike, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { fallbackDedupIdentity } from "../ingest/ingestor";
 import { resolveAlertWindowEnd } from "./alert-window";
 import { CronWorkError, deadlineFrom } from "./errors";
 import { classifySendOutcome } from "./send-outcome";
@@ -18,6 +19,12 @@ import { classifySendOutcome } from "./send-outcome";
  * ({@link alertJobsWindow}), so that period's jobs have all committed when the run reads them
  * (guaranteed by the jobs-writer rule, within a documented clock skew; see
  * {@link ALERT_JOBS_SETTLE_MS}).
+ *
+ * WHAT COUNTS AS NEW (H-10). Being created in the period is necessary but not enough: a full
+ * (keyword-less) sync creates rows for months-old postings, so a job must also have been POSTED
+ * recently ({@link alertPostedSince}). The digest lists the most recently posted first, in a total
+ * order ({@link ALERT_JOBS_ORDER}), with copies of one posting collapsed
+ * ({@link collapseDuplicateJobs}).
  *
  * DELIVERY: at least once, with provider-side dedupe. Per alert, SEND-THEN-ADVANCE:
  *  1. The candidate query only returns alerts not yet sent for this window end
@@ -103,8 +110,32 @@ export { JOBS_INSERT_MAX_LATENCY_MS };
 /** A never-sent alert's first digest covers this much time before its window end. */
 export const ALERT_FIRST_SEND_LOOKBACK_MS = 24 * HOUR_MS;
 
-/** At most this many jobs per digest (newest first). */
+/** At most this many jobs per digest (most recently posted first). */
 export const ALERT_MAX_JOBS = 20;
+
+/**
+ * How long before its period a job may have been POSTED and still go out as new (H-10 / FS-6).
+ *
+ * A digest lists the jobs CREATED in its period, but `created_at` is when Hust stored the row, not
+ * when the job was posted: the first full (keyword-less) sync of an environment creates rows for
+ * every open posting it finds, months-old ones included (~45k on hust-prod's first run), and a row
+ * the cleanup deleted and a sync re-inserted (spec 01a D28) is created again too. On the period
+ * filter alone all of them would be mailed as "new". So a job must also have a posting date (its
+ * own `date_posted`, or `created_at` when the source gives none) no earlier than this before the
+ * period starts.
+ *
+ * 3 days covers sources that only give a date (midnight, often in a local time zone), the normal
+ * discovery lag (the keyword rotation revisits a term roughly every 9 h, the full sync runs every
+ * 6 h) and a missed run or two. A posting first found later than that is still searchable; it
+ * just is not announced as new.
+ */
+export const ALERT_POSTED_GRACE_MS = 3 * 24 * HOUR_MS;
+
+/**
+ * Jobs read per digest before copies are collapsed ({@link collapseDuplicateJobs}): enough room
+ * that collapsing copies still leaves {@link ALERT_MAX_JOBS} distinct jobs, in one query.
+ */
+export const ALERT_CANDIDATE_JOBS = ALERT_MAX_JOBS * 3;
 
 /**
  * Resend idempotency key for one alert period: the alert id, the `last_sent_at` the period started
@@ -131,6 +162,84 @@ export function alertJobsWindow(previousSentAt: Date | null, windowEnd: Date): {
     after: new Date(start - ALERT_JOBS_SETTLE_MS),
     through: new Date(windowEnd.getTime() - ALERT_JOBS_SETTLE_MS),
   };
+}
+
+/**
+ * The earliest posting date a job of the period (`after`, `through`] may have to go out as new:
+ * {@link ALERT_POSTED_GRACE_MS} before the period's start. Derived from the period alone, so every
+ * attempt of a run applies the same bound.
+ */
+export function alertPostedSince(after: Date): Date {
+  return new Date(after.getTime() - ALERT_POSTED_GRACE_MS);
+}
+
+/** A job's posting date for alerts: `date_posted`, or `created_at` when the source gave none. */
+const jobPostedAt = sql`coalesce(${jobs.datePosted}, ${jobs.createdAt})`;
+
+/**
+ * The digest's order: most recently posted first, then most recently created, then id. Every key
+ * comes from the row and the id is unique, so the order is total: every attempt of a run lists the
+ * same jobs in the same order, which keeps the email (and so the idempotent send) identical.
+ */
+export const ALERT_JOBS_ORDER = [desc(jobPostedAt), desc(jobs.createdAt), desc(jobs.id)] as const;
+
+/** The fields {@link alertJobIdentity} reads to tell copies of one posting apart. */
+export interface AlertJobIdentity {
+  title: string;
+  companyName: string | null;
+  locationCity: string | null;
+  locationState: string | null;
+  locationCountry: string | null;
+  /** The producer's `raw_data->>'dedupKey'` (company | title | location), when the row has one. */
+  dedupKey: string | null;
+}
+
+/**
+ * The identity the rows of one posting share: the stored producer `dedupKey` (trimmed, as the
+ * ingestor compares it), or for a row stored without one the ingestor's fallback identity (company
+ * + title + location, compared loosely; {@link fallbackDedupIdentity}). The two spaces are kept
+ * apart, so a keyed row never merges with an unkeyed one.
+ */
+export function alertJobIdentity(job: AlertJobIdentity): string {
+  const key = typeof job.dedupKey === "string" ? job.dedupKey.trim() : "";
+  if (key !== "") return `key:${key}`;
+  return `loose:${fallbackDedupIdentity({
+    title: job.title,
+    companyName: job.companyName ?? undefined,
+    location: {
+      city: job.locationCity ?? undefined,
+      state: job.locationState ?? undefined,
+      country: job.locationCountry ?? undefined,
+    },
+  })}`;
+}
+
+/**
+ * Collapse copies of one posting in a digest (H-10). Cross-source copies the ingest's cross-run
+ * probe did not merge (spec 01a D23), and one source's twin requisitions, look identical in an
+ * email (same title, company and place), so each identity ({@link alertJobIdentity}) goes out once,
+ * as its first row in digest order ({@link ALERT_JOBS_ORDER}). Keeps at most `max` rows;
+ * `collapsed` counts the copies left out on the way (rows past the cap are not examined). Pure and
+ * order-preserving, so the same rows always give the same digest.
+ */
+export function collapseDuplicateJobs<T extends AlertJobIdentity>(
+  rows: readonly T[],
+  max: number = ALERT_MAX_JOBS,
+): { jobs: T[]; collapsed: number } {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  let collapsed = 0;
+  for (const row of rows) {
+    if (out.length >= max) break;
+    const identity = alertJobIdentity(row);
+    if (seen.has(identity)) {
+      collapsed++;
+      continue;
+    }
+    seen.add(identity);
+    out.push(row);
+  }
+  return { jobs: out, collapsed };
 }
 
 type AlertDb = typeof defaultDb;
@@ -189,6 +298,12 @@ export interface AlertRunResult {
   failed: number;
   /** Not processed because the run hit its time budget; a retry continues with them. */
   deferred: number;
+  /**
+   * Copies of one posting left out of this run's digests (H-10, {@link collapseDuplicateJobs}):
+   * rows that shared a dedup identity with an earlier job of the same digest. A steady non-zero
+   * value means the ingest's dedupe lets copies through.
+   */
+  duplicatesCollapsed: number;
 }
 
 export interface JobAlertDeps {
@@ -257,6 +372,7 @@ export async function processAlerts(
     skippedNoMatches: 0,
     failed: 0,
     deferred: 0,
+    duplicatesCollapsed: 0,
   };
 
   // Active alerts of this frequency that have not been sent for this window end (capped to prevent
@@ -313,7 +429,15 @@ export async function processAlerts(
       const previousSentAt = alert.lastSentAt ?? null;
       const { after, through } = alertJobsWindow(previousSentAt, windowEnd);
 
-      const conditions = [gt(jobs.createdAt, after), lte(jobs.createdAt, through)];
+      // Created in the period (so each job is considered by exactly one period) AND posted
+      // recently (H-10): `date_posted IS NULL OR date_posted >= since`. That equals
+      // `coalesce(date_posted, created_at) >= since` (created_at > after > since), written on the
+      // column so the bound is mapped like every other timestamp parameter.
+      const conditions = [
+        gt(jobs.createdAt, after),
+        lte(jobs.createdAt, through),
+        or(isNull(jobs.datePosted), gte(jobs.datePosted, alertPostedSince(after)))!,
+      ];
 
       if (criteria?.keywords && criteria.keywords.length > 0) {
         const kwOr = or(
@@ -348,22 +472,29 @@ export async function processAlerts(
         );
       }
 
-      const matchingJobs = await database
+      const candidateJobs = await database
         .select({
+          id: jobs.id,
           title: jobs.title,
           companyName: jobs.companyName,
           locationCity: jobs.locationCity,
+          locationState: jobs.locationState,
+          locationCountry: jobs.locationCountry,
           isRemote: jobs.isRemote,
           salaryMin: jobs.salaryMin,
           salaryMax: jobs.salaryMax,
           salaryCurrency: jobs.salaryCurrency,
           jobUrl: jobs.jobUrl,
+          dedupKey: sql<string | null>`${jobs.rawData} ->> 'dedupKey'`,
         })
         .from(jobs)
         .where(and(...conditions))
-        // A fixed order (newest first, id as the tie-break) keeps the email identical on a retry.
-        .orderBy(desc(jobs.createdAt), desc(jobs.id))
-        .limit(ALERT_MAX_JOBS);
+        // A total order (most recently posted, then created, then id) keeps the email identical
+        // on a retry; copies are collapsed after it, so the digest stays deterministic.
+        .orderBy(...ALERT_JOBS_ORDER)
+        .limit(ALERT_CANDIDATE_JOBS);
+      const { jobs: matchingJobs, collapsed } = collapseDuplicateJobs(candidateJobs, ALERT_MAX_JOBS);
+      result.duplicatesCollapsed += collapsed;
       if (matchingJobs.length === 0) {
         result.skippedNoMatches++;
         continue;
@@ -430,6 +561,8 @@ export interface JobAlertsRunResult {
   skippedInFlight: number;
   failed: number;
   deferred: number;
+  /** Copies left out of digests, over all frequencies ({@link AlertRunResult.duplicatesCollapsed}). */
+  duplicatesCollapsed: number;
 }
 
 /**
@@ -460,6 +593,7 @@ export async function runJobAlerts(
     skippedInFlight: runs.reduce((n, r) => n + r.skippedInFlight, 0),
     failed: runs.reduce((n, r) => n + r.failed, 0),
     deferred: runs.reduce((n, r) => n + r.deferred, 0),
+    duplicatesCollapsed: runs.reduce((n, r) => n + r.duplicatesCollapsed, 0),
   };
   if (total.failed > 0 || total.deferred > 0 || total.skippedInFlight > 0) {
     throw new CronWorkError(

@@ -36,6 +36,23 @@ feature work ──► develop ──(PR)──► stage ──(PR)──► mai
 
 Use **merge commits** for promotion PRs (preserve history); never squash a promotion.
 
+### Verifying a deploy (build identity)
+
+Every web image built by `docker-build-publish-{dev,stage,prod}.yml` carries the commit it was
+built from: the workflow passes `GIT_SHA=${{ github.sha }}` as a build-arg and
+`.deploy/web/Dockerfile` sets it as an env in the runtime image. `GET /api/health` reports it as
+`commit` (`null` for an image built without it):
+
+```
+curl -s https://appdev.hust.so/api/health   | jq -r .commit   # develop head
+curl -s https://appstage.hust.so/api/health | jq -r .commit   # stage head
+curl -s https://app.hust.so/api/health      | jq -r .commit   # main head
+```
+
+A changed image digest proves nothing about which code a pod runs; `commit` does. (`version`
+keeps its Vercel meaning and reads `local` on k8s.) The Trigger.dev deploy does not wait for this
+yet, so check `commit` before re-running `trigger-selfhosted-deploy.yml` by hand.
+
 ## Activating stage (one-time)
 
 The stage workflows + manifest are in the repo but inert until the stage env exists.

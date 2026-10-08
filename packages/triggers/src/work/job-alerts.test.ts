@@ -11,18 +11,27 @@ import {
 } from "./alert-window";
 import { CronInputError, CronWorkError } from "./errors";
 import {
+  ALERT_CANDIDATE_JOBS,
+  ALERT_CANDIDATE_MAX_PAGES,
   ALERT_DB_CLOCK_MAX_SKEW_MS,
   ALERT_FIRST_SEND_LOOKBACK_MS,
   ALERT_JOBS_SETTLE_MS,
+  ALERT_MAX_JOBS,
   ALERT_MIN_INTERVAL_MS,
+  ALERT_POSTED_GRACE_MS,
+  ALERT_POSTED_PERIOD_CAP_MS,
   JOBS_INSERT_MAX_LATENCY_MS,
   advanceAlertMarker,
+  alertJobIdentity,
   alertJobsWindow,
   alertPeriodCutoff,
+  alertPostedSince,
+  collapseDuplicateJobs,
   jobAlertIdempotencyKey,
   processAlerts,
   runJobAlerts,
   type AlertFrequency,
+  type AlertJobIdentity,
 } from "./job-alerts";
 import { classifySendOutcome } from "./send-outcome";
 
@@ -47,10 +56,37 @@ interface Alert {
 interface Job {
   id: number;
   createdAt: Date;
+  /** The posting's own date (`date_posted`); null when the source gave none. */
+  datePosted: Date | null;
+  /** `raw_data->>'dedupKey'`. */
+  dedupKey: string | null;
+  title: string;
+  companyName: string;
+  locationCity: string | null;
 }
 
-/** A row of the fake `jobs` table (`created_at` is what the period filter reads). */
-const job = (id: number, createdAt: string | Date): Job => ({ id, createdAt: new Date(createdAt) });
+/**
+ * A row of the fake `jobs` table. `created_at` is what the period filter reads; `date_posted`
+ * (null by default) is what the posted-recently filter and the order read. Every job has its own
+ * title by default, so no two default jobs are copies of one posting.
+ */
+const job = (
+  id: number,
+  createdAt: string | Date,
+  over: Partial<Omit<Job, "id" | "createdAt" | "datePosted">> & { datePosted?: string | Date | null } = {},
+): Job => {
+  const { datePosted, ...rest } = over;
+  return {
+    id,
+    createdAt: new Date(createdAt),
+    datePosted: datePosted == null ? null : new Date(datePosted),
+    dedupKey: null,
+    title: `Job ${id}`,
+    companyName: "Acme",
+    locationCity: null,
+    ...rest,
+  };
+};
 
 /** Inside the period of every test run at 2026-09-25T08:00:05Z, with or without a marker. */
 const DEFAULT_JOB_CREATED_AT = "2026-09-25T06:00:00Z";
@@ -59,8 +95,11 @@ const DEFAULT_JOB_CREATED_AT = "2026-09-25T06:00:00Z";
  * Minimal Drizzle query-builder fake backed by an in-memory `user_alerts` store and `jobs` table.
  *  - The candidate SELECT applies the same frequency / active / period filter as the real query.
  *  - The jobs SELECT applies every `"jobs"."created_at" <op> $n` bound it finds in the rendered SQL
- *    (keyword criteria are ignored: every job matches), then the ORDER BY and the LIMIT. Without an
- *    ORDER BY it returns the rows in a different order on each query, as Postgres may.
+ *    outside the posted-recently bound, which it applies as `coalesce(date_posted, created_at) >=
+ *    $n` (rendered `("jobs"."date_posted" >= $a or ("jobs"."date_posted" is null and
+ *    "jobs"."created_at" >= $b))`; keyword criteria are ignored: every job matches), then the ORDER
+ *    BY, the OFFSET and the LIMIT. Without an ORDER BY it returns the rows in a different order on
+ *    each query, as Postgres may.
  *  - The advance UPDATE is emulated atomically (JS is single-threaded), exactly like Postgres row
  *    locking serialises two concurrent UPDATEs of the same row: it only applies while
  *    `last_sent_at IS NOT DISTINCT FROM <previous>`.
@@ -80,26 +119,47 @@ function fakeDb(alerts: Alert[], init: { matches?: number; jobs?: Job[]; subscri
     where?: { sql: string; params: unknown[] };
     orderBy?: string[];
     limit?: number;
+    offset?: number;
     set?: Record<string, unknown>;
   }[] = [];
 
-  function selectJobs(where: { sql: string; params: unknown[] }, orderBy: string[] | undefined, limit: number | undefined) {
-    const bounds = [...where.sql.matchAll(/"jobs"\."created_at" (>=|>|<=|<) \$(\d+)/g)].map((m) => ({
+  function selectJobs(
+    where: { sql: string; params: unknown[] },
+    orderBy: string[] | undefined,
+    limit: number | undefined,
+    offset: number | undefined,
+  ) {
+    const posted =
+      /\("jobs"\."date_posted" >= \$(\d+) or \("jobs"\."date_posted" is null and "jobs"\."created_at" >= \$(\d+)\)\)/.exec(
+        where.sql,
+      );
+    let postedSince: number | null = null;
+    if (posted) {
+      postedSince = new Date(where.params[Number(posted[1]) - 1] as string).getTime();
+      const undatedSince = new Date(where.params[Number(posted[2]) - 1] as string).getTime();
+      if (undatedSince !== postedSince) throw new Error("fakeDb: the posted bound is not coalesce(date_posted, created_at)");
+    }
+    // The period's own created_at bounds (the posted clause has a created_at bound of its own).
+    const periodSql = posted ? where.sql.replace(posted[0], "") : where.sql;
+    const bounds = [...periodSql.matchAll(/"jobs"\."created_at" (>=|>|<=|<) \$(\d+)/g)].map((m) => ({
       op: m[1]!,
       at: new Date(where.params[Number(m[2]) - 1] as string).getTime(),
     }));
-    let rows = state.jobs.filter((j) =>
-      bounds.every(({ op, at }) => {
-        const t = j.createdAt.getTime();
-        return op === ">=" ? t >= at : op === ">" ? t > at : op === "<=" ? t <= at : t < at;
-      }),
+    let rows = state.jobs.filter(
+      (j) =>
+        bounds.every(({ op, at }) => {
+          const t = j.createdAt.getTime();
+          return op === ">=" ? t >= at : op === ">" ? t > at : op === "<=" ? t <= at : t < at;
+        }) &&
+        (postedSince === null || (j.datePosted ?? j.createdAt).getTime() >= postedSince),
     );
     if (orderBy) {
       const keys = orderBy.map((spec) => {
-        const m = /^"jobs"\."(created_at|id)" (asc|desc)$/.exec(spec);
+        const m = /^(?:"jobs"\."(created_at|id)"|(coalesce\("jobs"\."date_posted", "jobs"\."created_at"\))) (asc|desc)$/.exec(spec);
         if (!m) throw new Error(`fakeDb: unsupported ORDER BY ${spec}`);
-        const get = (j: Job) => (m[1] === "id" ? j.id : j.createdAt.getTime());
-        return (a: Job, b: Job) => (m[2] === "desc" ? get(b) - get(a) : get(a) - get(b));
+        const get = (j: Job) =>
+          m[2] ? (j.datePosted ?? j.createdAt).getTime() : m[1] === "id" ? j.id : j.createdAt.getTime();
+        return (a: Job, b: Job) => (m[3] === "desc" ? get(b) - get(a) : get(a) - get(b));
       });
       rows = [...rows].sort((a, b) => keys.reduce((c, k) => c || k(a, b), 0));
     } else if (rows.length > 1) {
@@ -107,10 +167,15 @@ function fakeDb(alerts: Alert[], init: { matches?: number; jobs?: Job[]; subscri
       rows = [...rows.slice(k), ...rows.slice(0, k)];
     }
     state.jobQueries++;
-    return rows.slice(0, limit ?? rows.length).map((j) => ({
-      title: `Job ${j.id}`,
-      companyName: "Acme",
-      locationCity: null,
+    const from = offset ?? 0;
+    return rows.slice(from, from + (limit ?? rows.length)).map((j) => ({
+      id: j.id,
+      title: j.title,
+      companyName: j.companyName,
+      locationCity: j.locationCity,
+      locationState: null,
+      locationCountry: null,
+      dedupKey: j.dedupKey,
       isRemote: true,
       salaryMin: "100000",
       salaryMax: null,
@@ -120,14 +185,21 @@ function fakeDb(alerts: Alert[], init: { matches?: number; jobs?: Job[]; subscri
   }
 
   function builder(op: string, table0?: unknown) {
-    const st: { table?: unknown; where?: unknown; set?: Record<string, unknown>; orderBy?: unknown[]; limit?: number } = {
+    const st: {
+      table?: unknown;
+      where?: unknown;
+      set?: Record<string, unknown>;
+      orderBy?: unknown[];
+      limit?: number;
+      offset?: number;
+    } = {
       table: table0,
     };
     const run = async (): Promise<unknown[]> => {
       const table = getTableName(st.table as never);
       const where = st.where ? render(st.where) : undefined;
       const orderBy = st.orderBy?.map((o) => render(o).sql);
-      log.push({ op, table, where, orderBy, limit: st.limit, set: st.set });
+      log.push({ op, table, where, orderBy, limit: st.limit, offset: st.offset, set: st.set });
       if (op === "select" && table === "user_alerts") {
         const [frequency, isActive, cutoffIso] = where!.params as [string, boolean, string];
         const cutoff = new Date(cutoffIso);
@@ -137,7 +209,7 @@ function fakeDb(alerts: Alert[], init: { matches?: number; jobs?: Job[]; subscri
           .map((a) => ({ ...a }));
       }
       if (op === "select" && table === "users") return [{ name: "Ada", subscriptionStatus: init.subscription ?? "active" }];
-      if (op === "select" && table === "jobs") return selectJobs(where!, orderBy, st.limit);
+      if (op === "select" && table === "jobs") return selectJobs(where!, orderBy, st.limit, st.offset);
       if (op === "update" && table === "user_alerts") {
         if (state.failUpdates > 0) {
           state.failUpdates--;
@@ -160,6 +232,7 @@ function fakeDb(alerts: Alert[], init: { matches?: number; jobs?: Job[]; subscri
       set: (v: Record<string, unknown>) => ((st.set = v), b),
       orderBy: (...o: unknown[]) => ((st.orderBy = o), b),
       limit: (n: number) => ((st.limit = n), b),
+      offset: (n: number) => ((st.offset = n), b),
       returning: () => b,
       then: (res: (v: unknown[]) => unknown, rej: (e: unknown) => unknown) => run().then(res, rej),
     };
@@ -340,18 +413,29 @@ describe("send-then-advance", () => {
     expect(update.where!.params).toEqual([1]);
   });
 
-  it("the jobs query reads the fixed period, newest first with an id tie-break, at most 20", async () => {
+  it("the jobs query reads the fixed period, posted recently, most recently posted first with total tie-breaks", async () => {
     const previous = new Date(W.getTime() - 24 * HOUR);
     const { db, log } = fakeDb([alert({ lastSentAt: previous })]);
     await processAlerts("daily", { db, sendEmail: fakeResend().send as never, now: clock, windowEnd: W });
     const select = log.find((l) => l.op === "select" && l.table === "jobs")!;
-    expect(select.where!.sql).toMatch(/^\("jobs"\."created_at" > \$1 and "jobs"\."created_at" <= \$2 and /);
-    expect(select.where!.params.slice(0, 2)).toEqual([
-      new Date(previous.getTime() - SETTLE).toISOString(),
-      new Date(W.getTime() - SETTLE).toISOString(),
+    // The created_at period is unchanged (each job is considered by exactly one period); the posted
+    // bound is coalesce(date_posted, created_at) >= since, written on the columns.
+    expect(select.where!.sql).toMatch(
+      /^\("jobs"\."created_at" > \$1 and "jobs"\."created_at" <= \$2 and \("jobs"\."date_posted" >= \$3 or \("jobs"\."date_posted" is null and "jobs"\."created_at" >= \$4\)\) and /,
+    );
+    const after = new Date(previous.getTime() - SETTLE);
+    const since = new Date(after.getTime() - ALERT_POSTED_GRACE_MS).toISOString();
+    expect(select.where!.params.slice(0, 4)).toEqual([after.toISOString(), new Date(W.getTime() - SETTLE).toISOString(), since, since]);
+    expect(select.offset).toBe(0);
+    expect(select.orderBy).toEqual([
+      'coalesce("jobs"."date_posted", "jobs"."created_at") desc',
+      '"jobs"."created_at" desc',
+      '"jobs"."id" desc',
     ]);
-    expect(select.orderBy).toEqual(['"jobs"."created_at" desc', '"jobs"."id" desc']);
-    expect(select.limit).toBe(20);
+    // Room for copies; the digest itself is capped at ALERT_MAX_JOBS after collapsing them.
+    expect(select.limit).toBe(ALERT_CANDIDATE_JOBS);
+    expect(ALERT_CANDIDATE_JOBS).toBeGreaterThan(ALERT_MAX_JOBS);
+    expect(ALERT_MAX_JOBS).toBe(20);
   });
 
   it("a retry of the same run does not even see the alert once it went out", async () => {
@@ -859,5 +943,353 @@ describe("runJobAlerts (route entry point)", () => {
     expect(err).toBeInstanceOf(CronWorkError);
     expect(err.cronDetails).toMatchObject({ deferred: 2, sent: 0 });
     expect(send).not.toHaveBeenCalled();
+  });
+});
+
+describe("what counts as new under a full sync (H-10)", () => {
+  const previous = new Date(W.getTime() - 24 * HOUR);
+  const { after, through } = alertJobsWindow(previous, W);
+  const since = alertPostedSince(after, through, "daily");
+  const DAY = 24 * HOUR;
+  /** Created inside the period (so only the posted-recently bound and the order decide). */
+  const inPeriod = (minutesBeforeEnd: number) => new Date(through.getTime() - minutesBeforeEnd * 60_000);
+
+  async function digest(jobs: Job[]): Promise<string[]> {
+    const { db } = fakeDb([alert({ lastSentAt: previous })], { jobs });
+    const resend = fakeResend();
+    await processAlerts("daily", { db, sendEmail: resend.send as never, now: clock, windowEnd: W });
+    return resend.deliveredJobs[0] ?? [];
+  }
+
+  it("a job must have been posted no earlier than 3 days before its period starts", () => {
+    expect(ALERT_POSTED_GRACE_MS).toBe(3 * DAY);
+    expect(alertPostedSince(after, through, "daily")).toEqual(new Date(after.getTime() - 3 * DAY));
+    // A date-only source stamps midnight (often local time): a whole day of slack at least.
+    expect(ALERT_POSTED_GRACE_MS).toBeGreaterThan(DAY + 14 * HOUR);
+  });
+
+  it("a full sync's backlog (created in the period, posted months ago) is not mailed as new", async () => {
+    const backlog = Array.from({ length: 30 }, (_, i) =>
+      job(100 + i, inPeriod(60 + i), { datePosted: new Date(W.getTime() - (40 + i) * DAY) }),
+    );
+    const fresh = job(1, inPeriod(30), { datePosted: new Date(W.getTime() - 2 * HOUR) });
+    const undated = job(2, inPeriod(20)); // no date_posted: created_at stands in, and it is in the period
+    expect(await digest([...backlog, fresh, undated])).toEqual(["Job 2", "Job 1"]);
+  });
+
+  it("nothing is sent (and the marker stays) when the period only holds the backlog", async () => {
+    const backlog = Array.from({ length: 5 }, (_, i) => job(i + 1, inPeriod(i + 1), { datePosted: new Date(W.getTime() - 90 * DAY) }));
+    const { db, store } = fakeDb([alert({ lastSentAt: previous })], { jobs: backlog });
+    const send = jest.fn();
+    const r = await processAlerts("daily", { db, sendEmail: send as never, now: clock, windowEnd: W });
+    expect(r.skippedNoMatches).toBe(1);
+    expect(send).not.toHaveBeenCalled();
+    expect(store.get(1)!.lastSentAt).toEqual(previous);
+  });
+
+  it("the posted bound is inclusive: exactly `since` counts, 1 ms earlier does not", async () => {
+    const atBound = job(1, inPeriod(10), { datePosted: since });
+    const before = job(2, inPeriod(5), { datePosted: new Date(since.getTime() - 1) });
+    expect(await digest([atBound, before])).toEqual(["Job 1"]);
+  });
+
+  it("a date-only posting from the day before the period still counts", async () => {
+    const midnightBefore = new Date(Date.UTC(after.getUTCFullYear(), after.getUTCMonth(), after.getUTCDate() - 1));
+    expect(await digest([job(1, inPeriod(15), { datePosted: midnightBefore })])).toEqual(["Job 1"]);
+  });
+
+  it("a job created outside the period never goes out, however fresh its posting date", async () => {
+    const lastPeriod = job(1, after, { datePosted: new Date(W.getTime() - HOUR) }); // created at the bound: previous digest
+    const nextPeriod = job(2, new Date(through.getTime() + 1), { datePosted: new Date(W.getTime() - HOUR) });
+    expect(await digest([lastPeriod, nextPeriod])).toEqual([]);
+  });
+
+  it("lists the most recently POSTED first, not the most recently stored; created_at then id break ties", async () => {
+    const jobs = [
+      job(1, inPeriod(1), { datePosted: new Date(W.getTime() - 2 * DAY) }), // stored last, posted earliest
+      job(2, inPeriod(300), { datePosted: new Date(W.getTime() - 3 * HOUR) }), // stored first, posted latest
+      job(3, inPeriod(200)), // undated: sorts by its created_at
+      // Two date-only postings of the same day: created_at decides, then id.
+      job(4, inPeriod(100), { datePosted: new Date(W.getTime() - DAY) }),
+      job(5, inPeriod(50), { datePosted: new Date(W.getTime() - DAY) }),
+      job(6, inPeriod(50), { datePosted: new Date(W.getTime() - DAY) }),
+    ];
+    expect(await digest(jobs)).toEqual(["Job 2", "Job 3", "Job 6", "Job 5", "Job 4", "Job 1"]);
+  });
+
+  it("every attempt of a run sends the same digest, whatever order the rows are stored in", async () => {
+    const jobs = [
+      job(1, inPeriod(40), { datePosted: new Date(W.getTime() - DAY), dedupKey: "acme|engineer|remote" }),
+      job(2, inPeriod(30), { datePosted: new Date(W.getTime() - DAY), dedupKey: "acme|engineer|remote" }),
+      job(3, inPeriod(30), { datePosted: new Date(W.getTime() - DAY) }),
+      job(4, inPeriod(20), { datePosted: new Date(W.getTime() - 60 * DAY) }),
+      job(5, inPeriod(10)),
+    ];
+    const { db, state } = fakeDb([alert({ lastSentAt: previous })], { jobs });
+    const resend = fakeResend();
+    state.failUpdates = 1; // the first attempt's advance never lands → a retry of the same run
+    const first = await processAlerts("daily", { db, sendEmail: resend.send as never, now: clock, windowEnd: W });
+    expect(first.failed).toBe(1);
+    state.jobs = [...state.jobs].reverse(); // the table returns its rows in another physical order
+    const retry = await processAlerts("daily", {
+      db,
+      sendEmail: resend.send as never,
+      now: () => new Date(now.getTime() + 5 * 60_000),
+      windowEnd: W,
+    });
+    expect(resend.send.mock.calls[1]![0]).toEqual(resend.send.mock.calls[0]![0]); // same key AND payload
+    expect(resend.delivered).toHaveLength(1);
+    expect(retry).toMatchObject({ sent: 1, deduplicated: 0, failed: 0 });
+    expect(resend.deliveredJobs).toEqual([["Job 5", "Job 3", "Job 2"]]);
+  });
+
+  it("copies of one posting (same dedupKey) go out once, as the first in digest order, and are counted", async () => {
+    const jobs = [
+      job(1, inPeriod(30), { datePosted: new Date(W.getTime() - 5 * HOUR), dedupKey: "acme|engineer|berlin", title: "Engineer (Greenhouse)" }),
+      job(2, inPeriod(20), { datePosted: new Date(W.getTime() - 4 * HOUR), dedupKey: " acme|engineer|berlin ", title: "Engineer (LinkedIn)" }),
+      job(3, inPeriod(10), { datePosted: new Date(W.getTime() - 6 * HOUR), dedupKey: "acme|designer|berlin", title: "Designer" }),
+    ];
+    expect(await digest(jobs)).toEqual(["Engineer (LinkedIn)", "Designer"]);
+
+    const { db } = fakeDb([alert({ lastSentAt: previous })], { jobs });
+    const out = await runJobAlerts(["daily"], { db, sendEmail: fakeResend().send as never, now: clock, windowEnd: W });
+    expect(out.runs[0]).toMatchObject({ sent: 1, duplicatesCollapsed: 1 });
+    expect(out.duplicatesCollapsed).toBe(1);
+  });
+
+  it("a run with nothing to collapse reports duplicatesCollapsed: 0 (the field is always there)", async () => {
+    const { db } = fakeDb([]);
+    const out = await runJobAlerts(["daily", "weekly"], { db, sendEmail: fakeResend().send as never, now: clock, windowEnd: W });
+    expect(out.duplicatesCollapsed).toBe(0);
+    expect(out.runs.map((r) => r.duplicatesCollapsed)).toEqual([0, 0]);
+  });
+
+  it("collapsing copies still fills the digest up to 20 distinct jobs", async () => {
+    const copies = Array.from({ length: 10 }, (_, i) =>
+      job(100 + i, inPeriod(1 + i), { datePosted: new Date(W.getTime() - HOUR), dedupKey: "hot|posting|remote" }),
+    );
+    const others = Array.from({ length: 30 }, (_, i) => job(i + 1, inPeriod(100 + i), { datePosted: new Date(W.getTime() - 2 * HOUR) }));
+    const sent = await digest([...copies, ...others]);
+    expect(sent).toHaveLength(ALERT_MAX_JOBS);
+    expect(sent[0]).toBe("Job 100");
+    expect(sent.slice(1)).toEqual(Array.from({ length: 19 }, (_, i) => `Job ${i + 1}`));
+  });
+});
+
+describe("collapseDuplicateJobs / alertJobIdentity", () => {
+  const idsOf = (rows: { id: number }[]) => rows.map((r) => r.id);
+  const row = (over: Partial<AlertJobIdentity> & { id: number }): AlertJobIdentity & { id: number } => ({
+    title: "Engineer",
+    companyName: "Acme",
+    locationCity: "Berlin",
+    locationState: null,
+    locationCountry: "DE",
+    dedupKey: null,
+    ...over,
+  });
+
+  it("keeps the first row of each identity, in order, and at most `max` rows", () => {
+    const rows = [
+      row({ id: 1, dedupKey: "k1" }),
+      row({ id: 2, dedupKey: "k2" }),
+      row({ id: 3, dedupKey: "k1" }),
+      row({ id: 4, dedupKey: "k3" }),
+    ];
+    expect(idsOf(collapseDuplicateJobs(rows).jobs)).toEqual([1, 2, 4]);
+    expect(collapseDuplicateJobs(rows).collapsed).toBe(1);
+    // Past the cap nothing more is examined, so the copy at index 2 is not counted.
+    expect(collapseDuplicateJobs(rows, 2)).toEqual({ jobs: [rows[0], rows[1]], collapsed: 0 });
+    expect(collapseDuplicateJobs([])).toEqual({ jobs: [], collapsed: 0 });
+  });
+
+  it("compares the stored dedupKey trimmed, as the ingestor does; a blank key counts as none", () => {
+    expect(alertJobIdentity(row({ id: 1, dedupKey: " k1 " }))).toBe(alertJobIdentity(row({ id: 2, dedupKey: "k1" })));
+    expect(alertJobIdentity(row({ id: 1, dedupKey: "   " }))).toBe(alertJobIdentity(row({ id: 2, dedupKey: null })));
+  });
+
+  it("rows without a key collapse on the ingestor's loose company + title + location identity", () => {
+    const a = row({ id: 1, companyName: "Acme, Inc.", title: "Senior Engineer" });
+    const b = row({ id: 2, companyName: "ACME", title: "senior engineer!" });
+    const otherCity = row({ id: 3, companyName: "Acme", title: "Senior Engineer", locationCity: "Munich" });
+    expect(idsOf(collapseDuplicateJobs([a, b, otherCity]).jobs)).toEqual([1, 3]);
+  });
+
+  it("a keyed row never merges with an unkeyed one, and different keys never merge", () => {
+    const keyed = row({ id: 1, dedupKey: "acme|engineer|berlin" });
+    const unkeyed = row({ id: 2 });
+    const otherKey = row({ id: 3, dedupKey: "acme|engineer|berlin|2" });
+    expect(collapseDuplicateJobs([keyed, unkeyed, otherKey])).toEqual({ jobs: [keyed, unkeyed, otherKey], collapsed: 0 });
+  });
+
+  it("is pure: the same rows always give the same digest", () => {
+    const rows = [row({ id: 1 }), row({ id: 2, dedupKey: "x" }), row({ id: 3 })];
+    expect(collapseDuplicateJobs(rows)).toEqual(collapseDuplicateJobs([...rows]));
+    expect(rows.map((r) => r.id)).toEqual([1, 2, 3]); // input untouched
+  });
+});
+
+describe("a stale marker cannot announce old backlog (posted bound capped from the period end)", () => {
+  const DAY = 24 * HOUR;
+  const ago = (ms: number) => new Date(W.getTime() - ms);
+
+  it("the cap is the longest period a digest covers normally: its longest schedule gap, at least the first-send lookback", () => {
+    expect(ALERT_POSTED_PERIOD_CAP_MS).toEqual({ daily: 24 * HOUR, twice_daily: 24 * HOUR, weekly: 7 * DAY });
+    // Longest regular gaps: daily 24 h, twice_daily 14 h (18:00 → 08:00), weekly 7 days.
+    const longestGap = { daily: 24 * HOUR, twice_daily: 14 * HOUR, weekly: 7 * DAY } as const;
+    for (const f of ["daily", "twice_daily", "weekly"] as const) {
+      expect(ALERT_POSTED_PERIOD_CAP_MS[f]).toBeGreaterThanOrEqual(longestGap[f]);
+      expect(ALERT_POSTED_PERIOD_CAP_MS[f]).toBeGreaterThanOrEqual(ALERT_FIRST_SEND_LOOKBACK_MS);
+      expect(ALERT_POSTED_PERIOD_CAP_MS[f]).toBeGreaterThanOrEqual(ALERT_MIN_INTERVAL_MS[f]);
+    }
+  });
+
+  it.each([
+    ["daily", 24 * HOUR],
+    ["twice_daily", 14 * HOUR],
+    ["twice_daily", 10 * HOUR],
+    ["weekly", 7 * 24 * HOUR],
+  ] as const)("a regular %s period (%d ms) keeps the bound at its start minus the grace", (frequency, gap) => {
+    const { after, through } = alertJobsWindow(ago(gap), W);
+    expect(alertPostedSince(after, through, frequency)).toEqual(new Date(after.getTime() - ALERT_POSTED_GRACE_MS));
+  });
+
+  it.each(["daily", "twice_daily", "weekly"] as const)("a never-sent %s alert keeps the bound at its start minus the grace", (frequency) => {
+    const { after, through } = alertJobsWindow(null, W);
+    expect(alertPostedSince(after, through, frequency)).toEqual(new Date(after.getTime() - ALERT_POSTED_GRACE_MS));
+  });
+
+  it("an alert idle for weeks gets the bound of a regular period, not of its stale marker", () => {
+    const { after, through } = alertJobsWindow(ago(42 * DAY), W);
+    expect(alertPostedSince(after, through, "daily")).toEqual(new Date(through.getTime() - 24 * HOUR - ALERT_POSTED_GRACE_MS));
+    expect(alertPostedSince(after, through, "weekly")).toEqual(new Date(through.getTime() - 7 * DAY - ALERT_POSTED_GRACE_MS));
+    // The created_at period itself still reaches back to the marker: nothing created meanwhile is skipped.
+    expect(after).toEqual(new Date(ago(42 * DAY).getTime() - SETTLE));
+  });
+
+  it("a daily alert idle for 6 weeks: a full sync's backlog and weeks-old rows stay out, recent postings go out", async () => {
+    const previous = ago(42 * DAY); // last digest six weeks ago; every run since found no match
+    const { through } = alertJobsWindow(previous, W);
+    const since = through.getTime() - 24 * HOUR - ALERT_POSTED_GRACE_MS; // 4 days before the period end
+    const jobs = [
+      job(1, ago(2 * HOUR), { datePosted: ago(35 * DAY) }), // full-sync backlog: created today, posted 5 weeks ago
+      job(2, ago(21 * DAY), { datePosted: ago(21 * DAY) }), // created and posted 3 weeks ago (old news)
+      job(3, ago(14 * DAY)), // undated, created 2 weeks ago: created_at stands in, and it is old
+      job(4, ago(2 * HOUR), { datePosted: ago(DAY) }), // posted yesterday
+      job(5, ago(HOUR)), // undated, created an hour ago
+      job(6, ago(3 * HOUR), { datePosted: new Date(since) }), // exactly at the bound: in
+      job(7, ago(3 * HOUR), { datePosted: new Date(since - 1) }), // 1 ms earlier: out
+    ];
+    const { db, store } = fakeDb([alert({ lastSentAt: previous })], { jobs });
+    const resend = fakeResend();
+    const r = await processAlerts("daily", { db, sendEmail: resend.send as never, now: clock, windowEnd: W });
+    expect(r.sent).toBe(1);
+    expect(resend.deliveredJobs).toEqual([["Job 5", "Job 4", "Job 6"]]);
+    // The period (and so the key) still starts at the stale marker; the marker moves to W.
+    expect(resend.delivered).toEqual([jobAlertIdempotencyKey(1, previous, W)]);
+    expect(store.get(1)!.lastSentAt).toEqual(W);
+  });
+
+  it("the same jobs under the old, uncapped bound would have included the backlog (the bug)", () => {
+    const previous = ago(42 * DAY);
+    const { after } = alertJobsWindow(previous, W);
+    const uncapped = after.getTime() - ALERT_POSTED_GRACE_MS;
+    expect(ago(35 * DAY).getTime()).toBeGreaterThan(uncapped); // job 1 above passed the old bound
+  });
+
+  it("a weekly alert idle for 5 weeks announces postings of the last 7 days + grace only", async () => {
+    const jobs = [
+      job(1, ago(2 * HOUR), { datePosted: ago(9 * DAY) }), // within 7 d + 3 d of the period end
+      job(2, ago(2 * HOUR), { datePosted: ago(11 * DAY) }), // older than that
+    ];
+    const { db } = fakeDb([alert({ frequency: "weekly", lastSentAt: ago(35 * DAY) })], { jobs });
+    const resend = fakeResend();
+    await processAlerts("weekly", { db, sendEmail: resend.send as never, now: clock, windowEnd: W });
+    expect(resend.deliveredJobs).toEqual([["Job 1"]]);
+  });
+});
+
+describe("copies never crowd out distinct matches (paged candidates)", () => {
+  const previous = new Date(W.getTime() - 24 * HOUR);
+  const { through } = alertJobsWindow(previous, W);
+  /** n rows of one posting, most recently posted first in digest order. */
+  const copies = (n: number, firstId: number) =>
+    Array.from({ length: n }, (_, i) =>
+      job(firstId + i, new Date(through.getTime() - (1 + i) * 1000), { datePosted: new Date(W.getTime() - HOUR), dedupKey: "hot|posting|remote" }),
+    );
+  /** n distinct postings, all ranked below the copies. */
+  const distinct = (n: number) =>
+    Array.from({ length: n }, (_, i) => job(i + 1, new Date(through.getTime() - (1 + i) * 60_000), { datePosted: new Date(W.getTime() - 2 * HOUR) }));
+
+  async function run(jobs: Job[]) {
+    const { db, log } = fakeDb([alert({ lastSentAt: previous })], { jobs });
+    const resend = fakeResend();
+    const r = await processAlerts("daily", { db, sendEmail: resend.send as never, now: clock, windowEnd: W });
+    const pages = log.filter((l) => l.op === "select" && l.table === "jobs");
+    return { sent: resend.deliveredJobs[0] ?? [], pages, r, resend };
+  }
+
+  it("42 copies then 30 distinct jobs: the digest still lists 20 distinct jobs (was 19)", async () => {
+    const { sent, pages, r } = await run([...copies(42, 100), ...distinct(30)]);
+    expect(sent).toHaveLength(ALERT_MAX_JOBS);
+    expect(sent[0]).toBe("Job 100");
+    expect(sent.slice(1)).toEqual(Array.from({ length: 19 }, (_, i) => `Job ${i + 1}`));
+    expect(pages.map((p) => [p.offset, p.limit])).toEqual([
+      [0, ALERT_CANDIDATE_JOBS],
+      [ALERT_CANDIDATE_JOBS, ALERT_CANDIDATE_JOBS],
+    ]);
+    expect(r.duplicatesCollapsed).toBe(41);
+  });
+
+  it("copies filling several pages: it keeps reading until 20 distinct jobs", async () => {
+    const { sent, pages } = await run([...copies(130, 1000), ...distinct(25)]);
+    expect(sent).toEqual(["Job 1000", ...Array.from({ length: 19 }, (_, i) => `Job ${i + 1}`)]);
+    expect(pages.map((p) => p.offset)).toEqual([0, 60, 120]);
+  });
+
+  it("stops at the first short page when the period has no more rows", async () => {
+    const { sent, pages } = await run([...copies(70, 100), ...distinct(5)]);
+    expect(sent).toEqual(["Job 100", "Job 1", "Job 2", "Job 3", "Job 4", "Job 5"]);
+    expect(pages.map((p) => p.offset)).toEqual([0, 60]);
+  });
+
+  it("one page when it already holds 20 distinct jobs (the common case)", async () => {
+    const { sent, pages } = await run(distinct(45));
+    expect(sent).toHaveLength(ALERT_MAX_JOBS);
+    expect(pages).toHaveLength(1);
+  });
+
+  it("an exactly full last page costs one more (empty) read, then stops", async () => {
+    const { sent, pages } = await run([...copies(55, 100), ...distinct(5)]); // 60 rows = one full page
+    expect(sent).toHaveLength(6);
+    expect(pages.map((p) => p.offset)).toEqual([0, 60]);
+  });
+
+  it(`gives up after ${ALERT_CANDIDATE_MAX_PAGES} pages and sends the distinct jobs it found`, async () => {
+    const { sent, pages } = await run([...copies(ALERT_CANDIDATE_MAX_PAGES * ALERT_CANDIDATE_JOBS, 10_000), ...distinct(3)]);
+    expect(pages).toHaveLength(ALERT_CANDIDATE_MAX_PAGES);
+    expect(sent).toEqual(["Job 10000"]);
+  });
+
+  it("paging is deterministic: a retry over rows stored in another order sends the same email", async () => {
+    const { db, state } = fakeDb([alert({ lastSentAt: previous })], { jobs: [...copies(42, 100), ...distinct(30)] });
+    const resend = fakeResend();
+    state.failUpdates = 1;
+    expect((await processAlerts("daily", { db, sendEmail: resend.send as never, now: clock, windowEnd: W })).failed).toBe(1);
+    state.jobs = [...state.jobs].reverse();
+    const retry = await processAlerts("daily", { db, sendEmail: resend.send as never, now: () => new Date(now.getTime() + 60_000), windowEnd: W });
+    expect(resend.send.mock.calls[1]![0]).toEqual(resend.send.mock.calls[0]![0]);
+    expect(resend.delivered).toHaveLength(1);
+    expect(retry).toMatchObject({ sent: 1, failed: 0 });
+  });
+
+  it("the paged result equals collapsing the whole period at once", async () => {
+    const all = [...copies(42, 100), ...distinct(30)];
+    const { sent } = await run(all);
+    // Digest order of the fake rows: copies first (posted 1 h before W), then the distinct ones.
+    const whole = collapseDuplicateJobs(
+      all.map((j) => ({ ...j, locationState: null, locationCountry: null })),
+      ALERT_MAX_JOBS,
+    );
+    expect(sent).toEqual(whole.jobs.map((j) => j.title));
   });
 });

@@ -519,3 +519,73 @@ describe("createDrizzleJobStore — statement bounds and the new calls (spec D24
     expect([...(await fits.store.loadStoredCoords!(3))!.keys()]).toEqual(["a", "b", "c"]);
   });
 });
+
+describe("createDrizzleJobStore — a transient connection error is retried, an SQL error never (H-2 follow-up a)", () => {
+  const dnsBlip = () =>
+    Object.assign(new Error("getaddrinfo EAI_AGAIN pg-rw.databases.svc.cluster.local"), { code: "EAI_AGAIN", syscall: "getaddrinfo" });
+  /** The fake client, whose first `failures` transactions fail before BEGIN reaches the server. */
+  function flakyStore(responses: Parameters<typeof fakeClient>[0], failures: unknown[], transientRetry?: false) {
+    const fake = fakeClient(responses);
+    const begin = fake.client.begin.bind(fake.client);
+    let attempts = 0;
+    fake.client.begin = async (fn) => {
+      attempts++;
+      const failure = failures.shift();
+      if (failure) throw failure;
+      return begin(fn);
+    };
+    const waits: number[] = [];
+    const store = createDrizzleJobStore(drizzle(fake.client as never, { schema }) as unknown as Database, {
+      transientRetry: transientRetry ?? { sleep: async (ms) => void waits.push(ms), onRetry: () => {} },
+    });
+    return { ...fake, store, waits, attempts: () => attempts };
+  }
+
+  it("the batch upsert rides out a DNS blip: the whole bounded transaction runs again, once", async () => {
+    const { store, statements, waits, attempts } = flakyStore([{ values: [["a", true]] }], [dnsBlip(), dnsBlip()]);
+    await expect(store.upsertBatch([row("a")])).resolves.toEqual([{ externalId: "a", inserted: true }]);
+    expect(attempts()).toBe(3);
+    expect(waits).toEqual([500, 1_500]);
+    // Exactly one transaction reached the database: BEGIN, the bound, ONE insert, COMMIT.
+    const queries = statements.map((s) => s.query.replace(/\s+/g, " "));
+    expect(queries).toHaveLength(4);
+    expect(queries[0]).toBe("BEGIN");
+    expect(queries[2]).toMatch(/^insert into "jobs" /);
+    expect(queries[3]).toBe("COMMIT");
+  });
+
+  it("reads and the last-seen refresh are retried too", async () => {
+    const { store, waits } = flakyStore(
+      [{ rows: [{ site: "workday", last_seen: "2026-09-10T06:20:00Z", row_count: 3 }] }, { values: [["a"]] }],
+      [dnsBlip()],
+    );
+    await expect(store.findStaleSources!(new Date(), 20)).resolves.toEqual([{ site: "workday", lastSeen: "2026-09-10T06:20:00Z", rows: 3 }]);
+    expect(waits).toEqual([500]);
+    const second = flakyStore([{ values: [["a"]] }], [Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" })]);
+    await expect(second.store.refreshLastSeen(["a"], new Date("2026-09-25T00:00:00Z"))).resolves.toEqual(["a"]);
+    expect(second.attempts()).toBe(2);
+  });
+
+  it("gives up after the bound, and never retries an error the server answered", async () => {
+    const down = flakyStore([], [dnsBlip(), dnsBlip(), dnsBlip(), dnsBlip(), dnsBlip()]);
+    await expect(down.store.upsertBatch([row("a")])).rejects.toMatchObject({ code: "EAI_AGAIN" });
+    expect(down.attempts()).toBe(4);
+    expect(down.statements).toHaveLength(0);
+
+    const timeout = Object.assign(new Error("canceling statement due to statement timeout"), {
+      name: "PostgresError",
+      code: "57014",
+      severity: "ERROR",
+    });
+    const sqlError = flakyStore([], [timeout]);
+    await expect(sqlError.store.upsertBatch([row("a")])).rejects.toBe(timeout);
+    expect(sqlError.attempts()).toBe(1);
+    expect(sqlError.waits).toEqual([]);
+  });
+
+  it("can be turned off (transientRetry: false)", async () => {
+    const off = flakyStore([{ values: [] }], [dnsBlip()], false);
+    await expect(off.store.findExisting(["a"])).rejects.toMatchObject({ code: "EAI_AGAIN" });
+    expect(off.attempts()).toBe(1);
+  });
+});

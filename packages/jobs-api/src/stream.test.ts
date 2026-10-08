@@ -8,6 +8,8 @@ import {
   parseJobPost,
   createLongTimeoutDispatcher,
   LEGACY_FALLBACK_PAGE_SIZE,
+  MAX_PROBLEM_SOURCES_PARSED,
+  parseProblemSources,
   type JobStreamEnd,
   type JobStreamEvent,
 } from "./index";
@@ -269,6 +271,82 @@ describe("EverJobsClient.openSearchStream -- NDJSON", () => {
     expect(garbled.stopReason).toBeUndefined();
     expect(garbled.sourcesSkipped).toBeUndefined();
     expect(garbled.sourcesFailed).toBeUndefined();
+  });
+
+  it("reads the per-source fields of the end line (Spec 1721 FR-20); an ill-typed list is dropped whole", async () => {
+    const endOf = async (fields: Record<string, unknown>) => {
+      fetchMock.mockResolvedValueOnce(ndjsonResponse([job("1"), line({ type: "end", total: 1, ...fields })]));
+      const { events, error } = await collect(await createClient().openSearchStream(LIST_INPUT, { dispatcher: null }));
+      expect(error).toBeUndefined();
+      return events[events.length - 1] as JobStreamEnd;
+    };
+
+    // The shape Ever Jobs sends (README, "Was the crawl complete?").
+    const cut = await endOf({
+      complete: false,
+      stopReason: "job_ceiling",
+      sourcesSkipped: 978,
+      sourcesFailed: 91,
+      sourcesPartial: 3,
+      problemSources: [
+        { site: "indeed", reason: "blocked" },
+        { site: " Remoteok ", reason: "partial " },
+        { site: "zipjobs", reason: "skipped" },
+      ],
+      problemSourcesTotal: 3,
+    });
+    expect(cut).toMatchObject({
+      complete: false,
+      stopReason: "job_ceiling",
+      sourcesPartial: 3,
+      problemSourcesTotal: 3,
+      // Trimmed, case kept (the consumer compares sources case-insensitively).
+      problemSources: [
+        { site: "indeed", reason: "blocked" },
+        { site: "Remoteok", reason: "partial" },
+        { site: "zipjobs", reason: "skipped" },
+      ],
+    });
+    // A newer producer's reason is kept verbatim; an empty list is a real answer ("none").
+    expect((await endOf({ problemSources: [{ site: "a", reason: "brand_new_reason" }] })).problemSources).toEqual([
+      { site: "a", reason: "brand_new_reason" },
+    ]);
+    expect(await endOf({ complete: true, problemSources: [], problemSourcesTotal: 0, sourcesPartial: 0 })).toMatchObject({
+      problemSources: [],
+      problemSourcesTotal: 0,
+      sourcesPartial: 0,
+    });
+
+    // A producer before FR-20: nothing reported, never an empty list.
+    const older = await endOf({ complete: true, sourcesFailed: 2 });
+    expect(older.problemSources).toBeUndefined();
+    expect(older.problemSourcesTotal).toBeUndefined();
+    expect(older.sourcesPartial).toBeUndefined();
+
+    // One ill-typed entry drops the list (a hole would make a problem source look clean).
+    for (const bad of [
+      "indeed",
+      { site: "indeed", reason: "blocked" },
+      [{ site: "indeed", reason: "blocked" }, null],
+      [{ site: "indeed", reason: "blocked" }, { site: "x" }],
+      [{ site: 7, reason: "blocked" }],
+      [{ site: "  ", reason: "blocked" }],
+      [["indeed", "blocked"]],
+    ]) {
+      expect((await endOf({ problemSources: bad, problemSourcesTotal: 1 })).problemSources).toBeUndefined();
+    }
+    const garbled = await endOf({ sourcesPartial: -1, problemSourcesTotal: 2.5 });
+    expect(garbled.sourcesPartial).toBeUndefined();
+    expect(garbled.problemSourcesTotal).toBeUndefined();
+  });
+
+  it("cuts an over-long problemSources list at MAX_PROBLEM_SOURCES_PARSED (it then reads as truncated)", () => {
+    const many = Array.from({ length: MAX_PROBLEM_SOURCES_PARSED + 10 }, (_, i) => ({ site: `s${i}`, reason: "skipped" }));
+    const parsed = parseProblemSources(many)!;
+    expect(parsed).toHaveLength(MAX_PROBLEM_SOURCES_PARSED);
+    expect(parsed[0]).toEqual({ site: "s0", reason: "skipped" });
+    // Control: a list within the cap is kept whole.
+    expect(parseProblemSources(many.slice(0, 3))).toHaveLength(3);
   });
 
   it("opts out of the producer's cross-source dedup unless asked (dedup=false, always explicit)", async () => {

@@ -19,6 +19,7 @@ export * from "./route-client";
 export * from "./upstream-contract";
 export * from "./incomplete-runs";
 export * from "./errors";
+export * from "./transient-retry";
 
 /**
  * Production wiring: the Ever Jobs client, the Drizzle store, Google from env with the per-mode

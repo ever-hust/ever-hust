@@ -5,10 +5,11 @@
 # "standalone" runner. Vercel ignores this file (Vercel builds from vercel.json).
 # ---------------------------------------------------------------------------
 
-FROM node:24-alpine AS base
+FROM node:26.12.1-alpine AS base
 # libc6-compat: some native deps expect glibc symbols on Alpine.
 RUN apk add --no-cache libc6-compat
-RUN corepack enable
+# node:26 images no longer bundle corepack (Node 25+ dropped it): install it first.
+RUN npm install -g corepack@0.36.0 && corepack enable
 WORKDIR /app
 
 # ---------------------------------------------------------------------------

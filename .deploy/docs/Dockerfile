@@ -5,7 +5,7 @@
 # folder (referenced as ../../docs from apps/docs), so both apps/docs and docs/ must
 # be in the context. The docs build is self-contained — apps/docs ships its own
 # pnpm-lock.yaml and builds with --ignore-workspace (no full monorepo install).
-FROM node:20-bookworm-slim AS build
+FROM node:26.12.1-bookworm-slim AS build
 ENV PNPM_HOME=/root/.local/share/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN npm install -g pnpm@10.26.2

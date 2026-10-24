@@ -96,7 +96,7 @@
     "@tailwindcss/postcss": "^4.1.0",
     "@tailwindcss/typography": "^0.5.16",
     "@types/mailparser": "^3.4.6",
-    "@types/node": "^22.15.3",
+    "@types/node": "^26.6.5",
     "@types/nodemailer": "^8.0.1",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",

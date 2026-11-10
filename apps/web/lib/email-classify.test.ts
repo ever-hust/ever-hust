@@ -42,6 +42,18 @@ describe("classifyEmail", () => {
     expect(classifyEmail("Update", "We cannot extend an offer at this time.")).toBe("rejection");
   });
 
+  it("handles 'unable to make you an offer' with and without a rejection keyword", () => {
+    expect(
+      classifyEmail("Application update", "Unfortunately, we are unable to make you an offer."),
+    ).toBe("rejection");
+    expect(classifyEmail("Application update", "We are unable to make you an offer.")).toBe(
+      "rejection",
+    );
+    expect(classifyEmail("Application update", "We are unable to offer you the position.")).toBe(
+      "rejection",
+    );
+  });
+
   it("handles other phrasings of a denied offer", () => {
     expect(classifyEmail("Update", "We are not in a position to offer you the role.")).toBe(
       "rejection",

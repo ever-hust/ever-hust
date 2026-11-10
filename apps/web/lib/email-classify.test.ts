@@ -35,6 +35,29 @@ describe("classifyEmail", () => {
     ).toBe("rejection");
   });
 
+  it("classifies a plain denial (no other rejection keyword) as a rejection", () => {
+    expect(classifyEmail("Your application", "We are unable to offer you the position.")).toBe(
+      "rejection",
+    );
+    expect(classifyEmail("Update", "We cannot extend an offer at this time.")).toBe("rejection");
+  });
+
+  it("handles other phrasings of a denied offer", () => {
+    expect(classifyEmail("Update", "We are not in a position to offer you the role.")).toBe(
+      "rejection",
+    );
+    expect(classifyEmail("Update", "We will not be making you an offer.")).toBe("rejection");
+    expect(classifyEmail("Update", "Sorry, we aren't able to offer you a position.")).toBe(
+      "rejection",
+    );
+  });
+
+  it("does not turn an unrelated negated offer aside into a rejection", () => {
+    expect(classifyEmail("Role details", "Remote role. We are not offering relocation.")).toBe(
+      "other",
+    );
+  });
+
   it("still detects an offer when a negated offer phrase appears alongside a real one", () => {
     expect(
       classifyEmail("Offer letter attached", "Please review. We are not offering relocation."),

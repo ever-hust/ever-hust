@@ -23,11 +23,21 @@ export const CATEGORY_LABELS: Record<EmailCategory, string> = {
   other: "Other",
 };
 
+/**
+ * Negated offer phrases ("unable to offer you the position", "decided not to extend an offer",
+ * "no offer"). A rejection email is full of these; without stripping them the bare `offer` keyword
+ * below classifies the rejection as an offer — and the pipeline then advances the application to
+ * the "offer" stage.
+ */
+const NEGATED_OFFER =
+  /\b(?:unable|not able|cannot|can ?not|can['’]?t|won['’]?t|will not|do not|don['’]?t|did not|didn['’]?t|not)\s+(?:be\s+)?(?:able\s+)?(?:to\s+)?(?:offer|extend)(?:ing)?(?:\s+(?:you|them|him|her))?(?:\s+(?:an?|the))?(?:\s+(?:job|formal|employment|written))*(?:\s+offer)?|\bno (?:job )?offer\b/g;
+
 export function classifyEmail(subject?: string | null, body?: string | null): EmailCategory {
   const t = `${subject ?? ""}\n${body ?? ""}`.toLowerCase();
   if (!t.trim()) return "other";
 
-  if (/\b(job )?offer\b|pleased to offer|offer letter|extend(ing)? (you )?an offer|compensation package/.test(t)) {
+  const withoutNegatedOffers = t.replace(NEGATED_OFFER, " ");
+  if (/\b(job )?offer\b|pleased to offer|offer letter|extend(ing)? (you )?an offer|compensation package/.test(withoutNegatedOffers)) {
     return "offer";
   }
   if (

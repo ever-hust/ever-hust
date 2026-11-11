@@ -86,6 +86,7 @@ export function useCanvasSync() {
         if (f.jobType) params.set("jobType", f.jobType);
         if (f.salaryMin) params.set("salaryMin", String(f.salaryMin));
         if (f.salaryMax) params.set("salaryMax", String(f.salaryMax));
+        if (f.postedWithin) params.set("postedWithin", String(f.postedWithin));
 
         const res = await fetch(`/api/jobs/search?${params.toString()}`, {
           signal: controller.signal,

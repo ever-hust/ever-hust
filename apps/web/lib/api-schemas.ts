@@ -141,6 +141,11 @@ export const jobSearchParamsSchema = z.object({
   jobType: z.string().max(50).optional(),
   salaryMin: z.coerce.number().int().min(0).optional(),
   salaryMax: z.coerce.number().int().min(0).optional(),
+  /** "Date posted" window in days — one of 1, 3, 7, 14, 30. */
+  postedWithin: z
+    .enum(["1", "3", "7", "14", "30"])
+    .transform((v) => Number(v))
+    .optional(),
 });
 
 // === User Preferences (stored as JSONB, shared by multiple routes) ===

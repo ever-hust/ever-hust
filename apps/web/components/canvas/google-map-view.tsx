@@ -51,6 +51,7 @@ function buildMapQuery(filters: JobFilters): string {
   if (filters.jobType) p.set("jobType", filters.jobType);
   if (filters.salaryMin != null && filters.salaryMin > 0) p.set("salaryMin", String(filters.salaryMin));
   if (filters.salaryMax != null && filters.salaryMax > 0) p.set("salaryMax", String(filters.salaryMax));
+  if (filters.postedWithin) p.set("postedWithin", String(filters.postedWithin));
   return p.toString();
 }
 

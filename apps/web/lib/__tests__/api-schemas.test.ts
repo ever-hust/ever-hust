@@ -98,6 +98,21 @@ describe("jobSearchParamsSchema", () => {
     const result = jobSearchParamsSchema.safeParse({ salaryMax: "-1" });
     expect(result.success).toBe(false);
   });
+
+  it.each(["1", "3", "7", "14", "30"])("accepts postedWithin=%s as a number", (v) => {
+    const result = jobSearchParamsSchema.safeParse({ postedWithin: v });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.postedWithin).toBe(Number(v));
+  });
+
+  it("leaves postedWithin undefined when omitted", () => {
+    const result = jobSearchParamsSchema.safeParse({});
+    expect(result.success && result.data.postedWithin).toBeUndefined();
+  });
+
+  it.each(["0", "2", "365", "-7", "abc", ""])("rejects postedWithin=%j", (v) => {
+    expect(jobSearchParamsSchema.safeParse({ postedWithin: v }).success).toBe(false);
+  });
 });
 
 describe("chatRequestSchema", () => {

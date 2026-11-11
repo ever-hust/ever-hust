@@ -31,7 +31,8 @@ export async function GET(req: Request) {
     return apiBadRequest("Invalid search parameters", parsed.error.flatten().fieldErrors);
   }
 
-  const { keywords, location, isRemote, jobType, salaryMin, salaryMax } = parsed.data;
+  const { keywords, location, isRemote, jobType, salaryMin, salaryMax, postedWithin } =
+    parsed.data;
 
   try {
     const user = await getSessionUser();
@@ -43,6 +44,7 @@ export async function GET(req: Request) {
       jobType,
       salaryMin,
       salaryMax,
+      postedWithinDays: postedWithin,
     });
     // Only geocoded jobs can appear on the map.
     conditions.push(isNotNull(jobs.latitude), isNotNull(jobs.longitude));

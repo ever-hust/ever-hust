@@ -219,6 +219,8 @@ const LEVEL_KEYWORDS: { keyword: string; ord: number }[] = [
   { keyword: "leader", ord: 4 },
   { keyword: "teamlead", ord: 4 },
   { keyword: "techlead", ord: 4 },
+  { keyword: "teamleader", ord: 4 },
+  { keyword: "techleader", ord: 4 },
   { keyword: "manager", ord: 4 },
   { keyword: "senior", ord: 3 },
   { keyword: "sr", ord: 3 },
@@ -227,6 +229,7 @@ const LEVEL_KEYWORDS: { keyword: string; ord: number }[] = [
   { keyword: "seniorlevel", ord: 3 },
   { keyword: "midsenior", ord: 3 },
   { keyword: "midlevel", ord: 2 },
+  { keyword: "midweight", ord: 2 },
   { keyword: "mid", ord: 2 },
   { keyword: "intermediate", ord: 2 },
   { keyword: "associate", ord: 2 },
@@ -237,6 +240,8 @@ const LEVEL_KEYWORDS: { keyword: string; ord: number }[] = [
   { keyword: "intern", ord: 1 },
   { keyword: "internship", ord: 1 },
   { keyword: "graduate", ord: 1 },
+  { keyword: "undergraduate", ord: 1 },
+  { keyword: "postgraduate", ord: 1 },
 ];
 
 /**

@@ -182,6 +182,16 @@ describe("levelOrdinal / scoreLevel", () => {
     expect(scoreLevel("entry", "entrylevel").score5).toBe(5);
   });
 
+  it("keeps matching further unseparated spellings, but not look-alike words", () => {
+    expect(levelOrdinal("Teamleader")).toBe(4);
+    expect(levelOrdinal("TeamLeaders")).toBe(4);
+    expect(levelOrdinal("Techleader")).toBe(4);
+    expect(levelOrdinal("Midweight Designer")).toBe(2);
+    expect(levelOrdinal("Undergraduate")).toBe(1);
+    expect(levelOrdinal("Postgraduate")).toBe(1);
+    expect(levelOrdinal("Leaderboard Engineer")).toBeNull();
+  });
+
   it("scores neutral for a posting whose title only contains a look-alike word", () => {
     expect(scoreLevel("Internal Tools Engineer", "staff").score5).toBe(3);
   });

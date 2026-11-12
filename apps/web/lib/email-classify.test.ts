@@ -76,6 +76,31 @@ describe("classifyEmail", () => {
     ).toBe("offer");
   });
 
+  it("keeps an existing offer an offer when only its terms are refused", () => {
+    expect(
+      classifyEmail("Reminder", "Please sign by Friday. We cannot extend the offer deadline."),
+    ).toBe("offer");
+    expect(
+      classifyEmail("Your offer", "We cannot extend the offer beyond Friday, please sign."),
+    ).toBe("offer");
+  });
+
+  it("does not read an unrelated 'offer you a ...' or 'no offer yet' as a denial", () => {
+    expect(
+      classifyEmail("Interview times", "We can't offer you a slot on Monday, but Tuesday is open."),
+    ).toBe("interview");
+    expect(classifyEmail("Update", "No offer yet, the final interview is next week.")).toBe(
+      "interview",
+    );
+  });
+
+  it("still treats 'not extend the offer to you' as a rejection", () => {
+    expect(classifyEmail("Update", "We will not extend the offer to you.")).toBe("rejection");
+    expect(classifyEmail("Update", "We have decided not to extend the offer to you.")).toBe(
+      "rejection",
+    );
+  });
+
   it("keeps classifying the other categories", () => {
     expect(classifyEmail("Phone screen next week", "")).toBe("interview");
     expect(classifyEmail("Pick a time", "Book a time on my calendly")).toBe("scheduling");

@@ -51,11 +51,22 @@ const NEGATED_OFFER = new RegExp(
  * an otherwise-positive email ("we are not offering relocation").
  */
 function isOfferDenial(match: string, following: string): boolean {
+  // "No offer yet" / "no offer so far" says the process is still running, not that it ended.
+  if (/^no\b/.test(match)) return !/^\s*,?\s*(?:yet|so far)\b/.test(following);
   return (
-    /^no\b/.test(match) ||
-    /\b(?:you|them|him|her)\b/.test(match) ||
     /\b(?:an?|the)\s+(?:\w+\s+)*offer$/.test(match) ||
     /^\s*(?:the |this |that |a |an )?(?:position|role|job|opportunity)\b/.test(following)
+  );
+}
+
+/**
+ * "We cannot extend the offer deadline / beyond Friday": the offer already exists and only its
+ * terms are refused, so the phrase must stay visible to the bare `offer` keyword.
+ */
+function isExistingOfferTerms(match: string, following: string): boolean {
+  return (
+    /\bextend(?:ing)?\s+the\s+(?:\w+\s+)*offer$/.test(match) &&
+    /^\s*(?:deadline|date|window|expiry|expiration|beyond|past|until|by)\b/.test(following)
   );
 }
 
@@ -68,7 +79,9 @@ export function classifyEmail(subject?: string | null, body?: string | null): Em
 
   let denied = false;
   const withoutNegatedOffers = t.replace(NEGATED_OFFER, (match: string, offset: number) => {
-    if (isOfferDenial(match, t.slice(offset + match.length, offset + match.length + 30))) {
+    const following = t.slice(offset + match.length, offset + match.length + 30);
+    if (isExistingOfferTerms(match, following)) return match;
+    if (isOfferDenial(match, following)) {
       denied = true;
     }
     return " ";

@@ -143,6 +143,30 @@ describe("levelOrdinal / scoreLevel", () => {
   it("is neutral when either level is unknown", () => {
     expect(scoreLevel(null, "senior").score5).toBe(3);
   });
+
+  describe("array preference", () => {
+    it("scores a one-value array like the string", () => {
+      expect(scoreLevel("Senior", ["senior"])).toEqual(scoreLevel("Senior", "senior"));
+      expect(scoreLevel("Senior", ["senior"]).score5).toBe(5);
+      expect(scoreLevel("Director", ["junior"]).score5).toBeLessThanOrEqual(2);
+    });
+    it("uses the preferred level closest to the job", () => {
+      expect(scoreLevel("Senior", ["junior", "senior"]).score5).toBe(5);
+      expect(scoreLevel("Senior", ["senior", "junior"]).score5).toBe(5);
+      // Closest of mid (2) and lead (4) to a director (5) is lead: one level below.
+      expect(scoreLevel("Director", ["mid", "lead"])).toEqual(scoreLevel("Director", "lead"));
+    });
+    it("is neutral for an empty array", () => {
+      expect(scoreLevel("Senior", []).score5).toBe(3);
+    });
+    it("ignores labels it cannot map, and is neutral if none map", () => {
+      expect(scoreLevel("Senior", ["whatever", "senior"]).score5).toBe(5);
+      expect(scoreLevel("Senior", ["whatever"]).score5).toBe(3);
+    });
+    it("is neutral when the job level is unknown", () => {
+      expect(scoreLevel(null, ["senior", "mid"]).score5).toBe(3);
+    });
+  });
 });
 
 describe("cvSkillOverlap", () => {

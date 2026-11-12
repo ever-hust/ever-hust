@@ -275,7 +275,9 @@ export async function runEvaluateJob(args: {
   );
   const level = scoreLevel(
     job.jobLevel,
-    typeof prefs.roleLevel === "string" ? prefs.roleLevel : null,
+    typeof prefs.roleLevel === "string" || Array.isArray(prefs.roleLevel)
+      ? (prefs.roleLevel as string | string[])
+      : null,
   );
 
   const { jobFamily, archetype } = detectTaxonomy({

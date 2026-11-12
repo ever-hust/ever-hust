@@ -94,6 +94,31 @@ describe("classifyEmail", () => {
     );
   });
 
+  it("does not read other 'no offer has been made yet' phrasings as a rejection", () => {
+    expect(
+      classifyEmail("Update", "We can't make you an offer yet, the final interview is next week."),
+    ).toBe("interview");
+    expect(
+      classifyEmail(
+        "Update",
+        "We are not yet in a position to make you an offer; the final interview is next week.",
+      ),
+    ).toBe("interview");
+    expect(
+      classifyEmail("Update", "No offer has been made yet, the final interview is next week."),
+    ).toBe("interview");
+    expect(classifyEmail("Update", "We cannot extend an offer until references are back.")).toBe(
+      "other",
+    );
+    expect(
+      classifyEmail(
+        "Update",
+        "We are unable to offer you the position, yet we were impressed by your background.",
+      ),
+    ).toBe("rejection");
+    expect(classifyEmail("Update", "No offer will be made.")).toBe("rejection");
+  });
+
   it("still treats 'not extend the offer to you' as a rejection", () => {
     expect(classifyEmail("Update", "We will not extend the offer to you.")).toBe("rejection");
     expect(classifyEmail("Update", "We have decided not to extend the offer to you.")).toBe(

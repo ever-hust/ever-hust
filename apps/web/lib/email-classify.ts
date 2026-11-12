@@ -51,8 +51,11 @@ const NEGATED_OFFER = new RegExp(
  * an otherwise-positive email ("we are not offering relocation").
  */
 function isOfferDenial(match: string, following: string): boolean {
-  // "No offer yet" / "no offer so far" says the process is still running, not that it ended.
-  if (/^no\b/.test(match)) return !/^\s*,?\s*(?:yet|so far)\b/.test(following);
+  // "No offer yet", "not yet able to make you an offer", "can't make you an offer until ...": the
+  // process is still running, not ended.
+  if (/\byet\b/.test(match)) return false;
+  if (/^\s*,?\s*(?:(?:\w+\s+){0,3}(?:yet|so far)|until|before)\b/.test(following)) return false;
+  if (/^no\b/.test(match)) return true;
   return (
     /\b(?:an?|the)\s+(?:\w+\s+)*offer$/.test(match) ||
     /^\s*(?:the |this |that |a |an )?(?:position|role|job|opportunity)\b/.test(following)

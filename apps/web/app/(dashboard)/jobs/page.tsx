@@ -46,6 +46,7 @@ export default function JobsPage() {
           if (filters.jobType) params.set("jobType", filters.jobType);
           if (filters.salaryMin) params.set("salaryMin", String(filters.salaryMin));
           if (filters.salaryMax) params.set("salaryMax", String(filters.salaryMax));
+          if (filters.postedWithin) params.set("postedWithin", String(filters.postedWithin));
           endpoint = `/api/jobs/search?${params.toString()}`;
         }
 
@@ -97,6 +98,7 @@ export default function JobsPage() {
         if (filters.jobType) params.set("jobType", filters.jobType);
         if (filters.salaryMin) params.set("salaryMin", String(filters.salaryMin));
         if (filters.salaryMax) params.set("salaryMax", String(filters.salaryMax));
+        if (filters.postedWithin) params.set("postedWithin", String(filters.postedWithin));
         endpoint = `/api/jobs/search?${params.toString()}`;
       }
 

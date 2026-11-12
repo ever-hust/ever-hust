@@ -29,8 +29,17 @@ export async function GET(req: Request) {
     );
   }
 
-  const { page, limit, keywords, location, isRemote, jobType, salaryMin, salaryMax } =
-    parsed.data;
+  const {
+    page,
+    limit,
+    keywords,
+    location,
+    isRemote,
+    jobType,
+    salaryMin,
+    salaryMax,
+    postedWithin,
+  } = parsed.data;
 
   try {
     // Exclude jobs the signed-in user has hidden (item 8). Optional auth — the
@@ -44,6 +53,7 @@ export async function GET(req: Request) {
       jobType,
       salaryMin,
       salaryMax,
+      postedWithinDays: postedWithin,
     });
     if (user) conditions.push(hiddenJobsExclusion(user.id));
 

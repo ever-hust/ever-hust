@@ -1,5 +1,5 @@
 import { jobs, userJobs, escapeIlike } from "@ever-hust/db";
-import { eq, ilike, sql, type SQL } from "drizzle-orm";
+import { eq, gte, ilike, sql, type SQL } from "drizzle-orm";
 
 /**
  * Shared job-filter builder used by both the paged search endpoint
@@ -15,9 +15,16 @@ export interface JobFilterParams {
   salaryMax?: number;
   /** Exact (case-insensitive) company match — used by company pages. */
   company?: string;
+  /**
+   * Only jobs posted within the last N days. Jobs without a posted date are excluded
+   * while this is active (their age is unknown, so they can't honour "last 7 days").
+   */
+  postedWithinDays?: number;
 }
 
-export function buildJobFilterConditions(p: JobFilterParams): SQL[] {
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export function buildJobFilterConditions(p: JobFilterParams, now: Date = new Date()): SQL[] {
   const conditions: SQL[] = [];
 
   if (p.keywords) {
@@ -47,6 +54,16 @@ export function buildJobFilterConditions(p: JobFilterParams): SQL[] {
     p.salaryMax !== undefined && Number.isFinite(p.salaryMax) ? p.salaryMax : undefined;
   if (sMin !== undefined) conditions.push(sql`${jobs.salaryMax}::numeric >= ${sMin}`);
   if (sMax !== undefined) conditions.push(sql`${jobs.salaryMin}::numeric <= ${sMax}`);
+
+  // Bounded 1..365 so a bad caller can't build an absurd or negative window.
+  if (
+    p.postedWithinDays !== undefined &&
+    Number.isFinite(p.postedWithinDays) &&
+    p.postedWithinDays >= 1 &&
+    p.postedWithinDays <= 365
+  ) {
+    conditions.push(gte(jobs.datePosted, new Date(now.getTime() - p.postedWithinDays * DAY_MS)));
+  }
 
   if (p.company) {
     conditions.push(sql`lower(${jobs.companyName}) = ${p.company.toLowerCase()}`);

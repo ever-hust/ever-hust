@@ -160,6 +160,17 @@ describe("levelOrdinal / scoreLevel", () => {
     expect(levelOrdinal("Vice President")).toBe(6);
   });
 
+  it("keeps matching leader and AVP spellings, but not look-alike words", () => {
+    expect(levelOrdinal("Team Leader")).toBe(4);
+    expect(levelOrdinal("Team Leaders")).toBe(4);
+    expect(levelOrdinal("Senior Leader")).toBe(4);
+    expect(levelOrdinal("Teamlead")).toBe(4);
+    expect(levelOrdinal("Techlead")).toBe(4);
+    expect(levelOrdinal("AVP, Risk")).toBe(6);
+    expect(levelOrdinal("Leadership Development")).toBeNull();
+    expect(levelOrdinal("Leading")).toBeNull();
+  });
+
   it("keeps matching compound spellings written without a separator", () => {
     expect(levelOrdinal("midlevel")).toBe(2);
     expect(levelOrdinal("Mid Level")).toBe(2);

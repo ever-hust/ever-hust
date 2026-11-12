@@ -160,6 +160,17 @@ describe("levelOrdinal / scoreLevel", () => {
     expect(levelOrdinal("Vice President")).toBe(6);
   });
 
+  it("keeps matching compound spellings written without a separator", () => {
+    expect(levelOrdinal("midlevel")).toBe(2);
+    expect(levelOrdinal("Mid Level")).toBe(2);
+    expect(levelOrdinal("entrylevel")).toBe(1);
+    expect(levelOrdinal("juniorlevel")).toBe(1);
+    expect(levelOrdinal("seniorlevel")).toBe(3);
+    expect(levelOrdinal("midsenior")).toBe(3);
+    expect(scoreLevel("mid", "midlevel").score5).toBe(5);
+    expect(scoreLevel("entry", "entrylevel").score5).toBe(5);
+  });
+
   it("scores neutral for a posting whose title only contains a look-alike word", () => {
     expect(scoreLevel("Internal Tools Engineer", "staff").score5).toBe(3);
   });

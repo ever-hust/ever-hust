@@ -239,14 +239,14 @@ export function levelOrdinal(label: string | null | undefined): number | null {
 /**
  * Level dimension: posting seniority vs the user's natural level.
  *
- * `userLevel` may be a single label or a list of labels (the onboarding wizard and the preferences
- * API store an array). With several labels the user is open to each of them, so the one closest to
+ * `userLevel` is the raw saved preference: a single label or a list of labels (the onboarding wizard
+ * and the preferences API store an array). Any other shape (missing, number, object) is neutral. With several labels the user is open to each of them, so the one closest to
  * the posting's level is used. Labels that cannot be mapped are ignored; if none can, the score is
  * neutral.
  */
 export function scoreLevel(
   jobLevel: string | null,
-  userLevel: string | string[] | null | undefined,
+  userLevel: unknown,
 ): DeterministicScore {
   const j = levelOrdinal(jobLevel);
   const userOrdinals = (Array.isArray(userLevel) ? userLevel : [userLevel])

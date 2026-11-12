@@ -163,6 +163,16 @@ describe("levelOrdinal / scoreLevel", () => {
       expect(scoreLevel("Senior", ["whatever", "senior"]).score5).toBe(5);
       expect(scoreLevel("Senior", ["whatever"]).score5).toBe(3);
     });
+    it("handles the raw saved preference shapes without throwing", () => {
+      // As stored by the onboarding wizard / preferences API.
+      expect(scoreLevel("Senior", ["senior"] as unknown).score5).toBe(5);
+      // Missing or malformed values are neutral.
+      expect(scoreLevel("Senior", undefined).score5).toBe(3);
+      expect(scoreLevel("Senior", null).score5).toBe(3);
+      expect(scoreLevel("Senior", 3).score5).toBe(3);
+      expect(scoreLevel("Senior", { level: "senior" }).score5).toBe(3);
+      expect(scoreLevel("Senior", [3, null, "senior"]).score5).toBe(5);
+    });
     it("is neutral when the job level is unknown", () => {
       expect(scoreLevel(null, ["senior", "mid"]).score5).toBe(3);
     });

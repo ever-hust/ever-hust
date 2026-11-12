@@ -202,11 +202,13 @@ export function scoreRemote(
   };
 }
 
-const LEVEL_ORDINALS: { keyword: string; ord: number }[] = [
+const LEVEL_KEYWORDS: { keyword: string; ord: number }[] = [
   { keyword: "vice president", ord: 6 },
   { keyword: "executive", ord: 6 },
   { keyword: "c-level", ord: 6 },
   { keyword: "vp", ord: 6 },
+  { keyword: "svp", ord: 6 },
+  { keyword: "evp", ord: 6 },
   { keyword: "senior manager", ord: 5 },
   { keyword: "director", ord: 5 },
   { keyword: "principal", ord: 5 },
@@ -215,23 +217,34 @@ const LEVEL_ORDINALS: { keyword: string; ord: number }[] = [
   { keyword: "lead", ord: 4 },
   { keyword: "manager", ord: 4 },
   { keyword: "senior", ord: 3 },
-  { keyword: "sr.", ord: 3 },
-  { keyword: "sr ", ord: 3 },
+  { keyword: "sr", ord: 3 },
   { keyword: "mid", ord: 2 },
   { keyword: "intermediate", ord: 2 },
   { keyword: "associate", ord: 2 },
   { keyword: "junior", ord: 1 },
   { keyword: "entry", ord: 1 },
   { keyword: "intern", ord: 1 },
+  { keyword: "internship", ord: 1 },
   { keyword: "graduate", ord: 1 },
 ];
 
-/** Map a free-text seniority label to an ordinal 1..6 (longest keyword wins). */
+/**
+ * Keywords match as whole words (an optional plural "s" is allowed), so "Internal Tools" or
+ * "International Sales" are not read as "intern", nor "Staffing" as "staff".
+ */
+const LEVEL_ORDINALS: { pattern: RegExp; ord: number }[] = LEVEL_KEYWORDS.map(
+  ({ keyword, ord }) => {
+    const escaped = keyword.replace(/[\\^$.*+?()[\]{}|-]/g, "\\$&");
+    return { pattern: new RegExp(`(?<![a-z0-9])${escaped}s?(?![a-z0-9])`), ord };
+  },
+);
+
+/** Map a free-text seniority label to an ordinal 1..6 (first match in list order wins). */
 export function levelOrdinal(label: string | null | undefined): number | null {
   if (!label) return null;
   const s = label.toLowerCase();
-  for (const { keyword, ord } of LEVEL_ORDINALS) {
-    if (s.includes(keyword)) return ord;
+  for (const { pattern, ord } of LEVEL_ORDINALS) {
+    if (pattern.test(s)) return ord;
   }
   return null;
 }

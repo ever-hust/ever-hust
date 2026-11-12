@@ -134,6 +134,36 @@ describe("levelOrdinal / scoreLevel", () => {
     expect(levelOrdinal("totally unknown")).toBeNull();
   });
 
+  it("does not read level keywords inside unrelated words", () => {
+    expect(levelOrdinal("Internal Tools Engineer")).toBeNull();
+    expect(levelOrdinal("International Business Analyst")).toBeNull();
+    expect(levelOrdinal("Staffing Coordinator")).toBeNull();
+    expect(levelOrdinal("Leadership Development")).toBeNull();
+    expect(levelOrdinal("Midwest Territory Rep")).toBeNull();
+  });
+
+  it("keeps matching real labels, plurals and abbreviations", () => {
+    expect(levelOrdinal("Software Engineering Intern")).toBe(1);
+    expect(levelOrdinal("Summer Interns")).toBe(1);
+    expect(levelOrdinal("Internship")).toBe(1);
+    expect(levelOrdinal("Entry-level")).toBe(1);
+    expect(levelOrdinal("Mid-level")).toBe(2);
+    expect(levelOrdinal("Mid-Senior level")).toBe(3);
+    expect(levelOrdinal("Sr. Engineer")).toBe(3);
+    expect(levelOrdinal("Sr Engineer")).toBe(3);
+    expect(levelOrdinal("Senior Staff Engineer")).toBe(4);
+    expect(levelOrdinal("Engineering Manager")).toBe(4);
+    expect(levelOrdinal("Senior Manager, Data")).toBe(5);
+    expect(levelOrdinal("Head of Product")).toBe(5);
+    expect(levelOrdinal("VP, Engineering")).toBe(6);
+    expect(levelOrdinal("SVP Sales")).toBe(6);
+    expect(levelOrdinal("Vice President")).toBe(6);
+  });
+
+  it("scores neutral for a posting whose title only contains a look-alike word", () => {
+    expect(scoreLevel("Internal Tools Engineer", "staff").score5).toBe(3);
+  });
+
   it("scores 5 for a perfect level match", () => {
     expect(scoreLevel("Senior", "senior").score5).toBe(5);
   });

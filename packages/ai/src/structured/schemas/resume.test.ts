@@ -29,6 +29,11 @@ describe("resumeArtifact", () => {
       resumeSummarySchema.safeParse({ ...valid(), bulletSuggestions: ["only one"] }).success,
     ).toBe(false);
   });
+  it("accepts the optional CV keyword-evidence lists and stays valid without them", () => {
+    const withEvidence = { ...valid(), keywordsInCv: ["Go"], keywordsNotInCv: ["Kafka"] };
+    expect(resumeSummarySchema.safeParse(withEvidence).success).toBe(true);
+    expect(resumeSummarySchema.safeParse(valid()).success).toBe(true);
+  });
   it("builds a versioned artifact", () => {
     const a = resumeArtifact.build(valid());
     expect(a.kind).toBe("resume");

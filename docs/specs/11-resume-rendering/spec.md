@@ -69,7 +69,8 @@ server-rendered, ATS-friendly PDF download.
   `splitKeywordsByCvEvidence`): deterministic, no-LLM split of the job's skills + the suggested
   keywords into `keywordsInCv` (backed by the candidate's skills/experience) and `keywordsNotInCv`
   (gaps — add only if true). Optional additive fields on the résumé summary; short plain-word
-  terms (e.g. "Go") only count when listed as a skill, to avoid false "evidenced" matches.
+  terms (e.g. "Go") only count when listed as a skill, and a capitalized single word (e.g.
+  "Swift") must start with its capital in the CV text, to avoid false "evidenced" matches.
 - **No-invent guard** (`packages/ai/src/policy/assert-no-invented.ts`, `assertNoInvented`):
   advisory grounding check that flags ungrounded proper nouns / years / numbers against the real
   CV facts. This is the shipped form of the spec's `assertNoInvented` (it flags rather than

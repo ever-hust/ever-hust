@@ -20,11 +20,7 @@ const MAX_KEYWORD_LENGTH = 100;
 
 /** Lowercase, trim, collapse whitespace and drop a trailing ".js" so "React.js" ≈ "React". */
 function normalize(term: string): string {
-  return term
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, " ")
-    .replace(/\.js$/, "");
+  return term.toLowerCase().trim().replace(/\s+/g, " ").replace(/\.js$/, "");
 }
 
 function escapeRegExp(s: string): string {
@@ -33,10 +29,38 @@ function escapeRegExp(s: string): string {
 
 /**
  * Short pure-letter terms ("go", "r", "sql") collide with ordinary words in free text
- * ("go to market"), so they only count when they appear in the explicit skill list.
+ * ("go to market"), so they only count when they appear in the explicit skill list. A
+ * capitals-only acronym ("AWS", "SQL") is the exception: prose does not produce it by accident.
  */
 function allowsFreeTextMatch(term: string): boolean {
-  return term.length >= 4 || /[^a-z\s]/.test(term);
+  return (
+    term.length >= 4 || /[^A-Za-z\s]/.test(term) || /^[A-Z]{2,}$/.test(term)
+  );
+}
+
+/**
+ * A single plain word that starts with a capital ("Swift", "Excel") must start with that capital
+ * in free text too, so ordinary prose ("swift delivery", "I excel at") is not evidence. The rest
+ * of the word may differ in case ("Javascript" still evidences "JavaScript").
+ */
+function isCapitalizedWord(term: string): boolean {
+  return /^[A-Z][A-Za-z]*$/.test(term);
+}
+
+/**
+ * Free-text pattern for a keyword and whether it is case-insensitive: a capitals-only acronym
+ * ("AWS", "IT") exactly as written, so "It was" is not "IT"; a capitalized word ("Swift" →
+ * "S[wW][iI][fF][tT]") with its first letter as written; anything else in any case.
+ */
+function freeTextPattern(term: string): { body: string; ignoreCase: boolean } {
+  if (/^[A-Z]{2,}$/.test(term)) return { body: term, ignoreCase: false };
+  if (isCapitalizedWord(term)) {
+    const rest = [...term.slice(1)].map(
+      (c) => `[${c.toLowerCase()}${c.toUpperCase()}]`,
+    );
+    return { body: term[0] + rest.join(""), ignoreCase: false };
+  }
+  return { body: escapeRegExp(term), ignoreCase: true };
 }
 
 /**
@@ -67,7 +91,7 @@ export function splitKeywordsByCvEvidence(
   evidenceText: string,
 ): KeywordEvidence {
   const skillSet = new Set(skills.map(normalize).filter(Boolean));
-  const text = evidenceText.toLowerCase();
+  const text = evidenceText.replace(/\s+/g, " ");
 
   const inCv: string[] = [];
   const notInCv: string[] = [];
@@ -76,7 +100,10 @@ export function splitKeywordsByCvEvidence(
   // Oversized strings would break the artifact schema's per-keyword limit; they are not
   // real skill names, so skip them before applying the cap.
   const candidates = keywords
-    .filter((k): k is string => typeof k === "string" && k.trim().length <= MAX_KEYWORD_LENGTH)
+    .filter(
+      (k): k is string =>
+        typeof k === "string" && k.trim().length <= MAX_KEYWORD_LENGTH,
+    )
     .slice(0, MAX_KEYWORDS);
 
   for (const raw of candidates) {
@@ -88,12 +115,13 @@ export function splitKeywordsByCvEvidence(
     if (!evidenced) {
       // In free text keep ".js" intact: "Next.js" must not match the plain word "next".
       // A keyword without ".js" may still match "name.js" in the text ("React" ≈ "React.js").
-      const hasJsSuffix = /\.js$/i.test(raw.trim());
-      const freeTerm = hasJsSuffix ? raw.trim().toLowerCase().replace(/\s+/g, " ") : term;
+      const freeTerm = raw.trim().replace(/\s+/g, " ");
       if (allowsFreeTextMatch(freeTerm)) {
-        const suffix = hasJsSuffix ? "" : "(?:\\.js)?";
+        const suffix = /\.js$/i.test(freeTerm) ? "" : "(?:\\.[jJ][sS])?";
+        const { body, ignoreCase } = freeTextPattern(freeTerm);
         const re = new RegExp(
-          `(?<![a-z0-9])${escapeRegExp(freeTerm)}${suffix}(?![a-z0-9+#])`,
+          `(?<![A-Za-z0-9])${body}${suffix}(?![A-Za-z0-9+#])`,
+          ignoreCase ? "i" : "",
         );
         evidenced = re.test(text);
       }

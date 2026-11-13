@@ -23,18 +23,77 @@ export const CATEGORY_LABELS: Record<EmailCategory, string> = {
   other: "Other",
 };
 
+/**
+ * Negated offer phrases ("unable to offer you the position", "decided not to extend an offer",
+ * "no offer"). A rejection email is full of these; without stripping them the bare `offer` keyword
+ * below classifies the rejection as an offer — and the pipeline then advances the application to
+ * the "offer" stage.
+ */
+// NOTE: no capturing groups — the replace callback below relies on (match, offset).
+const NEGATION =
+  "(?:unable|cannot|can ?not|can['’]?t|won['’]?t|don['’]?t|doesn['’]?t|didn['’]?t|aren['’]?t|isn['’]?t|(?:are |is |will |do |does |did |could |would )?not)";
+const FILLER = "(?:\\s+(?:be|being|going|able|in|a|position|to|currently|yet))*";
+const OBJECT = "(?:\\s+(?:you|them|him|her))?";
+const OFFER_NOUN_MODS = "(?:\\s+(?:job|formal|employment|written))*";
+const NEGATED_OFFER = new RegExp(
+  `\\b${NEGATION}${FILLER}\\s+(?:` +
+    // "offer / extend [you] [an] [job] [offer]" — the noun is optional here
+    `(?:offer|extend)(?:ing)?${OBJECT}(?:\\s+(?:an?|the))?${OFFER_NOUN_MODS}(?:\\s+offer)?` +
+    // "make / give [you] [an] offer" — the noun is required, "not make a decision" is not about offers
+    `|(?:make|making|give|giving)${OBJECT}(?:\\s+an?)?${OFFER_NOUN_MODS}\\s+offer` +
+    `)|\\bno (?:job )?offer\\b`,
+  "g",
+);
+
+/**
+ * Whether a negated-offer match is a denial of *the candidate's* offer ("unable to offer you the
+ * position", "decided not to extend an offer", "can't offer you a role") rather than an aside in
+ * an otherwise-positive email ("we are not offering relocation").
+ */
+function isOfferDenial(match: string, following: string): boolean {
+  // "No offer yet", "not yet able to make you an offer", "can't make you an offer until ...": the
+  // process is still running, not ended.
+  if (/\byet\b/.test(match)) return false;
+  if (/^\s*,?\s*(?:(?:\w+\s+){0,3}(?:yet|so far)|until|before)\b/.test(following)) return false;
+  if (/^no\b/.test(match)) return true;
+  return (
+    /\b(?:an?|the)\s+(?:\w+\s+)*offer$/.test(match) ||
+    /^\s*(?:the |this |that |a |an )?(?:position|role|job|opportunity)\b/.test(following)
+  );
+}
+
+/**
+ * "We cannot extend the offer deadline / beyond Friday": the offer already exists and only its
+ * terms are refused, so the phrase must stay visible to the bare `offer` keyword.
+ */
+function isExistingOfferTerms(match: string, following: string): boolean {
+  return (
+    /\bextend(?:ing)?\s+the\s+(?:\w+\s+)*offer$/.test(match) &&
+    /^\s*(?:deadline|date|window|expiry|expiration|beyond|past|until|by)\b/.test(following)
+  );
+}
+
+const REJECTION_RE =
+  /unfortunately|regret to inform|not (be )?(moving|proceeding)|won'?t be moving forward|decided (not |to not )|other candidates|no longer (being )?considered|not selected|will not be progressing|(?:unable|not able) to (?:move|proceed|progress)|position (?:has been|was|is) filled/;
+
 export function classifyEmail(subject?: string | null, body?: string | null): EmailCategory {
   const t = `${subject ?? ""}\n${body ?? ""}`.toLowerCase();
   if (!t.trim()) return "other";
 
-  if (/\b(job )?offer\b|pleased to offer|offer letter|extend(ing)? (you )?an offer|compensation package/.test(t)) {
+  let denied = false;
+  const withoutNegatedOffers = t.replace(NEGATED_OFFER, (match: string, offset: number) => {
+    const following = t.slice(offset + match.length, offset + match.length + 30);
+    if (isExistingOfferTerms(match, following)) return match;
+    if (isOfferDenial(match, following)) {
+      denied = true;
+    }
+    return " ";
+  });
+  if (/\b(job )?offer\b|pleased to offer|offer letter|extend(ing)? (you )?an offer|compensation package/.test(withoutNegatedOffers)) {
     return "offer";
   }
-  if (
-    /unfortunately|regret to inform|not (be )?(moving|proceeding)|won'?t be moving forward|decided (not |to not )|other candidates|no longer (being )?considered|not selected|will not be progressing/.test(
-      t,
-    )
-  ) {
+  // A plain "we are unable to offer you the position" carries no other rejection keyword.
+  if (denied || REJECTION_RE.test(t)) {
     return "rejection";
   }
   if (/interview|phone screen|technical screen|hiring manager|meet (the|with) (the )?team|onsite|coding (challenge|test)/.test(t)) {

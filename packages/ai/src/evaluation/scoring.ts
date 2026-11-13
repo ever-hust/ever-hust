@@ -265,13 +265,28 @@ export function levelOrdinal(label: string | null | undefined): number | null {
   return null;
 }
 
-/** Level dimension: posting seniority vs the user's natural level. */
+/**
+ * Level dimension: posting seniority vs the user's natural level.
+ *
+ * `userLevel` is the raw saved preference: a single label or a list of labels (the onboarding wizard
+ * and the preferences API store an array). Any other shape (missing, number, object) is neutral. With several labels the user is open to each of them, so the one closest to
+ * the posting's level is used. Labels that cannot be mapped are ignored; if none can, the score is
+ * neutral.
+ */
 export function scoreLevel(
   jobLevel: string | null,
-  userLevel: string | null,
+  userLevel: unknown,
 ): DeterministicScore {
   const j = levelOrdinal(jobLevel);
-  const u = levelOrdinal(userLevel);
+  const userOrdinals = (Array.isArray(userLevel) ? userLevel : [userLevel])
+    .map((l) => (typeof l === "string" ? levelOrdinal(l) : null))
+    .filter((o): o is number => o != null);
+  let u: number | null = null;
+  if (j != null) {
+    for (const o of userOrdinals) {
+      if (u == null || Math.abs(j - o) < Math.abs(j - u)) u = o;
+    }
+  }
   if (j == null || u == null) {
     return { score5: 3, rationale: "Level not clearly stated — scored neutral." };
   }

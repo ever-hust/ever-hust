@@ -273,10 +273,8 @@ export async function runEvaluateJob(args: {
     job.isRemote,
     (prefs.remotePreference ?? null) as RemotePreference,
   );
-  const level = scoreLevel(
-    job.jobLevel,
-    typeof prefs.roleLevel === "string" ? prefs.roleLevel : null,
-  );
+  // `roleLevel` is saved as an array (onboarding / preferences API) but may also be a string.
+  const level = scoreLevel(job.jobLevel, prefs.roleLevel);
 
   const { jobFamily, archetype } = detectTaxonomy({
     title: job.title,

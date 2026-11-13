@@ -10,7 +10,7 @@ import {
 } from "../structured/schemas/resume";
 import { assertArtifact, generateValidatedObject } from "../structured";
 import { assertNoInvented } from "../policy/assert-no-invented";
-import { splitKeywordsByCvEvidence } from "./keyword-evidence";
+import { cvExperienceEvidenceText, splitKeywordsByCvEvidence } from "./keyword-evidence";
 
 function asStringArray(v: unknown): string[] {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
@@ -123,7 +123,7 @@ export const tailorResumeTool = tool({
         [
           typeof cv.summary === "string" ? cv.summary : "",
           user.headline ?? "",
-          ...experience,
+          cvExperienceEvidenceText(cv.experience),
         ].join("\n"),
       );
 

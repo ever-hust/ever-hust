@@ -1,4 +1,24 @@
-import { splitKeywordsByCvEvidence } from "./keyword-evidence";
+import { cvExperienceEvidenceText, splitKeywordsByCvEvidence } from "./keyword-evidence";
+
+describe("cvExperienceEvidenceText", () => {
+  it("includes description text and roles beyond the eighth", () => {
+    const experience = Array.from({ length: 10 }, (_, i) => ({
+      title: `Role ${i}`,
+      company: `Co ${i}`,
+      description: i === 9 ? "Operated Kubernetes clusters." : "General duties.",
+    }));
+    const text = cvExperienceEvidenceText(experience);
+    expect(splitKeywordsByCvEvidence(["Kubernetes"], [], text).inCv).toEqual(["Kubernetes"]);
+  });
+
+  it("includes legacy summary fields and tolerates malformed input", () => {
+    expect(cvExperienceEvidenceText([{ summary: "Used Terraform." }, null, "x", 5])).toContain(
+      "Terraform",
+    );
+    expect(cvExperienceEvidenceText(undefined)).toBe("");
+    expect(cvExperienceEvidenceText({})).toBe("");
+  });
+});
 
 describe("splitKeywordsByCvEvidence", () => {
   it("matches the explicit skill list case-insensitively", () => {
@@ -46,6 +66,29 @@ describe("splitKeywordsByCvEvidence", () => {
     expect(splitKeywordsByCvEvidence(["React"], [], "Built apps in React.js.").inCv).toEqual([
       "React",
     ]);
+  });
+
+  it("does not treat Next.js as evidenced by the plain word 'next'", () => {
+    const r = splitKeywordsByCvEvidence(
+      ["Next.js"],
+      [],
+      "Building the next generation of products.",
+    );
+    expect(r.notInCv).toEqual(["Next.js"]);
+  });
+
+  it("still matches Next.js written out in the CV text or skill list", () => {
+    expect(splitKeywordsByCvEvidence(["Next.js"], [], "Shipped apps with Next.js.").inCv).toEqual([
+      "Next.js",
+    ]);
+    expect(splitKeywordsByCvEvidence(["Next.js"], ["Next.js"], "").inCv).toEqual(["Next.js"]);
+  });
+
+  it("skips keywords longer than the schema limit instead of returning them", () => {
+    const long = "x".repeat(101);
+    const r = splitKeywordsByCvEvidence([long, "Rust"], [], "");
+    expect(r.notInCv).toEqual(["Rust"]);
+    expect(r.inCv).toEqual([]);
   });
 
   it("de-duplicates keywords and drops empties", () => {

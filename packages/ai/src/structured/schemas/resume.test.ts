@@ -29,6 +29,17 @@ describe("resumeArtifact", () => {
       resumeSummarySchema.safeParse({ ...valid(), bulletSuggestions: ["only one"] }).success,
     ).toBe(false);
   });
+  it("keeps the optional CV keyword-evidence lists and stays valid without them", () => {
+    // z.object strips unknown keys, so `success` alone would pass without the new fields.
+    const withEvidence = { ...valid(), keywordsInCv: ["Go"], keywordsNotInCv: ["Kafka"] };
+    const built = resumeArtifact.build(withEvidence);
+    expect(built.summary.keywordsInCv).toEqual(["Go"]);
+    expect(built.summary.keywordsNotInCv).toEqual(["Kafka"]);
+    expect(resumeSummarySchema.safeParse(valid()).success).toBe(true);
+    expect(
+      resumeSummarySchema.safeParse({ ...valid(), keywordsNotInCv: ["x".repeat(101)] }).success,
+    ).toBe(false);
+  });
   it("builds a versioned artifact", () => {
     const a = resumeArtifact.build(valid());
     expect(a.kind).toBe("resume");

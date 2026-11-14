@@ -1,3 +1,4 @@
+import { annualise } from "../tools/salary-helpers";
 import type {
   EvaluationBand,
   BudgetFit,
@@ -114,12 +115,24 @@ export interface CompScore {
   budgetFit: BudgetFit;
 }
 
-/** Comp dimension: annualized posting salary vs the user's target floor. */
+/**
+ * Comp dimension: annualized posting salary vs the user's target floor (an annual figure).
+ * `salaryInterval` is the posting's pay period ("hourly", "monthly", …); when given, the posting
+ * range is annualised first so an hourly or monthly rate isn't compared to a yearly target as-is.
+ */
 export function scoreComp(
-  job: { salaryMin: number | null; salaryMax: number | null },
+  job: {
+    salaryMin: number | null;
+    salaryMax: number | null;
+    salaryInterval?: string | null;
+  },
   target: { min: number | null; max: number | null },
 ): CompScore {
-  const jobMid = midpoint(job.salaryMin, job.salaryMax);
+  const interval = job.salaryInterval ?? null;
+  const jobMid = midpoint(
+    job.salaryMin != null ? annualise(job.salaryMin, interval) : null,
+    job.salaryMax != null ? annualise(job.salaryMax, interval) : null,
+  );
   const targetFloor = target.min ?? target.max ?? null;
 
   if (jobMid == null) {

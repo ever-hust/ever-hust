@@ -236,6 +236,7 @@ export async function runEvaluateJob(args: {
       salaryMin: jobs.salaryMin,
       salaryMax: jobs.salaryMax,
       salaryCurrency: jobs.salaryCurrency,
+      salaryInterval: jobs.salaryInterval,
       legitimacy: jobs.legitimacy,
       legitimacyReasons: jobs.legitimacyReasons,
     })
@@ -266,7 +267,11 @@ export async function runEvaluateJob(args: {
   const userSkills = [...asStringArray(user.skills), ...asStringArray(cv.skills)];
   const overlap = cvSkillOverlap(userSkills, asStringArray(job.skills));
   const comp = scoreComp(
-    { salaryMin: toNumber(job.salaryMin), salaryMax: toNumber(job.salaryMax) },
+    {
+      salaryMin: toNumber(job.salaryMin),
+      salaryMax: toNumber(job.salaryMax),
+      salaryInterval: job.salaryInterval,
+    },
     { min: toNumber(prefs.salaryMin), max: toNumber(prefs.salaryMax) },
   );
   const remote = scoreRemote(

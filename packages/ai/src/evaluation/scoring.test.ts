@@ -103,6 +103,63 @@ describe("scoreComp", () => {
     expect(r.score5).toBe(3);
     expect(r.budgetFit).toBe("unknown");
   });
+
+  it("annualises an hourly posting before comparing to a yearly target", () => {
+    // $90–$110/h → 187,200–228,800 a year (midpoint 208k) vs 150k = 1.39
+    const r = scoreComp(
+      { salaryMin: 90, salaryMax: 110, salaryInterval: "hourly" },
+      { min: 150000, max: null },
+    );
+    expect(r.score5).toBe(5);
+    expect(r.budgetFit).toBe("good_fit");
+    expect(r.rationale).toContain("$208k");
+  });
+
+  it("annualises a monthly posting", () => {
+    // 10k/month → 120k a year vs 150k = 0.8
+    const r = scoreComp(
+      { salaryMin: 10000, salaryMax: 10000, salaryInterval: "monthly" },
+      { min: 150000, max: null },
+    );
+    expect(r.score5).toBe(2);
+    expect(r.budgetFit).toBe("under_budget");
+  });
+
+  it("annualises a daily rate and a one-sided range", () => {
+    const target = { min: 150000, max: null };
+    // $800/day min-only → 208,000 a year (800 * 260)
+    const daily = scoreComp(
+      { salaryMin: 800, salaryMax: null, salaryInterval: "daily" },
+      target,
+    );
+    expect(daily.score5).toBe(5);
+    expect(daily.rationale).toContain("$208k");
+    // $4,000/week max-only → 208,000 a year (4000 * 52)
+    const weekly = scoreComp(
+      { salaryMin: null, salaryMax: 4000, salaryInterval: "weekly" },
+      target,
+    );
+    expect(weekly.rationale).toContain("$208k");
+  });
+
+  it("keeps yearly, unknown and missing intervals unchanged", () => {
+    const target = { min: 150000, max: null };
+    const base = scoreComp({ salaryMin: 180000, salaryMax: 220000 }, target);
+    for (const salaryInterval of [
+      "yearly",
+      "annual",
+      "weird",
+      null,
+      undefined,
+    ]) {
+      expect(
+        scoreComp(
+          { salaryMin: 180000, salaryMax: 220000, salaryInterval },
+          target,
+        ),
+      ).toEqual(base);
+    }
+  });
 });
 
 describe("scoreRemote", () => {

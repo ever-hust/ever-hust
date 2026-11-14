@@ -107,6 +107,7 @@ interface JobFacts {
   salaryMin: unknown;
   salaryMax: unknown;
   salaryCurrency: string | null;
+  salaryInterval: string | null;
 }
 
 function buildPrompt(input: {
@@ -145,6 +146,13 @@ function buildPrompt(input: {
   const jobLocation = [job.locationCity, job.locationState, job.locationCountry]
     .filter(Boolean)
     .join(", ");
+  // The pay period goes next to the raw figures so they agree with the annualised Comp fact.
+  const salaryUnit = [
+    job.salaryCurrency,
+    job.salaryInterval ? `(${job.salaryInterval})` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   // Localized comp semantics (spec #19b) so Comp/Demand reasons correctly outside the US.
   const compPack = getCompPack(job.locationCountry);
@@ -166,7 +174,7 @@ function buildPrompt(input: {
     `Detected family / archetype: ${jobFamily} / ${archetype}`,
     `Level: ${job.jobLevel ?? "—"}`,
     `Location: ${jobLocation || "—"} · Remote: ${job.isRemote ?? "unknown"}`,
-    `Salary: ${toNumber(job.salaryMin) ?? "—"}–${toNumber(job.salaryMax) ?? "—"} ${job.salaryCurrency ?? ""}`,
+    `Salary: ${toNumber(job.salaryMin) ?? "—"}–${toNumber(job.salaryMax) ?? "—"} ${salaryUnit}`,
     `Required skills: ${asStringArray(job.skills).join(", ") || "—"}`,
     `Description:\n${jobDescription || "—"}`,
     "",
@@ -236,6 +244,7 @@ export async function runEvaluateJob(args: {
       salaryMin: jobs.salaryMin,
       salaryMax: jobs.salaryMax,
       salaryCurrency: jobs.salaryCurrency,
+      salaryInterval: jobs.salaryInterval,
       legitimacy: jobs.legitimacy,
       legitimacyReasons: jobs.legitimacyReasons,
     })
@@ -266,7 +275,11 @@ export async function runEvaluateJob(args: {
   const userSkills = [...asStringArray(user.skills), ...asStringArray(cv.skills)];
   const overlap = cvSkillOverlap(userSkills, asStringArray(job.skills));
   const comp = scoreComp(
-    { salaryMin: toNumber(job.salaryMin), salaryMax: toNumber(job.salaryMax) },
+    {
+      salaryMin: toNumber(job.salaryMin),
+      salaryMax: toNumber(job.salaryMax),
+      salaryInterval: job.salaryInterval,
+    },
     { min: toNumber(prefs.salaryMin), max: toNumber(prefs.salaryMax) },
   );
   const remote = scoreRemote(

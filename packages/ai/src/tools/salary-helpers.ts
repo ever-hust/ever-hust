@@ -7,8 +7,9 @@
 
 /**
  * Normalise a salary value to an annual figure so comparisons are meaningful.
- * The jobs table stores salaryInterval as free-text (e.g. "yearly", "monthly",
- * "hourly", "weekly"). We convert everything to yearly for aggregation.
+ * The jobs table stores salaryInterval as free-text (the jobs API sends "yearly",
+ * "monthly", "weekly", "daily" or "hourly"). We convert everything to yearly for
+ * aggregation.
  *
  * Falls back to assuming yearly if the interval is unknown.
  */
@@ -16,6 +17,8 @@ export function annualise(salary: number, interval: string | null): number {
   switch (interval?.toLowerCase()) {
     case "hourly":
       return salary * 2080; // 40h * 52w
+    case "daily":
+      return salary * 260; // 5d * 52w
     case "weekly":
       return salary * 52;
     case "biweekly":

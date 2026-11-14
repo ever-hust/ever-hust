@@ -11,6 +11,11 @@ describe("annualise", () => {
     expect(annualise(50, "hourly")).toBe(50 * 2080);
   });
 
+  it("converts daily to annual (5d * 52w = 260)", () => {
+    expect(annualise(800, "daily")).toBe(800 * 260);
+    expect(annualise(800, "Daily")).toBe(800 * 260);
+  });
+
   it("converts weekly to annual (* 52)", () => {
     expect(annualise(2000, "weekly")).toBe(2000 * 52);
   });

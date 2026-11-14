@@ -125,11 +125,39 @@ describe("scoreComp", () => {
     expect(r.budgetFit).toBe("under_budget");
   });
 
+  it("annualises a daily rate and a one-sided range", () => {
+    const target = { min: 150000, max: null };
+    // $800/day min-only → 208,000 a year (800 * 260)
+    const daily = scoreComp(
+      { salaryMin: 800, salaryMax: null, salaryInterval: "daily" },
+      target,
+    );
+    expect(daily.score5).toBe(5);
+    expect(daily.rationale).toContain("$208k");
+    // $4,000/week max-only → 208,000 a year (4000 * 52)
+    const weekly = scoreComp(
+      { salaryMin: null, salaryMax: 4000, salaryInterval: "weekly" },
+      target,
+    );
+    expect(weekly.rationale).toContain("$208k");
+  });
+
   it("keeps yearly, unknown and missing intervals unchanged", () => {
     const target = { min: 150000, max: null };
     const base = scoreComp({ salaryMin: 180000, salaryMax: 220000 }, target);
-    for (const salaryInterval of ["yearly", "annual", "weird", null, undefined]) {
-      expect(scoreComp({ salaryMin: 180000, salaryMax: 220000, salaryInterval }, target)).toEqual(base);
+    for (const salaryInterval of [
+      "yearly",
+      "annual",
+      "weird",
+      null,
+      undefined,
+    ]) {
+      expect(
+        scoreComp(
+          { salaryMin: 180000, salaryMax: 220000, salaryInterval },
+          target,
+        ),
+      ).toEqual(base);
     }
   });
 });

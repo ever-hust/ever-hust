@@ -7,7 +7,15 @@ const HAS_LLM = !!process.env.OPENROUTER_API_KEY || !!process.env.ANTHROPIC_API_
 
 test.use({ storageState: "tests/e2e/.auth/user.json" });
 
+// Each live request below allows up to 90 s. A request cannot outlive its test, so the test
+// timeout (Playwright default: 30 s) must cover the request timeout plus margin. Scoped to
+// this describe block only; the global timeout for other specs is unchanged.
+const LIVE_LLM_REQUEST_TIMEOUT_MS = 90_000;
+const LIVE_LLM_TEST_TIMEOUT_MS = 120_000;
+
 test.describe("AI tools — real LLM", () => {
+  test.describe.configure({ timeout: LIVE_LLM_TEST_TIMEOUT_MS });
+
   test.skip(
     !HAS_LLM,
     "Set OPENROUTER_API_KEY (or ANTHROPIC_API_KEY) to run real-LLM E2E."
@@ -27,7 +35,7 @@ test.describe("AI tools — real LLM", () => {
           },
         ],
       },
-      timeout: 90_000,
+      timeout: LIVE_LLM_REQUEST_TIMEOUT_MS,
     });
     expect(res.status()).toBe(200);
     const body = await res.text();
@@ -53,7 +61,7 @@ test.describe("AI tools — real LLM", () => {
           },
         ],
       },
-      timeout: 90_000,
+      timeout: LIVE_LLM_REQUEST_TIMEOUT_MS,
     });
     expect(res.status()).toBe(200);
     const body = await res.text();

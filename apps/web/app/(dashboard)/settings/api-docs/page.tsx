@@ -59,7 +59,7 @@ function CodeBlock({
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100"
+          className="h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
           onClick={handleCopy}
           aria-label="Copy code"
         >

@@ -4,9 +4,33 @@ import { getSupabaseServer } from "./server";
 const DEFAULT_BUCKET = "user-uploads";
 
 /**
+ * Throw when a storage path could leave the folder it names.
+ *
+ * storage-js puts the path into the request URL without encoding it, and the
+ * URL parser resolves "." and ".." segments (also written as %2e) and treats
+ * "\" as "/". The upload runs with the service-role key, so such a path could
+ * write into another user's folder or another bucket.
+ */
+function assertSafeStoragePath(path: string): void {
+  const unsafe =
+    path.includes("\\") ||
+    path.split("/").some((segment) => {
+      const dots = segment.replace(/%2e/gi, ".");
+      return dots === "." || dots === "..";
+    });
+  if (unsafe) {
+    // Do not echo the path: it is often built from user input.
+    throw new Error("Invalid storage path: dot segments and backslashes are not allowed");
+  }
+}
+
+/**
  * Upload a file to Supabase Storage.
  *
- * @param path   - Storage path, e.g. `avatars/{userId}.webp` or `cvs/{userId}/{filename}`
+ * Throws before any network call when the path has a "." or ".." segment
+ * (also percent-encoded) or a backslash.
+ *
+ * @param path   - Storage path, e.g. `avatars/{userId}.webp` or `cvs/{userId}/{uuid}.pdf`
  * @param data   - File contents as Buffer or Uint8Array
  * @param contentType - MIME type of the file
  * @param bucket - Storage bucket name (defaults to "user-uploads")
@@ -18,6 +42,7 @@ export async function uploadFile(
   contentType: string,
   bucket = DEFAULT_BUCKET,
 ): Promise<string> {
+  assertSafeStoragePath(path);
   const supabase = getSupabaseServer();
 
   const { error } = await supabase.storage

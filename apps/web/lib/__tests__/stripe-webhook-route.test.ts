@@ -100,17 +100,25 @@ describe("POST /api/stripe/webhook idempotency", () => {
     const res = await send();
 
     expect(res.status).toBe(500);
-    expect(mockReleaseEvent).toHaveBeenCalledWith("evt_topup");
+    // Released by id and this delivery's own claim time, so another delivery's claim stays.
+    const claimedAt = mockClaimEventStatus.mock.calls[0][1];
+    expect(claimedAt).toBeInstanceOf(Date);
+    expect(mockReleaseEvent).toHaveBeenCalledWith("evt_topup", claimedAt);
   });
 
-  it("does not release a claim it does not own when the grant fails", async () => {
+  it("releases an unverified claim only by its own claim time when the grant fails", async () => {
+    // "unverified": the claim insert may have committed although the client saw an error.
+    // Releasing by (id, this delivery's claim time) deletes only a claim this delivery wrote,
+    // so Stripe's retry is processed and another delivery's claim is never touched.
     mockClaimEventStatus.mockResolvedValue("unverified");
     mockGrantCredits.mockRejectedValue(new Error("db down"));
 
     const res = await send();
 
     expect(res.status).toBe(500);
-    expect(mockReleaseEvent).not.toHaveBeenCalled();
+    const claimedAt = mockClaimEventStatus.mock.calls[0][1];
+    expect(mockReleaseEvent).toHaveBeenCalledTimes(1);
+    expect(mockReleaseEvent).toHaveBeenCalledWith("evt_topup", claimedAt);
   });
 });
 

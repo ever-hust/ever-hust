@@ -57,16 +57,18 @@ export async function POST(req: Request) {
     return apiBadRequest("Invalid signature");
   }
 
-  // Idempotency: skip if we've already processed this event
-  const claim = await claimEventStatus(event.id);
+  // Idempotency: skip if we've already processed this event. `claimedAt` marks
+  // the claim row as this delivery's own.
+  const claimedAt = new Date();
+  const claim = await claimEventStatus(event.id, claimedAt);
   if (claim === "duplicate") {
     return apiSuccess({ received: true, deduplicated: true });
   }
-  // Release only a claim this delivery inserted; otherwise the row (if any)
-  // belongs to another delivery and deleting it would remove its protection.
-  const releaseClaim = async () => {
-    if (claim === "claimed") await releaseEvent(event.id);
-  };
+  // Release before a 500 so Stripe's retry runs. releaseEvent deletes only the
+  // row carrying this delivery's claimedAt, so it never removes another
+  // delivery's claim, and after an "unverified" claim it still removes our own
+  // row if the insert committed despite the error.
+  const releaseClaim = () => releaseEvent(event.id, claimedAt);
 
   // Credit top-up (one-time payment) — handled before the subscription parser,
   // which only understands subscription checkouts.

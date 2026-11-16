@@ -1,5 +1,5 @@
 import { db, stripeWebhookEvents } from "@ever-hust/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 // ── Idempotency Guard ─────────────────────────────────────────────────────
 // Database-backed deduplication that works across multiple server instances.
@@ -30,17 +30,20 @@ function isUniqueViolation(error: unknown): boolean {
 
 /**
  * Outcome of trying to claim an event:
- * - `claimed`: this delivery inserted the row and owns it (only then may it release it).
+ * - `claimed`: this delivery inserted the row.
  * - `duplicate`: another delivery already holds the row; skip processing.
- * - `unverified`: the claim insert failed for another reason, so no row of ours
- *   exists. Process anyway (never drop a webhook), but never release: any row
- *   with this id belongs to another delivery.
+ * - `unverified`: the claim insert failed for another reason. Process anyway
+ *   (never drop a webhook). The row may still have been written (an error
+ *   after commit, e.g. a dropped connection) or another delivery may hold it.
+ *
+ * `claimedAt` is written as the row's `processed_at` and marks the row as this
+ * delivery's own: pass the same value to {@link releaseEvent}.
  */
 export type ClaimStatus = "claimed" | "duplicate" | "unverified";
 
-export async function claimEventStatus(eventId: string): Promise<ClaimStatus> {
+export async function claimEventStatus(eventId: string, claimedAt: Date): Promise<ClaimStatus> {
   try {
-    await db.insert(stripeWebhookEvents).values({ id: eventId });
+    await db.insert(stripeWebhookEvents).values({ id: eventId, processedAt: claimedAt });
     return "claimed"; // Insert succeeded — first time seeing this event
   } catch (error) {
     // Unique constraint violation means another delivery already claimed it.
@@ -63,20 +66,30 @@ export async function claimEventStatus(eventId: string): Promise<ClaimStatus> {
  * handled (caller should skip).
  */
 export async function claimEvent(eventId: string): Promise<boolean> {
-  return (await claimEventStatus(eventId)) !== "duplicate";
+  return (await claimEventStatus(eventId, new Date())) !== "duplicate";
 }
 
 /**
  * Release a claim so Stripe's retry of a failed delivery is processed instead
- * of being skipped as a duplicate. Call it before returning a 5xx, and only
- * when `claimEventStatus` returned "claimed" for this delivery: releasing a row
- * we do not own would erase another delivery's duplicate protection. Never
- * throws: if the delete fails the retry is skipped (logged), which is no worse
- * than before.
+ * of being skipped as a duplicate. Call it before returning a 5xx whenever the
+ * claim was not a duplicate, `unverified` included. Never throws: if the delete
+ * fails the retry is skipped (logged), which is no worse than before.
+ *
+ * Only the row written with this delivery's `claimedAt` is deleted, so another
+ * delivery's claim is never erased. After an `unverified` claim this still
+ * deletes our own row if the insert committed despite the error; keeping it
+ * would make Stripe's retry a "duplicate" and the event would never run.
  */
-export async function releaseEvent(eventId: string): Promise<void> {
+export async function releaseEvent(eventId: string, claimedAt: Date): Promise<void> {
   try {
-    await db.delete(stripeWebhookEvents).where(eq(stripeWebhookEvents.id, eventId));
+    await db
+      .delete(stripeWebhookEvents)
+      .where(
+        and(
+          eq(stripeWebhookEvents.id, eventId),
+          eq(stripeWebhookEvents.processedAt, claimedAt),
+        ),
+      );
   } catch (error) {
     console.error(
       "[stripe/webhook] Failed to release event claim:",

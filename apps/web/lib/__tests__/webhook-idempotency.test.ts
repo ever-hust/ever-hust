@@ -13,14 +13,20 @@ jest.mock("@ever-hust/db", () => ({
     insert: (...args: unknown[]) => (mockInsert as (...a: unknown[]) => unknown)(...args),
     delete: (...args: unknown[]) => (mockDelete as (...a: unknown[]) => unknown)(...args),
   },
-  stripeWebhookEvents: { id: "stripe_webhook_events.id" },
+  stripeWebhookEvents: {
+    id: "stripe_webhook_events.id",
+    processedAt: "stripe_webhook_events.processed_at",
+  },
 }));
 
 jest.mock("drizzle-orm", () => ({
   eq: (column: unknown, value: unknown) => ({ op: "eq", column, value }),
+  and: (...conditions: unknown[]) => ({ op: "and", conditions }),
 }));
 
 import { claimEvent, claimEventStatus, releaseEvent } from "../stripe-webhook-idempotency";
+
+const CLAIMED_AT = new Date("2026-11-16T01:02:03.456Z");
 
 /** Error with a Postgres-style `code` property (raw driver error shape). */
 function pgError(message: string, code: string): Error & { code: string } {
@@ -50,7 +56,7 @@ describe("claimEvent (webhook idempotency)", () => {
     mockValues.mockResolvedValue(undefined);
 
     expect(await claimEvent("evt_first")).toBe(true);
-    expect(mockValues).toHaveBeenCalledWith({ id: "evt_first" });
+    expect(mockValues).toHaveBeenCalledWith({ id: "evt_first", processedAt: expect.any(Date) });
   });
 
   it("returns false for a Drizzle-wrapped unique violation (code on cause)", async () => {
@@ -119,21 +125,22 @@ describe("claimEventStatus (claim ownership)", () => {
     warnSpy.mockRestore();
   });
 
-  it('is "claimed" only when this call inserted the row', async () => {
+  it('is "claimed" when this call inserted the row, stamped with its claim time', async () => {
     mockValues.mockResolvedValue(undefined);
-    expect(await claimEventStatus("evt_a")).toBe("claimed");
+    expect(await claimEventStatus("evt_a", CLAIMED_AT)).toBe("claimed");
+    expect(mockValues).toHaveBeenCalledWith({ id: "evt_a", processedAt: CLAIMED_AT });
   });
 
   it('is "duplicate" for a unique violation, wrapped or not', async () => {
     mockValues.mockRejectedValueOnce(drizzleError("23505"));
-    expect(await claimEventStatus("evt_a")).toBe("duplicate");
+    expect(await claimEventStatus("evt_a", CLAIMED_AT)).toBe("duplicate");
     mockValues.mockRejectedValueOnce(pgError("dup", "23505"));
-    expect(await claimEventStatus("evt_a")).toBe("duplicate");
+    expect(await claimEventStatus("evt_a", CLAIMED_AT)).toBe("duplicate");
   });
 
-  it('is "unverified" (no row of ours) when the insert fails for another reason', async () => {
+  it('is "unverified" when the insert fails for another reason', async () => {
     mockValues.mockRejectedValue(pgError("timeout", "57014"));
-    expect(await claimEventStatus("evt_a")).toBe("unverified");
+    expect(await claimEventStatus("evt_a", CLAIMED_AT)).toBe("unverified");
   });
 });
 
@@ -149,23 +156,27 @@ describe("releaseEvent", () => {
     errorSpy.mockRestore();
   });
 
-  it("deletes the claim row by event id", async () => {
+  it("deletes only the row this delivery wrote (event id and claim time)", async () => {
     mockWhere.mockResolvedValue(undefined);
 
-    await releaseEvent("evt_retry");
+    await releaseEvent("evt_retry", CLAIMED_AT);
 
+    // Matching the claim time too means a delivery whose own insert failed
+    // cannot delete a claim another delivery wrote for the same event.
     expect(mockDelete).toHaveBeenCalledTimes(1);
     expect(mockWhere).toHaveBeenCalledWith({
-      op: "eq",
-      column: "stripe_webhook_events.id",
-      value: "evt_retry",
+      op: "and",
+      conditions: [
+        { op: "eq", column: "stripe_webhook_events.id", value: "evt_retry" },
+        { op: "eq", column: "stripe_webhook_events.processed_at", value: CLAIMED_AT },
+      ],
     });
   });
 
   it("never throws when the delete fails, and logs it", async () => {
     mockWhere.mockRejectedValue(new Error("db down"));
 
-    await expect(releaseEvent("evt_retry")).resolves.toBeUndefined();
+    await expect(releaseEvent("evt_retry", CLAIMED_AT)).resolves.toBeUndefined();
     expect(errorSpy).toHaveBeenCalledWith(
       expect.stringContaining("Failed to release"),
       "evt_retry",

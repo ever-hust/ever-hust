@@ -46,6 +46,17 @@ describe("uploadFile path guard", () => {
       "cvs/user-1/.%2E/victim/x.pdf",
     ],
     ["a percent-encoded current-directory segment", "cvs/%2e/user-1/cv.pdf"],
+    // The URL parser drops tab, CR and LF, so these become ".." segments.
+    ["a tab inside a parent segment", "cvs/user-1/.\t./.\t./.\t./other/x.pdf"],
+    ["a line feed inside a parent segment", "cvs/user-1/.\n./victim/x.pdf"],
+    [
+      "a carriage return inside a parent segment",
+      "cvs/user-1/.\r./victim/x.pdf",
+    ],
+    ["a tab between encoded dots", "cvs/user-1/%2e\t%2e/victim/x.pdf"],
+    ["a leading tab before a parent segment", "cvs/user-1/\t../victim/x.pdf"],
+    ["a NUL character", "cvs/user-1/cv.pdf\u0000"],
+    ["a DEL character", "cvs/user-1/cv\u007f.pdf"],
   ])(
     "throws for a path with %s and never calls Storage",
     async (_label, path) => {

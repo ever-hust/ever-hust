@@ -175,6 +175,9 @@ collapse the repeats to one email. No schema change: each item has a marker on a
 
 - Job alerts use `user_alerts.last_sent_at`. The minimum gaps between two sends are: daily 20 h,
   twice_daily 8 h, weekly 6 d.
+- Job alerts go to the account email (`users.email`, read with the subscription status), never to
+  `user_alerts.email`: older rows hold whatever address the request body gave, and a guest's
+  alerts keep the guest address after they move to the new account.
 - Follow-up nudges use `users.last_follow_up_nudge_at`, with the 3-day cooldown as the window.
 
 ### Job alerts: one fixed window per run

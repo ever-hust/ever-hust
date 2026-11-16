@@ -1,4 +1,4 @@
-import { classifyEmail } from "./email-classify";
+import { classifyEmail, senderDomain } from "./email-classify";
 
 describe("classifyEmail", () => {
   it("returns other for empty input", () => {
@@ -130,5 +130,23 @@ describe("classifyEmail", () => {
     expect(classifyEmail("Phone screen next week", "")).toBe("interview");
     expect(classifyEmail("Pick a time", "Book a time on my calendly")).toBe("scheduling");
     expect(classifyEmail("Thank you for applying", "")).toBe("application");
+  });
+});
+
+describe("senderDomain", () => {
+  it("reads the domain of a bare or bracketed address", () => {
+    expect(senderDomain("x@Box.com")).toBe("box.com");
+    expect(senderDomain("Box Talent <talent@mail.box.com>")).toBe("mail.box.com");
+  });
+
+  it("ignores an @ in the display name", () => {
+    expect(senderDomain('"jobs@box.com" <noreply@other.example>')).toBe("other.example");
+    expect(senderDomain('"<jobs@box.com>" <noreply@other.example>')).toBe("other.example");
+  });
+
+  it("returns null without a usable address", () => {
+    expect(senderDomain(null)).toBeNull();
+    expect(senderDomain("Box Talent")).toBeNull();
+    expect(senderDomain("x@")).toBeNull();
   });
 });

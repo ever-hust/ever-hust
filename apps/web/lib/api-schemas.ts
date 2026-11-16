@@ -43,9 +43,11 @@ export const settingsPatchSchema = z.lazy(() =>
 );
 
 // === User Alerts Route ===
+// Alerts always go to the signed-in user's account email. `email` is still
+// accepted so older clients keep working, but the route never stores it.
 export const alertCreateSchema = z.object({
   frequency: z.enum(["daily", "twice_daily", "weekly"]),
-  email: z.string().email().max(320),
+  email: z.string().email().max(320).optional(),
   criteria: z
     .object({
       keywords: z.array(z.string().max(200)).max(20).optional(),
@@ -68,6 +70,7 @@ export const alertPatchSchema = z.object({
   id: z.number().int().positive(),
   isActive: z.boolean().optional(),
   frequency: z.enum(["daily", "twice_daily", "weekly"]).optional(),
+  // Never stored: the route answers 400 when it differs from the account email.
   email: z.string().email().max(320).optional(),
   // Reuse the same criteria shape as alertCreateSchema for consistency
   criteria: alertCreateSchema.shape.criteria,

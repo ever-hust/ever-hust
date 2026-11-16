@@ -463,6 +463,14 @@ describe("alertCreateSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts an alert without email (alerts go to the account email)", () => {
+    const result = alertCreateSchema.safeParse({
+      frequency: "daily",
+      criteria: { keywords: ["react developer"] },
+    });
+    expect(result.success).toBe(true);
+  });
+
   it("rejects invalid frequency", () => {
     const result = alertCreateSchema.safeParse({
       frequency: "hourly",

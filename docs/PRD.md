@@ -1661,9 +1661,11 @@ GET /api/user/favorites?page=1&pageSize=25 -> 200 { jobs: Job[], total: number }
 ### Alerts
 
 ```
-POST /api/user/alerts { frequency, email, criteria } -> 201 { id, isActive, ... }
+POST /api/user/alerts { frequency, criteria } -> 201 { id, isActive, ... }
+  (always sent to the account email; any email in the body is ignored;
+   400 once the user has 20 alerts, MAX_ALERTS_PER_USER in @ever-hust/utils)
 GET /api/user/alerts -> 200 { alerts: Alert[] }
-PATCH /api/user/alerts/:id { isActive: false } -> 200 { id, isActive: false }
+PATCH /api/user/alerts/:id { isActive: false } -> 200 { id, isActive: false }  (400 if email is not the account email)
 DELETE /api/user/alerts/:id -> 204
 ```
 

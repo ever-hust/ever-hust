@@ -11,9 +11,10 @@ test.describe("Authenticated — job alerts (#MVP)", () => {
   });
 
   test("POST rejects an invalid body before any subscription check", async ({ request }) => {
-    // Missing the required email — fails Zod validation (400) ahead of the Pro gate.
+    // An unknown frequency fails Zod validation (400) ahead of the Pro gate.
+    // (`email` is optional now: alerts always go to the account email.)
     const res = await request.post("/api/user/alerts", {
-      data: { frequency: "daily" },
+      data: { frequency: "hourly" },
     });
     expect(res.status()).toBe(400);
   });

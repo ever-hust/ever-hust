@@ -1,4 +1,5 @@
-import { getModelForUser } from "./model-router";
+import { DEFAULT_HUST_FREE_KEY, DEFAULT_HUST_PRO_KEY } from "@ever-hust/plugin";
+import { getModelForUser, resolveModelSelection } from "./model-router";
 
 // Mock the @ai-sdk/anthropic module (used for both the platform degraded
 // fallback and the Anthropic BYOK plugin).
@@ -236,5 +237,54 @@ describe("getModelForUser", () => {
       expect(model.modelId).toBe("claude-opus-5-5");
       expect(model.provider).toBe("anthropic-byok");
     });
+  });
+});
+
+// The chat route bills credits for `modelKey` and skips billing when `isByok`,
+// so these must name the model getModelForUser actually serves.
+describe("resolveModelSelection", () => {
+  it("free user who saved a Hust PRO model → the free default it is served", () => {
+    expect(
+      resolveModelSelection({
+        subscriptionStatus: "free",
+        preferences: { aiModel: "hust:anthropic/claude-opus-5.5" },
+      }),
+    ).toEqual({ modelKey: DEFAULT_HUST_FREE_KEY, isByok: false });
+  });
+
+  it("a key that is not in the catalog → the tier default", () => {
+    expect(
+      resolveModelSelection({
+        subscriptionStatus: "active",
+        preferences: { aiModel: "gpt-6-luna" },
+      }),
+    ).toEqual({ modelKey: DEFAULT_HUST_PRO_KEY, isByok: false });
+    expect(
+      resolveModelSelection({
+        subscriptionStatus: "free",
+        preferences: { aiModel: "gpt-6-luna" },
+      }),
+    ).toEqual({ modelKey: DEFAULT_HUST_FREE_KEY, isByok: false });
+  });
+
+  it("a BYOK model with no saved key → the tier default, not BYOK", () => {
+    expect(
+      resolveModelSelection({
+        subscriptionStatus: "free",
+        preferences: { aiModel: "openai:gpt-6-astra" },
+      }),
+    ).toEqual({ modelKey: DEFAULT_HUST_FREE_KEY, isByok: false });
+  });
+
+  it("a BYOK model with a saved key → that model, BYOK", () => {
+    expect(
+      resolveModelSelection({
+        subscriptionStatus: "free",
+        preferences: {
+          aiModel: "openai:gpt-6-astra",
+          apiKeys: { openai: "sk-proj-123" },
+        },
+      }),
+    ).toEqual({ modelKey: "openai:gpt-6-astra", isByok: true });
   });
 });

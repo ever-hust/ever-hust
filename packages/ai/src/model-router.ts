@@ -7,6 +7,7 @@ import {
   DEFAULT_HUST_PRO_KEY,
   type AIProviderPlugin,
   type ByokProviderId,
+  type CatalogModel,
 } from "@ever-hust/plugin";
 import { anthropicPlugin } from "@ever-hust/plugin-anthropic";
 import { openaiPlugin } from "@ever-hust/plugin-openai";
@@ -98,10 +99,6 @@ function getPlatformModel(modelId: string, fallbackState?: FallbackState): Langu
 
 const warnedNoRouteFor = new Set<string>();
 
-function platformModelIdForKey(key: string): string {
-  return findModelByKey(key)?.modelId ?? "anthropic/claude-haiku-4.5";
-}
-
 export interface ModelForUserOptions {
   /** Set to `usedFallback: true` when a free model answered for want of platform credits. */
   fallbackState?: FallbackState;
@@ -127,20 +124,25 @@ function decryptKeys(
   return out;
 }
 
+/** The catalog model a user is served, plus their key when it is a BYOK model. */
+interface ServedModel {
+  model: CatalogModel;
+  /** The user's decrypted key — set only when the model runs on it (BYOK). */
+  byokKey?: string;
+}
+
 /**
- * Resolve the LanguageModel for a user.
+ * Pick the catalog model a user is served. Every caller goes through here so
+ * the model that runs and the model billed can never disagree.
  *
- * - A selected **BYOK** model with a saved key → that provider plugin (user's
- *   own key/cost — works on any tier).
- * - A selected **Hust** model → platform (free tier is capped to the free Hust
- *   model; paid gets the selected one).
- * - Anything else (no selection, BYOK without a key, unknown/legacy id) →
- *   the Hust default for the tier.
+ * - A selected **BYOK** model with a saved key → that model on the user's own
+ *   key (works on any tier).
+ * - A selected **Hust** model → that model (free tier is capped to free-tier
+ *   Hust models; paid gets the selected one).
+ * - Anything else (no selection, BYOK without a key, a Hust pro model on the
+ *   free tier, unknown/legacy id) → the Hust default for the tier.
  */
-export function getModelForUser(
-  user: UserForModel,
-  { fallbackState }: ModelForUserOptions = {},
-): LanguageModel {
+function pickServedModel(user: UserForModel): ServedModel {
   const keys = decryptKeys(user.preferences?.apiKeys);
   const isPaid =
     user.subscriptionStatus === "active" || user.subscriptionStatus === "past_due";
@@ -151,21 +153,47 @@ export function getModelForUser(
 
   if (selected) {
     if (selected.provider !== "hust") {
-      const pid = selected.provider;
-      const key = keys[pid];
       // BYOK: user's own key → use it on any tier. No key → fall through to Hust.
-      if (key) return PLUGINS[pid].createModel(key, selected.modelId);
-    } else {
+      const key = keys[selected.provider];
+      if (key) return { model: selected, byokKey: key };
+    } else if (isPaid || selected.tier === "free") {
       // Hust platform model. Free users are capped to free-tier Hust models.
-      if (isPaid || selected.tier === "free") {
-        return getPlatformModel(selected.modelId, fallbackState);
-      }
+      return { model: selected };
     }
   }
 
   // Default / fallback for the tier.
-  return getPlatformModel(
-    platformModelIdForKey(isPaid ? DEFAULT_HUST_PRO_KEY : DEFAULT_HUST_FREE_KEY),
-    fallbackState,
-  );
+  const defaultModel = findModelByKey(isPaid ? DEFAULT_HUST_PRO_KEY : DEFAULT_HUST_FREE_KEY);
+  if (!defaultModel) throw new Error("[ai] The Hust default model is missing from the catalog");
+  return { model: defaultModel };
+}
+
+export interface ModelSelection {
+  /** Catalog key of the model actually served (what credits are priced on). */
+  modelKey: string;
+  /** True when the call runs on the user's own key, so it is not metered. */
+  isByok: boolean;
+}
+
+/**
+ * The model a user is actually served — the same choice getModelForUser makes —
+ * for credit metering. Bill this `modelKey`, never the saved `aiModel` string:
+ * a free user's pro pick, a BYOK pick with no key and an unknown id all serve
+ * the tier default.
+ */
+export function resolveModelSelection(user: UserForModel): ModelSelection {
+  const { model, byokKey } = pickServedModel(user);
+  return { modelKey: model.key, isByok: byokKey !== undefined };
+}
+
+/** Resolve the LanguageModel for a user (see pickServedModel for the rules). */
+export function getModelForUser(
+  user: UserForModel,
+  { fallbackState }: ModelForUserOptions = {},
+): LanguageModel {
+  const { model, byokKey } = pickServedModel(user);
+  if (byokKey !== undefined && model.provider !== "hust") {
+    return PLUGINS[model.provider].createModel(byokKey, model.modelId);
+  }
+  return getPlatformModel(model.modelId, fallbackState);
 }

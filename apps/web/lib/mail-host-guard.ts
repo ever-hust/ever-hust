@@ -13,11 +13,25 @@ export const ALLOWED_MAIL_PORTS: readonly number[] = [993, 143, 465, 587, 25, 25
 
 /** Thrown when a mail endpoint is refused. The message is safe to show to the user. */
 export class MailHostRefusedError extends Error {
-  constructor(message = "That mail server address isn't allowed. Use your provider's public IMAP/SMTP host.") {
+  /**
+   * True when the host could not be checked right now (a DNS timeout or server
+   * failure) rather than being refused by policy. Callers must not mark a saved
+   * account as broken for a transient failure.
+   */
+  readonly transient: boolean;
+
+  constructor(
+    message = "That mail server address isn't allowed. Use your provider's public IMAP/SMTP host.",
+    transient = false,
+  ) {
     super(message);
     this.name = "MailHostRefusedError";
+    this.transient = transient;
   }
 }
+
+/** DNS answers that mean the name definitively does not exist (not a temporary failure). */
+const DEFINITIVE_DNS_CODES = new Set(["ENOTFOUND", "ENODATA"]);
 
 function parseIPv4(ip: string): number[] | null {
   const parts = ip.split(".");
@@ -120,8 +134,10 @@ export async function assertPublicMailHost(host: string, port: number): Promise<
   let addresses: { address: string }[];
   try {
     addresses = await dns.lookup(name, { all: true });
-  } catch {
-    throw new MailHostRefusedError();
+  } catch (err) {
+    const code = (err as { code?: string } | null)?.code;
+    if (code && DEFINITIVE_DNS_CODES.has(code)) throw new MailHostRefusedError();
+    throw new MailHostRefusedError("Couldn't look up that mail server right now. Try again shortly.", true);
   }
   if (addresses.length === 0 || addresses.some((a) => isBlockedAddress(a.address))) {
     throw new MailHostRefusedError();

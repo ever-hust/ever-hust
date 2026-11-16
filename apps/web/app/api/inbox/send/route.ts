@@ -40,7 +40,9 @@ export async function POST(req: Request) {
   try {
     cfg = await resolveMailConfig(account, "smtp");
   } catch (err) {
-    if (err instanceof MailHostRefusedError) return apiBadRequest(err.message);
+    if (err instanceof MailHostRefusedError) {
+      return err.transient ? apiError(err.message, 503) : apiBadRequest(err.message);
+    }
     throw err;
   }
   if (!cfg) return apiError("Email encryption is not configured on the server.", 500);

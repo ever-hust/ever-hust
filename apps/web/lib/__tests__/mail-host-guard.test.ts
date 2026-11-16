@@ -45,9 +45,24 @@ describe("assertPublicMailHost", () => {
     await expect(assertPublicMailHost("mail.example.com", 993)).rejects.toBeInstanceOf(MailHostRefusedError);
   });
 
-  it("refuses a name that does not resolve", async () => {
-    mockLookup.mockRejectedValue(new Error("ENOTFOUND"));
-    await expect(assertPublicMailHost("nope.invalid", 993)).rejects.toBeInstanceOf(MailHostRefusedError);
+  it("refuses a name that does not exist, as a permanent refusal", async () => {
+    mockLookup.mockRejectedValue(Object.assign(new Error("getaddrinfo ENOTFOUND"), { code: "ENOTFOUND" }));
+    const err = await assertPublicMailHost("nope.invalid", 993).catch((e: MailHostRefusedError) => e);
+    expect(err).toBeInstanceOf(MailHostRefusedError);
+    expect((err as MailHostRefusedError).transient).toBe(false);
+  });
+
+  it("flags a temporary DNS failure as transient so saved accounts aren't parked", async () => {
+    mockLookup.mockRejectedValue(Object.assign(new Error("getaddrinfo EAI_AGAIN"), { code: "EAI_AGAIN" }));
+    const err = await assertPublicMailHost("imap.example.com", 993).catch((e: MailHostRefusedError) => e);
+    expect(err).toBeInstanceOf(MailHostRefusedError);
+    expect((err as MailHostRefusedError).transient).toBe(true);
+  });
+
+  it("marks policy refusals as not transient", async () => {
+    resolvesTo("10.0.0.5");
+    const err = await assertPublicMailHost("mail.example.com", 993).catch((e: MailHostRefusedError) => e);
+    expect((err as MailHostRefusedError).transient).toBe(false);
   });
 
   it.each([6379, 22, 80, 5432, 0, 65536, 993.5, NaN])("refuses non-mail port %s", async (port) => {

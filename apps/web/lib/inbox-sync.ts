@@ -50,6 +50,9 @@ export async function syncAccount(userId: string, account: EmailAccountRow): Pro
     cfg = await resolveMailConfig(account, "imap");
   } catch (err) {
     if (!(err instanceof MailHostRefusedError)) throw err;
+    // A temporary DNS failure must not park the account (cron only syncs
+    // "connected" accounts); leave its status alone and retry next run.
+    if (err.transient) return { fetched: 0, stored: 0, error: err.message };
     await db
       .update(emailAccounts)
       .set({ status: "error", lastError: err.message, updatedAt: new Date() })

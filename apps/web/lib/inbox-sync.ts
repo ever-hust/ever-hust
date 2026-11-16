@@ -2,6 +2,7 @@ import { db, emailAccounts, emailMessages, userJobs, jobs } from "@ever-hust/db"
 import { and, eq, inArray } from "drizzle-orm";
 import { resolveMailConfig, type EmailAccountRow } from "./inbox";
 import { fetchRecent } from "./mail";
+import { MailHostRefusedError } from "./mail-host-guard";
 import { classifyEmail, senderDomain, urlDomain } from "./email-classify";
 import { advanceApplicationStage } from "./application-pipeline";
 
@@ -65,7 +66,21 @@ export interface SyncResult {
  * the background cron-sync.
  */
 export async function syncAccount(userId: string, account: EmailAccountRow): Promise<SyncResult> {
-  const cfg = await resolveMailConfig(account);
+  let cfg;
+  try {
+    cfg = await resolveMailConfig(account, "imap");
+  } catch (err) {
+    if (!(err instanceof MailHostRefusedError)) throw err;
+    // A temporary DNS failure must not park the account (cron only syncs
+    // "connected" accounts); leave its status alone and retry next run.
+    if (err.transient) return { fetched: 0, stored: 0, error: err.message };
+    await db
+      .update(emailAccounts)
+      .set({ status: "error", lastError: err.message, updatedAt: new Date() })
+      .where(eq(emailAccounts.id, account.id))
+      .catch(() => {});
+    return { fetched: 0, stored: 0, error: err.message };
+  }
   if (!cfg) return { fetched: 0, stored: 0, error: "encryption not configured" };
 
   try {
@@ -122,9 +137,19 @@ export async function syncAccount(userId: string, account: EmailAccountRow): Pro
     return { fetched: messages.length, stored };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    // The connect-time host re-check can also hit a temporary DNS failure; like the
+    // resolve step above, that must not park the account.
+    if (err instanceof MailHostRefusedError && err.transient) return { fetched: 0, stored: 0, error: err.message };
+    // lastError is returned to the client (publicAccount), so store a generic text:
+    // the driver message can carry addresses, ports and server banners.
+    if (!(err instanceof MailHostRefusedError)) console.warn(`[inbox-sync] account ${account.id}:`, msg);
+    const lastError =
+      err instanceof MailHostRefusedError
+        ? err.message
+        : "Could not sync your mailbox. Check your connection settings.";
     await db
       .update(emailAccounts)
-      .set({ status: "error", lastError: msg.slice(0, 500), updatedAt: new Date() })
+      .set({ status: "error", lastError, updatedAt: new Date() })
       .where(eq(emailAccounts.id, account.id))
       .catch(() => {});
     return { fetched: 0, stored: 0, error: msg };

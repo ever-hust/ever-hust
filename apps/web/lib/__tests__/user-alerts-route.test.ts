@@ -191,6 +191,16 @@ describe("user alerts route recipient and cap", () => {
     expect(storedAlerts).toHaveLength(CAP);
     const body = await res.json();
     expect(body.error).toMatch(/20/);
+
+    // The count ran under the per-user lock the AI create-alert tool also takes.
+    expect(mockExecute).toHaveBeenCalledTimes(1);
+    const [lock] = mockExecute.mock.calls[0] as unknown as [
+      { strings: string[]; values: unknown[] },
+    ];
+    expect(lock.strings.join("?")).toContain(
+      "pg_advisory_xact_lock(hashtext('user-alerts-create'), hashtext(?))",
+    );
+    expect(lock.values).toEqual(["user-jane"]);
   });
 
   it("POST just below the cap still creates the alert", async () => {

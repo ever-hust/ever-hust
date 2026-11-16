@@ -16,6 +16,7 @@ let mockAlertCount = 0;
 const mockInsertValues = jest.fn((_values: Record<string, unknown>) => ({
   returning: async () => [{ id: 99 }],
 }));
+const mockExecute = jest.fn(async (_query: unknown) => undefined);
 
 jest.mock("@ever-hust/db", () => {
   const select = () => ({
@@ -37,7 +38,7 @@ jest.mock("@ever-hust/db", () => {
   const client = {
     select,
     insert: () => ({ values: mockInsertValues }),
-    execute: async () => undefined,
+    execute: mockExecute,
   };
   return {
     db: {
@@ -85,5 +86,15 @@ describe("createAlertTool per-user cap", () => {
     expect(result.created).toBe(false);
     expect(result.error).toMatch(/20/);
     expect(mockInsertValues).not.toHaveBeenCalled();
+
+    // Same per-user lock key as POST /api/user/alerts.
+    expect(mockExecute).toHaveBeenCalledTimes(1);
+    const [lock] = mockExecute.mock.calls[0] as unknown as [
+      { strings: string[]; values: unknown[] },
+    ];
+    expect(lock.strings.join("?")).toContain(
+      "pg_advisory_xact_lock(hashtext('user-alerts-create'), hashtext(?))",
+    );
+    expect(lock.values).toEqual(["user-jane"]);
   });
 });

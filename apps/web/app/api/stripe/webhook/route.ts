@@ -7,7 +7,7 @@ import { sendSubscriptionConfirmedEmail } from "@ever-hust/email";
 import { grantCredits } from "@ever-hust/ai";
 import { eq, and, ne } from "drizzle-orm";
 import { apiBadRequest, apiError, apiSuccess } from "../../../../lib/api-response";
-import { claimEvent, releaseEvent } from "../../../../lib/stripe-webhook-idempotency";
+import { claimEventStatus, releaseEvent } from "../../../../lib/stripe-webhook-idempotency";
 
 /**
  * Map plan ID to display info for emails. The amount is what Stripe charges
@@ -58,10 +58,15 @@ export async function POST(req: Request) {
   }
 
   // Idempotency: skip if we've already processed this event
-  const isNew = await claimEvent(event.id);
-  if (!isNew) {
+  const claim = await claimEventStatus(event.id);
+  if (claim === "duplicate") {
     return apiSuccess({ received: true, deduplicated: true });
   }
+  // Release only a claim this delivery inserted; otherwise the row (if any)
+  // belongs to another delivery and deleting it would remove its protection.
+  const releaseClaim = async () => {
+    if (claim === "claimed") await releaseEvent(event.id);
+  };
 
   // Credit top-up (one-time payment) — handled before the subscription parser,
   // which only understands subscription checkouts.
@@ -85,7 +90,7 @@ export async function POST(req: Request) {
           error instanceof Error ? error.message : error,
         );
         // Release the claim so Stripe's retry is processed, not skipped.
-        await releaseEvent(event.id);
+        await releaseClaim();
         return apiError("Webhook handler failed");
       }
       return apiSuccess({ received: true, credited: true });
@@ -168,7 +173,7 @@ export async function POST(req: Request) {
       error instanceof Error ? error.stack ?? error.message : error,
     );
     // Release the claim, then return 500 so Stripe's retry is processed
-    await releaseEvent(event.id);
+    await releaseClaim();
     return apiError("Webhook handler failed");
   }
 

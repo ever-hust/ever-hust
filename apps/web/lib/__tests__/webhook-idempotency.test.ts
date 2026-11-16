@@ -20,7 +20,7 @@ jest.mock("drizzle-orm", () => ({
   eq: (column: unknown, value: unknown) => ({ op: "eq", column, value }),
 }));
 
-import { claimEvent, releaseEvent } from "../stripe-webhook-idempotency";
+import { claimEvent, claimEventStatus, releaseEvent } from "../stripe-webhook-idempotency";
 
 /** Error with a Postgres-style `code` property (raw driver error shape). */
 function pgError(message: string, code: string): Error & { code: string } {
@@ -104,6 +104,36 @@ describe("claimEvent (webhook idempotency)", () => {
     mockValues.mockRejectedValue(pgError("near miss", "23506"));
 
     expect(await claimEvent("evt_near_miss")).toBe(true);
+  });
+});
+
+describe("claimEventStatus (claim ownership)", () => {
+  let warnSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
+  });
+
+  it('is "claimed" only when this call inserted the row', async () => {
+    mockValues.mockResolvedValue(undefined);
+    expect(await claimEventStatus("evt_a")).toBe("claimed");
+  });
+
+  it('is "duplicate" for a unique violation, wrapped or not', async () => {
+    mockValues.mockRejectedValueOnce(drizzleError("23505"));
+    expect(await claimEventStatus("evt_a")).toBe("duplicate");
+    mockValues.mockRejectedValueOnce(pgError("dup", "23505"));
+    expect(await claimEventStatus("evt_a")).toBe("duplicate");
+  });
+
+  it('is "unverified" (no row of ours) when the insert fails for another reason', async () => {
+    mockValues.mockRejectedValue(pgError("timeout", "57014"));
+    expect(await claimEventStatus("evt_a")).toBe("unverified");
   });
 });
 

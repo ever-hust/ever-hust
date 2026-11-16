@@ -31,7 +31,7 @@ export function buildOpenApiSpec(origin: string) {
           parameters: [
             { name: "q", in: "query", description: "Keyword (title/description).", schema: { type: "string", maxLength: 500 } },
             { name: "location", in: "query", description: "City, state, or country.", schema: { type: "string", maxLength: 200 } },
-            { name: "remote", in: "query", description: "Remote-only.", schema: { type: "boolean" } },
+            { name: "remote", in: "query", description: "true: remote jobs only. false: on-site jobs only. Omit for both. Accepts true, false, 1 or 0; any other value is a 400.", schema: { type: "boolean" } },
             { name: "salaryMin", in: "query", schema: { type: "integer", minimum: 0, maximum: 10_000_000 } },
             { name: "salaryMax", in: "query", schema: { type: "integer", minimum: 0, maximum: 10_000_000 } },
             { name: "skills", in: "query", description: "Comma-separated skills.", schema: { type: "string", maxLength: 500 } },

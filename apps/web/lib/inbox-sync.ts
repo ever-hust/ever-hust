@@ -116,9 +116,19 @@ export async function syncAccount(userId: string, account: EmailAccountRow): Pro
     return { fetched: messages.length, stored };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    // The connect-time host re-check can also hit a temporary DNS failure; like the
+    // resolve step above, that must not park the account.
+    if (err instanceof MailHostRefusedError && err.transient) return { fetched: 0, stored: 0, error: err.message };
+    // lastError is returned to the client (publicAccount), so store a generic text:
+    // the driver message can carry addresses, ports and server banners.
+    if (!(err instanceof MailHostRefusedError)) console.warn(`[inbox-sync] account ${account.id}:`, msg);
+    const lastError =
+      err instanceof MailHostRefusedError
+        ? err.message
+        : "Could not sync your mailbox. Check your connection settings.";
     await db
       .update(emailAccounts)
-      .set({ status: "error", lastError: msg.slice(0, 500), updatedAt: new Date() })
+      .set({ status: "error", lastError, updatedAt: new Date() })
       .where(eq(emailAccounts.id, account.id))
       .catch(() => {});
     return { fetched: 0, stored: 0, error: msg };

@@ -1,6 +1,7 @@
 import { ImapFlow } from "imapflow";
 import nodemailer from "nodemailer";
 import { simpleParser } from "mailparser";
+import { MailHostRefusedError, resolvePublicMailHost } from "./mail-host-guard";
 
 /**
  * Server-only email access for the Inbox: read an existing mailbox over IMAP and
@@ -66,10 +67,16 @@ export function threadKeyFor(subject: string | null | undefined): string {
     .slice(0, 200);
 }
 
-function imapClient(cfg: MailConfig): ImapFlow {
+// Every connection resolves and vets the host itself, then connects to that exact
+// address (TLS still checks the certificate against the host name). The library
+// never resolves the name again, so DNS can't switch to an internal address
+// between the check and the connect.
+async function imapClient(cfg: MailConfig): Promise<ImapFlow> {
   const user = cfg.username || cfg.email;
+  const pinned = await resolvePublicMailHost(cfg.imapHost, cfg.imapPort);
   return new ImapFlow({
-    host: cfg.imapHost,
+    host: pinned.address,
+    servername: pinned.servername,
     port: cfg.imapPort,
     secure: cfg.imapSecure,
     // XOAUTH2 when an access token is present, else password.
@@ -80,38 +87,58 @@ function imapClient(cfg: MailConfig): ImapFlow {
   });
 }
 
-function smtpTransport(cfg: MailConfig) {
+async function smtpTransport(cfg: MailConfig) {
   const user = cfg.username || cfg.email;
+  const pinned = await resolvePublicMailHost(cfg.smtpHost, cfg.smtpPort);
   return nodemailer.createTransport({
-    host: cfg.smtpHost,
+    host: pinned.address,
     port: cfg.smtpPort,
     secure: cfg.smtpSecure,
+    // SNI + certificate check against the name the user gave (also on STARTTLS).
+    ...(pinned.servername ? { tls: { servername: pinned.servername } } : {}),
     auth: cfg.accessToken
       ? { type: "OAuth2", user, accessToken: cfg.accessToken }
       : { user, pass: cfg.password ?? "" },
   });
 }
 
-/** Verify both IMAP login and SMTP login. Throws with a friendly message. */
+/**
+ * A user-facing message for a failed IMAP/SMTP check. Never includes the driver's
+ * text (addresses, ports, server banners); the details go to the server log only.
+ */
+function connectFailure(protocol: "IMAP" | "SMTP", err: unknown): Error {
+  if (err instanceof MailHostRefusedError) return err;
+  const e = (err ?? {}) as { authenticationFailed?: boolean; code?: string; message?: string };
+  console.warn(`[mail] ${protocol} check failed:`, e.code ?? e.message ?? String(err));
+  if (e.authenticationFailed || e.code === "EAUTH") {
+    return new Error(`${protocol} login failed. Check your email address and app password.`);
+  }
+  return new Error(
+    `Could not connect to the ${protocol} server. Check the host, port and security settings.`,
+  );
+}
+
+/** Verify both IMAP login and SMTP login. Throws with a friendly, generic message. */
 export async function verifyConnection(cfg: MailConfig): Promise<void> {
-  const client = imapClient(cfg);
+  const client = await imapClient(cfg);
   try {
     await client.connect();
   } catch (err) {
-    throw new Error(`IMAP login failed: ${err instanceof Error ? err.message : String(err)}`);
+    throw connectFailure("IMAP", err);
   } finally {
     try { await client.logout(); } catch { /* ignore */ }
   }
+  const transport = await smtpTransport(cfg);
   try {
-    await smtpTransport(cfg).verify();
+    await transport.verify();
   } catch (err) {
-    throw new Error(`SMTP login failed: ${err instanceof Error ? err.message : String(err)}`);
+    throw connectFailure("SMTP", err);
   }
 }
 
 /** Fetch the most recent `limit` messages from INBOX, parsed. */
 export async function fetchRecent(cfg: MailConfig, limit = 30): Promise<ParsedMail[]> {
-  const client = imapClient(cfg);
+  const client = await imapClient(cfg);
   const out: ParsedMail[] = [];
   await client.connect();
   const lock = await client.getMailboxLock("INBOX");
@@ -161,7 +188,8 @@ export interface OutgoingMail {
 
 /** Send a message over SMTP from the connected account. Returns the Message-ID. */
 export async function sendMail(cfg: MailConfig, mail: OutgoingMail): Promise<string> {
-  const info = await smtpTransport(cfg).sendMail({
+  const transport = await smtpTransport(cfg);
+  const info = await transport.sendMail({
     from: cfg.email,
     to: mail.to,
     subject: mail.subject,

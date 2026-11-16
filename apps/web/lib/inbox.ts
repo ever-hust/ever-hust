@@ -53,7 +53,8 @@ export async function refreshGoogleAccessToken(refreshToken: string): Promise<st
  *
  * `protocol` names the server the caller will actually contact: "imap" for sync,
  * "smtp" for sending, "both" (default) checks each. A bad endpoint on the server
- * that is not used must not block the one that is.
+ * that is not used must not block the one that is. This is an early check only:
+ * lib/mail.ts checks again at connect time and connects to the vetted address.
  */
 export async function resolveMailConfig(
   account: EmailAccountRow,

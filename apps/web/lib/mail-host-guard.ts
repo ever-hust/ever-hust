@@ -33,7 +33,10 @@ export class MailHostRefusedError extends Error {
 /** DNS answers that mean the name definitively does not exist (not a temporary failure). */
 const DEFINITIVE_DNS_CODES = new Set(["ENOTFOUND", "ENODATA"]);
 
-function parseIPv4(ip: string): number[] | null {
+type IPv4Octets = [number, number, number, number];
+type IPv6Groups = [number, number, number, number, number, number, number, number];
+
+function parseIPv4(ip: string): IPv4Octets | null {
   const parts = ip.split(".");
   if (parts.length !== 4) return null;
   const out: number[] = [];
@@ -43,10 +46,10 @@ function parseIPv4(ip: string): number[] | null {
     if (n > 255) return null;
     out.push(n);
   }
-  return out;
+  return out as IPv4Octets;
 }
 
-function isBlockedIPv4(o: number[]): boolean {
+function isBlockedIPv4(o: IPv4Octets): boolean {
   const [a, b] = o;
   return (
     a === 0 || // 0.0.0.0/8 unspecified / "this network"
@@ -61,8 +64,8 @@ function isBlockedIPv4(o: number[]): boolean {
 }
 
 /** Expand an IPv6 literal into eight 16-bit groups, or null when malformed. */
-function parseIPv6(ip: string): number[] | null {
-  let s = ip.split("%")[0].toLowerCase();
+function parseIPv6(ip: string): IPv6Groups | null {
+  let s = (ip.split("%")[0] ?? "").toLowerCase();
   // Trailing dotted IPv4 (e.g. ::ffff:127.0.0.1) -> two hex groups.
   const lastColon = s.lastIndexOf(":");
   if (s.includes(".")) {
@@ -87,10 +90,10 @@ function parseIPv6(ip: string): number[] | null {
     if (!/^[0-9a-f]{1,4}$/.test(g)) return null;
     out.push(parseInt(g, 16));
   }
-  return out;
+  return out as IPv6Groups;
 }
 
-function isBlockedIPv6(g: number[]): boolean {
+function isBlockedIPv6(g: IPv6Groups): boolean {
   const allZeroUpTo = (n: number) => g.slice(0, n).every((x) => x === 0);
   if (allZeroUpTo(7) && (g[7] === 0 || g[7] === 1)) return true; // :: and ::1
   // IPv4-mapped (::ffff:a.b.c.d) and IPv4-compatible (::a.b.c.d): judge the embedded v4.
@@ -109,7 +112,7 @@ function isBlockedIPv6(g: number[]): boolean {
 
 /** True when the address literal is loopback/private/link-local/etc. Unparseable -> true (fail closed). */
 export function isBlockedAddress(address: string): boolean {
-  const family = isIP(address.split("%")[0]);
+  const family = isIP(address.split("%")[0] ?? "");
   if (family === 4) {
     const o = parseIPv4(address);
     return !o || isBlockedIPv4(o);
@@ -121,11 +124,24 @@ export function isBlockedAddress(address: string): boolean {
   return true;
 }
 
+/** A vetted mail endpoint: connect to `address`, check TLS against `servername`. */
+export interface PinnedMailHost {
+  /** The resolved public IP to connect to. Connect to this, never to the name. */
+  address: string;
+  /** Host name for TLS SNI and certificate checks; undefined when the host is an IP literal. */
+  servername?: string;
+}
+
 /**
- * Throws MailHostRefusedError unless `host:port` is a standard mail port on a host
- * whose every resolved address is public. Resolution failure is also a refusal.
+ * Resolves `host` once and returns one vetted address to connect to. Throws
+ * MailHostRefusedError unless `host:port` is a standard mail port on a host whose
+ * every resolved address is public. Resolution failure is also a refusal.
+ *
+ * Callers must connect to the returned `address` (with `servername` for TLS), not
+ * to `host`: resolving the name again at connect time would let a DNS-rebinding
+ * host answer "public" here and "internal" there.
  */
-export async function assertPublicMailHost(host: string, port: number): Promise<void> {
+export async function resolvePublicMailHost(host: string, port: number): Promise<PinnedMailHost> {
   const name = typeof host === "string" ? host.trim().replace(/^\[|\]$/g, "") : "";
   if (!name || name.length > 255 || !Number.isInteger(port) || !ALLOWED_MAIL_PORTS.includes(port)) {
     throw new MailHostRefusedError();
@@ -142,4 +158,14 @@ export async function assertPublicMailHost(host: string, port: number): Promise<
   if (addresses.length === 0 || addresses.some((a) => isBlockedAddress(a.address))) {
     throw new MailHostRefusedError();
   }
+  // Prefer IPv4: a pinned address gets no dual-stack fallback, and many servers
+  // have no IPv6 route.
+  const picked = addresses.find((a) => isIP(a.address) === 4) ?? addresses[0];
+  if (!picked) throw new MailHostRefusedError();
+  return { address: picked.address, servername: isIP(name) ? undefined : name };
+}
+
+/** Same check as resolvePublicMailHost, for callers that only need a yes or no. */
+export async function assertPublicMailHost(host: string, port: number): Promise<void> {
+  await resolvePublicMailHost(host, port);
 }

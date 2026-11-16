@@ -75,6 +75,10 @@ export async function POST(req: Request) {
 
     return apiSuccess({ sent: true });
   } catch (err) {
+    // sendMail re-checks the host at connect time (DNS may have changed since).
+    if (err instanceof MailHostRefusedError) {
+      return err.transient ? apiError(err.message, 503) : apiBadRequest(err.message);
+    }
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[api/inbox/send] failed:", msg);
     return apiError("Failed to send the email. Check your SMTP settings.");

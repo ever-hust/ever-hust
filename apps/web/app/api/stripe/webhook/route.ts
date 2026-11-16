@@ -1,46 +1,13 @@
 // Stripe webhook may need to fetch subscription details — allow up to 30s
 export const maxDuration = 30;
 
-import { db, users, subscriptions, stripeWebhookEvents } from "@ever-hust/db";
+import { db, users, subscriptions } from "@ever-hust/db";
 import { getStripe, parseWebhookEvent } from "@ever-hust/stripe";
 import { sendSubscriptionConfirmedEmail } from "@ever-hust/email";
 import { grantCredits } from "@ever-hust/ai";
 import { eq, and, ne } from "drizzle-orm";
 import { apiBadRequest, apiError, apiSuccess } from "../../../../lib/api-response";
-
-// ── Idempotency Guard ─────────────────────────────────────────────────────
-// Database-backed deduplication that works across multiple server instances.
-// Old events are cleaned up by the daily cleanup task (7-day retention).
-
-/**
- * Check if a webhook event has already been processed.
- * Returns `true` if this is the first time (caller should process it),
- * or `false` if it was already handled (caller should skip).
- */
-async function claimEvent(eventId: string): Promise<boolean> {
-  try {
-    await db.insert(stripeWebhookEvents).values({ id: eventId });
-    return true; // Insert succeeded — first time seeing this event
-  } catch (error) {
-    // Unique constraint violation means another instance already processed it.
-    // PostgreSQL error code 23505 = unique_violation.
-    if (
-      error instanceof Error &&
-      "code" in error &&
-      (error as { code: string }).code === "23505"
-    ) {
-      return false;
-    }
-    // For any other DB error, log and allow processing to proceed.
-    // It's safer to risk double-processing (handlers are idempotent)
-    // than to silently drop a webhook.
-    console.warn(
-      "[stripe/webhook] Idempotency check failed, proceeding with processing:",
-      error instanceof Error ? error.message : error,
-    );
-    return true;
-  }
-}
+import { claimEvent, releaseEvent } from "../../../../lib/stripe-webhook-idempotency";
 
 /**
  * Map plan ID to display info for emails. The amount is what Stripe charges
@@ -117,6 +84,8 @@ export async function POST(req: Request) {
           "[stripe/webhook] Failed to grant top-up credits:",
           error instanceof Error ? error.message : error,
         );
+        // Release the claim so Stripe's retry is processed, not skipped.
+        await releaseEvent(event.id);
         return apiError("Webhook handler failed");
       }
       return apiSuccess({ received: true, credited: true });
@@ -198,7 +167,8 @@ export async function POST(req: Request) {
       `[stripe/webhook] Error processing ${parsed.type}:`,
       error instanceof Error ? error.stack ?? error.message : error,
     );
-    // Return 500 so Stripe retries the webhook
+    // Release the claim, then return 500 so Stripe's retry is processed
+    await releaseEvent(event.id);
     return apiError("Webhook handler failed");
   }
 

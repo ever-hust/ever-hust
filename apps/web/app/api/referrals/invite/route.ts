@@ -35,35 +35,24 @@ export async function POST(req: Request) {
   const { email } = validation.data;
 
   try {
-    // Find the user's existing referral code
-    const existingReferral = await db
-      .select({ referralCode: referrals.referralCode })
-      .from(referrals)
-      .where(eq(referrals.referrerId, userId))
-      .limit(1);
-
-    let referralCode: string;
-    if (existingReferral.length > 0) {
-      referralCode = existingReferral[0]!.referralCode;
-    } else {
-      // Generate a unique code
-      let code = generateReferralCode();
-      let attempts = 0;
-      const maxAttempts = 10;
-      while (attempts < maxAttempts) {
-        const existing = await db
-          .select({ id: referrals.id })
-          .from(referrals)
-          .where(eq(referrals.referralCode, code))
-          .limit(1);
-        if (existing.length === 0) break;
-        code = generateReferralCode();
-        attempts++;
-      }
-      if (attempts >= maxAttempts) {
-        return apiError("Failed to generate unique referral code. Please try again.");
-      }
-      referralCode = code;
+    // Every invite gets its own code. referral_code is unique, so reusing the
+    // user's existing code (GET /api/referrals stores it in a row) made this
+    // insert fail for every invite.
+    let referralCode = generateReferralCode();
+    let attempts = 0;
+    const maxAttempts = 10;
+    while (attempts < maxAttempts) {
+      const existing = await db
+        .select({ id: referrals.id })
+        .from(referrals)
+        .where(eq(referrals.referralCode, referralCode))
+        .limit(1);
+      if (existing.length === 0) break;
+      referralCode = generateReferralCode();
+      attempts++;
+    }
+    if (attempts >= maxAttempts) {
+      return apiError("Failed to generate unique referral code. Please try again.");
     }
 
     // Create a new referral record for this invite

@@ -2,6 +2,7 @@ import { db, emailAccounts } from "@ever-hust/db";
 import { eq } from "drizzle-orm";
 import { decryptApiKey } from "@ever-hust/ai/crypto";
 import type { MailConfig } from "./mail";
+import { assertPublicMailHost } from "./mail-host-guard";
 
 export type EmailAccountRow = typeof emailAccounts.$inferSelect;
 
@@ -46,9 +47,14 @@ export async function refreshGoogleAccessToken(refreshToken: string): Promise<st
  * Build a usable MailConfig from a stored account. For password accounts decrypts
  * the app password; for OAuth (Gmail) accounts decrypts the refresh token and
  * mints a fresh access token. Returns null when it can't (encryption key missing,
- * OAuth not configured, refresh failed).
+ * OAuth not configured, refresh failed). Throws MailHostRefusedError when the
+ * stored IMAP/SMTP host or port is not a public mail endpoint (rows saved before
+ * that check existed), before any secret is decrypted or any connection is made.
  */
 export async function resolveMailConfig(account: EmailAccountRow): Promise<MailConfig | null> {
+  await assertPublicMailHost(account.imapHost, account.imapPort);
+  await assertPublicMailHost(account.smtpHost, account.smtpPort);
+
   const base = {
     email: account.email,
     username: account.username,

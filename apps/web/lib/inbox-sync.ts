@@ -2,6 +2,7 @@ import { db, emailAccounts, emailMessages, userJobs, jobs } from "@ever-hust/db"
 import { and, eq, inArray } from "drizzle-orm";
 import { resolveMailConfig, type EmailAccountRow } from "./inbox";
 import { fetchRecent } from "./mail";
+import { MailHostRefusedError } from "./mail-host-guard";
 import { classifyEmail, senderDomain, urlDomain } from "./email-classify";
 import { advanceApplicationStage } from "./application-pipeline";
 
@@ -44,7 +45,18 @@ export interface SyncResult {
  * the background cron-sync.
  */
 export async function syncAccount(userId: string, account: EmailAccountRow): Promise<SyncResult> {
-  const cfg = await resolveMailConfig(account);
+  let cfg;
+  try {
+    cfg = await resolveMailConfig(account);
+  } catch (err) {
+    if (!(err instanceof MailHostRefusedError)) throw err;
+    await db
+      .update(emailAccounts)
+      .set({ status: "error", lastError: err.message, updatedAt: new Date() })
+      .where(eq(emailAccounts.id, account.id))
+      .catch(() => {});
+    return { fetched: 0, stored: 0, error: err.message };
+  }
   if (!cfg) return { fetched: 0, stored: 0, error: "encryption not configured" };
 
   try {

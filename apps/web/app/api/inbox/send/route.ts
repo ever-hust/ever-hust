@@ -5,6 +5,7 @@ import { applyRateLimit } from "../../../../lib/rate-limit";
 import { apiSuccess, apiBadRequest, apiError, safeJsonParse } from "../../../../lib/api-response";
 import { loadAccount, resolveMailConfig } from "../../../../lib/inbox";
 import { sendMail, threadKeyFor } from "../../../../lib/mail";
+import { MailHostRefusedError } from "../../../../lib/mail-host-guard";
 
 export const maxDuration = 30;
 
@@ -35,7 +36,13 @@ export async function POST(req: Request) {
 
   const account = await loadAccount(user.id);
   if (!account) return apiError("No email account connected", 400);
-  const cfg = await resolveMailConfig(account);
+  let cfg;
+  try {
+    cfg = await resolveMailConfig(account);
+  } catch (err) {
+    if (err instanceof MailHostRefusedError) return apiBadRequest(err.message);
+    throw err;
+  }
   if (!cfg) return apiError("Email encryption is not configured on the server.", 500);
 
   try {

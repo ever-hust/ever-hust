@@ -47,7 +47,7 @@ export interface SyncResult {
 export async function syncAccount(userId: string, account: EmailAccountRow): Promise<SyncResult> {
   let cfg;
   try {
-    cfg = await resolveMailConfig(account);
+    cfg = await resolveMailConfig(account, "imap");
   } catch (err) {
     if (!(err instanceof MailHostRefusedError)) throw err;
     await db

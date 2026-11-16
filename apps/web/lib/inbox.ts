@@ -50,10 +50,17 @@ export async function refreshGoogleAccessToken(refreshToken: string): Promise<st
  * OAuth not configured, refresh failed). Throws MailHostRefusedError when the
  * stored IMAP/SMTP host or port is not a public mail endpoint (rows saved before
  * that check existed), before any secret is decrypted or any connection is made.
+ *
+ * `protocol` names the server the caller will actually contact: "imap" for sync,
+ * "smtp" for sending, "both" (default) checks each. A bad endpoint on the server
+ * that is not used must not block the one that is.
  */
-export async function resolveMailConfig(account: EmailAccountRow): Promise<MailConfig | null> {
-  await assertPublicMailHost(account.imapHost, account.imapPort);
-  await assertPublicMailHost(account.smtpHost, account.smtpPort);
+export async function resolveMailConfig(
+  account: EmailAccountRow,
+  protocol: "imap" | "smtp" | "both" = "both",
+): Promise<MailConfig | null> {
+  if (protocol !== "smtp") await assertPublicMailHost(account.imapHost, account.imapPort);
+  if (protocol !== "imap") await assertPublicMailHost(account.smtpHost, account.smtpPort);
 
   const base = {
     email: account.email,

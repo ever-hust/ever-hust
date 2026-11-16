@@ -38,7 +38,7 @@ export async function POST(req: Request) {
   if (!account) return apiError("No email account connected", 400);
   let cfg;
   try {
-    cfg = await resolveMailConfig(account);
+    cfg = await resolveMailConfig(account, "smtp");
   } catch (err) {
     if (err instanceof MailHostRefusedError) return apiBadRequest(err.message);
     throw err;

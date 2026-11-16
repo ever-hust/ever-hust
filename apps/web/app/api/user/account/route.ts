@@ -1,14 +1,40 @@
-import { db, users } from "@ever-hust/db";
-import { eq } from "drizzle-orm";
+import { db, organizationMembers, organizations, users } from "@ever-hust/db";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { applyRateLimit } from "../../../../lib/rate-limit";
 import { apiError } from "../../../../lib/api-response";
 
+type OrgRole = "owner" | "admin" | "member";
+
+const ROLE_RANK: Record<OrgRole, number> = { owner: 0, admin: 1, member: 2 };
+
+type OtherMember = {
+  organizationId: number;
+  userId: string;
+  role: OrgRole;
+  joinedAt: Date;
+};
+
+/**
+ * Who takes over an organization's created_by_id: an owner first, then an
+ * admin, then a member, the longest-standing first within each role.
+ */
+function pickSuccessor(members: OtherMember[]): OtherMember | undefined {
+  return [...members].sort(
+    (a, b) =>
+      ROLE_RANK[a.role] - ROLE_RANK[b.role] ||
+      a.joinedAt.getTime() - b.joinedAt.getTime(),
+  )[0];
+}
+
 /**
  * DELETE /api/user/account — Permanently delete the user account.
  * Cascading deletes handle related data (applications, chat sessions,
  * favorites, alerts) via foreign key constraints.
+ * Organizations the user created are handed to another member first, and the
+ * delete is refused with 409 while the user is the last owner of an
+ * organization other members still use.
  * Also deletes the Stripe customer record for GDPR compliance.
  */
 export async function DELETE() {
@@ -32,8 +58,84 @@ export async function DELETE() {
       .where(eq(users.id, userId))
       .limit(1);
 
-    // Delete the user — cascading FK constraints handle related records
-    await db.delete(users).where(eq(users.id, userId));
+    // organizations.created_by_id is ON DELETE CASCADE, so deleting the user
+    // would also delete every organization they created, with its members,
+    // invitations, AI config and branding. In one transaction: refuse while the
+    // user is the last owner of an organization other members still use, hand
+    // created_by_id of each organization they created to another member, then
+    // delete the user. An organization nobody else uses still goes with them.
+    const blockedOrgIds = await db.transaction(async (tx) => {
+      const owned = await tx
+        .select({ organizationId: organizationMembers.organizationId })
+        .from(organizationMembers)
+        .where(
+          and(
+            eq(organizationMembers.userId, userId),
+            eq(organizationMembers.role, "owner"),
+          ),
+        );
+      const created = await tx
+        .select({ id: organizations.id })
+        .from(organizations)
+        .where(eq(organizations.createdById, userId));
+
+      const orgIds = [
+        ...new Set([
+          ...owned.map((m) => m.organizationId),
+          ...created.map((o) => o.id),
+        ]),
+      ];
+      const others: OtherMember[] =
+        orgIds.length === 0
+          ? []
+          : await tx
+              .select({
+                organizationId: organizationMembers.organizationId,
+                userId: organizationMembers.userId,
+                role: organizationMembers.role,
+                joinedAt: organizationMembers.joinedAt,
+              })
+              .from(organizationMembers)
+              .where(
+                and(
+                  inArray(organizationMembers.organizationId, orgIds),
+                  ne(organizationMembers.userId, userId),
+                ),
+              );
+      const othersIn = (orgId: number) =>
+        others.filter((m) => m.organizationId === orgId);
+
+      // Same rule as removing a member: the last owner can't leave while
+      // others still use the organization.
+      const blocked = owned
+        .map((m) => m.organizationId)
+        .filter((orgId) => {
+          const rest = othersIn(orgId);
+          return rest.length > 0 && !rest.some((m) => m.role === "owner");
+        });
+      if (blocked.length > 0) return blocked;
+
+      for (const org of created) {
+        const successor = pickSuccessor(othersIn(org.id));
+        if (!successor) continue;
+        await tx
+          .update(organizations)
+          .set({ createdById: successor.userId, updatedAt: new Date() })
+          .where(eq(organizations.id, org.id));
+      }
+
+      // Delete the user — cascading FK constraints handle related records
+      await tx.delete(users).where(eq(users.id, userId));
+      return [];
+    });
+
+    if (blockedOrgIds.length > 0) {
+      return apiError(
+        "You are the last owner of an organization that other members still use. Transfer ownership first.",
+        409,
+        { organizationIds: blockedOrgIds },
+      );
+    }
 
     // Best-effort Stripe customer deletion (GDPR right to erasure)
     if (dbUser?.stripeCustomerId) {

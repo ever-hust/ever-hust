@@ -1406,6 +1406,18 @@ describe("inviteMemberSchema", () => {
     expect(inviteMemberSchema.safeParse({ email: "bad-email" }).success).toBe(false);
   });
 
+  it("lowercases the email so it matches the signed-in user's email", () => {
+    expect(inviteMemberSchema.parse({ email: "Jane.Doe@Acme.com" }).email).toBe(
+      "jane.doe@acme.com"
+    );
+  });
+
+  it("trims surrounding whitespace from the email", () => {
+    expect(inviteMemberSchema.parse({ email: "  Jane.Doe@Acme.com " }).email).toBe(
+      "jane.doe@acme.com"
+    );
+  });
+
   it("rejects email > 320 chars", () => {
     const longEmail = "a".repeat(310) + "@example.com";
     expect(inviteMemberSchema.safeParse({ email: longEmail }).success).toBe(false);

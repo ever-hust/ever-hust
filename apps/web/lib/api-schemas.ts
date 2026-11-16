@@ -265,7 +265,11 @@ export const createApiKeySchema = z.object({
 export const jobsApiQuerySchema = z.object({
   q: z.string().max(500).optional(),
   location: z.string().max(200).optional(),
-  remote: z.coerce.boolean().optional(),
+  // Strict: z.coerce.boolean() would turn "false" and "0" into true.
+  remote: z
+    .enum(["true", "1", "false", "0"])
+    .transform((v) => v === "true" || v === "1")
+    .optional(),
   salaryMin: z.coerce.number().int().min(0).max(10_000_000).optional(),
   salaryMax: z.coerce.number().int().min(0).max(10_000_000).optional(),
   skills: z.string().max(500).optional(),

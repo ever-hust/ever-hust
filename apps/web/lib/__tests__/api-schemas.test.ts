@@ -1078,15 +1078,50 @@ describe("jobsApiQuerySchema", () => {
     expect(jobsApiQuerySchema.safeParse({ offset: "-1" }).success).toBe(false);
   });
 
-  it("coerces remote string to boolean", () => {
-    // Note: z.coerce.boolean() uses Boolean() coercion, so any non-empty
-    // string (including "false") becomes true. Only empty string, 0, null,
-    // undefined become false.
+  it("parses remote=true as true", () => {
+    // remote is parsed strictly: "true"/"1" are true, "false"/"0" are
+    // false, anything else is a 400. Boolean("false") would be true.
     const result = jobsApiQuerySchema.safeParse({ remote: "true" });
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.remote).toBe(true);
     }
+  });
+
+  it("parses remote=1 as true", () => {
+    const result = jobsApiQuerySchema.safeParse({ remote: "1" });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.remote).toBe(true);
+    }
+  });
+
+  it("parses remote=false as false", () => {
+    const result = jobsApiQuerySchema.safeParse({ remote: "false" });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.remote).toBe(false);
+    }
+  });
+
+  it("parses remote=0 as false", () => {
+    const result = jobsApiQuerySchema.safeParse({ remote: "0" });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.remote).toBe(false);
+    }
+  });
+
+  it("leaves remote undefined when it is not given", () => {
+    const result = jobsApiQuerySchema.safeParse({});
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.remote).toBeUndefined();
+    }
+  });
+
+  it.each(["maybe", "yes", "TRUE", ""])("rejects remote=%j", (value) => {
+    expect(jobsApiQuerySchema.safeParse({ remote: value }).success).toBe(false);
   });
 
   it("rejects q exceeding 500 chars", () => {

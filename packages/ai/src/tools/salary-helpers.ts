@@ -45,3 +45,35 @@ export function median(sorted: number[]): number {
   }
   return Math.round(((sorted[mid - 1]! + sorted[mid]!) / 2) * 100) / 100;
 }
+
+/**
+ * Keep only the entries in the most common currency, so statistics never mix
+ * currencies (averaging USD and INR figures gives a meaningless number).
+ *
+ * A null currency counts as USD. Codes are compared case-insensitively. On a
+ * tie, the currency seen first wins. `excluded` is how many entries were in
+ * another currency and left out.
+ */
+export function keepDominantCurrency<T extends { currency: string | null }>(
+  entries: readonly T[],
+): { currency: string; kept: T[]; excluded: number } {
+  const codeOf = (entry: T) => entry.currency?.toUpperCase() ?? "USD";
+
+  const counts = new Map<string, number>();
+  for (const entry of entries) {
+    const code = codeOf(entry);
+    counts.set(code, (counts.get(code) ?? 0) + 1);
+  }
+
+  let currency = "USD";
+  let maxCount = 0;
+  for (const [code, count] of counts) {
+    if (count > maxCount) {
+      currency = code;
+      maxCount = count;
+    }
+  }
+
+  const kept = entries.filter((entry) => codeOf(entry) === currency);
+  return { currency, kept, excluded: entries.length - kept.length };
+}

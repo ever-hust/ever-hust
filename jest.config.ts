@@ -108,6 +108,12 @@ const config: Config = {
       ...sharedConfig,
     },
     {
+      displayName: "supabase",
+      rootDir,
+      testMatch: [`${rootDir}/packages/supabase/src/**/*.test.ts`],
+      ...sharedConfig,
+    },
+    {
       displayName: "web-lib",
       rootDir,
       testMatch: [`${rootDir}/apps/web/lib/**/*.test.ts`],

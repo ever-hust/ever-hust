@@ -4,9 +4,47 @@ import { getSupabaseServer } from "./server";
 const DEFAULT_BUCKET = "user-uploads";
 
 /**
+ * Throw when a storage path could leave the folder it names.
+ *
+ * storage-js puts the path into the request URL without encoding it, and the
+ * URL parser resolves "." and ".." segments (also written as %2e) and treats
+ * "\" as "/". It also drops tab, CR and LF anywhere in the URL, so ".\t." would
+ * become ".." after this check: control characters are refused too. The upload
+ * runs with the service-role key, so such a path could write into another
+ * user's folder or another bucket.
+ */
+function assertSafeStoragePath(path: string): void {
+  const unsafe =
+    path.includes("\\") ||
+    hasControlCharacter(path) ||
+    path.split("/").some((segment) => {
+      const dots = segment.replace(/%2e/gi, ".");
+      return dots === "." || dots === "..";
+    });
+  if (unsafe) {
+    // Do not echo the path: it is often built from user input.
+    throw new Error(
+      "Invalid storage path: dot segments, backslashes and control characters are not allowed",
+    );
+  }
+}
+
+/** True when the string has an ASCII control character (U+0000-U+001F or U+007F). */
+function hasControlCharacter(value: string): boolean {
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code < 0x20 || code === 0x7f) return true;
+  }
+  return false;
+}
+
+/**
  * Upload a file to Supabase Storage.
  *
- * @param path   - Storage path, e.g. `avatars/{userId}.webp` or `cvs/{userId}/{filename}`
+ * Throws before any network call when the path has a "." or ".." segment
+ * (also percent-encoded), a backslash or a control character.
+ *
+ * @param path   - Storage path, e.g. `avatars/{userId}.webp` or `cvs/{userId}/{uuid}.pdf`
  * @param data   - File contents as Buffer or Uint8Array
  * @param contentType - MIME type of the file
  * @param bucket - Storage bucket name (defaults to "user-uploads")
@@ -18,6 +56,7 @@ export async function uploadFile(
   contentType: string,
   bucket = DEFAULT_BUCKET,
 ): Promise<string> {
+  assertSafeStoragePath(path);
   const supabase = getSupabaseServer();
 
   const { error } = await supabase.storage

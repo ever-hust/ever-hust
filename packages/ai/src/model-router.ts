@@ -186,14 +186,34 @@ export function resolveModelSelection(user: UserForModel): ModelSelection {
   return { modelKey: model.key, isByok: byokKey !== undefined };
 }
 
+function buildModel({ model, byokKey }: ServedModel, fallbackState?: FallbackState): LanguageModel {
+  if (byokKey !== undefined && model.provider !== "hust") {
+    return PLUGINS[model.provider].createModel(byokKey, model.modelId);
+  }
+  return getPlatformModel(model.modelId, fallbackState);
+}
+
 /** Resolve the LanguageModel for a user (see pickServedModel for the rules). */
 export function getModelForUser(
   user: UserForModel,
   { fallbackState }: ModelForUserOptions = {},
 ): LanguageModel {
-  const { model, byokKey } = pickServedModel(user);
-  if (byokKey !== undefined && model.provider !== "hust") {
-    return PLUGINS[model.provider].createModel(byokKey, model.modelId);
-  }
-  return getPlatformModel(model.modelId, fallbackState);
+  return buildModel(pickServedModel(user), fallbackState);
+}
+
+/**
+ * getModelForUser and resolveModelSelection from one pick. Use this when a
+ * caller needs both (the chat route): each key decrypt runs PBKDF2, so the
+ * keys are decrypted once instead of twice.
+ */
+export function getModelWithSelection(
+  user: UserForModel,
+  { fallbackState }: ModelForUserOptions = {},
+): ModelSelection & { model: LanguageModel } {
+  const served = pickServedModel(user);
+  return {
+    model: buildModel(served, fallbackState),
+    modelKey: served.model.key,
+    isByok: served.byokKey !== undefined,
+  };
 }

@@ -4,7 +4,7 @@ export const maxDuration = 60;
 
 import { MAX_CHAT_PAYLOAD_CHARS } from "@/lib/constants";
 
-import { createOrchestratorStream, getModelForUser, resolveModelSelection, getOrgAiConfig, mergeOrgConfig, ensureMonthlyGrant, getCreditBalance, type FallbackState } from "@ever-hust/ai";
+import { createOrchestratorStream, getModelWithSelection, getOrgAiConfig, mergeOrgConfig, ensureMonthlyGrant, getCreditBalance, type FallbackState } from "@ever-hust/ai";
 import type { ChatMessageMetadata } from "@/lib/chat-metadata";
 import { db, users, organizationMembers } from "@ever-hust/db";
 import { convertToModelMessages, type UIMessage } from "ai";
@@ -149,18 +149,20 @@ export async function POST(req: Request) {
     // Flipped by the model wrapper when Hust's OpenRouter credits ran out and a
     // free model answered instead — surfaced to the UI as message metadata.
     const fallbackState: FallbackState = { usedFallback: false };
-    const modelUser = {
-      subscriptionStatus: gate.isActive ? "active" : "free",
-      preferences: mergedPreferences,
-    };
-    const model = getModelForUser(modelUser, { fallbackState });
+    // One pick gives the model and what to bill for it (keys are decrypted once).
+    const { model, modelKey, isByok } = getModelWithSelection(
+      {
+        subscriptionStatus: gate.isActive ? "active" : "free",
+        preferences: mergedPreferences,
+      },
+      { fallbackState },
+    );
 
     // ── Credit metering (item 14) ────────────────────────────────────────────
     // Meter platform (Hust) model calls; BYOK calls (user's own key) are free.
     // Price the model actually served, not the saved aiModel string: a free
     // user's pro pick, a BYOK pick with no key and an unknown id all run the
     // tier default.
-    const { modelKey, isByok } = resolveModelSelection(modelUser);
     const meterCredits = !isByok;
 
     if (meterCredits) {

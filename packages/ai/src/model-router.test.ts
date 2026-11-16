@@ -1,5 +1,6 @@
 import { DEFAULT_HUST_FREE_KEY, DEFAULT_HUST_PRO_KEY } from "@ever-hust/plugin";
-import { getModelForUser, resolveModelSelection } from "./model-router";
+import * as byokCrypto from "./crypto";
+import { getModelForUser, getModelWithSelection, resolveModelSelection } from "./model-router";
 
 // Mock the @ai-sdk/anthropic module (used for both the platform degraded
 // fallback and the Anthropic BYOK plugin).
@@ -286,5 +287,48 @@ describe("resolveModelSelection", () => {
         },
       }),
     ).toEqual({ modelKey: "openai:gpt-6-astra", isByok: true });
+  });
+
+  it("a saved key that fails to decrypt → the tier default, metered (not BYOK)", () => {
+    expect(
+      resolveModelSelection({
+        subscriptionStatus: "free",
+        preferences: {
+          aiModel: "openai:gpt-6-astra",
+          apiKeys: { openai: "dGVzdA==:dGVzdA==:Y2lwaGVy" },
+        },
+      }),
+    ).toEqual({ modelKey: DEFAULT_HUST_FREE_KEY, isByok: false });
+  });
+});
+
+// The chat route needs the model and the billing key: one pick, keys decrypted once.
+describe("getModelWithSelection", () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it("returns getModelForUser's model with resolveModelSelection's key", () => {
+    const user = {
+      subscriptionStatus: "free",
+      preferences: {
+        aiModel: "anthropic:claude-opus-5-5",
+        apiKeys: { anthropic: "sk-ant-plain", openai: "sk-proj-plain" },
+      },
+    };
+    const both = getModelWithSelection(user);
+    expect(both.model).toEqual(getModelForUser(user));
+    expect({ modelKey: both.modelKey, isByok: both.isByok }).toEqual(resolveModelSelection(user));
+    expect(both).toMatchObject({ modelKey: "anthropic:claude-opus-5-5", isByok: true });
+  });
+
+  it("decrypts each saved key once", () => {
+    const decrypt = jest.spyOn(byokCrypto, "decryptApiKey");
+    getModelWithSelection({
+      subscriptionStatus: "active",
+      preferences: {
+        aiModel: "hust:anthropic/claude-opus-5.5",
+        apiKeys: { anthropic: "sk-ant-plain", openai: "sk-proj-plain" },
+      },
+    });
+    expect(decrypt).toHaveBeenCalledTimes(2);
   });
 });

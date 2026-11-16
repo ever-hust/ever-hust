@@ -1,4 +1,4 @@
-export { getModelForUser, resolveModelSelection } from "./model-router";
+export { getModelForUser, getModelWithSelection, resolveModelSelection } from "./model-router";
 export type { ModelForUserOptions, ModelSelection } from "./model-router";
 export { FREE_FALLBACK_MODEL_ID } from "./credit-fallback";
 export type { FallbackState } from "./credit-fallback";

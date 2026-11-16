@@ -42,6 +42,24 @@ export async function POST(req: Request) {
     // Everything inside a single transaction to prevent double-credit
     // race conditions (two concurrent redeems of the same code).
     const result = await db.transaction(async (tx) => {
+      // One redeem per user at a time, so two concurrent redeems by the same
+      // account can't both pass the check below. Released at commit/rollback.
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext('referral-redeem'), hashtext(${userId}))`,
+      );
+
+      // An account can be referred only once. Without this, one account could
+      // redeem invite after invite and credit the same referrer each time.
+      const alreadyReferred = await tx
+        .select({ id: referrals.id })
+        .from(referrals)
+        .where(eq(referrals.referredUserId, userId))
+        .limit(1);
+
+      if (alreadyReferred.length > 0) {
+        return { error: "You have already redeemed a referral code" } as const;
+      }
+
       // Find a pending referral with this code (SELECT inside tx for atomicity)
       const pendingReferrals = await tx
         .select()

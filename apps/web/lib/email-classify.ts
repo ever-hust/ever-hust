@@ -111,11 +111,19 @@ export function classifyEmail(subject?: string | null, body?: string | null): Em
   return "other";
 }
 
-/** Extract a bare domain from a "Name <user@host>" address string. */
+/**
+ * Extract a bare domain from a "Name <user@host>" address string. The domain
+ * comes from the address in the angle brackets, never from the display name,
+ * which is free text and can hold an "@" too ("jobs@box.com" <x@ats.example>).
+ */
 export function senderDomain(fromAddr?: string | null): string | null {
   if (!fromAddr) return null;
-  const m = fromAddr.match(/@([a-z0-9.-]+)/i);
-  return m ? m[1]!.toLowerCase().replace(/>$/, "") : null;
+  const angles = fromAddr.match(/<[^<>]*>/g);
+  const addr = angles ? angles[angles.length - 1]! : fromAddr;
+  const at = addr.lastIndexOf("@");
+  if (at < 0) return null;
+  const m = addr.slice(at + 1).match(/^[a-z0-9.-]+/i);
+  return m ? m[0].toLowerCase().replace(/\.+$/, "") || null : null;
 }
 
 /** Extract a bare host (sans www.) from a company URL like "https://acme.com/jobs". */

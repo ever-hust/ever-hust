@@ -11,7 +11,18 @@ interface JobMatch {
   domain: string | null;
 }
 
-/** Best-effort: link an email to one of the user's applied/saved jobs. */
+/** The one job all matches point at, or null when there are none or several. */
+function onlyJob(matches: JobMatch[]): number | null {
+  const ids = new Set(matches.map((m) => m.id));
+  return ids.size === 1 ? matches[0]!.id : null;
+}
+
+/**
+ * Best-effort: link an email to one of the user's applied/saved jobs. Links
+ * only when exactly one job matches. The linked job's application can be moved
+ * (to "rejected", say) by the caller, so when two jobs match (two roles at the
+ * same company, or two companies named in one email) nothing is linked.
+ */
 export function matchJob(
   candidates: JobMatch[],
   fromAddr: string | null,
@@ -22,13 +33,15 @@ export function matchJob(
   if (domain) {
     // Exact host or a true subdomain ("mail.box.com"); never a bare suffix
     // ("dropbox.com" must not match "box.com").
-    const byDomain = candidates.find(
+    const byDomain = candidates.filter(
       (c) => c.domain && (domain === c.domain || domain.endsWith("." + c.domain)),
     );
-    if (byDomain) return byDomain.id;
+    // The sender is the company: when its domain fits several jobs, do not
+    // fall back to the name, which would only guess between them.
+    if (byDomain.length > 0) return onlyJob(byDomain);
   }
   const hay = `${fromAddr ?? ""} ${subject ?? ""} ${body ?? ""}`.toLowerCase();
-  const byName = candidates.find((c) => {
+  const byName = candidates.filter((c) => {
     const n = (c.name ?? "").trim().toLowerCase();
     if (n.length < 4) return false;
     // Whole-word match so "meta" does not hit "metadata". Lookarounds rather
@@ -36,7 +49,7 @@ export function matchJob(
     const escaped = n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     return new RegExp(`(?<![a-z0-9])${escaped}(?![a-z0-9])`).test(hay);
   });
-  return byName?.id ?? null;
+  return onlyJob(byName);
 }
 
 export interface SyncResult {

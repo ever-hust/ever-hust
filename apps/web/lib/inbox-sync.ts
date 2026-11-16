@@ -12,7 +12,7 @@ interface JobMatch {
 }
 
 /** Best-effort: link an email to one of the user's applied/saved jobs. */
-function matchJob(
+export function matchJob(
   candidates: JobMatch[],
   fromAddr: string | null,
   subject: string | null,
@@ -20,13 +20,21 @@ function matchJob(
 ): number | null {
   const domain = senderDomain(fromAddr);
   if (domain) {
-    const byDomain = candidates.find((c) => c.domain && domain.endsWith(c.domain));
+    // Exact host or a true subdomain ("mail.box.com"); never a bare suffix
+    // ("dropbox.com" must not match "box.com").
+    const byDomain = candidates.find(
+      (c) => c.domain && (domain === c.domain || domain.endsWith("." + c.domain)),
+    );
     if (byDomain) return byDomain.id;
   }
   const hay = `${fromAddr ?? ""} ${subject ?? ""} ${body ?? ""}`.toLowerCase();
   const byName = candidates.find((c) => {
     const n = (c.name ?? "").trim().toLowerCase();
-    return n.length >= 4 && hay.includes(n);
+    if (n.length < 4) return false;
+    // Whole-word match so "meta" does not hit "metadata". Lookarounds rather
+    // than \b so names ending in a symbol (e.g. "c++") still match.
+    const escaped = n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(?<![a-z0-9])${escaped}(?![a-z0-9])`).test(hay);
   });
   return byName?.id ?? null;
 }

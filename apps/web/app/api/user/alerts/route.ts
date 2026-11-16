@@ -1,6 +1,7 @@
 import { db } from "@ever-hust/db";
 import { userAlerts } from "@ever-hust/db";
-import { eq, and } from "drizzle-orm";
+import { MAX_ALERTS_PER_USER } from "@ever-hust/utils";
+import { eq, and, count, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
 import { checkSubscription } from "../../../../lib/subscription-gate";
@@ -75,16 +76,40 @@ export async function POST(req: Request) {
       return apiForbidden(alertsRequireProMessage());
     }
 
-    const [alert] = await db
-      .insert(userAlerts)
-      .values({
-        userId: user.id,
-        frequency: body.frequency,
-        email: body.email,
-        criteria: body.criteria ?? null,
-      })
-      .returning();
+    const result = await db.transaction(async (tx) => {
+      // One create per user at a time, so concurrent requests can't all pass
+      // the cap check below. Same lock as the AI create-alert tool.
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext('user-alerts-create'), hashtext(${user.id}))`,
+      );
 
+      const [existing] = await tx
+        .select({ value: count() })
+        .from(userAlerts)
+        .where(eq(userAlerts.userId, user.id));
+      if ((existing?.value ?? 0) >= MAX_ALERTS_PER_USER) {
+        return { capped: true as const };
+      }
+
+      // Alerts go only to the account email, never to an address from the body.
+      const [created] = await tx
+        .insert(userAlerts)
+        .values({
+          userId: user.id,
+          frequency: body.frequency,
+          email: user.email,
+          criteria: body.criteria ?? null,
+        })
+        .returning();
+      return { capped: false as const, alert: created };
+    });
+
+    if (result.capped) {
+      return apiBadRequest(
+        `You can have at most ${MAX_ALERTS_PER_USER} job alerts. Delete one before creating another.`,
+      );
+    }
+    const alert = result.alert;
     if (!alert) {
       return apiError("Failed to create alert");
     }
@@ -116,11 +141,20 @@ export async function PATCH(req: Request) {
   }
   const body = validation.data;
 
+  // Alerts go only to the account email, so an alert's email can't be changed.
+  if (
+    body.email !== undefined &&
+    body.email.toLowerCase() !== user.email.toLowerCase()
+  ) {
+    return apiBadRequest(
+      "Job alerts are sent to your account email; it can't be changed per alert.",
+    );
+  }
+
   // Build update fields
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   if (body.isActive !== undefined) updates.isActive = body.isActive;
   if (body.frequency !== undefined) updates.frequency = body.frequency;
-  if (body.email !== undefined) updates.email = body.email;
   if (body.criteria !== undefined) updates.criteria = body.criteria;
 
   try {

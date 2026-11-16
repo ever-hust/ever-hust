@@ -303,7 +303,9 @@ export const updateOrganizationSchema = z.object({
 });
 
 export const inviteMemberSchema = z.object({
-  email: z.string().email().max(320),
+  // Stored lowercase: session emails are always lowercase, and the accept
+  // route compares the invitee's email against this value.
+  email: z.string().trim().toLowerCase().email().max(320),
   role: z.enum(["admin", "member"]).default("member"),
 });
 

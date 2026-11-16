@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 /**
  * Gmail one-click connect via OAuth2 (XOAUTH2 for IMAP/SMTP). Server-only.
@@ -21,22 +21,41 @@ function stateSecret(): string {
   return process.env.BETTER_AUTH_SECRET ?? "hust-dev-secret";
 }
 
-/** Sign `userId` into a CSRF-safe state token. */
-export function signState(userId: string): string {
-  const mac = createHmac("sha256", stateSecret()).update(userId).digest("hex");
-  return `${userId}.${mac}`;
+/** How long a consent link stays valid. */
+export const STATE_MAX_AGE_MS = 10 * 60 * 1000;
+/** Tolerated clock skew for a state issued "in the future". */
+const STATE_CLOCK_SKEW_MS = 60 * 1000;
+
+/**
+ * Sign `userId.issuedAt.nonce` into a state token: `userId.issuedAt.nonce.mac`.
+ * The callback also requires the signed-in session to match the userId, so a
+ * consent link forwarded to someone else cannot link their mailbox to this account.
+ */
+export function signState(userId: string, now: number = Date.now()): string {
+  const payload = `${userId}.${now}.${randomBytes(16).toString("hex")}`;
+  const mac = createHmac("sha256", stateSecret()).update(payload).digest("hex");
+  return `${payload}.${mac}`;
 }
 
-/** Verify a state token and return the userId, or null. */
-export function verifyState(state: string): string | null {
-  const i = state.lastIndexOf(".");
-  if (i <= 0) return null;
-  const userId = state.slice(0, i);
-  const mac = state.slice(i + 1);
-  const expected = createHmac("sha256", stateSecret()).update(userId).digest("hex");
+/** Verify a state token (MAC and age) and return the userId, or null. */
+export function verifyState(state: string, now: number = Date.now()): string | null {
+  const parts = state.split(".");
+  // userId may itself contain dots: the last three segments are issuedAt, nonce, mac.
+  if (parts.length < 4) return null;
+  const mac = parts.pop() as string;
+  const nonce = parts.pop() as string;
+  const issuedAtRaw = parts.pop() as string;
+  const userId = parts.join(".");
+  if (!userId || !nonce || !/^\d{1,15}$/.test(issuedAtRaw)) return null;
+
+  const payload = `${userId}.${issuedAtRaw}.${nonce}`;
+  const expected = createHmac("sha256", stateSecret()).update(payload).digest("hex");
   const a = Buffer.from(mac);
   const b = Buffer.from(expected);
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+
+  const age = now - Number(issuedAtRaw);
+  if (age > STATE_MAX_AGE_MS || age < -STATE_CLOCK_SKEW_MS) return null;
   return userId;
 }
 

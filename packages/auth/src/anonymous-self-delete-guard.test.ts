@@ -7,27 +7,10 @@
  * auth path alone, the sign-in, sign-up and callback paths whose after hook links a guest to the
  * new account included.
  *
- * better-auth ships ESM only and this Jest setup runs CJS, so better-auth/api is replaced by a
- * stand-in with the same APIError shape; createAuthMiddleware hands the handler back unchanged.
+ * better-auth ships ESM only and this Jest setup runs CJS, so jest.config.ts maps better-auth/api
+ * for the auth project to ./test-stubs/better-auth-api.ts: an APIError with the same shape, and a
+ * createAuthMiddleware that hands the handler back unchanged.
  */
-jest.mock("better-auth/api", () => {
-  const statusCodes: Record<string, number> = { FORBIDDEN: 403 };
-  class APIError extends Error {
-    status: string;
-    statusCode: number;
-    body: { message?: string } | undefined;
-    constructor(status: string, body?: { message?: string }) {
-      super(body?.message);
-      this.status = status;
-      this.statusCode = statusCodes[status] ?? 500;
-      this.body = body;
-    }
-  }
-  return {
-    APIError,
-    createAuthMiddleware: (handler: unknown) => handler,
-  };
-});
 
 // index.ts builds the auth instance at import time; these stand-ins let the test read the
 // options it passes without a database or the real (ESM-only) better-auth.

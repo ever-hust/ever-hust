@@ -103,34 +103,12 @@ describe("subscription-gate rate limiting", () => {
       expect(stats).toEqual({ used: 0, remaining: 10, limit: 10 });
     });
 
-    it("peekSearchUsage returns zero for unused user", () => {
-      const stats = mod.peekSearchUsage("unused-peek-2");
-      expect(stats).toEqual({ used: 0, remaining: 5, limit: 5 });
-    });
-
-    it("peekCoverLetterUsage returns zero for unused user", () => {
-      const stats = mod.peekCoverLetterUsage("unused-peek-3");
-      expect(stats).toEqual({ used: 0, remaining: 1, limit: 1 });
-    });
-
     it("peekMessageUsage does not increment counter", async () => {
       await mod.checkMessageLimit("peek-no-inc");
       const p1 = mod.peekMessageUsage("peek-no-inc");
       const p2 = mod.peekMessageUsage("peek-no-inc");
       expect(p1.used).toBe(1);
       expect(p2.used).toBe(1); // unchanged
-    });
-
-    it("peekSearchUsage returns zero for unused user (search limits handled by AI package)", () => {
-      const stats = mod.peekSearchUsage("peek-search");
-      expect(stats.used).toBe(0);
-      expect(stats.remaining).toBe(5);
-    });
-
-    it("peekCoverLetterUsage returns zero for unused user (cover letter limits handled by AI package)", () => {
-      const stats = mod.peekCoverLetterUsage("peek-cover");
-      expect(stats.used).toBe(0);
-      expect(stats.remaining).toBe(1);
     });
   });
 

@@ -4,6 +4,7 @@ import { anonymous } from "better-auth/plugins";
 import { db } from "@ever-hust/db/client";
 import * as schema from "@ever-hust/db/schema";
 import { anonymousSelfDeleteGuard } from "./anonymous-self-delete-guard";
+import { emailGreetingName } from "./email-greeting-name";
 import { migrateAnonymousUserData } from "./migrate-anonymous-user";
 import { getProviderCredentials } from "./providers";
 import { userAdditionalFields } from "./user-fields";
@@ -51,12 +52,13 @@ export const auth = betterAuth({
     requireEmailVerification: true,
     sendResetPassword: async ({ user, url }) => {
       // The React Email template escapes the name; sign-up accepts any name, so
-      // it must never go into raw HTML.
+      // it must never go into raw HTML. emailGreetingName only prints it once the
+      // address is verified.
       try {
         const { sendPasswordResetEmail } = await import("@ever-hust/email");
         await sendPasswordResetEmail({
           to: user.email,
-          userName: user.name ?? user.email.split("@")[0],
+          userName: emailGreetingName(user),
           resetUrl: url,
         });
       } catch (error) {
@@ -76,11 +78,12 @@ export const auth = betterAuth({
     autoSignInAfterVerification: true,
     expiresIn: 60 * 60 * 24, // 24 hours
     sendVerificationEmail: async ({ user, url }) => {
+      // Sent at sign-up, before the address is verified: no sign-up name in it.
       try {
         const { sendVerificationEmail: sendEmail } = await import("@ever-hust/email");
         await sendEmail({
           to: user.email,
-          userName: user.name ?? user.email.split("@")[0],
+          userName: emailGreetingName(user),
           verificationUrl: url,
         });
       } catch (error) {
@@ -142,12 +145,13 @@ export const auth = betterAuth({
           // Skip anonymous trial users — they carry a generated @hust.local email
           // and receive their own welcome when they convert to a real account.
           if ((user as { isAnonymous?: boolean }).isAnonymous) return;
-          // Send welcome email to newly registered users (non-blocking)
+          // Send welcome email to newly registered users (non-blocking). An
+          // email/password sign-up is not verified yet, so it is greeted as "there".
           try {
             const { sendWelcomeEmail } = await import("@ever-hust/email");
             await sendWelcomeEmail({
               to: user.email,
-              userName: user.name ?? user.email.split("@")[0],
+              userName: emailGreetingName(user),
             });
           } catch (error) {
             // Log but don't block user creation if email fails

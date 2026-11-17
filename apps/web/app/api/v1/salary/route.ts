@@ -13,7 +13,11 @@ import {
   apiRateLimited,
   apiError,
 } from "../../../../lib/api-response";
-import { annualise, median } from "@ever-hust/ai/tools/salary-helpers";
+import {
+  annualise,
+  keepDominantCurrency,
+  median,
+} from "@ever-hust/ai/tools/salary-helpers";
 
 // GET /api/v1/salary - Salary insights (API key or session auth)
 export async function GET(req: NextRequest) {
@@ -162,15 +166,22 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // Use only the most common currency: statistics over mixed currencies are meaningless
+    const {
+      currency: dominantCurrency,
+      kept,
+      excluded: excludedOtherCurrency,
+    } = keepDominantCurrency(normalised);
+
     // Compute statistics
-    const midpoints = normalised
+    const midpoints = kept
       .map((j) => j.annualMid)
       .sort((a, b) => a - b);
-    const allMins = normalised
+    const allMins = kept
       .filter((j) => j.annualMin != null)
       .map((j) => j.annualMin!)
       .sort((a, b) => a - b);
-    const allMaxes = normalised
+    const allMaxes = kept
       .filter((j) => j.annualMax != null)
       .map((j) => j.annualMax!)
       .sort((a, b) => a - b);
@@ -191,27 +202,12 @@ export async function GET(req: NextRequest) {
       midpoints[Math.min(p75Index, midpoints.length - 1)]!
     );
 
-    // Determine dominant currency
-    const currencyCounts = new Map<string, number>();
-    for (const j of normalised) {
-      const cur = j.currency?.toUpperCase() ?? "USD";
-      currencyCounts.set(cur, (currencyCounts.get(cur) ?? 0) + 1);
-    }
-    let dominantCurrency = "USD";
-    let maxCurrencyCount = 0;
-    for (const [cur, cnt] of currencyCounts) {
-      if (cnt > maxCurrencyCount) {
-        dominantCurrency = cur;
-        maxCurrencyCount = cnt;
-      }
-    }
-
     // Breakdown by level
     const levelMap = new Map<
       string,
       { midpoints: number[]; count: number }
     >();
-    for (const j of normalised) {
+    for (const j of kept) {
       const lvl = j.jobLevel?.toLowerCase() ?? "unspecified";
       const entry = levelMap.get(lvl);
       if (entry) {
@@ -240,8 +236,9 @@ export async function GET(req: NextRequest) {
         title,
         location: location ?? null,
         level: level ?? null,
-        sampleSize: normalised.length,
+        sampleSize: kept.length,
         currency: dominantCurrency,
+        excludedOtherCurrency,
         overall: {
           median: medianSalary,
           average,

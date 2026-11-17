@@ -65,6 +65,8 @@ const mockState = {
   /** Every write in order, e.g. "tx update organizations"; "tx " marks a write in a transaction. */
   writes: [] as string[],
   inTransaction: false,
+  /** A write that fails as if the connection dropped, e.g. "update userAlerts". */
+  failOn: null as string | null,
 };
 
 /** The unique keys a move can collide with, as declared in packages/db/src/schema. */
@@ -106,6 +108,7 @@ function mockLazy<T>(run: () => T) {
 
 function mockWrite(what: string) {
   mockState.writes.push(`${mockState.inTransaction ? "tx " : ""}${what}`);
+  if (mockState.failOn === what) throw new Error("connection lost");
 }
 
 function mockCheckUnique(name: TableName) {
@@ -217,6 +220,7 @@ function seed(tables: Partial<Record<TableName, Row[]>>) {
     ...tables,
   };
   mockState.writes = [];
+  mockState.failOn = null;
 }
 
 /** What the anonymous plugin does after onLinkAccount: delete the guest, cascading like Postgres. */
@@ -252,6 +256,11 @@ const members = (organizationId: number) =>
     .filter((m) => m.organizationId === organizationId)
     .map((m) => `${m.userId}:${m.role}`)
     .sort();
+/** The user_jobs rows, by id. */
+const savedJobs = () =>
+  [...mockState.tables.userJobs].sort(
+    (a, b) => (a.id as number) - (b.id as number),
+  );
 
 describe("migrateAnonymousUserData and the organizations a guest created", () => {
   it("moves the guest's organization, membership and sent invitation to the new account", async () => {
@@ -320,22 +329,82 @@ describe("migrateAnonymousUserData and the organizations a guest created", () =>
     },
   );
 
-  it("still moves the organizations when moving a favorite the new account already has fails", async () => {
+  it("keeps the account's own row for a job both saved and still moves everything else", async () => {
     seed({
       organizations: [{ id: 1, name: "Guest Co", createdById: GUEST }],
       organizationMembers: [member(1, GUEST, "owner")],
+      chatSessions: [{ id: "chat-1", userId: GUEST }],
       userJobs: [
         { id: 1, userId: GUEST, jobId: 7 },
         { id: 2, userId: NEW_USER, jobId: 7 },
+        { id: 3, userId: GUEST, jobId: 8 },
       ],
+      applications: [{ id: 1, userId: GUEST }],
+      userAlerts: [{ id: 1, userId: GUEST }],
     });
 
-    // onLinkAccount catches this, and the plugin deletes the guest anyway.
-    await expect(migrate(GUEST, NEW_USER)).rejects.toThrow("user_jobs_unique");
+    await expect(migrate(GUEST, NEW_USER)).resolves.toBeUndefined();
     deleteGuestLikePostgres();
 
     expect(org(1)).toMatchObject({ createdById: NEW_USER });
     expect(members(1)).toEqual(["user-new:owner"]);
+    expect(savedJobs()).toEqual([
+      { id: 2, userId: NEW_USER, jobId: 7 },
+      { id: 3, userId: NEW_USER, jobId: 8 },
+    ]);
+    expect(mockState.tables.chatSessions).toEqual([
+      { id: "chat-1", userId: NEW_USER },
+    ]);
+    expect(mockState.tables.applications).toEqual([
+      { id: 1, userId: NEW_USER },
+    ]);
+    expect(mockState.tables.userAlerts).toEqual([{ id: 1, userId: NEW_USER }]);
+  });
+
+  it("moves the guest's applications and alerts when every saved job is one the account already has", async () => {
+    seed({
+      userJobs: [
+        { id: 1, userId: GUEST, jobId: 7 },
+        { id: 2, userId: GUEST, jobId: 8 },
+        { id: 3, userId: NEW_USER, jobId: 7 },
+        { id: 4, userId: NEW_USER, jobId: 8 },
+      ],
+      applications: [{ id: 1, userId: GUEST }],
+      userAlerts: [{ id: 1, userId: GUEST }],
+    });
+
+    await expect(migrate(GUEST, NEW_USER)).resolves.toBeUndefined();
+    deleteGuestLikePostgres();
+
+    expect(savedJobs()).toEqual([
+      { id: 3, userId: NEW_USER, jobId: 7 },
+      { id: 4, userId: NEW_USER, jobId: 8 },
+    ]);
+    expect(mockState.tables.applications).toEqual([
+      { id: 1, userId: NEW_USER },
+    ]);
+    expect(mockState.tables.userAlerts).toEqual([{ id: 1, userId: NEW_USER }]);
+  });
+
+  it("moves the guest's chats, saved jobs, applications and alerts in one transaction", async () => {
+    seed({
+      chatSessions: [{ id: "chat-1", userId: GUEST }],
+      userJobs: [{ id: 1, userId: GUEST, jobId: 7 }],
+      applications: [{ id: 1, userId: GUEST }],
+      userAlerts: [{ id: 1, userId: GUEST }],
+    });
+    mockState.failOn = "update userAlerts";
+
+    // onLinkAccount catches this, and the plugin deletes the guest anyway.
+    await expect(migrate(GUEST, NEW_USER)).rejects.toThrow("connection lost");
+
+    // Rolled back together: nothing was left half moved.
+    expect(mockState.writes.every((w) => w.startsWith("tx "))).toBe(true);
+    expect(mockState.tables.chatSessions).toEqual([
+      { id: "chat-1", userId: GUEST },
+    ]);
+    expect(savedJobs()).toEqual([{ id: 1, userId: GUEST, jobId: 7 }]);
+    expect(mockState.tables.applications).toEqual([{ id: 1, userId: GUEST }]);
   });
 
   it("does nothing when both ids are the same user", async () => {

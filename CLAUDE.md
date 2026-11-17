@@ -85,7 +85,7 @@ Turborepo with `apps/*` and `packages/*` workspaces. All packages use `@ever-hus
 - **`packages/ui/`** — ShadCN components exported as `@ever-hust/ui/<component-name>`
 - **`packages/stripe/`** — Stripe checkout, portal, webhook parsing, plan definitions
 - **`packages/jobs-api/`** — Ever Jobs external API client with circuit breaker + retry
-- **`packages/email/`** — React Email templates (welcome, job alert, subscription, verification) + Resend sender
+- **`packages/email/`** — React Email templates (welcome, job alert, subscription, verification, password reset) + Resend sender
 - **`packages/triggers/`** — Trigger.dev scheduled tasks (job sync, alerts, cleanup)
 - **`packages/supabase/`** — Supabase client for Realtime + Storage (`uploadFile`, `getPublicUrl`, `deleteFile`)
 - **`packages/cv-parser/`** — CV/resume parsing logic
@@ -164,6 +164,7 @@ All marketing pages include JSON-LD structured data: `Organization` (landing), `
 - **AI tool input bounds**: All AI tool Zod schemas enforce `.max()` constraints on string/array inputs to limit LLM-generated payload sizes
 - **Service worker**: Includes `push` and `notificationclick` event handlers for Web Push notifications, offline caching with precached `/offline` page
 - **Email verification**: BetterAuth `emailVerification` config for email/password signups only; OAuth providers are trusted
+- **Auth emails**: The verification and password reset emails are rendered by React Email templates in `packages/email`, which escape the user name (sign-up accepts any name, and a reset can be requested for any address that has an account); never build them as raw HTML strings
 - **Rate limit UX**: Global `RateLimitInterceptor` patches `window.fetch` to show toast on 429 responses
 
 ### Custom Hooks

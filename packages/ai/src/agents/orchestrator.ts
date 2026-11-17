@@ -83,17 +83,28 @@ export async function createOrchestratorStream({
     // Meter credit usage for platform (Hust) model calls. BYOK calls use the
     // user's own key and are not charged. Never throws into the stream.
     onFinish: meterCredits
-      ? async ({ usage }) => {
+      ? async ({ usage, steps }) => {
           // A free model answered because platform credits ran out: the user did
           // not get (and must not pay for) the selected model. If credits ran out
           // mid-turn, the earlier paid steps go unbilled too — in the user's favour.
           if (fallbackState?.usedFallback) return;
           try {
-            const u = usage as
-              | { inputTokens?: number; outputTokens?: number; promptTokens?: number; completionTokens?: number }
-              | undefined;
-            const inputTokens = u?.inputTokens ?? u?.promptTokens ?? 0;
-            const outputTokens = u?.outputTokens ?? u?.completionTokens ?? 0;
+            // A tool-calling turn runs several model steps, and each one re-sends
+            // the system prompt, the history and the tool results. `usage` is only
+            // the last step, so bill the sum of every step. Sum `steps` rather than
+            // read `totalUsage`: the two match when the turn ends normally, but when
+            // a later step throws (a provider 5xx, a context-length 400) the SDK
+            // still calls onFinish for the steps that finished and leaves
+            // `totalUsage` empty, which would bill nothing.
+            let inputTokens = 0;
+            let outputTokens = 0;
+            for (const stepUsage of steps?.length ? steps.map((s) => s.usage) : [usage]) {
+              const u = stepUsage as
+                | { inputTokens?: number; outputTokens?: number; promptTokens?: number; completionTokens?: number }
+                | undefined;
+              inputTokens += u?.inputTokens ?? u?.promptTokens ?? 0;
+              outputTokens += u?.outputTokens ?? u?.completionTokens ?? 0;
+            }
             await recordChatUsage({ userId, modelKey, inputTokens, outputTokens });
           } catch (err) {
             console.error(

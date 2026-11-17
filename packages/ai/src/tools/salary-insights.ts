@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@ever-hust/db";
 import { jobs } from "@ever-hust/db";
 import { and, ilike, isNotNull, sql, eq, or } from "drizzle-orm";
-import { annualise, median } from "./salary-helpers";
+import { annualise, keepDominantCurrency, median } from "./salary-helpers";
 import { escapeIlike } from "@ever-hust/db";
 
 export const salaryInsightsTool = tool({
@@ -148,15 +148,22 @@ export const salaryInsightsTool = tool({
         };
       }
 
+      // Use only the most common currency: statistics over mixed currencies are meaningless
+      const {
+        currency: dominantCurrency,
+        kept,
+        excluded: excludedOtherCurrency,
+      } = keepDominantCurrency(normalised);
+
       // Overall statistics using midpoint salaries
-      const midpoints = normalised
+      const midpoints = kept
         .map((j) => j.annualMid)
         .sort((a, b) => a - b);
-      const allMins = normalised
+      const allMins = kept
         .filter((j) => j.annualMin != null)
         .map((j) => j.annualMin!)
         .sort((a, b) => a - b);
-      const allMaxes = normalised
+      const allMaxes = kept
         .filter((j) => j.annualMax != null)
         .map((j) => j.annualMax!)
         .sort((a, b) => a - b);
@@ -179,27 +186,12 @@ export const salaryInsightsTool = tool({
       const p25 = Math.round(midpoints[p25Index]!);
       const p75 = Math.round(midpoints[p75Index]!);
 
-      // Determine the dominant currency
-      const currencyCounts = new Map<string, number>();
-      for (const j of normalised) {
-        const cur = j.currency?.toUpperCase() ?? "USD";
-        currencyCounts.set(cur, (currencyCounts.get(cur) ?? 0) + 1);
-      }
-      let dominantCurrency = "USD";
-      let maxCurrencyCount = 0;
-      for (const [cur, count] of currencyCounts) {
-        if (count > maxCurrencyCount) {
-          dominantCurrency = cur;
-          maxCurrencyCount = count;
-        }
-      }
-
       // Breakdown by job level
       const levelMap = new Map<
         string,
         { midpoints: number[]; count: number }
       >();
-      for (const j of normalised) {
+      for (const j of kept) {
         const level = j.jobLevel?.toLowerCase() ?? "unspecified";
         const entry = levelMap.get(level);
         if (entry) {
@@ -229,7 +221,7 @@ export const salaryInsightsTool = tool({
       let onsiteCount = 0;
       const onsiteMidpoints: number[] = [];
 
-      for (const j of normalised) {
+      for (const j of kept) {
         if (j.isRemote === true) {
           remoteCount++;
           remoteMidpoints.push(j.annualMid);
@@ -278,7 +270,7 @@ export const salaryInsightsTool = tool({
 
       // Top paying companies
       const companyMap = new Map<string, { midpoints: number[]; count: number }>();
-      for (const j of normalised) {
+      for (const j of kept) {
         const name = j.companyName ?? "Unknown";
         const entry = companyMap.get(name);
         if (entry) {
@@ -305,8 +297,9 @@ export const salaryInsightsTool = tool({
         jobTitle,
         location: location ?? null,
         jobLevel: jobLevel ?? null,
-        sampleSize: normalised.length,
+        sampleSize: kept.length,
         currency: dominantCurrency,
+        excludedOtherCurrency,
         overall: {
           median: medianSalary,
           average,

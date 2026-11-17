@@ -15,6 +15,9 @@ import {
   DialogFooter,
 } from "@ever-hust/ui/dialog";
 import { toast } from "sonner";
+import { responseErrorMessage } from "@/lib/response-error";
+
+const DELETE_ACCOUNT_FAILED = "Failed to delete account";
 
 export function DangerZoneCard() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -30,9 +33,17 @@ export function DangerZoneCard() {
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/user/account", { method: "DELETE" });
+      let res: Response;
+      try {
+        res = await fetch("/api/user/account", { method: "DELETE" });
+      } catch {
+        // Network failure: show our message, not the browser's fetch error.
+        throw new Error(DELETE_ACCOUNT_FAILED);
+      }
       if (!res.ok && res.status !== 204) {
-        throw new Error("Failed to delete account");
+        // Show the server's reason, e.g. the 409 for the last owner of an
+        // organization that other members still use.
+        throw new Error(await responseErrorMessage(res, DELETE_ACCOUNT_FAILED));
       }
     },
     onSuccess: () => {
@@ -41,8 +52,8 @@ export function DangerZoneCard() {
         window.location.href = "/";
       }, 1500);
     },
-    onError: () => {
-      toast.error("Failed to delete account");
+    onError: (error) => {
+      toast.error(error.message || DELETE_ACCOUNT_FAILED);
     },
   });
 

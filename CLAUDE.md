@@ -95,7 +95,7 @@ Turborepo with `apps/*` and `packages/*` workspaces. All packages use `@ever-hus
 ### AI Chat Flow
 
 1. **Client**: `apps/web/app/(dashboard)/chat/page.tsx` renders `SplitScreen` with `ChatPanel` (left) + `JobsCanvas` (right)
-2. **API Route**: `apps/web/app/api/ai/chat/route.ts` — authenticates user, applies rate limits, resolves AI model via `getModelForUser()`, streams response
+2. **API Route**: `apps/web/app/api/ai/chat/route.ts` — authenticates user, applies rate limits, resolves the AI model and the credit key together via `getModelWithSelection()` (credits are metered on the model actually served, never the saved `aiModel` string; BYOK calls are not metered), streams response
 3. **Model Router** (`packages/ai/src/model-router.ts`): Routes to correct model based on subscription tier and user preferences. BYOK users get direct Anthropic; platform users go through OpenRouter (if configured) or direct Anthropic. Free tier gets Haiku, paid tier gets Sonnet/Opus.
 4. **Orchestrator** (`packages/ai/src/agents/orchestrator.ts`): Uses `streamText()` with 11 tools (searchJobs, favoriteJob, generateCoverLetter, interviewPrep, etc.). Max 5 agentic steps per turn.
 5. **Canvas Sync**: Tool results flow back to the client via `useCanvasSync` hook, which updates the jobs canvas in real-time. Supabase Realtime pushes new jobs from background sync tasks.

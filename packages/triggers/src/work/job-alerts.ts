@@ -479,8 +479,10 @@ export async function processAlerts(
     }
     const alert = alerts[i]!;
     try {
+      // The digest goes to the account email read here, never to user_alerts.email: older rows
+      // hold whatever address the request body gave, and a guest's alerts keep the guest address.
       const userResult = await database
-        .select({ name: users.name, subscriptionStatus: users.subscriptionStatus })
+        .select({ name: users.name, email: users.email, subscriptionStatus: users.subscriptionStatus })
         .from(users)
         .where(eq(users.id, alert.userId))
         .limit(1);
@@ -570,7 +572,7 @@ export async function processAlerts(
       // Resend delivers at most one email however many attempts reach this point. Nothing in the
       // email depends on the attempt (no clock reads, fixed job order).
       const outcome = await send({
-        to: alert.email,
+        to: user.email,
         userName: user.name ?? "Job Seeker",
         alertCriteria: criteriaDesc,
         jobs: matchingJobs.map((j) => ({

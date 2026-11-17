@@ -1,4 +1,6 @@
-import { getModelForUser } from "./model-router";
+import { DEFAULT_HUST_FREE_KEY, DEFAULT_HUST_PRO_KEY } from "@ever-hust/plugin";
+import * as byokCrypto from "./crypto";
+import { getModelForUser, getModelWithSelection, resolveModelSelection } from "./model-router";
 
 // Mock the @ai-sdk/anthropic module (used for both the platform degraded
 // fallback and the Anthropic BYOK plugin).
@@ -236,5 +238,97 @@ describe("getModelForUser", () => {
       expect(model.modelId).toBe("claude-opus-5-5");
       expect(model.provider).toBe("anthropic-byok");
     });
+  });
+});
+
+// The chat route bills credits for `modelKey` and skips billing when `isByok`,
+// so these must name the model getModelForUser actually serves.
+describe("resolveModelSelection", () => {
+  it("free user who saved a Hust PRO model → the free default it is served", () => {
+    expect(
+      resolveModelSelection({
+        subscriptionStatus: "free",
+        preferences: { aiModel: "hust:anthropic/claude-opus-5.5" },
+      }),
+    ).toEqual({ modelKey: DEFAULT_HUST_FREE_KEY, isByok: false });
+  });
+
+  it("a key that is not in the catalog → the tier default", () => {
+    expect(
+      resolveModelSelection({
+        subscriptionStatus: "active",
+        preferences: { aiModel: "gpt-6-luna" },
+      }),
+    ).toEqual({ modelKey: DEFAULT_HUST_PRO_KEY, isByok: false });
+    expect(
+      resolveModelSelection({
+        subscriptionStatus: "free",
+        preferences: { aiModel: "gpt-6-luna" },
+      }),
+    ).toEqual({ modelKey: DEFAULT_HUST_FREE_KEY, isByok: false });
+  });
+
+  it("a BYOK model with no saved key → the tier default, not BYOK", () => {
+    expect(
+      resolveModelSelection({
+        subscriptionStatus: "free",
+        preferences: { aiModel: "openai:gpt-6-astra" },
+      }),
+    ).toEqual({ modelKey: DEFAULT_HUST_FREE_KEY, isByok: false });
+  });
+
+  it("a BYOK model with a saved key → that model, BYOK", () => {
+    expect(
+      resolveModelSelection({
+        subscriptionStatus: "free",
+        preferences: {
+          aiModel: "openai:gpt-6-astra",
+          apiKeys: { openai: "sk-proj-123" },
+        },
+      }),
+    ).toEqual({ modelKey: "openai:gpt-6-astra", isByok: true });
+  });
+
+  it("a saved key that fails to decrypt → the tier default, metered (not BYOK)", () => {
+    expect(
+      resolveModelSelection({
+        subscriptionStatus: "free",
+        preferences: {
+          aiModel: "openai:gpt-6-astra",
+          apiKeys: { openai: "dGVzdA==:dGVzdA==:Y2lwaGVy" },
+        },
+      }),
+    ).toEqual({ modelKey: DEFAULT_HUST_FREE_KEY, isByok: false });
+  });
+});
+
+// The chat route needs the model and the billing key: one pick, keys decrypted once.
+describe("getModelWithSelection", () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it("returns getModelForUser's model with resolveModelSelection's key", () => {
+    const user = {
+      subscriptionStatus: "free",
+      preferences: {
+        aiModel: "anthropic:claude-opus-5-5",
+        apiKeys: { anthropic: "sk-ant-plain", openai: "sk-proj-plain" },
+      },
+    };
+    const both = getModelWithSelection(user);
+    expect(both.model).toEqual(getModelForUser(user));
+    expect({ modelKey: both.modelKey, isByok: both.isByok }).toEqual(resolveModelSelection(user));
+    expect(both).toMatchObject({ modelKey: "anthropic:claude-opus-5-5", isByok: true });
+  });
+
+  it("decrypts each saved key once", () => {
+    const decrypt = jest.spyOn(byokCrypto, "decryptApiKey");
+    getModelWithSelection({
+      subscriptionStatus: "active",
+      preferences: {
+        aiModel: "hust:anthropic/claude-opus-5.5",
+        apiKeys: { anthropic: "sk-ant-plain", openai: "sk-proj-plain" },
+      },
+    });
+    expect(decrypt).toHaveBeenCalledTimes(2);
   });
 });

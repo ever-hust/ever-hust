@@ -83,13 +83,16 @@ export async function createOrchestratorStream({
     // Meter credit usage for platform (Hust) model calls. BYOK calls use the
     // user's own key and are not charged. Never throws into the stream.
     onFinish: meterCredits
-      ? async ({ usage }) => {
+      ? async ({ usage, totalUsage }) => {
           // A free model answered because platform credits ran out: the user did
           // not get (and must not pay for) the selected model. If credits ran out
           // mid-turn, the earlier paid steps go unbilled too — in the user's favour.
           if (fallbackState?.usedFallback) return;
           try {
-            const u = usage as
+            // A tool-calling turn runs several model steps, and each one re-sends
+            // the system prompt, the history and the tool results. `usage` is only
+            // the last step; `totalUsage` is the sum of all steps, so bill that.
+            const u = (totalUsage ?? usage) as
               | { inputTokens?: number; outputTokens?: number; promptTokens?: number; completionTokens?: number }
               | undefined;
             const inputTokens = u?.inputTokens ?? u?.promptTokens ?? 0;

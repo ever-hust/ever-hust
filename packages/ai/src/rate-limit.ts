@@ -89,6 +89,31 @@ async function checkRateLimit(
   return { allowed: success, remaining };
 }
 
+/**
+ * Read-only view of the same counter `checkRateLimit` consumes: never
+ * increments it. Used by the usage-stats endpoint (sidebar quota).
+ */
+async function peekRateLimit(
+  prefix: string,
+  userId: string,
+  limit: number,
+  windowMs: number,
+): Promise<{ used: number; remaining: number; limit: number }> {
+  const r = getRedis();
+  if (!r) {
+    const entry = memoryCounters.get(`${prefix}:${userId}`);
+    const used = !entry || Date.now() > entry.resetAt ? 0 : Math.min(entry.count, limit);
+    return { used, remaining: limit - used, limit };
+  }
+
+  const windowSec = Math.ceil(windowMs / 1000);
+  const limiter = getUpstashLimiter(prefix, limit, windowSec, r);
+
+  const { remaining } = await limiter.getRemaining(userId);
+  const left = Math.min(limit, Math.max(0, remaining));
+  return { used: limit - left, remaining: left, limit };
+}
+
 // ---------------------------------------------------------------------------
 // Window durations
 // ---------------------------------------------------------------------------
@@ -115,4 +140,22 @@ export function checkCoverLetterLimit(
   userId: string,
 ): Promise<{ allowed: boolean; remaining: number }> {
   return checkRateLimit("cover", userId, FREE_LIMITS.coverLettersPerWeek, ONE_WEEK_MS);
+}
+
+/**
+ * How many of today's free searches a user has used, without consuming one.
+ */
+export function peekSearchLimit(
+  userId: string,
+): Promise<{ used: number; remaining: number; limit: number }> {
+  return peekRateLimit("search", userId, FREE_LIMITS.searchesPerDay, ONE_DAY_MS);
+}
+
+/**
+ * How many of this week's free cover letters a user has used, without consuming one.
+ */
+export function peekCoverLetterLimit(
+  userId: string,
+): Promise<{ used: number; remaining: number; limit: number }> {
+  return peekRateLimit("cover", userId, FREE_LIMITS.coverLettersPerWeek, ONE_WEEK_MS);
 }

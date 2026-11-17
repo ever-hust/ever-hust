@@ -66,6 +66,39 @@ function callingATool(): MockLanguageModelV3 {
   });
 }
 
+/**
+ * Two tool-calling steps finish, then the third model call fails (a provider
+ * 5xx). The SDK still calls onFinish for the two finished steps.
+ */
+function failingOnStepThree(): MockLanguageModelV3 {
+  let step = 0;
+  return new MockLanguageModelV3({
+    doStream: async () => {
+      step += 1;
+      if (step <= 2) {
+        return {
+          stream: convertArrayToReadableStream([
+            {
+              type: "tool-call",
+              toolCallId: `call-${step}`,
+              toolName: "updateFilters",
+              input: JSON.stringify({ keywords: "typescript" }),
+            },
+            { type: "finish", finishReason: { unified: "tool-calls", raw: "tool_use" }, usage },
+          ]),
+        };
+      }
+      throw new APICallError({
+        message: "upstream error",
+        url: "https://openrouter.ai/api/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: 500,
+        isRetryable: false,
+      });
+    },
+  });
+}
+
 const outOfCredits = () =>
   new MockLanguageModelV3({
     doStream: async () => {
@@ -118,6 +151,21 @@ describe("chat credit metering", () => {
     await runTurn(model, { usedFallback: false });
 
     expect(model.doStreamCalls).toHaveLength(2);
+    expect(recordChatUsage).toHaveBeenCalledTimes(1);
+    expect(recordChatUsage).toHaveBeenCalledWith({
+      userId: "user-1",
+      modelKey: "hust:anthropic/claude-sonnet-5.5",
+      inputTokens: 2000,
+      outputTokens: 1000,
+    });
+  });
+
+  it("charges the finished steps when a later step fails", async () => {
+    jest.spyOn(console, "error").mockImplementation(() => {});
+    const model = failingOnStepThree();
+    await runTurn(model, { usedFallback: false });
+
+    expect(model.doStreamCalls).toHaveLength(3);
     expect(recordChatUsage).toHaveBeenCalledTimes(1);
     expect(recordChatUsage).toHaveBeenCalledWith({
       userId: "user-1",

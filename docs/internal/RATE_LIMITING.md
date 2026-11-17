@@ -1,6 +1,6 @@
 # Rate limiting — architecture & how to make it distributed
 
-_Last updated: 2026-06-17_
+_Last updated: 2026-11-17_
 
 Hust has **three** rate limiters. This doc maps them, calls out which are
 per-pod in-memory vs. distributed, and gives the steps to move the free-tier
@@ -10,9 +10,9 @@ daily message cap onto Redis.
 
 | # | Limiter | Code | Algorithm | Backend (today) | Distributed? |
 |---|---------|------|-----------|-----------------|--------------|
-| 1 | Free-tier **daily message** cap (10/day), search/cover **peeks** | [`apps/web/lib/subscription-gate.ts`](../../apps/web/lib/subscription-gate.ts) → [`@ever-hust/rate-limit`](../../packages/rate-limit) | fixed-window | **in-memory by default**, Redis-ready | ⚙️ flip on with env |
+| 1 | Free-tier **daily message** cap (10/day) | [`apps/web/lib/subscription-gate.ts`](../../apps/web/lib/subscription-gate.ts) → [`@ever-hust/rate-limit`](../../packages/rate-limit) | fixed-window | **in-memory by default**, Redis-ready | ⚙️ flip on with env |
 | 2 | Per-route **API** limit (e.g. chat 30/min, authed 100/min) | [`apps/web/lib/rate-limit.ts`](../../apps/web/lib/rate-limit.ts) | sliding-window | in-memory only | ❌ not yet |
-| 3 | Free-tier **search / cover-letter** caps | [`packages/ai/src/rate-limit.ts`](../../packages/ai/src/rate-limit.ts) | sliding-window | Upstash Redis if `UPSTASH_REDIS_REST_URL` set, else in-memory | ✅ (Upstash) |
+| 3 | Free-tier **search / cover-letter** caps, and their usage-stats **peeks** | [`packages/ai/src/rate-limit.ts`](../../packages/ai/src/rate-limit.ts) | sliding-window | Upstash Redis if `UPSTASH_REDIS_REST_URL` set, else in-memory | ✅ (Upstash) |
 
 **Per-pod in-memory** means each replica keeps its own counters in a `Map`. Across
 `N` pods a user gets up to `N × limit`, and a redeploy resets the counts. Fine for
@@ -57,7 +57,11 @@ reuse the fixed-window one). Until then it remains a per-pod best-effort DoS gua
 ## Limiter #3 — search / cover-letter (already Upstash)
 
 `packages/ai/src/rate-limit.ts` already falls back to in-memory and uses Upstash
-when `UPSTASH_REDIS_REST_URL` is configured. Left as-is. If you consolidate
+when `UPSTASH_REDIS_REST_URL` is configured. Left as-is. `GET /api/user/usage`
+(the sidebar quota) reads these same counters through `peekSearchLimit` /
+`peekCoverLetterLimit`, which never consume (Upstash `getRemaining` under Redis).
+It used to peek `search:` / `cover:` keys on limiter #1 that nothing writes, so
+free users always saw 0 searches and 0 cover letters used. If you consolidate
 everything onto DO Redis later, this is the second candidate to port onto
 `@ever-hust/rate-limit`.
 

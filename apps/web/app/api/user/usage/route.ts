@@ -1,11 +1,7 @@
 import type { NextResponse } from "next/server";
+import { peekSearchLimit, peekCoverLetterLimit } from "@ever-hust/ai";
 import { requireSessionUser } from "../../../../lib/get-session-user";
-import {
-  checkSubscription,
-  peekMessageUsage,
-  peekSearchUsage,
-  peekCoverLetterUsage,
-} from "../../../../lib/subscription-gate";
+import { checkSubscription, peekMessageUsage } from "../../../../lib/subscription-gate";
 import { applyRateLimit } from "../../../../lib/rate-limit";
 import { apiSuccess, apiError } from "../../../../lib/api-response";
 
@@ -42,10 +38,13 @@ export async function GET() {
     }
 
     // Read-only peek at current usage stats for free users.
-    // These do NOT increment counters.
+    // These do NOT increment counters. Searches and cover letters are read
+    // from the counters the chat consumes (@ever-hust/ai).
     const messages = peekMessageUsage(user.id);
-    const searches = peekSearchUsage(user.id);
-    const coverLetters = peekCoverLetterUsage(user.id);
+    const [searches, coverLetters] = await Promise.all([
+      peekSearchLimit(user.id),
+      peekCoverLetterLimit(user.id),
+    ]);
 
     return apiSuccess({
       plan: "free",

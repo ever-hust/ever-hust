@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db, jobs } from "@ever-hust/db";
 import { and, ilike, or } from "drizzle-orm";
 import { escapeIlike } from "@ever-hust/db";
-import { annualise, median } from "./salary-helpers";
+import { annualise, keepDominantCurrency, median } from "./salary-helpers";
 
 /**
  * Market-insights tool (spec #1 — Harvest the Ever Jobs backend).
@@ -19,6 +19,7 @@ export interface MarketJob {
   salaryMin: number | null;
   salaryMax: number | null;
   salaryInterval: string | null;
+  salaryCurrency: string | null;
   isRemote: boolean | null;
   locationCity: string | null;
   locationState: string | null;
@@ -29,7 +30,18 @@ export interface MarketJob {
 export interface MarketInsights {
   demandCount: number;
   remotePct: number | null;
-  salary: { median: number; p25: number; p75: number; sampleSize: number } | null;
+  /**
+   * Spread of annualised pay in `currency`, the most common currency among the postings
+   * with pay figures. `excludedOtherCurrency` postings in other currencies are left out.
+   */
+  salary: {
+    median: number;
+    p25: number;
+    p75: number;
+    sampleSize: number;
+    currency: string;
+    excludedOtherCurrency: number;
+  } | null;
   topSkills: { skill: string; count: number }[];
   topLocations: { location: string; count: number }[];
   topCompanies: { company: string; count: number }[];
@@ -69,8 +81,9 @@ export function computeMarketInsights(rows: MarketJob[]): MarketInsights {
   }
   const remotePct = remoteKnown > 0 ? Math.round((remoteYes / remoteKnown) * 100) : null;
 
-  // Salary spread over annualised midpoints.
-  const midpoints: number[] = [];
+  // Salary spread over annualised midpoints, in the most common currency only:
+  // percentiles over mixed currencies (USD next to INR) are meaningless.
+  const paid: { mid: number; currency: string | null }[] = [];
   for (const r of rows) {
     const min = r.salaryMin != null && Number.isFinite(r.salaryMin) ? r.salaryMin : null;
     const max = r.salaryMax != null && Number.isFinite(r.salaryMax) ? r.salaryMax : null;
@@ -81,9 +94,10 @@ export function computeMarketInsights(rows: MarketJob[]): MarketInsights {
       annMin != null && annMax != null
         ? (annMin + annMax) / 2
         : (annMin ?? annMax)!;
-    midpoints.push(mid);
+    paid.push({ mid, currency: r.salaryCurrency });
   }
-  midpoints.sort((a, b) => a - b);
+  const { currency, kept, excluded } = keepDominantCurrency(paid);
+  const midpoints = kept.map((p) => p.mid).sort((a, b) => a - b);
   const salary =
     midpoints.length > 0
       ? {
@@ -91,6 +105,8 @@ export function computeMarketInsights(rows: MarketJob[]): MarketInsights {
           p25: Math.round(midpoints[Math.floor((midpoints.length - 1) * 0.25)]!),
           p75: Math.round(midpoints[Math.ceil((midpoints.length - 1) * 0.75)]!),
           sampleSize: midpoints.length,
+          currency,
+          excludedOtherCurrency: excluded,
         }
       : null;
 
@@ -164,6 +180,7 @@ export const marketInsightsTool = tool({
           salaryMin: jobs.salaryMin,
           salaryMax: jobs.salaryMax,
           salaryInterval: jobs.salaryInterval,
+          salaryCurrency: jobs.salaryCurrency,
           isRemote: jobs.isRemote,
           locationCity: jobs.locationCity,
           locationState: jobs.locationState,
@@ -189,6 +206,7 @@ export const marketInsightsTool = tool({
           salaryMin: r.salaryMin != null ? Number(r.salaryMin) : null,
           salaryMax: r.salaryMax != null ? Number(r.salaryMax) : null,
           salaryInterval: r.salaryInterval,
+          salaryCurrency: r.salaryCurrency,
           isRemote: r.isRemote,
           locationCity: r.locationCity,
           locationState: r.locationState,

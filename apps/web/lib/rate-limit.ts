@@ -30,6 +30,8 @@ export const API_RATE_LIMITS = {
 
 interface RateLimitEntry {
   timestamps: number[];
+  /** Largest window this key was checked with; cleanup keeps timestamps inside it. */
+  windowMs: number;
 }
 
 const store = new Map<string, RateLimitEntry>();
@@ -41,18 +43,15 @@ const MAX_STORE_ENTRIES = 50_000;
 const CLEANUP_INTERVAL = 5 * 60 * 1000;
 let lastCleanup = Date.now();
 
-/** Maximum window across all tiers — used for cleanup so no valid entries are pruned. */
-const MAX_WINDOW_MS = Math.max(
-  ...Object.values(API_RATE_LIMITS).map((c) => c.windowMs)
-);
-
 function cleanup(force = false) {
   const now = Date.now();
   if (!force && now - lastCleanup < CLEANUP_INTERVAL) return;
   lastCleanup = now;
 
-  const cutoff = now - MAX_WINDOW_MS;
+  // Prune each entry by its own window, so the hourly v1 API key limits
+  // keep their history across this 5-minute cleanup.
   for (const [key, entry] of store) {
+    const cutoff = now - entry.windowMs;
     entry.timestamps = entry.timestamps.filter((t) => t > cutoff);
     if (entry.timestamps.length === 0) {
       store.delete(key);
@@ -87,8 +86,10 @@ export function checkApiRateLimit(
 
   let entry = store.get(key);
   if (!entry) {
-    entry = { timestamps: [] };
+    entry = { timestamps: [], windowMs };
     store.set(key, entry);
+  } else if (windowMs > entry.windowMs) {
+    entry.windowMs = windowMs;
   }
 
   // Remove expired timestamps

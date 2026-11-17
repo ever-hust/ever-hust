@@ -85,7 +85,7 @@ Turborepo with `apps/*` and `packages/*` workspaces. All packages use `@ever-hus
 - **`packages/ui/`** — ShadCN components exported as `@ever-hust/ui/<component-name>`
 - **`packages/stripe/`** — Stripe checkout, portal, webhook parsing, plan definitions
 - **`packages/jobs-api/`** — Ever Jobs external API client with circuit breaker + retry
-- **`packages/email/`** — React Email templates (welcome, job alert, subscription, verification) + Resend sender
+- **`packages/email/`** — React Email templates (welcome, job alert, subscription, verification, password reset) + Resend sender
 - **`packages/triggers/`** — Trigger.dev scheduled tasks (job sync, alerts, cleanup)
 - **`packages/supabase/`** — Supabase client for Realtime + Storage (`uploadFile`, `getPublicUrl`, `deleteFile`)
 - **`packages/cv-parser/`** — CV/resume parsing logic
@@ -159,11 +159,13 @@ All marketing pages include JSON-LD structured data: `Organization` (landing), `
 - **XSS sanitization**: Custom skill input is sanitized both client-side (onboarding dialog) and server-side (profile PATCH API schema strips HTML tags) to prevent stored XSS attacks
 - **CV upload validation**: Rejects zero-byte files in addition to enforcing the 10MB max size and PDF type checks
 - **Storage paths**: The CV upload stores files as `cvs/{userId}/{uuid}.{ext}` and never uses the client's file name (names with `/`, `\` or `..` get a 400); `uploadFile` in `packages/supabase` throws on `.`/`..` segments (also `%2e`), backslashes and control characters (the URL parser drops tab/CR/LF, so `.\t.` would become `..`), because the service-role upload puts the path into the URL unencoded
+- **Guest self-delete**: a global BetterAuth before hook (`packages/auth/src/anonymous-self-delete-guard.ts`) refuses the anonymous plugin's `POST /api/auth/delete-anonymous-user` with 403, because deleting the guest row cascades through `organizations.created_by_id` to every organization the guest created. Guests delete their account with `DELETE /api/user/account`, which hands organizations to another member first. Keep the plugin's `disableDeleteAnonymousUser` off: it also stops the plugin from deleting the guest after the guest signs up or signs in
 - **BYOK key safety**: When `BYOK_ENCRYPTION_KEY` is absent, the model router detects encrypted ciphertext and falls through to the platform model instead of sending it as an API key
 - **LLM context hygiene**: `getUserProfile` tool strips encrypted API keys from preferences before returning data to LLM context
 - **AI tool input bounds**: All AI tool Zod schemas enforce `.max()` constraints on string/array inputs to limit LLM-generated payload sizes
 - **Service worker**: Includes `push` and `notificationclick` event handlers for Web Push notifications, offline caching with precached `/offline` page
 - **Email verification**: BetterAuth `emailVerification` config for email/password signups only; OAuth providers are trusted
+- **Auth emails**: The verification and password reset emails are rendered by React Email templates in `packages/email`, which escape the user name (sign-up accepts any name, and a reset can be requested for any address that has an account); never build them as raw HTML strings
 - **Rate limit UX**: Global `RateLimitInterceptor` patches `window.fetch` to show toast on 429 responses
 
 ### Custom Hooks

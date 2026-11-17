@@ -212,3 +212,57 @@ describe("applyRateLimit", () => {
     expect(body.retryAfter).toBeGreaterThan(0);
   });
 });
+
+describe("checkApiRateLimit periodic cleanup", () => {
+  const SIX_MINUTES = 6 * 60_000;
+  const ONE_HOUR = 3_600_000;
+  // One clock for the whole block that only moves forward, so every test
+  // starts more than the 5-minute cleanup interval after the previous cleanup.
+  let fakeNow = 0;
+
+  beforeAll(() => {
+    fakeNow = Date.now();
+  });
+
+  beforeEach(() => {
+    jest.spyOn(Date, "now").mockImplementation(() => fakeNow);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it("keeps an hourly key's requests when the cleanup runs", () => {
+    expect(checkApiRateLimit("hourly-k", 2, ONE_HOUR).allowed).toBe(true);
+    expect(checkApiRateLimit("hourly-k", 2, ONE_HOUR).allowed).toBe(true);
+
+    fakeNow += SIX_MINUTES;
+    // Any call after the 5-minute interval runs the cleanup.
+    checkApiRateLimit("other", 5, 60_000);
+
+    expect(checkApiRateLimit("hourly-k", 2, ONE_HOUR).allowed).toBe(false);
+  });
+
+  it("still prunes a 60-second key when the cleanup runs", () => {
+    expect(checkApiRateLimit("minute-k", 2, 60_000).allowed).toBe(true);
+    expect(checkApiRateLimit("minute-k", 2, 60_000).allowed).toBe(true);
+
+    fakeNow += SIX_MINUTES;
+    checkApiRateLimit("other", 5, 60_000);
+
+    // If the cleanup had kept the two 6-minute-old requests, a one-hour
+    // window would still count them and block this call.
+    expect(checkApiRateLimit("minute-k", 2, ONE_HOUR).allowed).toBe(true);
+  });
+
+  it("keeps the largest window a key was checked with", () => {
+    checkApiRateLimit("mixed-k", 5, ONE_HOUR);
+    checkApiRateLimit("mixed-k", 5, ONE_HOUR);
+    checkApiRateLimit("mixed-k", 5, 60_000);
+
+    fakeNow += SIX_MINUTES;
+    checkApiRateLimit("other", 5, 60_000);
+
+    expect(checkApiRateLimit("mixed-k", 3, ONE_HOUR).allowed).toBe(false);
+  });
+});

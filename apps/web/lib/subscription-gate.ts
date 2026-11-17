@@ -2,7 +2,7 @@ import { db, users } from "@ever-hust/db";
 import { FREE_LIMITS } from "@ever-hust/stripe";
 import { getRateLimiter, MemoryRateLimiter, type RateLimiter } from "@ever-hust/rate-limit";
 import { eq } from "drizzle-orm";
-import { ONE_DAY_MS, ONE_WEEK_MS } from "./constants";
+import { ONE_DAY_MS } from "./constants";
 
 export interface SubscriptionGate {
   userId: string;
@@ -89,12 +89,4 @@ export async function checkMessageLimit(
 
 export function peekMessageUsage(userId: string): { used: number; remaining: number; limit: number } {
   return peekRateLimit(`msg:${userId}`, FREE_LIMITS.messagesPerDay, ONE_DAY_MS);
-}
-
-export function peekSearchUsage(userId: string): { used: number; remaining: number; limit: number } {
-  return peekRateLimit(`search:${userId}`, FREE_LIMITS.searchesPerDay, ONE_DAY_MS);
-}
-
-export function peekCoverLetterUsage(userId: string): { used: number; remaining: number; limit: number } {
-  return peekRateLimit(`cover:${userId}`, FREE_LIMITS.coverLettersPerWeek, ONE_WEEK_MS);
 }

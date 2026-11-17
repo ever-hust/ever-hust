@@ -50,19 +50,14 @@ export const auth = betterAuth({
     maxPasswordLength: 128,
     requireEmailVerification: true,
     sendResetPassword: async ({ user, url }) => {
+      // The React Email template escapes the name; sign-up accepts any name, so
+      // it must never go into raw HTML.
       try {
-        const { Resend } = await import("resend");
-        const resend = new Resend(process.env.RESEND_API_KEY);
-        await resend.emails.send({
-          from: process.env.EMAIL_FROM ?? "alerts@hust.so",
+        const { sendPasswordResetEmail } = await import("@ever-hust/email");
+        await sendPasswordResetEmail({
           to: user.email,
-          subject: "Reset your password",
-          html: `
-            <p>Hi ${user.name ?? user.email.split("@")[0]},</p>
-            <p>Click the link below to reset your password:</p>
-            <p><a href="${url}">Reset Password</a></p>
-            <p>If you didn't request this, you can safely ignore this email.</p>
-          `,
+          userName: user.name ?? user.email.split("@")[0],
+          resetUrl: url,
         });
       } catch (error) {
         console.error(

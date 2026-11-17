@@ -17,8 +17,10 @@ jest.mock("./index", () => ({
   getAppUrl: () => "https://test.hust.so",
 }));
 
-// Mock @react-email/components render
+// Mock @react-email/components render. The real components stay, so a template
+// that is not mocked below (password reset) can still be rendered for real.
 jest.mock("@react-email/components", () => ({
+  ...jest.requireActual("@react-email/components"),
   render: jest.fn().mockResolvedValue("<html>mock</html>"),
 }));
 
@@ -41,10 +43,13 @@ import {
   sendFollowUpNudgeEmail,
   sendWelcomeEmail,
   sendSubscriptionConfirmedEmail,
+  sendPasswordResetEmail,
   isDeduplicatedEmail,
 } from "./send";
+import { render } from "@react-email/components";
 
 const mockSend = mockSendFn as jest.Mock;
+const mockRender = render as jest.Mock;
 
 // Speed up tests by removing real delays
 jest.useFakeTimers();
@@ -434,5 +439,67 @@ describe("idempotency keys (job alerts + follow-up nudges)", () => {
   it("isDeduplicatedEmail is false for a normal send result", () => {
     expect(isDeduplicatedEmail({ id: "m1" })).toBe(false);
     expect(isDeduplicatedEmail(null)).toBe(false);
+  });
+});
+
+describe("sendPasswordResetEmail", () => {
+  // Better Auth builds the reset link as <baseURL>/reset-password/<token>?callbackURL=<encoded>.
+  const resetUrl = "https://test.hust.so/api/auth/reset-password/tok_123?callbackURL=%2Freset-password";
+
+  // Render the real template here: the escaping is done by React when the email is rendered.
+  beforeEach(() => {
+    mockRender.mockImplementation(jest.requireActual("@react-email/components").render);
+  });
+  afterEach(() => {
+    mockRender.mockReset();
+    mockRender.mockResolvedValue("<html>mock</html>");
+  });
+
+  async function sendAndGetHtml(userName: string): Promise<string> {
+    mockSend.mockResolvedValueOnce({ data: { id: "reset_1" }, error: null });
+    const promise = sendPasswordResetEmail({ to: "owner@example.com", userName, resetUrl });
+    await jest.runAllTimersAsync();
+    expect(await promise).toEqual({ id: "reset_1" });
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    return mockSend.mock.calls[0][0].html as string;
+  }
+
+  it("renders HTML in the user name as escaped text, not as markup", async () => {
+    const html = await sendAndGetHtml('<a href="https://evil.example">x</a>');
+
+    expect(html).toContain("&lt;a");
+    expect(html).not.toContain('href="https://evil.example"');
+    expect(html).not.toContain("<a href=\"https://evil.example");
+    expect(mockSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: "test@hust.so",
+        to: "owner@example.com",
+        subject: expect.stringContaining("Reset your password"),
+      }),
+    );
+  });
+
+  it("puts the reset URL in an href", async () => {
+    const html = await sendAndGetHtml("Jane");
+
+    expect(html).toContain(`href="${resetUrl}"`);
+  });
+
+  it("throws EmailSendError when Resend returns an error", async () => {
+    mockSend.mockResolvedValueOnce({
+      data: null,
+      error: { name: "validation_error", message: "invalid to address", statusCode: 422 },
+    });
+
+    const assertion = expect(
+      sendPasswordResetEmail({ to: "owner@example.com", userName: "Jane", resetUrl }),
+    ).rejects.toMatchObject({
+      name: "EmailSendError",
+      statusCode: 422,
+      message: expect.stringContaining("Failed to send password reset email"),
+    });
+    await jest.runAllTimersAsync();
+    await assertion;
+    expect(mockSend).toHaveBeenCalledTimes(1);
   });
 });

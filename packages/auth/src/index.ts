@@ -3,6 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { anonymous } from "better-auth/plugins";
 import { db } from "@ever-hust/db/client";
 import * as schema from "@ever-hust/db/schema";
+import { anonymousSelfDeleteGuard } from "./anonymous-self-delete-guard";
 import { migrateAnonymousUserData } from "./migrate-anonymous-user";
 import { getProviderCredentials } from "./providers";
 import { userAdditionalFields } from "./user-fields";
@@ -163,6 +164,14 @@ export const auth = betterAuth({
         },
       },
     },
+  },
+
+  // A guest deletes their account through DELETE /api/user/account, which hands
+  // their organizations to another member first. The anonymous plugin's own
+  // POST /delete-anonymous-user would delete the guest row directly and cascade
+  // to every organization they created, so it is refused here.
+  hooks: {
+    before: anonymousSelfDeleteGuard,
   },
 
   // ---------------------------------------------------------------------------

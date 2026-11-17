@@ -20,8 +20,8 @@ export async function migrateAnonymousUserData(
   // organizations.created_by_id, organization_members.user_id and
   // organization_invitations.invited_by_id are ON DELETE CASCADE, so without
   // this the guest delete takes the organization, every member's membership,
-  // its invitations, AI config and branding with it. Runs first, so a failed
-  // move below (e.g. a favorite the account already has) can't skip it.
+  // its invitations, AI config and branding with it. Runs first, in its own
+  // transaction, so a failed move below can't skip it.
   await db.transaction(async (tx) => {
     await tx
       .update(schema.organizations)
@@ -83,21 +83,58 @@ export async function migrateAnonymousUserData(
     }
   });
 
-  // Re-point the guest's user-owned rows to the permanent account.
-  await db
-    .update(schema.chatSessions)
-    .set({ userId: toId })
-    .where(eq(schema.chatSessions.userId, fromId));
-  await db
-    .update(schema.userJobs)
-    .set({ userId: toId })
-    .where(eq(schema.userJobs.userId, fromId));
-  await db
-    .update(schema.applications)
-    .set({ userId: toId })
-    .where(eq(schema.applications.userId, fromId));
-  await db
-    .update(schema.userAlerts)
-    .set({ userId: toId })
-    .where(eq(schema.userAlerts.userId, fromId));
+  // Re-point the guest's user-owned rows to the permanent account. These
+  // tables cascade on the guest delete too, so they move in one transaction:
+  // a failure can't leave some moved and the rest deleted with the guest.
+  await db.transaction(async (tx) => {
+    await tx
+      .update(schema.chatSessions)
+      .set({ userId: toId })
+      .where(eq(schema.chatSessions.userId, fromId));
+
+    // (user_id, job_id) is unique: where the account already has the job,
+    // keep the account's row and drop the guest's, then move the rest.
+    const guestJobs = await tx
+      .select({ jobId: schema.userJobs.jobId })
+      .from(schema.userJobs)
+      .where(eq(schema.userJobs.userId, fromId));
+    if (guestJobs.length > 0) {
+      const ownJobs = await tx
+        .select({ jobId: schema.userJobs.jobId })
+        .from(schema.userJobs)
+        .where(
+          and(
+            eq(schema.userJobs.userId, toId),
+            inArray(
+              schema.userJobs.jobId,
+              guestJobs.map((j) => j.jobId),
+            ),
+          ),
+        );
+      if (ownJobs.length > 0) {
+        await tx.delete(schema.userJobs).where(
+          and(
+            eq(schema.userJobs.userId, fromId),
+            inArray(
+              schema.userJobs.jobId,
+              ownJobs.map((j) => j.jobId),
+            ),
+          ),
+        );
+      }
+      await tx
+        .update(schema.userJobs)
+        .set({ userId: toId })
+        .where(eq(schema.userJobs.userId, fromId));
+    }
+
+    await tx
+      .update(schema.applications)
+      .set({ userId: toId })
+      .where(eq(schema.applications.userId, fromId));
+    await tx
+      .update(schema.userAlerts)
+      .set({ userId: toId })
+      .where(eq(schema.userAlerts.userId, fromId));
+  });
 }

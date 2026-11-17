@@ -65,6 +65,37 @@ export async function DELETE() {
     // created_by_id of each organization they created to another member, then
     // delete the user. An organization nobody else uses still goes with them.
     const blockedOrgIds = await db.transaction(async (tx) => {
+      // Lock every organization the user is a member of or created, in id
+      // order so two deletes that share organizations can't deadlock. Another
+      // member deleting their account at the same moment holds these rows
+      // until it commits, and the reads below run after that, so they see its
+      // hand-over of created_by_id and its deleted memberships. Without the
+      // lock two co-owners each still saw the other as an owner, and the
+      // second user delete cascaded to the organization the first had just
+      // handed to them.
+      const memberOf = await tx
+        .select({ organizationId: organizationMembers.organizationId })
+        .from(organizationMembers)
+        .where(eq(organizationMembers.userId, userId));
+      const createdBeforeLock = await tx
+        .select({ id: organizations.id })
+        .from(organizations)
+        .where(eq(organizations.createdById, userId));
+      const lockIds = [
+        ...new Set([
+          ...memberOf.map((m) => m.organizationId),
+          ...createdBeforeLock.map((o) => o.id),
+        ]),
+      ];
+      if (lockIds.length > 0) {
+        await tx
+          .select({ id: organizations.id })
+          .from(organizations)
+          .where(inArray(organizations.id, lockIds))
+          .orderBy(organizations.id)
+          .for("update");
+      }
+
       const owned = await tx
         .select({ organizationId: organizationMembers.organizationId })
         .from(organizationMembers)

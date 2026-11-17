@@ -5,6 +5,7 @@ export const maxDuration = 60;
 import { MAX_CHAT_PAYLOAD_CHARS } from "@/lib/constants";
 
 import { createOrchestratorStream, getModelWithSelection, getOrgAiConfig, mergeOrgConfig, ensureMonthlyGrant, getCreditBalance, type FallbackState } from "@ever-hust/ai";
+import type { ByokProviderId } from "@ever-hust/plugin";
 import type { ChatMessageMetadata } from "@/lib/chat-metadata";
 import { db, users, organizationMembers } from "@ever-hust/db";
 import { convertToModelMessages, type UIMessage } from "ai";
@@ -100,7 +101,7 @@ export async function POST(req: Request) {
     // Fetch actual user preferences for model selection (BYOK keys, preferred model)
     let preferences: {
       aiModel?: string;
-      apiKeys?: { anthropic?: string; openai?: string; google?: string };
+      apiKeys?: Partial<Record<ByokProviderId, string>>;
     } | null = null;
     try {
       const userRow = await db
@@ -120,7 +121,7 @@ export async function POST(req: Request) {
     // Check if the user belongs to an organization and merge org AI config
     let mergedPreferences: {
       aiModel?: string;
-      apiKeys?: { anthropic?: string; openai?: string; google?: string };
+      apiKeys?: Partial<Record<ByokProviderId, string>>;
     } | null = preferences;
     try {
       const [membership] = await db

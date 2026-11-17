@@ -1,6 +1,10 @@
 import { db } from "@ever-hust/db";
 import { organizationAiConfigs } from "@ever-hust/db/schema";
+import { BYOK_PROVIDER_IDS, type ByokProviderId } from "@ever-hust/plugin";
 import { eq } from "drizzle-orm";
+
+/** BYOK API keys keyed by provider (openrouter, anthropic, openai, google). */
+type ByokApiKeys = Partial<Record<ByokProviderId, string>>;
 
 /**
  * Organization AI configuration as stored in the database.
@@ -12,7 +16,7 @@ export interface OrgAiConfigRow {
   customSystemPrompt: string | null;
   maxTokens: number | null;
   temperature: number | null;
-  apiKeys: { anthropic?: string; openai?: string; google?: string } | null;
+  apiKeys: ByokApiKeys | null;
   enabledTools: string[] | null;
   isActive: boolean;
 }
@@ -42,11 +46,7 @@ export async function getOrgAiConfig(
  */
 interface UserAiConfig {
   aiModel?: string;
-  apiKeys?: {
-    anthropic?: string;
-    openai?: string;
-    google?: string;
-  };
+  apiKeys?: ByokApiKeys;
 }
 
 /**
@@ -65,11 +65,7 @@ export interface MergedAiConfig {
   maxTokens?: number;
   temperature?: number;
   enabledTools?: string[];
-  apiKeys?: {
-    anthropic?: string;
-    openai?: string;
-    google?: string;
-  };
+  apiKeys?: ByokApiKeys;
 }
 
 /**
@@ -121,20 +117,18 @@ export function mergeOrgConfig(
   const userKeys = userConfig?.apiKeys;
 
   if (orgKeys || userKeys) {
-    merged.apiKeys = {
-      anthropic: userKeys?.anthropic || orgKeys?.anthropic,
-      openai: userKeys?.openai || orgKeys?.openai,
-      google: userKeys?.google || orgKeys?.google,
-    };
+    // Merge every BYOK provider, not a fixed list: a member's OpenRouter key
+    // must survive an org config, or their chat runs on the Hust default.
+    // Empty values are left out.
+    const keys: ByokApiKeys = {};
+    for (const provider of BYOK_PROVIDER_IDS) {
+      const key = userKeys?.[provider] || orgKeys?.[provider];
+      if (key) keys[provider] = key;
+    }
 
-    // Clean up undefined values
-    if (!merged.apiKeys.anthropic) delete merged.apiKeys.anthropic;
-    if (!merged.apiKeys.openai) delete merged.apiKeys.openai;
-    if (!merged.apiKeys.google) delete merged.apiKeys.google;
-
-    // Remove the whole object if empty
-    if (Object.keys(merged.apiKeys).length === 0) {
-      delete merged.apiKeys;
+    // Leave apiKeys unset when no provider has a key
+    if (Object.keys(keys).length > 0) {
+      merged.apiKeys = keys;
     }
   }
 

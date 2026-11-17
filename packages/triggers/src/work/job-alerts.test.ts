@@ -105,8 +105,13 @@ const DEFAULT_JOB_CREATED_AT = "2026-09-25T06:00:00Z";
  *    `last_sent_at IS NOT DISTINCT FROM <previous>`.
  *  - `state.failUpdates` makes the next N updates throw (the database, or the pod, died between
  *    the send and the advance); `state.jobs` is the committed jobs table (read at query time).
+ *  - The users SELECT returns the account row (`init.accountEmail`, default ada@example.com)
+ *    holding only the columns the query selected, as Postgres does.
  */
-function fakeDb(alerts: Alert[], init: { matches?: number; jobs?: Job[]; subscription?: string } = {}) {
+function fakeDb(
+  alerts: Alert[],
+  init: { matches?: number; jobs?: Job[]; subscription?: string; accountEmail?: string } = {},
+) {
   const store = new Map(alerts.map((a) => [a.id, { ...a }]));
   const state = {
     jobs: init.jobs ?? Array.from({ length: init.matches ?? 1 }, (_, i) => job(i + 1, DEFAULT_JOB_CREATED_AT)),
@@ -116,6 +121,8 @@ function fakeDb(alerts: Alert[], init: { matches?: number; jobs?: Job[]; subscri
   const log: {
     op: string;
     table: string;
+    /** The selected result keys and the column each one reads (a SELECT with a projection). */
+    fields?: Record<string, string>;
     where?: { sql: string; params: unknown[] };
     orderBy?: string[];
     limit?: number;
@@ -184,9 +191,10 @@ function fakeDb(alerts: Alert[], init: { matches?: number; jobs?: Job[]; subscri
     }));
   }
 
-  function builder(op: string, table0?: unknown) {
+  function builder(op: string, table0?: unknown, fields0?: Record<string, unknown>) {
     const st: {
       table?: unknown;
+      fields?: Record<string, string>;
       where?: unknown;
       set?: Record<string, unknown>;
       orderBy?: unknown[];
@@ -194,12 +202,15 @@ function fakeDb(alerts: Alert[], init: { matches?: number; jobs?: Job[]; subscri
       offset?: number;
     } = {
       table: table0,
+      fields: fields0
+        ? Object.fromEntries(Object.entries(fields0).map(([key, column]) => [key, (column as { name: string }).name]))
+        : undefined,
     };
     const run = async (): Promise<unknown[]> => {
       const table = getTableName(st.table as never);
       const where = st.where ? render(st.where) : undefined;
       const orderBy = st.orderBy?.map((o) => render(o).sql);
-      log.push({ op, table, where, orderBy, limit: st.limit, offset: st.offset, set: st.set });
+      log.push({ op, table, fields: st.fields, where, orderBy, limit: st.limit, offset: st.offset, set: st.set });
       if (op === "select" && table === "user_alerts") {
         const [frequency, isActive, cutoffIso] = where!.params as [string, boolean, string];
         const cutoff = new Date(cutoffIso);
@@ -208,7 +219,15 @@ function fakeDb(alerts: Alert[], init: { matches?: number; jobs?: Job[]; subscri
           .filter((a) => a.lastSentAt === null || a.lastSentAt < cutoff)
           .map((a) => ({ ...a }));
       }
-      if (op === "select" && table === "users") return [{ name: "Ada", subscriptionStatus: init.subscription ?? "active" }];
+      if (op === "select" && table === "users") {
+        if (!st.fields) throw new Error("fakeDb: the users lookup must select its columns");
+        const account: Record<string, unknown> = {
+          name: "Ada",
+          email: init.accountEmail ?? "ada@example.com",
+          subscription_status: init.subscription ?? "active",
+        };
+        return [Object.fromEntries(Object.entries(st.fields).map(([key, column]) => [key, account[column]]))];
+      }
       if (op === "select" && table === "jobs") return selectJobs(where!, orderBy, st.limit, st.offset);
       if (op === "update" && table === "user_alerts") {
         if (state.failUpdates > 0) {
@@ -240,7 +259,7 @@ function fakeDb(alerts: Alert[], init: { matches?: number; jobs?: Job[]; subscri
   }
 
   const db = {
-    select: () => builder("select"),
+    select: (fields?: Record<string, unknown>) => builder("select", undefined, fields),
     update: (t: unknown) => builder("update", t),
   };
   return { db: db as never, store, state, log };
@@ -518,6 +537,38 @@ describe("send-then-advance", () => {
     expect((await processAlerts("daily", { db: b.db, sendEmail: send as never, now: clock, windowEnd: W })).skippedNoCriteria).toBe(1);
     expect(send).not.toHaveBeenCalled();
     expect([...a.log, ...b.log].some((l) => l.op === "update")).toBe(false);
+  });
+});
+
+describe("recipient: the account email, never the address stored on the alert", () => {
+  it("an alert whose stored email is another address is mailed to the account email", async () => {
+    // A row from before the route stored the account email, or a guest's alert moved to the new
+    // account by user id: user_alerts.email holds an address the account does not own.
+    const { db, store } = fakeDb([alert({ email: "other@example.com" })], { accountEmail: "ada@example.com" });
+    const resend = fakeResend();
+    const r = await processAlerts("daily", { db, sendEmail: resend.send as never, now: clock, windowEnd: W });
+    expect(r).toMatchObject({ sent: 1, failed: 0 });
+    expect(resend.send).toHaveBeenCalledTimes(1);
+    expect(resend.send.mock.calls[0]![0]).toMatchObject({ to: "ada@example.com" });
+    expect(resend.send.mock.calls.some((c) => (c[0] as SendArgs).to === "other@example.com")).toBe(false);
+    // The idempotency key is unchanged, and the stored column is left as it is.
+    expect(resend.delivered).toEqual([`job-alert/1/first/${W.getTime()}`]);
+    expect(store.get(1)!.email).toBe("other@example.com");
+  });
+
+  it("follows the account after its email changes", async () => {
+    const { db } = fakeDb([alert({ email: "ada@example.com" })], { accountEmail: "ada@new.example.com" });
+    const resend = fakeResend();
+    await processAlerts("daily", { db, sendEmail: resend.send as never, now: clock, windowEnd: W });
+    expect(resend.send.mock.calls.map((c) => (c[0] as SendArgs).to)).toEqual(["ada@new.example.com"]);
+  });
+
+  it("the users lookup selects the account email, by the alert's user id", async () => {
+    const { db, log } = fakeDb([alert({ userId: "u42" })]);
+    await processAlerts("daily", { db, sendEmail: fakeResend().send as never, now: clock, windowEnd: W });
+    const lookup = log.find((l) => l.op === "select" && l.table === "users")!;
+    expect(lookup.fields).toMatchObject({ email: "email" });
+    expect(lookup.where).toEqual({ sql: '"users"."id" = $1', params: ["u42"] });
   });
 });
 

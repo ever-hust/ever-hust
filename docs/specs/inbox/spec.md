@@ -150,8 +150,9 @@ provider-agnostic — consistent with Hust's "pluggable features = plugins" rule
 ### 5.4 Security & privacy
 - Tokens encrypted at rest; secrets only in `.env`/secret store; never to client.
 - **Least privilege**: request the minimum scopes; show them in Settings.
-- **Consent & control**: explicit connect screen; one-click **disconnect** that
-  revokes tokens and (optionally) **purges** synced mail.
+- **Consent & control**: explicit connect screen; **disconnect** that revokes
+  tokens and (optionally) **purges** synced mail, behind a confirmation dialog that
+  says what gets deleted (stored messages, job links, sent copies).
 - Strongly **recommend a dedicated address** in onboarding copy.
 - Inbound spam/phishing handling; never render remote content unsanitized
   (sanitize like job descriptions: rehype-sanitize / DOMPurify).
@@ -194,7 +195,8 @@ Implementations: `packages/plugins/mail-gmail`, `…/mail-nylas`,
 - **Sidebar:** new **Inbox** item directly **below Jobs** (badge = unread count).
 - **Inbox page:** 3-pane on desktop — thread list (filter by category/job),
   reading pane (rendered HTML, attachments, AI summary + suggested reply chip),
-  **TipTap composer**. Mobile: list → thread → composer.
+  **TipTap composer**. Mobile: list → thread → composer, with a "Back to
+  conversations" button on the thread and the composer.
 - **Job/Application linkage:** each thread shows the linked job card; a thread can
   drive the application status timeline.
 - **Onboarding:** "Set up your jobs inbox" — choose *Connect Gmail/Outlook* or

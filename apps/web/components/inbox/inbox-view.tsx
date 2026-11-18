@@ -8,6 +8,17 @@ import { Card } from "@ever-hust/ui/card";
 import { Button } from "@ever-hust/ui/button";
 import { Input } from "@ever-hust/ui/input";
 import { Badge } from "@ever-hust/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@ever-hust/ui/alert-dialog";
 import { toast } from "sonner";
 import { useChatContext } from "@/components/chat/chat-context";
 import { CATEGORY_LABELS, type EmailCategory } from "@/lib/email-classify";
@@ -207,9 +218,32 @@ export function InboxView({ account, onDisconnected }: { account: AccountView; o
           <Button size="sm" onClick={() => { setTo(""); setSubject(""); setBody(""); setBodyHtml(""); setComposeOpen(true); setSelectedKey(null); }}>
             <Plus className="mr-1.5 h-3.5 w-3.5" /> New
           </Button>
-          <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => disconnect.mutate()} disabled={disconnect.isPending} aria-label="Disconnect mailbox">
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          {/* Disconnecting deletes every stored message (cascade on accountId), so it needs a confirm. */}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" disabled={disconnect.isPending} aria-label="Disconnect mailbox">
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Disconnect {account.email}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  The stored messages from this mailbox, their job links and the sent copies of emails you sent from
+                  this inbox will be deleted. Mail at your email provider is not touched. This cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => disconnect.mutate()}
+                >
+                  Disconnect
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 
@@ -252,7 +286,9 @@ export function InboxView({ account, onDisconnected }: { account: AccountView; o
           {composeOpen ? (
             <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-4">
               <div className="flex items-center gap-2">
-                <Button size="sm" variant="ghost" onClick={() => setComposeOpen(false)}><ArrowLeft className="h-4 w-4" /></Button>
+                <Button size="sm" variant="ghost" onClick={() => setComposeOpen(false)} aria-label="Back to conversations">
+                  <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                </Button>
                 <span className="text-sm font-medium">New message</span>
               </div>
               <Input placeholder="To" value={to} onChange={(e) => setTo(e.target.value)} />
@@ -273,6 +309,10 @@ export function InboxView({ account, onDisconnected }: { account: AccountView; o
             <div className="flex flex-1 flex-col overflow-y-auto p-4">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
+                  {/* Below sm the thread list is hidden while a thread is open: this is the way back. */}
+                  <Button size="sm" variant="ghost" className="sm:hidden" onClick={() => setSelectedKey(null)} aria-label="Back to conversations">
+                    <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                  </Button>
                   <h2 className="truncate text-base font-semibold">{selected.subject || "(no subject)"}</h2>
                   <CategoryBadge category={threadCategory(selected)} />
                 </div>

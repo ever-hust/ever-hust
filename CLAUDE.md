@@ -165,7 +165,7 @@ All marketing pages include JSON-LD structured data: `Organization` (landing), `
 - **AI tool input bounds**: All AI tool Zod schemas enforce `.max()` constraints on string/array inputs to limit LLM-generated payload sizes
 - **Service worker**: Includes `push` and `notificationclick` event handlers for Web Push notifications, offline caching with precached `/offline` page
 - **Email verification**: BetterAuth `emailVerification` config for email/password signups only; OAuth providers are trusted
-- **Auth emails**: The verification and password reset emails are rendered by React Email templates in `packages/email`, which escape the user name (sign-up accepts any name, and a reset can be requested for any address that has an account); never build them as raw HTML strings
+- **Auth emails**: The verification and password reset emails are rendered by React Email templates in `packages/email`, which escape the user name (sign-up accepts any name, and a reset can be requested for any address that has an account); never build them as raw HTML strings. The reset, verification and welcome emails take the greeting from `emailGreetingName` (`packages/auth/src/email-greeting-name.ts`): "there" until the address is verified, so a sign-up name such as "restore your account at evil.example" never reaches an inbox the signer does not own; for a verified user, the trimmed name capped at 100 characters, or the email local part when the name is blank
 - **Rate limit UX**: Global `RateLimitInterceptor` patches `window.fetch` to show toast on 429 responses
 
 ### Custom Hooks

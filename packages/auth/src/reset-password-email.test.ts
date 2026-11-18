@@ -1,7 +1,9 @@
 /**
  * The password reset email must go through the @ever-hust/email template, which escapes the
  * user name. Anyone can sign up with a chosen name for an address that has no account yet and
- * then request a reset for it, so the name must never be pasted into raw HTML.
+ * then request a reset for it, so the name must never be pasted into raw HTML. Until the address
+ * is verified the email greets the user as "there" (see email-greeting-name.test.ts), so these
+ * tests use a verified user to reach the template with the name.
  */
 const mockSendPasswordResetEmail = jest.fn();
 jest.mock("@ever-hust/email", () => ({
@@ -25,7 +27,7 @@ jest.mock("./migrate-anonymous-user", () => ({ migrateAnonymousUserData: jest.fn
 import { auth } from "./index";
 
 type ResetHook = (data: {
-  user: { email: string; name?: string | null };
+  user: { email: string; name?: string | null; emailVerified?: boolean };
   url: string;
   token: string;
 }) => Promise<void>;
@@ -45,7 +47,11 @@ describe("emailAndPassword.sendResetPassword", () => {
   it("sends through the escaping email template, not raw HTML", async () => {
     const name = '<a href="https://evil.example">x</a>';
 
-    await sendResetPassword({ user: { email: "owner@example.com", name }, url, token: "tok_123" });
+    await sendResetPassword({
+      user: { email: "owner@example.com", name, emailVerified: true },
+      url,
+      token: "tok_123",
+    });
 
     expect(mockSendPasswordResetEmail).toHaveBeenCalledWith({
       to: "owner@example.com",
@@ -55,8 +61,12 @@ describe("emailAndPassword.sendResetPassword", () => {
     expect(mockResendSend).not.toHaveBeenCalled();
   });
 
-  it("falls back to the local part of the email when the user has no name", async () => {
-    await sendResetPassword({ user: { email: "jane@example.com", name: null }, url, token: "tok_123" });
+  it("falls back to the local part of the email when a verified user has no name", async () => {
+    await sendResetPassword({
+      user: { email: "jane@example.com", name: null, emailVerified: true },
+      url,
+      token: "tok_123",
+    });
 
     expect(mockSendPasswordResetEmail).toHaveBeenCalledWith(
       expect.objectContaining({ userName: "jane" }),

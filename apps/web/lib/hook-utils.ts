@@ -16,6 +16,37 @@ export function toggleSetMember<T>(set: Set<T>, value: T): Set<T> {
   return next;
 }
 
+// ── API response parsing ────────────────────────────────────────────────
+
+/**
+ * Read the saved hidden job IDs from a GET /api/user/hidden-jobs response.
+ *
+ * The route returns `{ hiddenJobIds }` at the top level (`apiSuccess` adds no
+ * `data` envelope); `{ data: { hiddenJobIds } }` is accepted too. Only
+ * positive integers are kept, and anything else gives an empty Set.
+ */
+export function parseHiddenJobIds(json: unknown): Set<number> {
+  if (typeof json !== "object" || json === null) return new Set();
+
+  const body = json as { hiddenJobIds?: unknown; data?: unknown };
+  let ids = body.hiddenJobIds;
+  if (
+    !Array.isArray(ids) &&
+    typeof body.data === "object" &&
+    body.data !== null
+  ) {
+    ids = (body.data as { hiddenJobIds?: unknown }).hiddenJobIds;
+  }
+  if (!Array.isArray(ids)) return new Set();
+
+  return new Set(
+    ids.filter(
+      (id): id is number =>
+        typeof id === "number" && Number.isInteger(id) && id > 0,
+    ),
+  );
+}
+
 // ── Retry / backoff ─────────────────────────────────────────────────────
 
 /** Calculate exponential backoff delay: baseDelay * 2^attempt */

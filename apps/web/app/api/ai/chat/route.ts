@@ -123,6 +123,12 @@ export async function POST(req: Request) {
       aiModel?: string;
       apiKeys?: Partial<Record<ByokProviderId, string>>;
     } | null = preferences;
+    // Org-only settings (an admin sets them on the org AI config page).
+    let orgSettings: {
+      orgSystemPrompt?: string;
+      temperature?: number;
+      maxOutputTokens?: number;
+    } = {};
     try {
       const [membership] = await db
         .select({ organizationId: organizationMembers.organizationId })
@@ -137,6 +143,11 @@ export async function POST(req: Request) {
           mergedPreferences = {
             aiModel: merged.preferredModel,
             apiKeys: merged.apiKeys,
+          };
+          orgSettings = {
+            orgSystemPrompt: merged.customSystemPrompt,
+            temperature: merged.temperature,
+            maxOutputTokens: merged.maxTokens,
           };
         }
       }
@@ -194,6 +205,7 @@ export async function POST(req: Request) {
       modelKey,
       meterCredits,
       fallbackState,
+      ...orgSettings,
     });
 
     // UUID message ids so persisted assistant messages satisfy the chat_messages

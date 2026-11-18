@@ -104,6 +104,8 @@ Turborepo with `apps/*` and `packages/*` workspaces. All packages use `@ever-hus
 
 Prompts are managed through Langfuse with local fallbacks. The orchestrator system prompt can be edited in Langfuse Cloud (prompt name: `orchestrator-system`, label: `production`) or locally in `packages/ai/src/prompts.ts`.
 
+For a member of an organization with an active AI config, the chat route passes the org's custom system prompt, temperature and max tokens to `createOrchestratorStream`: the custom prompt is appended after the base prompt under an `Organization instructions:` heading (never replacing it), and temperature / max output tokens are sent to the model only when the org set them.
+
 ### Routing & Auth
 
 - **Route Groups**: `(marketing)` for public pages, `(auth)` for login/signup, `(dashboard)` for authenticated pages

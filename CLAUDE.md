@@ -87,7 +87,7 @@ Turborepo with `apps/*` and `packages/*` workspaces. All packages use `@ever-hus
 - **`packages/jobs-api/`** — Ever Jobs external API client with circuit breaker + retry
 - **`packages/email/`** — React Email templates (welcome, job alert, subscription, verification, password reset) + Resend sender
 - **`packages/triggers/`** — Trigger.dev scheduled tasks (job sync, alerts, cleanup)
-- **`packages/supabase/`** — Supabase client for Realtime + Storage (`uploadFile`, `getPublicUrl`, `deleteFile`)
+- **`packages/supabase/`** — Supabase client for Realtime + Storage (`uploadFile`, `getPublicUrl`, `deleteFile`, `deleteUserFiles`)
 - **`packages/cv-parser/`** — CV/resume parsing logic
 - **`packages/eslint-config/`** — Shared ESLint configs (base, next, react-internal)
 - **`packages/typescript-config/`** — Shared tsconfig presets
@@ -159,6 +159,7 @@ All marketing pages include JSON-LD structured data: `Organization` (landing), `
 - **XSS sanitization**: Custom skill input is sanitized both client-side (onboarding dialog) and server-side (profile PATCH API schema strips HTML tags) to prevent stored XSS attacks
 - **CV upload validation**: Rejects zero-byte files in addition to enforcing the 10MB max size and PDF type checks
 - **Storage paths**: The CV upload stores files as `cvs/{userId}/{uuid}.{ext}` and never uses the client's file name (names with `/`, `\` or `..` get a 400); `uploadFile` in `packages/supabase` throws on `.`/`..` segments (also `%2e`), backslashes and control characters (the URL parser drops tab/CR/LF, so `.\t.` would become `..`), because the service-role upload puts the path into the URL unencoded
+- **Uploaded files on delete**: `DELETE /api/user/account` calls `deleteUserFiles` after the user row is deleted (never on the 409 path), which removes every CV in `cvs/{userId}/` (listed page by page) and `avatars/{userId}.jpg|png|webp`; it logs failures and never throws. A CV upload saves its URL in `users.cv_url` and then removes the CV it replaced, only when the old URL is this bucket's public URL of a file directly inside `cvs/{userId}/`
 - **Guest self-delete**: a global BetterAuth before hook (`packages/auth/src/anonymous-self-delete-guard.ts`) refuses the anonymous plugin's `POST /api/auth/delete-anonymous-user` with 403, because deleting the guest row cascades through `organizations.created_by_id` to every organization the guest created. Guests delete their account with `DELETE /api/user/account`, which hands organizations to another member first. Keep the plugin's `disableDeleteAnonymousUser` off: it also stops the plugin from deleting the guest after the guest signs up or signs in
 - **BYOK key safety**: When `BYOK_ENCRYPTION_KEY` is absent, the model router detects encrypted ciphertext and falls through to the platform model instead of sending it as an API key
 - **LLM context hygiene**: `getUserProfile` tool strips encrypted API keys from preferences before returning data to LLM context

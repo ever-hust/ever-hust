@@ -3,6 +3,12 @@ import { getSupabaseServer } from "./server";
 /** Default bucket name for user-uploaded files */
 const DEFAULT_BUCKET = "user-uploads";
 
+/** How many entries one Storage list call returns. */
+const LIST_PAGE_SIZE = 100;
+
+/** Every extension the avatar route stores, as `avatars/{userId}.{ext}`. */
+const AVATAR_EXTENSIONS = ["jpg", "png", "webp"] as const;
+
 /**
  * Throw when a storage path could leave the folder it names.
  *
@@ -103,5 +109,77 @@ export async function deleteFile(
   const { error } = await supabase.storage.from(bucket).remove([path]);
   if (error) {
     console.warn(`[storage] Failed to delete ${path}:`, error.message);
+  }
+}
+
+/**
+ * Delete every file a user uploaded: each CV in `cvs/{userId}/` and the avatar
+ * at `avatars/{userId}.jpg`, `.png` or `.webp`.
+ *
+ * Best effort: failures are logged and never thrown, so a caller that already
+ * deleted the user's row can still answer the request. A user id that is
+ * empty, has a slash or would fail the storage path check is refused before any
+ * Storage call, because an empty or nested id would list another folder.
+ *
+ * @param userId - The deleted user's id
+ * @param bucket - Storage bucket name (defaults to "user-uploads")
+ */
+export async function deleteUserFiles(
+  userId: string,
+  bucket = DEFAULT_BUCKET,
+): Promise<void> {
+  const folder = `cvs/${userId}`;
+  try {
+    if (!userId || userId.includes("/")) {
+      throw new Error("Invalid user id for storage cleanup");
+    }
+    assertSafeStoragePath(folder);
+  } catch (err) {
+    console.warn(
+      "[storage] Refused to delete user files:",
+      err instanceof Error ? err.message : err,
+    );
+    return;
+  }
+
+  try {
+    const files = getSupabaseServer().storage.from(bucket);
+
+    // List the whole folder before removing anything: removing while paging
+    // by offset would shift the later pages and skip files.
+    const paths: string[] = [];
+    for (let offset = 0; ; offset += LIST_PAGE_SIZE) {
+      const { data, error } = await files.list(folder, {
+        limit: LIST_PAGE_SIZE,
+        offset,
+      });
+      if (error || !data) {
+        console.warn(
+          `[storage] Failed to list ${folder}:`,
+          error?.message ?? "no data",
+        );
+        break;
+      }
+      paths.push(...data.map((file) => `${folder}/${file.name}`));
+      if (data.length < LIST_PAGE_SIZE) break;
+    }
+    for (const ext of AVATAR_EXTENSIONS) {
+      paths.push(`avatars/${userId}.${ext}`);
+    }
+
+    for (let i = 0; i < paths.length; i += LIST_PAGE_SIZE) {
+      const { error } = await files.remove(paths.slice(i, i + LIST_PAGE_SIZE));
+      if (error) {
+        console.warn(
+          `[storage] Failed to delete files of user ${userId}:`,
+          error.message,
+        );
+      }
+    }
+  } catch (err) {
+    console.warn(
+      `[storage] Failed to delete files of user ${userId}:`,
+      err instanceof Error ? err.message : err,
+    );
   }
 }

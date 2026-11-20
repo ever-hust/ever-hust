@@ -126,14 +126,39 @@ export async function ensureMonthlyGrant(
     .onConflictDoNothing();
 }
 
-/** Add credits (top-up purchase / manual adjustment). */
+/**
+ * Add credits (top-up purchase / manual adjustment). Returns whether a row was
+ * written.
+ *
+ * With `idempotencyKey` the grant is written at most once per (user, reason,
+ * key): the key goes into `period_key`, which the credit_tx_grant_unique index
+ * covers, and a repeat is skipped by ON CONFLICT DO NOTHING. A Stripe top-up
+ * passes its Checkout Session id, so a webhook retry after a grant that
+ * committed (but whose reply was lost) can't grant again.
+ */
 export async function grantCredits(
   userId: string,
   amount: number,
   reason: "topup" | "adjustment" | "grant_signup" = "topup",
-): Promise<void> {
-  if (amount <= 0) return;
-  await db.insert(creditTransactions).values({ userId, delta: amount, reason });
+  options: { idempotencyKey?: string } = {},
+): Promise<boolean> {
+  if (amount <= 0) return false;
+  const { idempotencyKey } = options;
+  if (!idempotencyKey) {
+    await db.insert(creditTransactions).values({ userId, delta: amount, reason });
+    return true;
+  }
+  const inserted = await db
+    .insert(creditTransactions)
+    .values({ userId, delta: amount, reason, periodKey: idempotencyKey })
+    .onConflictDoNothing()
+    .returning({ id: creditTransactions.id });
+  return inserted.length > 0;
+}
+
+/** Idempotency key of the credit row a Stripe Checkout Session's top-up writes. */
+export function stripeTopUpKey(checkoutSessionId: string): string {
+  return `stripe-checkout:${checkoutSessionId}`;
 }
 
 export async function getRecentCreditTransactions(userId: string, limit = 20) {

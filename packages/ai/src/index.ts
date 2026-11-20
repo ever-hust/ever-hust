@@ -20,6 +20,7 @@ export {
   recordChatUsage,
   ensureMonthlyGrant,
   grantCredits,
+  stripeTopUpKey,
   getRecentCreditTransactions,
   getCreditsSpentThisPeriod,
 } from "./credits";

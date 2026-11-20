@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db, emailAccounts } from "@ever-hust/db";
 import { encryptApiKey } from "@ever-hust/ai/crypto";
+import { getSessionUser } from "../../../../../../lib/get-session-user";
 import { gmailOauthConfigured, verifyState, exchangeCode } from "../../../../../../lib/gmail-oauth";
 
 export const maxDuration = 30;
@@ -18,6 +19,12 @@ export async function GET(req: Request) {
 
   const userId = verifyState(state);
   if (!userId) return back("error");
+
+  // The state proves who started the flow, not who is finishing it: require the
+  // signed-in user to be the same person, so a forwarded consent link cannot
+  // attach someone else's mailbox to this account.
+  const sessionUser = await getSessionUser();
+  if (!sessionUser || sessionUser.id !== userId) return back("error");
 
   const tokens = await exchangeCode(code);
   if (!tokens) return back("error");

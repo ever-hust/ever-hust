@@ -57,7 +57,7 @@ export async function GET(
     }
 
     // Only show invitation details to the intended recipient
-    if (user.email !== invitation.email) {
+    if (user.email.toLowerCase() !== invitation.email.toLowerCase()) {
       return apiNotFound("Invitation not found");
     }
 
@@ -141,7 +141,7 @@ export async function POST(
     // Verify the invitation email matches the user's email.
     // Return the same "not found" response as the GET handler to avoid
     // leaking that a valid invitation exists for a different email address.
-    if (user.email !== invitation.email) {
+    if (user.email.toLowerCase() !== invitation.email.toLowerCase()) {
       return apiNotFound("Invitation not found");
     }
 

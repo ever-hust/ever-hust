@@ -21,6 +21,7 @@ function hasActiveFilters(filters: JobFilters): boolean {
     filters.jobType ||
     (filters.salaryMin != null && filters.salaryMin > 0) ||
     (filters.salaryMax != null && filters.salaryMax > 0) ||
+    (filters.postedWithin != null && filters.postedWithin > 0) ||
     (filters.skills && filters.skills.length > 0)
   );
 }

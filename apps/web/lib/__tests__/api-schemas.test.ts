@@ -98,6 +98,21 @@ describe("jobSearchParamsSchema", () => {
     const result = jobSearchParamsSchema.safeParse({ salaryMax: "-1" });
     expect(result.success).toBe(false);
   });
+
+  it.each(["1", "3", "7", "14", "30"])("accepts postedWithin=%s as a number", (v) => {
+    const result = jobSearchParamsSchema.safeParse({ postedWithin: v });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.postedWithin).toBe(Number(v));
+  });
+
+  it("leaves postedWithin undefined when omitted", () => {
+    const result = jobSearchParamsSchema.safeParse({});
+    expect(result.success && result.data.postedWithin).toBeUndefined();
+  });
+
+  it.each(["0", "2", "365", "-7", "abc", ""])("rejects postedWithin=%j", (v) => {
+    expect(jobSearchParamsSchema.safeParse({ postedWithin: v }).success).toBe(false);
+  });
 });
 
 describe("chatRequestSchema", () => {
@@ -444,6 +459,14 @@ describe("alertCreateSchema", () => {
         locations: ["NYC"],
         remoteType: "remote",
       },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts an alert without email (alerts go to the account email)", () => {
+    const result = alertCreateSchema.safeParse({
+      frequency: "daily",
+      criteria: { keywords: ["react developer"] },
     });
     expect(result.success).toBe(true);
   });
@@ -1063,15 +1086,50 @@ describe("jobsApiQuerySchema", () => {
     expect(jobsApiQuerySchema.safeParse({ offset: "-1" }).success).toBe(false);
   });
 
-  it("coerces remote string to boolean", () => {
-    // Note: z.coerce.boolean() uses Boolean() coercion, so any non-empty
-    // string (including "false") becomes true. Only empty string, 0, null,
-    // undefined become false.
+  it("parses remote=true as true", () => {
+    // remote is parsed strictly: "true"/"1" are true, "false"/"0" are
+    // false, anything else is a 400. Boolean("false") would be true.
     const result = jobsApiQuerySchema.safeParse({ remote: "true" });
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.remote).toBe(true);
     }
+  });
+
+  it("parses remote=1 as true", () => {
+    const result = jobsApiQuerySchema.safeParse({ remote: "1" });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.remote).toBe(true);
+    }
+  });
+
+  it("parses remote=false as false", () => {
+    const result = jobsApiQuerySchema.safeParse({ remote: "false" });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.remote).toBe(false);
+    }
+  });
+
+  it("parses remote=0 as false", () => {
+    const result = jobsApiQuerySchema.safeParse({ remote: "0" });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.remote).toBe(false);
+    }
+  });
+
+  it("leaves remote undefined when it is not given", () => {
+    const result = jobsApiQuerySchema.safeParse({});
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.remote).toBeUndefined();
+    }
+  });
+
+  it.each(["maybe", "yes", "TRUE", ""])("rejects remote=%j", (value) => {
+    expect(jobsApiQuerySchema.safeParse({ remote: value }).success).toBe(false);
   });
 
   it("rejects q exceeding 500 chars", () => {
@@ -1389,6 +1447,18 @@ describe("inviteMemberSchema", () => {
 
   it("rejects invalid email", () => {
     expect(inviteMemberSchema.safeParse({ email: "bad-email" }).success).toBe(false);
+  });
+
+  it("lowercases the email so it matches the signed-in user's email", () => {
+    expect(inviteMemberSchema.parse({ email: "Jane.Doe@Acme.com" }).email).toBe(
+      "jane.doe@acme.com"
+    );
+  });
+
+  it("trims surrounding whitespace from the email", () => {
+    expect(inviteMemberSchema.parse({ email: "  Jane.Doe@Acme.com " }).email).toBe(
+      "jane.doe@acme.com"
+    );
   });
 
   it("rejects email > 320 chars", () => {

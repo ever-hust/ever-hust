@@ -5,6 +5,7 @@ import { applyRateLimit } from "../../../../lib/rate-limit";
 import { apiSuccess, apiBadRequest, apiError, safeJsonParse } from "../../../../lib/api-response";
 import { loadAccount, resolveMailConfig } from "../../../../lib/inbox";
 import { sendMail, threadKeyFor } from "../../../../lib/mail";
+import { MailHostRefusedError } from "../../../../lib/mail-host-guard";
 
 export const maxDuration = 30;
 
@@ -35,7 +36,15 @@ export async function POST(req: Request) {
 
   const account = await loadAccount(user.id);
   if (!account) return apiError("No email account connected", 400);
-  const cfg = await resolveMailConfig(account);
+  let cfg;
+  try {
+    cfg = await resolveMailConfig(account, "smtp");
+  } catch (err) {
+    if (err instanceof MailHostRefusedError) {
+      return err.transient ? apiError(err.message, 503) : apiBadRequest(err.message);
+    }
+    throw err;
+  }
   if (!cfg) return apiError("Email encryption is not configured on the server.", 500);
 
   try {
@@ -66,6 +75,10 @@ export async function POST(req: Request) {
 
     return apiSuccess({ sent: true });
   } catch (err) {
+    // sendMail re-checks the host at connect time (DNS may have changed since).
+    if (err instanceof MailHostRefusedError) {
+      return err.transient ? apiError(err.message, 503) : apiBadRequest(err.message);
+    }
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[api/inbox/send] failed:", msg);
     return apiError("Failed to send the email. Check your SMTP settings.");

@@ -59,7 +59,7 @@ function CodeBlock({
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100"
+          className="h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
           onClick={handleCopy}
           aria-label="Copy code"
         >
@@ -556,7 +556,7 @@ console.log(data.total);     // Total matching companies`}
           <EndpointSection
             method="GET"
             path="/api/v1/salary"
-            description="Get salary insights for a job title. Returns statistical breakdown including median, average, percentiles, and per-level analysis. All figures are annualized."
+            description="Get salary insights for a job title. Returns statistical breakdown including median, average, percentiles, and per-level analysis. All figures are annualized and use the most common currency among matching jobs; jobs in other currencies are left out and counted in excludedOtherCurrency."
             params={[
               { name: "title", type: "string", required: true, description: "Job title to analyze (e.g., \"Software Engineer\")" },
               { name: "location", type: "string", required: false, description: "Filter by location (city, state, or country)" },
@@ -586,6 +586,7 @@ console.log(data.byLevel);  // Breakdown per seniority level`}
   "level": "senior",
   "sampleSize": 156,
   "currency": "USD",
+  "excludedOtherCurrency": 4,
   "overall": {
     "median": 185000,
     "average": 192500,

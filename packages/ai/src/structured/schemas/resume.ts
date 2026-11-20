@@ -18,6 +18,10 @@ export const resumeDraftSchema = z.object({
 
 export const resumeSummarySchema = resumeDraftSchema.extend({
   jobId: z.number().int().positive(),
+  /** Target keywords the candidate's real CV already evidences (deterministic, not LLM-judged). */
+  keywordsInCv: z.array(z.string().max(100)).max(60).optional(),
+  /** Target keywords with no support in the CV — add only if true; never invent them. */
+  keywordsNotInCv: z.array(z.string().max(100)).max(60).optional(),
   /** No-invent audit (spec #6): true when the prose cites only grounded CV facts. */
   grounded: z.boolean(),
   flaggedClaims: z.array(z.string().max(300)).max(40),

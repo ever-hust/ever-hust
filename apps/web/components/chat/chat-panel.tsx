@@ -1,6 +1,7 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { DefaultChatTransport } from "ai";
 import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { ChatMessages } from "./chat-messages";
@@ -11,6 +12,7 @@ import { AgentStatus, type AgentState } from "./agent-status";
 import { useChatPersistence } from "@/hooks/use-chat-persistence";
 import { createLimitAwareFetch, classifyChatError } from "@/lib/chat-error";
 import { PAYMENTS_ENABLED } from "@/lib/payments";
+import { refreshUsageStats } from "@/lib/usage-stats-query";
 import { MessageSquarePlus, RefreshCcw, ArrowDown, Sparkles } from "lucide-react";
 import { Button } from "@ever-hust/ui/button";
 import Link from "next/link";
@@ -57,6 +59,7 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt, initialP
   // Tracks the last consumed prompt so the same prompt isn't injected twice,
   // but a *new* prompt from context always works — even mid-conversation.
   const lastConsumedPrompt = useRef<string | undefined>(undefined);
+  const queryClient = useQueryClient();
 
   const {
     sessions,
@@ -97,6 +100,13 @@ export function ChatPanel({ onToolResult, onCoverLetter, initialPrompt, initialP
       if (toolCall.toolName === "generateCoverLetter") {
         coverLetterPending.current = true;
       }
+    },
+    // Each turn uses up a message, and its tools can use searches and cover
+    // letters: refresh the sidebar quota. The AI SDK calls onFinish after
+    // onError too (isError, e.g. the daily-limit 429) and after a stop
+    // (isAbort), so this one place covers every turn.
+    onFinish: () => {
+      void refreshUsageStats(queryClient);
     },
   });
 

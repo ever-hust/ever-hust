@@ -5,7 +5,7 @@ import {
   organizations,
   users,
 } from "@ever-hust/db/schema";
-import { eq, and, count } from "drizzle-orm";
+import { eq, and, count, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireOrgMember, requireOrgRole } from "../../../../../lib/auth-org";
 import { applyRateLimit } from "../../../../../lib/rate-limit";
@@ -157,7 +157,7 @@ export async function POST(
     const [existingUser] = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.email, body.email))
+      .where(sql`lower(${users.email}) = ${body.email}`)
       .limit(1);
 
     if (existingUser) {
@@ -184,7 +184,7 @@ export async function POST(
       .where(
         and(
           eq(organizationInvitations.organizationId, orgId),
-          eq(organizationInvitations.email, body.email),
+          sql`lower(${organizationInvitations.email}) = ${body.email}`,
           eq(organizationInvitations.status, "pending")
         )
       )

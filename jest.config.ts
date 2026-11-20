@@ -58,6 +58,13 @@ const config: Config = {
       rootDir,
       testMatch: [`${rootDir}/packages/auth/src/**/*.test.ts`],
       ...sharedConfig,
+      moduleNameMapper: {
+        ...workspaceModuleMapper,
+        // better-auth ships ESM only and Jest runs CJS here. index.ts imports
+        // better-auth/api through the guest self-delete guard, so every test
+        // that loads index.ts gets this stand-in instead of the real module.
+        "^better-auth/api$": `${rootDir}/packages/auth/src/test-stubs/better-auth-api.ts`,
+      },
     },
     {
       displayName: "stripe",
@@ -105,6 +112,12 @@ const config: Config = {
       displayName: "triggers",
       rootDir,
       testMatch: [`${rootDir}/packages/triggers/src/**/*.test.ts`],
+      ...sharedConfig,
+    },
+    {
+      displayName: "supabase",
+      rootDir,
+      testMatch: [`${rootDir}/packages/supabase/src/**/*.test.ts`],
       ...sharedConfig,
     },
     {

@@ -1,9 +1,14 @@
-export { getModelForUser } from "./model-router";
-export type { ModelForUserOptions } from "./model-router";
+export { getModelForUser, getModelWithSelection, resolveModelSelection } from "./model-router";
+export type { ModelForUserOptions, ModelSelection } from "./model-router";
 export { FREE_FALLBACK_MODEL_ID } from "./credit-fallback";
 export type { FallbackState } from "./credit-fallback";
 export { createOrchestratorStream } from "./agents/orchestrator";
-export { checkSearchLimit, checkCoverLetterLimit } from "./rate-limit";
+export {
+  checkSearchLimit,
+  checkCoverLetterLimit,
+  peekSearchLimit,
+  peekCoverLetterLimit,
+} from "./rate-limit";
 export {
   CREDITS_PER_USD,
   PLAN_MONTHLY_CREDITS,

@@ -1,70 +1,50 @@
 /**
- * Unit tests for the webhook idempotency (claimEvent) logic.
- *
- * The real `claimEvent` is a private function inside the Stripe webhook route
- * and is not exported.  We recreate the same logic here as a standalone helper
- * so we can verify the three key behaviors without touching the database:
- *
- *   1. Normal insert succeeds      → returns true  (process the event)
- *   2. Unique constraint violation  → returns false (skip, already processed)
- *   3. Other DB error               → returns true  (safe to retry)
+ * Tests for the real Stripe webhook idempotency helpers
+ * (apps/web/lib/stripe-webhook-idempotency.ts) with the database mocked.
  */
 
-// ── Standalone implementation mirroring the route's claimEvent logic ──────
+const mockValues = jest.fn();
+const mockInsert = jest.fn(() => ({ values: mockValues }));
+const mockWhere = jest.fn();
+const mockDelete = jest.fn(() => ({ where: mockWhere }));
 
-type InsertFn = (eventId: string) => Promise<void>;
+jest.mock("@ever-hust/db", () => ({
+  db: {
+    insert: (...args: unknown[]) => (mockInsert as (...a: unknown[]) => unknown)(...args),
+    delete: (...args: unknown[]) => (mockDelete as (...a: unknown[]) => unknown)(...args),
+  },
+  stripeWebhookEvents: {
+    id: "stripe_webhook_events.id",
+    processedAt: "stripe_webhook_events.processed_at",
+  },
+}));
 
-/**
- * Idempotency claim function that mirrors the pattern used in
- * `apps/web/app/api/stripe/webhook/route.ts`.
- *
- * @param eventId  The Stripe event ID.
- * @param insertFn Injected DB insert — throws on conflict or failure.
- */
-async function claimEvent(
-  eventId: string,
-  insertFn: InsertFn,
-): Promise<boolean> {
-  try {
-    await insertFn(eventId);
-    return true; // Insert succeeded — first time seeing this event
-  } catch (error) {
-    // Unique constraint violation means another instance already processed it.
-    // PostgreSQL error code 23505 = unique_violation.
-    if (
-      error instanceof Error &&
-      "code" in error &&
-      (error as { code: string }).code === "23505"
-    ) {
-      return false;
-    }
-    // For any other DB error, log and allow processing to proceed.
-    // It's safer to risk double-processing (handlers are idempotent)
-    // than to silently drop a webhook.
-    console.warn(
-      "[stripe/webhook] Idempotency check failed, proceeding with processing:",
-      error instanceof Error ? error.message : error,
-    );
-    return true;
-  }
-}
+jest.mock("drizzle-orm", () => ({
+  eq: (column: unknown, value: unknown) => ({ op: "eq", column, value }),
+  and: (...conditions: unknown[]) => ({ op: "and", conditions }),
+}));
 
-// ── Helpers ───────────────────────────────────────────────────────────────
+import { claimEvent, claimEventStatus, releaseEvent } from "../stripe-webhook-idempotency";
 
-/** Create an Error with a Postgres-style `code` property. */
+const CLAIMED_AT = new Date("2026-11-16T01:02:03.456Z");
+
+/** Error with a Postgres-style `code` property (raw driver error shape). */
 function pgError(message: string, code: string): Error & { code: string } {
   const err = new Error(message) as Error & { code: string };
   err.code = code;
   return err;
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────
+/** Drizzle 0.45 shape: wrapper without `code`, driver error on `.cause`. */
+function drizzleError(code: string): Error {
+  return new Error("Failed query: insert into ...", { cause: pgError("driver error", code) });
+}
 
 describe("claimEvent (webhook idempotency)", () => {
   let warnSpy: jest.SpyInstance;
 
   beforeEach(() => {
-    // Suppress console.warn output during tests
+    jest.clearAllMocks();
     warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
   });
 
@@ -72,144 +52,135 @@ describe("claimEvent (webhook idempotency)", () => {
     warnSpy.mockRestore();
   });
 
-  // ── Normal insert succeeds ────────────────────────────────────────────
-
   it("returns true when the insert succeeds (first claim)", async () => {
-    const insertFn: InsertFn = jest.fn().mockResolvedValue(undefined);
+    mockValues.mockResolvedValue(undefined);
 
-    const result = await claimEvent("evt_first_time", insertFn);
-
-    expect(result).toBe(true);
-    expect(insertFn).toHaveBeenCalledWith("evt_first_time");
+    expect(await claimEvent("evt_first")).toBe(true);
+    expect(mockValues).toHaveBeenCalledWith({ id: "evt_first", processedAt: expect.any(Date) });
   });
 
-  it("calls insertFn exactly once per invocation", async () => {
-    const insertFn: InsertFn = jest.fn().mockResolvedValue(undefined);
+  it("returns false for a Drizzle-wrapped unique violation (code on cause)", async () => {
+    mockValues.mockRejectedValue(drizzleError("23505"));
 
-    await claimEvent("evt_abc", insertFn);
-    await claimEvent("evt_def", insertFn);
-
-    expect(insertFn).toHaveBeenCalledTimes(2);
-    expect(insertFn).toHaveBeenNthCalledWith(1, "evt_abc");
-    expect(insertFn).toHaveBeenNthCalledWith(2, "evt_def");
-  });
-
-  // ── Unique constraint violation (23505) ───────────────────────────────
-
-  it("returns false when a unique constraint violation occurs (duplicate event)", async () => {
-    const insertFn: InsertFn = jest
-      .fn()
-      .mockRejectedValue(pgError("duplicate key value", "23505"));
-
-    const result = await claimEvent("evt_duplicate", insertFn);
-
-    expect(result).toBe(false);
-  });
-
-  it("does not log a warning for unique constraint violations", async () => {
-    const insertFn: InsertFn = jest
-      .fn()
-      .mockRejectedValue(pgError("duplicate key value", "23505"));
-
-    await claimEvent("evt_duplicate", insertFn);
-
+    expect(await claimEvent("evt_dup")).toBe(false);
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  // ── Other DB errors → returns true (safe to retry) ────────────────────
+  it("returns false for a plain error with code 23505", async () => {
+    mockValues.mockRejectedValue(pgError("duplicate key value", "23505"));
 
-  it("returns true when an unknown DB error occurs (safe to retry)", async () => {
-    const insertFn: InsertFn = jest
-      .fn()
-      .mockRejectedValue(pgError("connection refused", "08006"));
-
-    const result = await claimEvent("evt_db_down", insertFn);
-
-    expect(result).toBe(true);
+    expect(await claimEvent("evt_dup")).toBe(false);
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  it("logs a warning for non-constraint DB errors", async () => {
-    const insertFn: InsertFn = jest
-      .fn()
-      .mockRejectedValue(pgError("timeout expired", "57014"));
+  it("returns true and warns for another database error", async () => {
+    mockValues.mockRejectedValue(pgError("connection refused", "08006"));
 
-    await claimEvent("evt_timeout", insertFn);
-
-    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(await claimEvent("evt_db_down")).toBe(true);
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining("Idempotency check failed"),
-      "timeout expired",
+      "connection refused",
     );
   });
 
-  it("returns true when the error is a generic Error without a code", async () => {
-    const insertFn: InsertFn = jest
-      .fn()
-      .mockRejectedValue(new Error("something unexpected"));
+  it("returns true for a Drizzle-wrapped error with a different code", async () => {
+    mockValues.mockRejectedValue(drizzleError("23503"));
 
-    const result = await claimEvent("evt_generic_error", insertFn);
-
-    expect(result).toBe(true);
+    expect(await claimEvent("evt_fk")).toBe(true);
     expect(warnSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("returns true when the error is not an Error instance", async () => {
-    const insertFn: InsertFn = jest
-      .fn()
-      .mockRejectedValue("raw string error");
+  it("returns true for a generic Error without a code or cause", async () => {
+    mockValues.mockRejectedValue(new Error("something unexpected"));
 
-    const result = await claimEvent("evt_raw_error", insertFn);
+    expect(await claimEvent("evt_generic")).toBe(true);
+  });
 
-    expect(result).toBe(true);
-    expect(warnSpy).toHaveBeenCalledTimes(1);
+  it("returns true when the thrown value is not an Error", async () => {
+    mockValues.mockRejectedValue("raw string error");
+
+    expect(await claimEvent("evt_raw")).toBe(true);
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining("Idempotency check failed"),
       "raw string error",
     );
   });
 
-  // ── Distinguishes 23505 from other PG error codes ─────────────────────
+  it("does not treat a similar code as a duplicate", async () => {
+    mockValues.mockRejectedValue(pgError("near miss", "23506"));
 
-  it("only treats code 23505 as a duplicate — other constraint codes are retried", async () => {
-    // 23503 = foreign_key_violation — should NOT be treated as duplicate
-    const insertFn: InsertFn = jest
-      .fn()
-      .mockRejectedValue(pgError("foreign key violation", "23503"));
+    expect(await claimEvent("evt_near_miss")).toBe(true);
+  });
+});
 
-    const result = await claimEvent("evt_fk_error", insertFn);
+describe("claimEventStatus (claim ownership)", () => {
+  let warnSpy: jest.SpyInstance;
 
-    expect(result).toBe(true); // Not a duplicate, safe to retry
-    expect(warnSpy).toHaveBeenCalled();
+  beforeEach(() => {
+    jest.clearAllMocks();
+    warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
   });
 
-  it("treats only exact code 23505 as duplicate, not similar codes", async () => {
-    // A hypothetical near-miss code
-    const insertFn: InsertFn = jest
-      .fn()
-      .mockRejectedValue(pgError("not quite unique", "23506"));
-
-    const result = await claimEvent("evt_near_miss", insertFn);
-
-    expect(result).toBe(true);
+  afterEach(() => {
+    warnSpy.mockRestore();
   });
 
-  // ── Behavioral flow: first claim true, duplicate false ────────────────
+  it('is "claimed" when this call inserted the row, stamped with its claim time', async () => {
+    mockValues.mockResolvedValue(undefined);
+    expect(await claimEventStatus("evt_a", CLAIMED_AT)).toBe("claimed");
+    expect(mockValues).toHaveBeenCalledWith({ id: "evt_a", processedAt: CLAIMED_AT });
+  });
 
-  it("simulates real flow: first call succeeds, second is a duplicate", async () => {
-    const seen = new Set<string>();
-    const insertFn: InsertFn = jest.fn().mockImplementation(async (id: string) => {
-      if (seen.has(id)) {
-        throw pgError("duplicate key value violates unique constraint", "23505");
-      }
-      seen.add(id);
+  it('is "duplicate" for a unique violation, wrapped or not', async () => {
+    mockValues.mockRejectedValueOnce(drizzleError("23505"));
+    expect(await claimEventStatus("evt_a", CLAIMED_AT)).toBe("duplicate");
+    mockValues.mockRejectedValueOnce(pgError("dup", "23505"));
+    expect(await claimEventStatus("evt_a", CLAIMED_AT)).toBe("duplicate");
+  });
+
+  it('is "unverified" when the insert fails for another reason', async () => {
+    mockValues.mockRejectedValue(pgError("timeout", "57014"));
+    expect(await claimEventStatus("evt_a", CLAIMED_AT)).toBe("unverified");
+  });
+});
+
+describe("releaseEvent", () => {
+  let errorSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    errorSpy.mockRestore();
+  });
+
+  it("deletes only the row this delivery wrote (event id and claim time)", async () => {
+    mockWhere.mockResolvedValue(undefined);
+
+    await releaseEvent("evt_retry", CLAIMED_AT);
+
+    // Matching the claim time too means a delivery whose own insert failed
+    // cannot delete a claim another delivery wrote for the same event.
+    expect(mockDelete).toHaveBeenCalledTimes(1);
+    expect(mockWhere).toHaveBeenCalledWith({
+      op: "and",
+      conditions: [
+        { op: "eq", column: "stripe_webhook_events.id", value: "evt_retry" },
+        { op: "eq", column: "stripe_webhook_events.processed_at", value: CLAIMED_AT },
+      ],
     });
+  });
 
-    const first = await claimEvent("evt_flow_test", insertFn);
-    const second = await claimEvent("evt_flow_test", insertFn);
-    const differentEvent = await claimEvent("evt_other", insertFn);
+  it("never throws when the delete fails, and logs it", async () => {
+    mockWhere.mockRejectedValue(new Error("db down"));
 
-    expect(first).toBe(true);
-    expect(second).toBe(false);
-    expect(differentEvent).toBe(true);
+    await expect(releaseEvent("evt_retry", CLAIMED_AT)).resolves.toBeUndefined();
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to release"),
+      "evt_retry",
+      "db down",
+    );
   });
 });

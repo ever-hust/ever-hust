@@ -1,0 +1,36 @@
+# One-shot: copy the secret HUST_PROD_ENV into OpenBao, for the in-cluster image builds (homelab docs/infrastructure/ci-builds-argo.md).
+# GitHub never reveals a secret through its API, so only a run can move it. Dispatch-only, runs on the in-cluster pool, writes one
+# key, logs no value. The OpenBao role is bound to this repo and can write only kv/github/ever-hust/ever-hust/*.
+name: harvest-hust-prod-env
+on:
+  workflow_dispatch: {}
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  harvest:
+    runs-on: ${{ vars.RUNNER_LINUX_X64_4 }}
+    env:
+      OPENBAO_ADDR: http://openbao-active.openbao.svc.cluster.local:8200
+    steps:
+      - uses: actions/github-script@v9
+        env:
+          VALUE: ${{ secrets.HUST_PROD_ENV }}
+        with:
+          script: |
+            const addr = process.env.OPENBAO_ADDR;
+            const jwt = await core.getIDToken('openbao-github-oidc');
+            core.setSecret(jwt);
+            let r = await fetch(`${addr}/v1/auth/jwt/login`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ role: 'ever-hust-ever-hust', jwt })
+            });
+            if (!r.ok) { core.setFailed(`jwt login failed: HTTP ${r.status}`); return; }
+            const token = (await r.json()).auth.client_token;
+            core.setSecret(token);
+            r = await fetch(`${addr}/v1/kv/data/github/ever-hust/ever-hust/secrets`, {
+              method: 'POST', headers: { 'X-Vault-Token': token, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ data: { HUST_PROD_ENV: process.env.VALUE } })
+            });
+            if (!r.ok) { core.setFailed(`write failed: HTTP ${r.status}`); return; }
+            core.info(`wrote HUST_PROD_ENV (${process.env.VALUE.length} chars)`);

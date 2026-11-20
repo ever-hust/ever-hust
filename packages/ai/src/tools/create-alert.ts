@@ -2,7 +2,8 @@ import { tool } from "ai";
 import { z } from "zod";
 import { db } from "@ever-hust/db";
 import { userAlerts, users } from "@ever-hust/db";
-import { eq } from "drizzle-orm";
+import { MAX_ALERTS_PER_USER } from "@ever-hust/utils";
+import { count, eq, sql } from "drizzle-orm";
 import { alertsRequireProError } from "../payments";
 
 export const createAlertTool = tool({
@@ -96,26 +97,46 @@ export const createAlertTool = tool({
       };
     }
 
-    // Create the alert
-    const result = await db
-      .insert(userAlerts)
-      .values({
-        userId,
-        frequency,
-        email: user.email,
-        criteria: {
-          keywords: keywords ?? [],
-          locations: locations ?? [],
-          remoteType: remoteType ?? "any",
-          skills: skills ?? [],
-          roleLevel: roleLevel ?? [],
-          industries: industries ?? [],
-        },
-        isActive: true,
-      })
-      .returning({ id: userAlerts.id });
+    // Create the alert, within the same per-user cap as POST /api/user/alerts
+    const created = await db.transaction(async (tx) => {
+      // Same lock as the alerts route, so concurrent creates can't pass the cap.
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext('user-alerts-create'), hashtext(${userId}))`,
+      );
 
-    const alertId = result[0]?.id;
+      const [existing] = await tx
+        .select({ value: count() })
+        .from(userAlerts)
+        .where(eq(userAlerts.userId, userId));
+      if ((existing?.value ?? 0) >= MAX_ALERTS_PER_USER) return null;
+
+      return tx
+        .insert(userAlerts)
+        .values({
+          userId,
+          frequency,
+          email: user.email,
+          criteria: {
+            keywords: keywords ?? [],
+            locations: locations ?? [],
+            remoteType: remoteType ?? "any",
+            skills: skills ?? [],
+            roleLevel: roleLevel ?? [],
+            industries: industries ?? [],
+          },
+          isActive: true,
+        })
+        .returning({ id: userAlerts.id });
+    });
+
+    if (!created) {
+      return {
+        created: false,
+        error: `You already have the maximum of ${MAX_ALERTS_PER_USER} job alerts. Delete one before creating another.`,
+      };
+    }
+
+    const alertId = created[0]?.id;
 
     const frequencyLabel =
       frequency === "daily"

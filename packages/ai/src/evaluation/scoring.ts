@@ -1,3 +1,4 @@
+import { annualise } from "../tools/salary-helpers";
 import type {
   EvaluationBand,
   BudgetFit,
@@ -114,12 +115,24 @@ export interface CompScore {
   budgetFit: BudgetFit;
 }
 
-/** Comp dimension: annualized posting salary vs the user's target floor. */
+/**
+ * Comp dimension: annualized posting salary vs the user's target floor (an annual figure).
+ * `salaryInterval` is the posting's pay period ("hourly", "monthly", …); when given, the posting
+ * range is annualised first so an hourly or monthly rate isn't compared to a yearly target as-is.
+ */
 export function scoreComp(
-  job: { salaryMin: number | null; salaryMax: number | null },
+  job: {
+    salaryMin: number | null;
+    salaryMax: number | null;
+    salaryInterval?: string | null;
+  },
   target: { min: number | null; max: number | null },
 ): CompScore {
-  const jobMid = midpoint(job.salaryMin, job.salaryMax);
+  const interval = job.salaryInterval ?? null;
+  const jobMid = midpoint(
+    job.salaryMin != null ? annualise(job.salaryMin, interval) : null,
+    job.salaryMax != null ? annualise(job.salaryMax, interval) : null,
+  );
   const targetFloor = target.min ?? target.max ?? null;
 
   if (jobMid == null) {
@@ -202,47 +215,91 @@ export function scoreRemote(
   };
 }
 
-const LEVEL_ORDINALS: { keyword: string; ord: number }[] = [
+const LEVEL_KEYWORDS: { keyword: string; ord: number }[] = [
   { keyword: "vice president", ord: 6 },
   { keyword: "executive", ord: 6 },
   { keyword: "c-level", ord: 6 },
   { keyword: "vp", ord: 6 },
+  { keyword: "svp", ord: 6 },
+  { keyword: "evp", ord: 6 },
+  { keyword: "avp", ord: 6 },
   { keyword: "senior manager", ord: 5 },
   { keyword: "director", ord: 5 },
   { keyword: "principal", ord: 5 },
   { keyword: "head", ord: 5 },
   { keyword: "staff", ord: 4 },
   { keyword: "lead", ord: 4 },
+  { keyword: "leader", ord: 4 },
+  { keyword: "teamlead", ord: 4 },
+  { keyword: "techlead", ord: 4 },
+  { keyword: "teamleader", ord: 4 },
+  { keyword: "techleader", ord: 4 },
   { keyword: "manager", ord: 4 },
   { keyword: "senior", ord: 3 },
-  { keyword: "sr.", ord: 3 },
-  { keyword: "sr ", ord: 3 },
+  { keyword: "sr", ord: 3 },
+  // Compound spellings written without a separator ("midlevel", "entrylevel"). Explicit aliases,
+  // not substring matching, so look-alike words stay unmatched. "midsenior" precedes "mid".
+  { keyword: "seniorlevel", ord: 3 },
+  { keyword: "midsenior", ord: 3 },
+  { keyword: "midlevel", ord: 2 },
+  { keyword: "midweight", ord: 2 },
   { keyword: "mid", ord: 2 },
   { keyword: "intermediate", ord: 2 },
   { keyword: "associate", ord: 2 },
   { keyword: "junior", ord: 1 },
+  { keyword: "juniorlevel", ord: 1 },
+  { keyword: "entrylevel", ord: 1 },
   { keyword: "entry", ord: 1 },
   { keyword: "intern", ord: 1 },
+  { keyword: "internship", ord: 1 },
   { keyword: "graduate", ord: 1 },
+  { keyword: "undergraduate", ord: 1 },
+  { keyword: "postgraduate", ord: 1 },
 ];
 
-/** Map a free-text seniority label to an ordinal 1..6 (longest keyword wins). */
+/**
+ * Keywords match as whole words (an optional plural "s" is allowed), so "Internal Tools" or
+ * "International Sales" are not read as "intern", nor "Staffing" as "staff".
+ */
+const LEVEL_ORDINALS: { pattern: RegExp; ord: number }[] = LEVEL_KEYWORDS.map(
+  ({ keyword, ord }) => {
+    const escaped = keyword.replace(/[\\^$.*+?()[\]{}|-]/g, "\\$&");
+    return { pattern: new RegExp(`(?<![a-z0-9])${escaped}s?(?![a-z0-9])`), ord };
+  },
+);
+
+/** Map a free-text seniority label to an ordinal 1..6 (first match in list order wins). */
 export function levelOrdinal(label: string | null | undefined): number | null {
   if (!label) return null;
   const s = label.toLowerCase();
-  for (const { keyword, ord } of LEVEL_ORDINALS) {
-    if (s.includes(keyword)) return ord;
+  for (const { pattern, ord } of LEVEL_ORDINALS) {
+    if (pattern.test(s)) return ord;
   }
   return null;
 }
 
-/** Level dimension: posting seniority vs the user's natural level. */
+/**
+ * Level dimension: posting seniority vs the user's natural level.
+ *
+ * `userLevel` is the raw saved preference: a single label or a list of labels (the onboarding wizard
+ * and the preferences API store an array). Any other shape (missing, number, object) is neutral. With several labels the user is open to each of them, so the one closest to
+ * the posting's level is used. Labels that cannot be mapped are ignored; if none can, the score is
+ * neutral.
+ */
 export function scoreLevel(
   jobLevel: string | null,
-  userLevel: string | null,
+  userLevel: unknown,
 ): DeterministicScore {
   const j = levelOrdinal(jobLevel);
-  const u = levelOrdinal(userLevel);
+  const userOrdinals = (Array.isArray(userLevel) ? userLevel : [userLevel])
+    .map((l) => (typeof l === "string" ? levelOrdinal(l) : null))
+    .filter((o): o is number => o != null);
+  let u: number | null = null;
+  if (j != null) {
+    for (const o of userOrdinals) {
+      if (u == null || Math.abs(j - o) < Math.abs(j - u)) u = o;
+    }
+  }
   if (j == null || u == null) {
     return { score5: 3, rationale: "Level not clearly stated — scored neutral." };
   }

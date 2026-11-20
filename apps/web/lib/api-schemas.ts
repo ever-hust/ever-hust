@@ -43,9 +43,11 @@ export const settingsPatchSchema = z.lazy(() =>
 );
 
 // === User Alerts Route ===
+// Alerts always go to the signed-in user's account email. `email` is still
+// accepted so older clients keep working, but the route never stores it.
 export const alertCreateSchema = z.object({
   frequency: z.enum(["daily", "twice_daily", "weekly"]),
-  email: z.string().email().max(320),
+  email: z.string().email().max(320).optional(),
   criteria: z
     .object({
       keywords: z.array(z.string().max(200)).max(20).optional(),
@@ -68,6 +70,7 @@ export const alertPatchSchema = z.object({
   id: z.number().int().positive(),
   isActive: z.boolean().optional(),
   frequency: z.enum(["daily", "twice_daily", "weekly"]).optional(),
+  // Never stored: the route answers 400 when it differs from the account email.
   email: z.string().email().max(320).optional(),
   // Reuse the same criteria shape as alertCreateSchema for consistency
   criteria: alertCreateSchema.shape.criteria,
@@ -141,6 +144,11 @@ export const jobSearchParamsSchema = z.object({
   jobType: z.string().max(50).optional(),
   salaryMin: z.coerce.number().int().min(0).optional(),
   salaryMax: z.coerce.number().int().min(0).optional(),
+  /** "Date posted" window in days — one of 1, 3, 7, 14, 30. */
+  postedWithin: z
+    .enum(["1", "3", "7", "14", "30"])
+    .transform((v) => Number(v))
+    .optional(),
 });
 
 // === User Preferences (stored as JSONB, shared by multiple routes) ===
@@ -260,7 +268,11 @@ export const createApiKeySchema = z.object({
 export const jobsApiQuerySchema = z.object({
   q: z.string().max(500).optional(),
   location: z.string().max(200).optional(),
-  remote: z.coerce.boolean().optional(),
+  // Strict: z.coerce.boolean() would turn "false" and "0" into true.
+  remote: z
+    .enum(["true", "1", "false", "0"])
+    .transform((v) => v === "true" || v === "1")
+    .optional(),
   salaryMin: z.coerce.number().int().min(0).max(10_000_000).optional(),
   salaryMax: z.coerce.number().int().min(0).max(10_000_000).optional(),
   skills: z.string().max(500).optional(),
@@ -298,7 +310,9 @@ export const updateOrganizationSchema = z.object({
 });
 
 export const inviteMemberSchema = z.object({
-  email: z.string().email().max(320),
+  // Stored lowercase: session emails are always lowercase, and the accept
+  // route compares the invitee's email against this value.
+  email: z.string().trim().toLowerCase().email().max(320),
   role: z.enum(["admin", "member"]).default("member"),
 });
 

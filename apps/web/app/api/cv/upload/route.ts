@@ -57,8 +57,15 @@ export async function POST(req: Request) {
     return apiBadRequest(`Unsupported file type. Accepted: ${EXTENSION_LABELS}`);
   }
 
+  // Refuse path-like names. The name is never used as the storage key, but a
+  // hand-made multipart filename such as "../x.pdf" is never a real upload.
+  const rawName = file.name ?? "";
+  if (rawName.includes("/") || rawName.includes("\\") || rawName.includes("..")) {
+    return apiBadRequest("Invalid file name");
+  }
+
   // Validate file extension
-  const fileName = file.name?.toLowerCase() ?? "";
+  const fileName = rawName.toLowerCase();
   const ext = fileName.split(".").pop() ?? "";
   if (!fileName || !SUPPORTED_CV_EXTENSIONS.has(ext)) {
     return apiBadRequest(`File must have a supported extension: ${EXTENSION_LABELS}`);
@@ -81,8 +88,9 @@ export async function POST(req: Request) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Upload to Supabase Storage
-    const storagePath = `cvs/${userId}/${fileName}`;
+    // Upload to Supabase Storage under a server-chosen name: the client's file
+    // name must never reach the storage key (path traversal).
+    const storagePath = `cvs/${userId}/${crypto.randomUUID()}.${ext}`;
     const cvFileUrl = await uploadFile(storagePath, buffer, file.type);
 
     // Parse CV (pass MIME type for format-specific extraction)

@@ -1,9 +1,11 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { anonymous } from "better-auth/plugins";
-import { eq } from "drizzle-orm";
 import { db } from "@ever-hust/db/client";
 import * as schema from "@ever-hust/db/schema";
+import { anonymousSelfDeleteGuard } from "./anonymous-self-delete-guard";
+import { emailGreetingName } from "./email-greeting-name";
+import { migrateAnonymousUserData } from "./migrate-anonymous-user";
 import { getProviderCredentials } from "./providers";
 import { userAdditionalFields } from "./user-fields";
 
@@ -49,19 +51,15 @@ export const auth = betterAuth({
     maxPasswordLength: 128,
     requireEmailVerification: true,
     sendResetPassword: async ({ user, url }) => {
+      // The React Email template escapes the name; sign-up accepts any name, so
+      // it must never go into raw HTML. emailGreetingName only prints it once the
+      // address is verified.
       try {
-        const { Resend } = await import("resend");
-        const resend = new Resend(process.env.RESEND_API_KEY);
-        await resend.emails.send({
-          from: process.env.EMAIL_FROM ?? "alerts@hust.so",
+        const { sendPasswordResetEmail } = await import("@ever-hust/email");
+        await sendPasswordResetEmail({
           to: user.email,
-          subject: "Reset your password",
-          html: `
-            <p>Hi ${user.name ?? user.email.split("@")[0]},</p>
-            <p>Click the link below to reset your password:</p>
-            <p><a href="${url}">Reset Password</a></p>
-            <p>If you didn't request this, you can safely ignore this email.</p>
-          `,
+          userName: emailGreetingName(user),
+          resetUrl: url,
         });
       } catch (error) {
         console.error(
@@ -80,11 +78,12 @@ export const auth = betterAuth({
     autoSignInAfterVerification: true,
     expiresIn: 60 * 60 * 24, // 24 hours
     sendVerificationEmail: async ({ user, url }) => {
+      // Sent at sign-up, before the address is verified: no sign-up name in it.
       try {
         const { sendVerificationEmail: sendEmail } = await import("@ever-hust/email");
         await sendEmail({
           to: user.email,
-          userName: user.name ?? user.email.split("@")[0],
+          userName: emailGreetingName(user),
           verificationUrl: url,
         });
       } catch (error) {
@@ -146,12 +145,13 @@ export const auth = betterAuth({
           // Skip anonymous trial users — they carry a generated @hust.local email
           // and receive their own welcome when they convert to a real account.
           if ((user as { isAnonymous?: boolean }).isAnonymous) return;
-          // Send welcome email to newly registered users (non-blocking)
+          // Send welcome email to newly registered users (non-blocking). An
+          // email/password sign-up is not verified yet, so it is greeted as "there".
           try {
             const { sendWelcomeEmail } = await import("@ever-hust/email");
             await sendWelcomeEmail({
               to: user.email,
-              userName: user.name ?? user.email.split("@")[0],
+              userName: emailGreetingName(user),
             });
           } catch (error) {
             // Log but don't block user creation if email fails
@@ -165,12 +165,20 @@ export const auth = betterAuth({
     },
   },
 
+  // A guest deletes their account through DELETE /api/user/account, which hands
+  // their organizations to another member first. The anonymous plugin's own
+  // POST /delete-anonymous-user would delete the guest row directly and cascade
+  // to every organization they created, so it is refused here.
+  hooks: {
+    before: anonymousSelfDeleteGuard,
+  },
+
   // ---------------------------------------------------------------------------
   // Anonymous "try it" sessions — frictionless trial from the marketing site
   // (hust.so). A guest gets a real session (generated <id>@hust.local email),
   // can use the AI chat immediately, and is prompted to sign up. On sign-up the
-  // plugin links the account and we carry their work over before the guest is
-  // removed.
+  // plugin links the account and migrateAnonymousUserData carries their work
+  // over, organizations included, before the guest is removed.
   // ---------------------------------------------------------------------------
   plugins: [
     anonymous({
@@ -181,24 +189,8 @@ export const auth = betterAuth({
             v?.user?.id ?? v?.id;
           const fromId = pick(anonymousUser as { user?: { id?: string }; id?: string });
           const toId = pick(newUser as { user?: { id?: string }; id?: string });
-          if (!fromId || !toId || fromId === toId) return;
-          // Re-point the guest's user-owned rows to the permanent account.
-          await db
-            .update(schema.chatSessions)
-            .set({ userId: toId })
-            .where(eq(schema.chatSessions.userId, fromId));
-          await db
-            .update(schema.userJobs)
-            .set({ userId: toId })
-            .where(eq(schema.userJobs.userId, fromId));
-          await db
-            .update(schema.applications)
-            .set({ userId: toId })
-            .where(eq(schema.applications.userId, fromId));
-          await db
-            .update(schema.userAlerts)
-            .set({ userId: toId })
-            .where(eq(schema.userAlerts.userId, fromId));
+          if (!fromId || !toId) return;
+          await migrateAnonymousUserData(db, fromId, toId);
         } catch (error) {
           // Best-effort — never block sign-up if the migration fails.
           console.error(

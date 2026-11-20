@@ -15,7 +15,18 @@ export interface JobFilters {
   salaryMin?: number;
   salaryMax?: number;
   skills?: string[];
+  /** Only jobs posted within the last N days (1, 3, 7, 14 or 30). */
+  postedWithin?: number;
 }
+
+/** "Date posted" choices; values must match `postedWithin` in `jobSearchParamsSchema`. */
+const POSTED_WITHIN_CHOICES = [
+  { value: 1, label: "Past 24 hours" },
+  { value: 3, label: "Past 3 days" },
+  { value: 7, label: "Past week" },
+  { value: 14, label: "Past 2 weeks" },
+  { value: 30, label: "Past month" },
+] as const;
 
 interface FilterBarProps {
   filters: JobFilters;
@@ -85,6 +96,7 @@ export const FilterBar = memo(function FilterBar({ filters, onFiltersChange }: F
     filters.salaryMin != null && filters.salaryMin > 0,
     filters.salaryMax != null && filters.salaryMax > 0,
     (filters.skills?.length ?? 0) > 0,
+    filters.postedWithin != null && filters.postedWithin > 0,
   ].filter(Boolean).length;
 
   const clearFilters = () => {
@@ -192,6 +204,24 @@ export const FilterBar = memo(function FilterBar({ filters, onFiltersChange }: F
             <option value="parttime">Part-time</option>
             <option value="contract">Contract</option>
             <option value="internship">Internship</option>
+          </select>
+          <select
+            aria-label="Date posted"
+            value={filters.postedWithin ?? ""}
+            onChange={(e) =>
+              onFiltersChange({
+                ...filters,
+                postedWithin: e.target.value ? Number(e.target.value) : undefined,
+              })
+            }
+            className="h-8 rounded-md border bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <option value="">Any time</option>
+            {POSTED_WITHIN_CHOICES.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
           </select>
           <Input
             type="number"

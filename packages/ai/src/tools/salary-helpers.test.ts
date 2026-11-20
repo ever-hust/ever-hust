@@ -1,4 +1,4 @@
-import { annualise, median } from "./salary-helpers";
+import { annualise, keepDominantCurrency, median } from "./salary-helpers";
 
 describe("annualise", () => {
   it("returns salary as-is for yearly/annual/annually", () => {
@@ -9,6 +9,11 @@ describe("annualise", () => {
 
   it("converts hourly to annual (40h * 52w = 2080)", () => {
     expect(annualise(50, "hourly")).toBe(50 * 2080);
+  });
+
+  it("converts daily to annual (5d * 52w = 260)", () => {
+    expect(annualise(800, "daily")).toBe(800 * 260);
+    expect(annualise(800, "Daily")).toBe(800 * 260);
   });
 
   it("converts weekly to annual (* 52)", () => {
@@ -86,5 +91,87 @@ describe("median", () => {
 
   it("handles duplicate values", () => {
     expect(median([5, 5, 5, 5])).toBe(5);
+  });
+});
+
+describe("keepDominantCurrency", () => {
+  const usd = (annualMid: number) => ({ currency: "USD", annualMid });
+  const inr = (annualMid: number) => ({ currency: "INR", annualMid });
+
+  it("keeps the 3 USD entries and drops the 2 INR ones", () => {
+    const entries = [
+      usd(115_000),
+      inr(1_950_000),
+      usd(117_500),
+      inr(2_000_000),
+      usd(120_000),
+    ];
+
+    const result = keepDominantCurrency(entries);
+
+    expect(result.currency).toBe("USD");
+    expect(result.kept).toEqual([usd(115_000), usd(117_500), usd(120_000)]);
+    expect(result.excluded).toBe(2);
+  });
+
+  it("counts a null currency as USD", () => {
+    const entries = [
+      { currency: null, annualMid: 1 },
+      { currency: null, annualMid: 2 },
+      { currency: "INR", annualMid: 3 },
+      { currency: "INR", annualMid: 4 },
+      { currency: "USD", annualMid: 5 },
+    ];
+
+    const result = keepDominantCurrency(entries);
+
+    expect(result.currency).toBe("USD");
+    expect(result.kept.map((e) => e.annualMid)).toEqual([1, 2, 5]);
+    expect(result.excluded).toBe(2);
+  });
+
+  it("ignores the case of the currency code", () => {
+    const entries = [
+      { currency: "inr", annualMid: 1 },
+      { currency: "INR", annualMid: 2 },
+      { currency: "usd", annualMid: 3 },
+    ];
+
+    const result = keepDominantCurrency(entries);
+
+    expect(result.currency).toBe("INR");
+    expect(result.kept.map((e) => e.annualMid)).toEqual([1, 2]);
+    expect(result.excluded).toBe(1);
+  });
+
+  it("keeps the first currency seen when two are tied", () => {
+    const entries = [
+      { currency: "EUR", annualMid: 1 },
+      { currency: "GBP", annualMid: 2 },
+      { currency: "GBP", annualMid: 3 },
+      { currency: "EUR", annualMid: 4 },
+    ];
+
+    const result = keepDominantCurrency(entries);
+
+    expect(result.currency).toBe("EUR");
+    expect(result.kept.map((e) => e.annualMid)).toEqual([1, 4]);
+    expect(result.excluded).toBe(2);
+  });
+
+  it("keeps every entry when they share one currency", () => {
+    const entries = [usd(1), usd(2)];
+
+    const result = keepDominantCurrency(entries);
+
+    expect(result).toEqual({ currency: "USD", kept: entries, excluded: 0 });
+  });
+
+  it("reports USD with nothing kept for an empty list", () => {
+    expect(keepDominantCurrency([])).toEqual({
+      currency: "USD",
+      kept: [],
+      excluded: 0,
+    });
   });
 });

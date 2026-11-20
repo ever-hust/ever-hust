@@ -5,6 +5,7 @@ import { FollowUpNudgeEmail } from "./templates/follow-up-nudge";
 import { WelcomeEmail } from "./templates/welcome";
 import { SubscriptionConfirmedEmail } from "./templates/subscription-confirmed";
 import { VerificationEmail } from "./templates/verification-email";
+import { PasswordResetEmail } from "./templates/password-reset";
 import type React from "react";
 import { APP_NAME } from "@ever-hust/utils";
 
@@ -367,4 +368,48 @@ export async function sendVerificationEmail({
 
     return data;
   }, "sendVerificationEmail");
+}
+
+// ── Password Reset ──────────────────────────────────────────────────────────
+
+interface SendPasswordResetEmailParams {
+  to: string;
+  userName: string;
+  resetUrl: string;
+}
+
+/**
+ * The user name is rendered by the React Email template, which escapes it. Sign-up accepts any
+ * name, so it must never be pasted into raw HTML: an attacker could sign up with an address that
+ * has no account yet and request a reset to put their markup in an email to that address.
+ */
+export async function sendPasswordResetEmail({
+  to,
+  userName,
+  resetUrl,
+}: SendPasswordResetEmailParams) {
+  const element = PasswordResetEmail({
+    userName,
+    resetUrl,
+  }) as React.ReactElement;
+
+  const html = await render(element);
+
+  return withRetry(async () => {
+    const { data, error } = await getResend().emails.send({
+      from: EMAIL_FROM,
+      to,
+      subject: `Reset your password — ${APP_NAME}`,
+      html,
+    });
+
+    if (error) {
+      throw new EmailSendError(
+        `Failed to send password reset email: ${error.message ?? "Unknown error"}`,
+        (error as { statusCode?: number }).statusCode,
+      );
+    }
+
+    return data;
+  }, "sendPasswordResetEmail");
 }

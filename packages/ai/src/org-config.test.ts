@@ -162,6 +162,49 @@ describe("mergeOrgConfig", () => {
     expect(result.apiKeys).toEqual({ anthropic: "sk-ant-org" });
   });
 
+  // ── apiKeys: every BYOK provider, not only the first three ──────────────
+
+  it("keeps a user's openrouter key when the org has an AI config", () => {
+    // The org owner saved some AI setting, so an org config row exists. The
+    // member's own OpenRouter key must survive the merge, or their chats run
+    // (and are billed) on the Hust default instead of their OpenRouter model.
+    const result = mergeOrgConfig(
+      {
+        aiModel: "openrouter:anthropic/claude-sonnet-5.5",
+        apiKeys: { openrouter: "sk-or-user" },
+      },
+      makeOrgConfig({ customSystemPrompt: "Act as a tech recruiter." }),
+    );
+    expect(result.apiKeys).toEqual({ openrouter: "sk-or-user" });
+  });
+
+  it("keeps a user's openrouter key next to org keys for other providers", () => {
+    const result = mergeOrgConfig(
+      { apiKeys: { openrouter: "sk-or-user" } },
+      makeOrgConfig({ apiKeys: { anthropic: "sk-ant-org" } }),
+    );
+    expect(result.apiKeys).toEqual({
+      openrouter: "sk-or-user",
+      anthropic: "sk-ant-org",
+    });
+  });
+
+  it("uses an org-only openrouter key when the user has none", () => {
+    const result = mergeOrgConfig(
+      { aiModel: "openrouter:anthropic/claude-sonnet-5.5" },
+      makeOrgConfig({ apiKeys: { openrouter: "sk-or-org" } }),
+    );
+    expect(result.apiKeys).toEqual({ openrouter: "sk-or-org" });
+  });
+
+  it("user openrouter key overrides the org openrouter key", () => {
+    const result = mergeOrgConfig(
+      { apiKeys: { openrouter: "sk-or-user" } },
+      makeOrgConfig({ apiKeys: { openrouter: "sk-or-org" } }),
+    );
+    expect(result.apiKeys).toEqual({ openrouter: "sk-or-user" });
+  });
+
   // ── Empty apiKeys cleanup ───────────────────────────────────────────────
 
   it("removes apiKeys object when all keys are empty strings", () => {

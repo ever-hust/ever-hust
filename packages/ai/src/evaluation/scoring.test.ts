@@ -103,6 +103,63 @@ describe("scoreComp", () => {
     expect(r.score5).toBe(3);
     expect(r.budgetFit).toBe("unknown");
   });
+
+  it("annualises an hourly posting before comparing to a yearly target", () => {
+    // $90–$110/h → 187,200–228,800 a year (midpoint 208k) vs 150k = 1.39
+    const r = scoreComp(
+      { salaryMin: 90, salaryMax: 110, salaryInterval: "hourly" },
+      { min: 150000, max: null },
+    );
+    expect(r.score5).toBe(5);
+    expect(r.budgetFit).toBe("good_fit");
+    expect(r.rationale).toContain("$208k");
+  });
+
+  it("annualises a monthly posting", () => {
+    // 10k/month → 120k a year vs 150k = 0.8
+    const r = scoreComp(
+      { salaryMin: 10000, salaryMax: 10000, salaryInterval: "monthly" },
+      { min: 150000, max: null },
+    );
+    expect(r.score5).toBe(2);
+    expect(r.budgetFit).toBe("under_budget");
+  });
+
+  it("annualises a daily rate and a one-sided range", () => {
+    const target = { min: 150000, max: null };
+    // $800/day min-only → 208,000 a year (800 * 260)
+    const daily = scoreComp(
+      { salaryMin: 800, salaryMax: null, salaryInterval: "daily" },
+      target,
+    );
+    expect(daily.score5).toBe(5);
+    expect(daily.rationale).toContain("$208k");
+    // $4,000/week max-only → 208,000 a year (4000 * 52)
+    const weekly = scoreComp(
+      { salaryMin: null, salaryMax: 4000, salaryInterval: "weekly" },
+      target,
+    );
+    expect(weekly.rationale).toContain("$208k");
+  });
+
+  it("keeps yearly, unknown and missing intervals unchanged", () => {
+    const target = { min: 150000, max: null };
+    const base = scoreComp({ salaryMin: 180000, salaryMax: 220000 }, target);
+    for (const salaryInterval of [
+      "yearly",
+      "annual",
+      "weird",
+      null,
+      undefined,
+    ]) {
+      expect(
+        scoreComp(
+          { salaryMin: 180000, salaryMax: 220000, salaryInterval },
+          target,
+        ),
+      ).toEqual(base);
+    }
+  });
 });
 
 describe("scoreRemote", () => {
@@ -134,6 +191,68 @@ describe("levelOrdinal / scoreLevel", () => {
     expect(levelOrdinal("totally unknown")).toBeNull();
   });
 
+  it("does not read level keywords inside unrelated words", () => {
+    expect(levelOrdinal("Internal Tools Engineer")).toBeNull();
+    expect(levelOrdinal("International Business Analyst")).toBeNull();
+    expect(levelOrdinal("Staffing Coordinator")).toBeNull();
+    expect(levelOrdinal("Leadership Development")).toBeNull();
+    expect(levelOrdinal("Midwest Territory Rep")).toBeNull();
+  });
+
+  it("keeps matching real labels, plurals and abbreviations", () => {
+    expect(levelOrdinal("Software Engineering Intern")).toBe(1);
+    expect(levelOrdinal("Summer Interns")).toBe(1);
+    expect(levelOrdinal("Internship")).toBe(1);
+    expect(levelOrdinal("Entry-level")).toBe(1);
+    expect(levelOrdinal("Mid-level")).toBe(2);
+    expect(levelOrdinal("Mid-Senior level")).toBe(3);
+    expect(levelOrdinal("Sr. Engineer")).toBe(3);
+    expect(levelOrdinal("Sr Engineer")).toBe(3);
+    expect(levelOrdinal("Senior Staff Engineer")).toBe(4);
+    expect(levelOrdinal("Engineering Manager")).toBe(4);
+    expect(levelOrdinal("Senior Manager, Data")).toBe(5);
+    expect(levelOrdinal("Head of Product")).toBe(5);
+    expect(levelOrdinal("VP, Engineering")).toBe(6);
+    expect(levelOrdinal("SVP Sales")).toBe(6);
+    expect(levelOrdinal("Vice President")).toBe(6);
+  });
+
+  it("keeps matching leader and AVP spellings, but not look-alike words", () => {
+    expect(levelOrdinal("Team Leader")).toBe(4);
+    expect(levelOrdinal("Team Leaders")).toBe(4);
+    expect(levelOrdinal("Senior Leader")).toBe(4);
+    expect(levelOrdinal("Teamlead")).toBe(4);
+    expect(levelOrdinal("Techlead")).toBe(4);
+    expect(levelOrdinal("AVP, Risk")).toBe(6);
+    expect(levelOrdinal("Leadership Development")).toBeNull();
+    expect(levelOrdinal("Leading")).toBeNull();
+  });
+
+  it("keeps matching compound spellings written without a separator", () => {
+    expect(levelOrdinal("midlevel")).toBe(2);
+    expect(levelOrdinal("Mid Level")).toBe(2);
+    expect(levelOrdinal("entrylevel")).toBe(1);
+    expect(levelOrdinal("juniorlevel")).toBe(1);
+    expect(levelOrdinal("seniorlevel")).toBe(3);
+    expect(levelOrdinal("midsenior")).toBe(3);
+    expect(scoreLevel("mid", "midlevel").score5).toBe(5);
+    expect(scoreLevel("entry", "entrylevel").score5).toBe(5);
+  });
+
+  it("keeps matching further unseparated spellings, but not look-alike words", () => {
+    expect(levelOrdinal("Teamleader")).toBe(4);
+    expect(levelOrdinal("TeamLeaders")).toBe(4);
+    expect(levelOrdinal("Techleader")).toBe(4);
+    expect(levelOrdinal("Midweight Designer")).toBe(2);
+    expect(levelOrdinal("Undergraduate")).toBe(1);
+    expect(levelOrdinal("Postgraduate")).toBe(1);
+    expect(levelOrdinal("Leaderboard Engineer")).toBeNull();
+  });
+
+  it("scores neutral for a posting whose title only contains a look-alike word", () => {
+    expect(scoreLevel("Internal Tools Engineer", "staff").score5).toBe(3);
+  });
+
   it("scores 5 for a perfect level match", () => {
     expect(scoreLevel("Senior", "senior").score5).toBe(5);
   });
@@ -142,6 +261,40 @@ describe("levelOrdinal / scoreLevel", () => {
   });
   it("is neutral when either level is unknown", () => {
     expect(scoreLevel(null, "senior").score5).toBe(3);
+  });
+
+  describe("array preference", () => {
+    it("scores a one-value array like the string", () => {
+      expect(scoreLevel("Senior", ["senior"])).toEqual(scoreLevel("Senior", "senior"));
+      expect(scoreLevel("Senior", ["senior"]).score5).toBe(5);
+      expect(scoreLevel("Director", ["junior"]).score5).toBeLessThanOrEqual(2);
+    });
+    it("uses the preferred level closest to the job", () => {
+      expect(scoreLevel("Senior", ["junior", "senior"]).score5).toBe(5);
+      expect(scoreLevel("Senior", ["senior", "junior"]).score5).toBe(5);
+      // Closest of mid (2) and lead (4) to a director (5) is lead: one level below.
+      expect(scoreLevel("Director", ["mid", "lead"])).toEqual(scoreLevel("Director", "lead"));
+    });
+    it("is neutral for an empty array", () => {
+      expect(scoreLevel("Senior", []).score5).toBe(3);
+    });
+    it("ignores labels it cannot map, and is neutral if none map", () => {
+      expect(scoreLevel("Senior", ["whatever", "senior"]).score5).toBe(5);
+      expect(scoreLevel("Senior", ["whatever"]).score5).toBe(3);
+    });
+    it("handles the raw saved preference shapes without throwing", () => {
+      // As stored by the onboarding wizard / preferences API.
+      expect(scoreLevel("Senior", ["senior"] as unknown).score5).toBe(5);
+      // Missing or malformed values are neutral.
+      expect(scoreLevel("Senior", undefined).score5).toBe(3);
+      expect(scoreLevel("Senior", null).score5).toBe(3);
+      expect(scoreLevel("Senior", 3).score5).toBe(3);
+      expect(scoreLevel("Senior", { level: "senior" }).score5).toBe(3);
+      expect(scoreLevel("Senior", [3, null, "senior"]).score5).toBe(5);
+    });
+    it("is neutral when the job level is unknown", () => {
+      expect(scoreLevel(null, ["senior", "mid"]).score5).toBe(3);
+    });
   });
 });
 

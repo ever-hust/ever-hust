@@ -7,6 +7,7 @@ import { applyRateLimit } from "../../../../lib/rate-limit";
 import { apiSuccess, apiBadRequest, apiError, safeJsonParse } from "../../../../lib/api-response";
 import { loadAccount, publicAccount } from "../../../../lib/inbox";
 import { presetForEmail, verifyConnection, type MailConfig } from "../../../../lib/mail";
+import { assertPublicMailHost, MailHostRefusedError } from "../../../../lib/mail-host-guard";
 
 export const maxDuration = 30;
 
@@ -62,6 +63,16 @@ export async function POST(req: Request) {
     return apiBadRequest(
       "Couldn't auto-detect your provider's mail servers. Please enter the IMAP and SMTP host.",
     );
+  }
+
+  // Refuse internal hosts / non-mail ports before any connection is attempted, so
+  // the server can't be used to probe the network it runs in.
+  try {
+    await assertPublicMailHost(cfg.imapHost, cfg.imapPort);
+    await assertPublicMailHost(cfg.smtpHost, cfg.smtpPort);
+  } catch (err) {
+    if (err instanceof MailHostRefusedError) return apiBadRequest(err.message);
+    return apiBadRequest("Could not connect to your mailbox");
   }
 
   // Verify credentials before storing them.

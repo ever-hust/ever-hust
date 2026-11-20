@@ -10,6 +10,7 @@ import {
 } from "../structured/schemas/resume";
 import { assertArtifact, generateValidatedObject } from "../structured";
 import { assertNoInvented } from "../policy/assert-no-invented";
+import { cvExperienceEvidenceText, splitKeywordsByCvEvidence } from "./keyword-evidence";
 
 function asStringArray(v: unknown): string[] {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
@@ -115,11 +116,24 @@ export const tailorResumeTool = tool({
       const auditText = [draft.professionalSummary, ...draft.bulletSuggestions].join("\n");
       const audit = assertNoInvented({ text: auditText, allowedFacts });
 
+      // Deterministic coverage: which target keywords the real CV backs up vs. which are gaps.
+      const evidence = splitKeywordsByCvEvidence(
+        [...jobSkills, ...draft.keywordsToAlign],
+        userSkills,
+        [
+          typeof cv.summary === "string" ? cv.summary : "",
+          user.headline ?? "",
+          cvExperienceEvidenceText(cv.experience),
+        ].join("\n"),
+      );
+
       const summary: ResumeSummary = {
         jobId,
         professionalSummary: draft.professionalSummary,
         bulletSuggestions: draft.bulletSuggestions,
         keywordsToAlign: draft.keywordsToAlign,
+        keywordsInCv: evidence.inCv,
+        keywordsNotInCv: evidence.notInCv,
         atsTips: draft.atsTips,
         grounded: audit.grounded,
         flaggedClaims: audit.flaggedClaims,

@@ -85,7 +85,7 @@ Turborepo with `apps/*` and `packages/*` workspaces. All packages use `@ever-hus
 - **`packages/ui/`** — ShadCN components exported as `@ever-hust/ui/<component-name>`
 - **`packages/stripe/`** — Stripe checkout, portal, webhook parsing, plan definitions
 - **`packages/jobs-api/`** — Ever Jobs external API client with circuit breaker + retry
-- **`packages/email/`** — React Email templates (welcome, job alert, subscription, verification) + Resend sender
+- **`packages/email/`** — React Email templates (welcome, job alert, subscription, verification, password reset) + Resend sender
 - **`packages/triggers/`** — Trigger.dev scheduled tasks (job sync, alerts, cleanup)
 - **`packages/supabase/`** — Supabase client for Realtime + Storage (`uploadFile`, `getPublicUrl`, `deleteFile`)
 - **`packages/cv-parser/`** — CV/resume parsing logic
@@ -95,7 +95,7 @@ Turborepo with `apps/*` and `packages/*` workspaces. All packages use `@ever-hus
 ### AI Chat Flow
 
 1. **Client**: `apps/web/app/(dashboard)/chat/page.tsx` renders `SplitScreen` with `ChatPanel` (left) + `JobsCanvas` (right)
-2. **API Route**: `apps/web/app/api/ai/chat/route.ts` — authenticates user, applies rate limits, resolves AI model via `getModelForUser()`, streams response
+2. **API Route**: `apps/web/app/api/ai/chat/route.ts` — authenticates user, applies rate limits, resolves the AI model and the credit key together via `getModelWithSelection()` (credits are metered on the model actually served, never the saved `aiModel` string; BYOK calls are not metered), streams response
 3. **Model Router** (`packages/ai/src/model-router.ts`): Routes to correct model based on subscription tier and user preferences. BYOK users get direct Anthropic; platform users go through OpenRouter (if configured) or direct Anthropic. Free tier gets Haiku, paid tier gets Sonnet/Opus.
 4. **Orchestrator** (`packages/ai/src/agents/orchestrator.ts`): Uses `streamText()` with 11 tools (searchJobs, favoriteJob, generateCoverLetter, interviewPrep, etc.). Max 5 agentic steps per turn.
 5. **Canvas Sync**: Tool results flow back to the client via `useCanvasSync` hook, which updates the jobs canvas in real-time. Supabase Realtime pushes new jobs from background sync tasks.
@@ -158,11 +158,14 @@ All marketing pages include JSON-LD structured data: `Organization` (landing), `
 
 - **XSS sanitization**: Custom skill input is sanitized both client-side (onboarding dialog) and server-side (profile PATCH API schema strips HTML tags) to prevent stored XSS attacks
 - **CV upload validation**: Rejects zero-byte files in addition to enforcing the 10MB max size and PDF type checks
+- **Storage paths**: The CV upload stores files as `cvs/{userId}/{uuid}.{ext}` and never uses the client's file name (names with `/`, `\` or `..` get a 400); `uploadFile` in `packages/supabase` throws on `.`/`..` segments (also `%2e`), backslashes and control characters (the URL parser drops tab/CR/LF, so `.\t.` would become `..`), because the service-role upload puts the path into the URL unencoded
+- **Guest self-delete**: a global BetterAuth before hook (`packages/auth/src/anonymous-self-delete-guard.ts`) refuses the anonymous plugin's `POST /api/auth/delete-anonymous-user` with 403, because deleting the guest row cascades through `organizations.created_by_id` to every organization the guest created. Guests delete their account with `DELETE /api/user/account`, which hands organizations to another member first. Keep the plugin's `disableDeleteAnonymousUser` off: it also stops the plugin from deleting the guest after the guest signs up or signs in
 - **BYOK key safety**: When `BYOK_ENCRYPTION_KEY` is absent, the model router detects encrypted ciphertext and falls through to the platform model instead of sending it as an API key
 - **LLM context hygiene**: `getUserProfile` tool strips encrypted API keys from preferences before returning data to LLM context
 - **AI tool input bounds**: All AI tool Zod schemas enforce `.max()` constraints on string/array inputs to limit LLM-generated payload sizes
 - **Service worker**: Includes `push` and `notificationclick` event handlers for Web Push notifications, offline caching with precached `/offline` page
 - **Email verification**: BetterAuth `emailVerification` config for email/password signups only; OAuth providers are trusted
+- **Auth emails**: The verification and password reset emails are rendered by React Email templates in `packages/email`, which escape the user name (sign-up accepts any name, and a reset can be requested for any address that has an account); never build them as raw HTML strings. The reset, verification and welcome emails take the greeting from `emailGreetingName` (`packages/auth/src/email-greeting-name.ts`): "there" until the address is verified, so a sign-up name such as "restore your account at evil.example" never reaches an inbox the signer does not own; for a verified user, the trimmed name capped at 100 characters, or the email local part when the name is blank
 - **Rate limit UX**: Global `RateLimitInterceptor` patches `window.fetch` to show toast on 429 responses
 
 ### Custom Hooks
@@ -178,7 +181,7 @@ Located in `apps/web/hooks/`. Key hooks:
 
 ### Testing
 
-- **Jest**: 1120 unit tests across 35 suites, living alongside source files as `*.test.ts`. Projects configured for: `ai`, `stripe`, `cv-parser`, `jobs-api`, `db`, `utils`, `email`, `triggers`, `web-lib`. Uses `ts-jest` with `isolatedModules: true` to avoid OOM from complex AI SDK/Zod generics. Key test files include `model-router.test.ts`, `prompts.test.ts`, `rate-limit.test.ts`, `tool-schemas.test.ts`, `crypto.test.ts`, `api-client.test.ts`, `api-response.test.ts`, `api-schemas.test.ts`, `subscription-gate.test.ts`, `referral-utils.test.ts`, `format-date.test.ts`, `org-config.test.ts`, `webhook-idempotency.test.ts`, `orchestrator.test.ts`, `constants.test.ts`, `env.test.ts`, `startup-checks.test.ts`, `safe-url.test.ts`, `salary-insights.test.ts`, `resume-builder.test.ts`, `resume-helpers.test.ts`, `webhook.test.ts`, `checkout.test.ts`, `portal.test.ts`, `plans.test.ts`, `client.test.ts`, `types.test.ts`, `guidance-topics.test.ts`, `db-helpers.test.ts`, `map-job.test.ts`, `helpers.test.ts`.
+- **Jest**: 1120 unit tests across 35 suites, living alongside source files as `*.test.ts`. Projects configured for: `ai`, `stripe`, `cv-parser`, `jobs-api`, `db`, `utils`, `email`, `triggers`, `supabase`, `web-lib`. Uses `ts-jest` with `isolatedModules: true` to avoid OOM from complex AI SDK/Zod generics. Key test files include `model-router.test.ts`, `prompts.test.ts`, `rate-limit.test.ts`, `tool-schemas.test.ts`, `crypto.test.ts`, `api-client.test.ts`, `api-response.test.ts`, `api-schemas.test.ts`, `subscription-gate.test.ts`, `referral-utils.test.ts`, `format-date.test.ts`, `org-config.test.ts`, `webhook-idempotency.test.ts`, `orchestrator.test.ts`, `constants.test.ts`, `env.test.ts`, `startup-checks.test.ts`, `safe-url.test.ts`, `salary-insights.test.ts`, `resume-builder.test.ts`, `resume-helpers.test.ts`, `webhook.test.ts`, `checkout.test.ts`, `portal.test.ts`, `plans.test.ts`, `client.test.ts`, `types.test.ts`, `guidance-topics.test.ts`, `db-helpers.test.ts`, `map-job.test.ts`, `helpers.test.ts`.
 - **Playwright**: 175 E2E tests across 8 spec files in `tests/e2e/`. Specs for: auth, landing, chat, jobs, profile, subscription. Runs against `http://localhost:8443`.
 
 ### UI Package Pattern

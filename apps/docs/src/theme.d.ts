@@ -61,3 +61,23 @@ declare module '@theme/Footer/Copyright' {
 declare module '@theme/SearchBar' {
 	export default function SearchBar(): JSX.Element;
 }
+
+// The icons of Docusaurus's own color-mode toggle, reused by the footer theme selector (Footer/ThemeSelector).
+// Same shape as the @docusaurus/theme-classic declarations, so the two merge if both are ever loaded.
+declare module '@theme/Icon/SystemColorMode' {
+	type SvgProps = import('react').ComponentProps<'svg'>;
+	export interface Props extends SvgProps {}
+	export default function IconSystemColorMode(props: Props): JSX.Element;
+}
+
+declare module '@theme/Icon/LightMode' {
+	type SvgProps = import('react').ComponentProps<'svg'>;
+	export interface Props extends SvgProps {}
+	export default function IconLightMode(props: Props): JSX.Element;
+}
+
+declare module '@theme/Icon/DarkMode' {
+	type SvgProps = import('react').ComponentProps<'svg'>;
+	export interface Props extends SvgProps {}
+	export default function IconDarkMode(props: Props): JSX.Element;
+}

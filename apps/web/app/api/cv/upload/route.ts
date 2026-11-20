@@ -14,10 +14,31 @@ import {
   apiBadRequest,
   apiError,
 } from "../../../../lib/api-response";
-import { uploadFile } from "@ever-hust/supabase/storage";
+import {
+  deleteFile,
+  getPublicUrl,
+  uploadFile,
+} from "@ever-hust/supabase/storage";
 
 /** Maximum file size: 10 MB */
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+/** A stored CV's file name: the server-chosen `{uuid}.{ext}`, never a path. */
+const CV_FILE_NAME = /^[\w-]+\.[a-z0-9]+$/i;
+
+/**
+ * The storage path of a CV this route stored for `userId`, or null when `url`
+ * is not a public URL of a file directly inside `cvs/{userId}/` (another user's
+ * folder, another host or bucket, a sub-folder, dot segments, a query string).
+ */
+function ownCvPath(url: unknown, userId: string): string | null {
+  if (typeof url !== "string") return null;
+  const folder = `cvs/${userId}/`;
+  const folderUrl = getPublicUrl(folder);
+  if (!url.startsWith(folderUrl)) return null;
+  const name = url.slice(folderUrl.length);
+  return CV_FILE_NAME.test(name) ? `${folder}${name}` : null;
+}
 
 /**
  * Map of file extensions to their human-readable format names.
@@ -96,22 +117,25 @@ export async function POST(req: Request) {
     // Parse CV (pass MIME type for format-specific extraction)
     const parsed = await parseCV(buffer, file.type);
 
-    // Store parsed data, file URL, and merge skills atomically
-    const updateFields: Record<string, unknown> = {
+    // Store parsed data, file URL, and merge skills atomically. Typed with the
+    // table's columns: Drizzle silently drops a key that is not a column, which
+    // is how the URL, set as "cvFileUrl", never reached users.cv_url.
+    const updateFields: Partial<typeof users.$inferInsert> = {
       cvParsedData: parsed,
-      cvFileUrl,
+      cvUrl: cvFileUrl,
       updatedAt: new Date(),
     };
 
+    // Read the skills to merge with and the CV file this upload replaces
+    const [existingUser] = await db
+      .select({ skills: users.skills, cvUrl: users.cvUrl })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
     // Merge CV skills with existing user skills
     if ((parsed.skills ?? []).length > 0) {
-      const existingUser = await db
-        .select({ skills: users.skills })
-        .from(users)
-        .where(eq(users.id, userId))
-        .limit(1);
-
-      const existingSkills = (existingUser[0]?.skills as string[]) ?? [];
+      const existingSkills = (existingUser?.skills as string[]) ?? [];
       updateFields.skills = [
         ...new Set([...existingSkills, ...(parsed.skills ?? [])]),
       ];
@@ -121,6 +145,20 @@ export async function POST(req: Request) {
       .update(users)
       .set(updateFields)
       .where(eq(users.id, userId));
+
+    // Each upload gets a new name, so remove the CV it replaced (best effort).
+    // Only a file inside this user's own folder is ever removed.
+    try {
+      const oldPath = ownCvPath(existingUser?.cvUrl, userId);
+      if (oldPath && oldPath !== storagePath) {
+        await deleteFile(oldPath);
+      }
+    } catch (cleanupErr) {
+      console.warn(
+        "[cv/upload] Failed to delete the replaced CV:",
+        cleanupErr instanceof Error ? cleanupErr.message : cleanupErr,
+      );
+    }
 
     return apiSuccess({
       parsed: {

@@ -1,4 +1,5 @@
 import { db, organizationMembers, organizations, users } from "@ever-hust/db";
+import { deleteUserFiles } from "@ever-hust/supabase/storage";
 import { and, eq, inArray, ne } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "../../../../lib/get-session-user";
@@ -35,7 +36,8 @@ function pickSuccessor(members: OtherMember[]): OtherMember | undefined {
  * Organizations the user created are handed to another member first, and the
  * delete is refused with 409 while the user is the last owner of an
  * organization other members still use.
- * Also deletes the Stripe customer record for GDPR compliance.
+ * Also deletes the Stripe customer record and the user's CVs and avatar in
+ * Storage for GDPR compliance.
  */
 export async function DELETE() {
   let user;
@@ -181,6 +183,11 @@ export async function DELETE() {
         );
       }
     }
+
+    // Best-effort removal of the user's CVs and avatar from Storage (GDPR right
+    // to erasure): their public URLs keep working until the files are gone.
+    // deleteUserFiles logs its failures and never throws.
+    await deleteUserFiles(userId);
 
     // Clear the session cookie so the browser doesn't hold a stale token
     // after the user row (and cascaded session rows) are deleted.

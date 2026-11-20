@@ -251,6 +251,16 @@ jest.mock("../get-session-user", () => ({
   }),
 }));
 jest.mock("../rate-limit", () => ({ applyRateLimit: () => null }));
+/** Each call records the user id and which users still existed at that moment. */
+const mockStorageCleanups: { userId: string; usersLeft: unknown[] }[] = [];
+jest.mock("@ever-hust/supabase/storage", () => ({
+  deleteUserFiles: async (userId: string) => {
+    mockStorageCleanups.push({
+      userId,
+      usersLeft: mockState.users.map((u) => u.id),
+    });
+  },
+}));
 
 import { DELETE } from "../../app/api/user/account/route";
 
@@ -281,6 +291,7 @@ function seed(organizations: Row[], members: Row[]) {
   mockState.statements = [];
   mockState.locked = [];
   mockState.sessionUsers = [];
+  mockStorageCleanups.length = 0;
 }
 
 const userIds = () => mockState.users.map((u) => u.id);
@@ -511,5 +522,51 @@ describe("DELETE /api/user/account while other members delete their accounts", (
     expect(userIds()).toEqual(["user-m"]);
     expect(org(4)).toMatchObject({ name: "Delta", createdById: "user-m" });
     expect(memberIds(4)).toEqual(["user-m"]);
+  });
+});
+
+describe("DELETE /api/user/account and the files the user uploaded", () => {
+  it("removes the user's CVs and avatar from Storage once, after the user row is gone", async () => {
+    seed([], []);
+
+    const res = await DELETE();
+
+    expect(res.status).toBe(204);
+    expect(mockStorageCleanups).toEqual([
+      { userId: "user-a", usersLeft: [] },
+    ]);
+  });
+
+  it("keeps the files when the delete is refused with 409", async () => {
+    seed(
+      [{ id: 1, name: "Acme", createdById: "user-a" }],
+      [
+        member(1, "user-a", "owner", day(1)),
+        member(1, "user-c", "member", day(2)),
+      ],
+    );
+
+    const res = await DELETE();
+
+    expect(res.status).toBe(409);
+    expect(mockStorageCleanups).toEqual([]);
+  });
+
+  it("removes only the files of the account that was deleted when two owners delete at once", async () => {
+    seed(
+      [{ id: 1, name: "Acme", createdById: "user-a" }],
+      [
+        member(1, "user-a", "owner", day(1)),
+        member(1, "user-b", "owner", day(2)),
+        member(1, "user-c", "member", day(3)),
+      ],
+    );
+    mockState.sessionUsers = ["user-a", "user-b"];
+
+    const [resA, resB] = await Promise.all([DELETE(), DELETE()]);
+
+    expect(resA.status).toBe(204);
+    expect(resB.status).toBe(409);
+    expect(mockStorageCleanups.map((c) => c.userId)).toEqual(["user-a"]);
   });
 });

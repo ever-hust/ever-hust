@@ -23,6 +23,7 @@ jest.mock("drizzle-orm", () => ({ eq: jest.fn(), and: jest.fn(), ne: jest.fn() }
 jest.mock("@ever-hust/email", () => ({ sendSubscriptionConfirmedEmail: jest.fn() }));
 jest.mock("@ever-hust/ai", () => ({
   grantCredits: (...a: unknown[]) => mockGrantCredits(...a),
+  stripeTopUpKey: (id: string) => `stripe-checkout:${id}`,
 }));
 jest.mock("@ever-hust/stripe", () => ({
   getStripe: () => ({ webhooks: { constructEvent: (...a: unknown[]) => mockConstructEvent(...a) } }),
@@ -39,6 +40,7 @@ const topUpEvent = {
   type: "checkout.session.completed",
   data: {
     object: {
+      id: "cs_topup",
       payment_status: "paid",
       metadata: { type: "credits", app: "hust", userId: "u1", credits: "50" },
     },
@@ -63,7 +65,7 @@ describe("POST /api/stripe/webhook idempotency", () => {
     env.STRIPE_WEBHOOK_SECRET = "whsec_test";
     mockConstructEvent.mockReturnValue(topUpEvent);
     mockParseWebhookEvent.mockReturnValue(null);
-    mockGrantCredits.mockResolvedValue(undefined);
+    mockGrantCredits.mockResolvedValue(true);
     errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
   });
 
@@ -89,7 +91,9 @@ describe("POST /api/stripe/webhook idempotency", () => {
     const res = await send();
 
     expect(res.status).toBe(200);
-    expect(mockGrantCredits).toHaveBeenCalledWith("u1", 50, "topup");
+    expect(mockGrantCredits).toHaveBeenCalledWith("u1", 50, "topup", {
+      idempotencyKey: "stripe-checkout:cs_topup",
+    });
     expect(mockReleaseEvent).not.toHaveBeenCalled();
   });
 
@@ -156,7 +160,7 @@ describe("POST /api/stripe/webhook retry recovery", () => {
 
   it("top-up: a failed grant is released before the 500, the retry grants, the next one is skipped", async () => {
     mockConstructEvent.mockReturnValue(topUpEvent);
-    mockGrantCredits.mockRejectedValueOnce(new Error("db down")).mockResolvedValue(undefined);
+    mockGrantCredits.mockRejectedValueOnce(new Error("db down")).mockResolvedValue(true);
 
     const first = await send();
     expect(first.status).toBe(500);
@@ -171,6 +175,62 @@ describe("POST /api/stripe/webhook retry recovery", () => {
     const redelivery = await send();
     expect(await redelivery.json()).toEqual({ received: true, deduplicated: true });
     expect(mockGrantCredits).toHaveBeenCalledTimes(2);
+  });
+
+  it("top-up: a grant that committed although its reply was lost is not granted again on the retry", async () => {
+    // In-memory credit ledger keyed like credit_tx_grant_unique (user, reason, period_key).
+    const ledger = new Map<string, number>();
+    let replyLost = true;
+    mockGrantCredits.mockImplementation(
+      async (userId: string, amount: number, reason: string, opts: { idempotencyKey: string }) => {
+        const key = `${userId}|${reason}|${opts.idempotencyKey}`;
+        const inserted = !ledger.has(key);
+        if (inserted) ledger.set(key, amount);
+        if (replyLost) {
+          // The INSERT committed, then the connection dropped before the reply.
+          replyLost = false;
+          throw new Error("Connection terminated unexpectedly");
+        }
+        return inserted;
+      },
+    );
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    mockConstructEvent.mockReturnValue(topUpEvent);
+
+    const first = await send();
+    expect(first.status).toBe(500);
+    expect(claims.has("evt_topup")).toBe(false);
+
+    const retry = await send();
+    expect(retry.status).toBe(200);
+    expect(await retry.json()).toEqual({ received: true, credited: true, deduplicated: true });
+
+    // One credit row for the payment, not two.
+    expect([...ledger.values()]).toEqual([50]);
+    warnSpy.mockRestore();
+  });
+
+  it("top-up: a second event for the same checkout session does not grant again", async () => {
+    const ledger = new Set<string>();
+    mockGrantCredits.mockImplementation(
+      async (_u: string, _a: number, _r: string, opts: { idempotencyKey: string }) => {
+        if (ledger.has(opts.idempotencyKey)) return false;
+        ledger.add(opts.idempotencyKey);
+        return true;
+      },
+    );
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+
+    mockConstructEvent.mockReturnValue(topUpEvent);
+    expect((await send()).status).toBe(200);
+    // A different event id (so the claim is new) for the same Checkout Session.
+    mockConstructEvent.mockReturnValue({ ...topUpEvent, id: "evt_topup_again" });
+    const again = await send();
+
+    expect(again.status).toBe(200);
+    expect(await again.json()).toEqual({ received: true, credited: true, deduplicated: true });
+    expect(ledger).toEqual(new Set(["stripe-checkout:cs_topup"]));
+    warnSpy.mockRestore();
   });
 
   it("subscription events: a failed handler is released before the 500 and the retry runs", async () => {

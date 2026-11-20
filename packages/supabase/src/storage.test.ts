@@ -13,7 +13,7 @@ jest.mock("./server", () => ({
   }),
 }));
 
-import { uploadFile } from "./storage";
+import { deleteFile, storagePathFromPublicUrl, uploadFile } from "./storage";
 
 const data = Buffer.from("hello world");
 
@@ -102,5 +102,55 @@ describe("uploadFile path guard", () => {
       uploadFile("../user-uploads/x.pdf", data, "application/pdf", "other"),
     ).rejects.toThrow(/Invalid storage path/);
     expect(mockUpload).not.toHaveBeenCalled();
+  });
+});
+
+describe("storagePathFromPublicUrl", () => {
+  const base =
+    "https://abc.supabase.co/storage/v1/object/public/user-uploads/";
+
+  it.each([
+    ["a CV URL", `${base}cvs/user-1/0b6f3c9e.pdf`, "cvs/user-1/0b6f3c9e.pdf"],
+    ["an encoded file name", `${base}cvs/user-1/My%20Resume.pdf`, "cvs/user-1/My Resume.pdf"],
+    ["a URL with a query string", `${base}cvs/user-1/cv.pdf?download=1`, "cvs/user-1/cv.pdf"],
+  ])("returns the path of %s", (_label, url, path) => {
+    expect(storagePathFromPublicUrl(url)).toBe(path);
+  });
+
+  it.each([
+    ["null", null],
+    ["an empty string", ""],
+    ["not a URL", "cvs/user-1/cv.pdf"],
+    ["another bucket", "https://abc.supabase.co/storage/v1/object/public/other/cvs/user-1/cv.pdf"],
+    ["a signed URL", "https://abc.supabase.co/storage/v1/object/sign/user-uploads/cvs/user-1/cv.pdf"],
+    ["the bucket root", base],
+    ["a parent segment", `${base}cvs/user-1/../user-2/cv.pdf`],
+    ["an encoded parent segment", `${base}cvs/user-1/%2e%2e/user-2/cv.pdf`],
+    ["an encoded backslash", `${base}cvs/user-1/..%5Cuser-2%5Ccv.pdf`],
+    ["broken percent-encoding", `${base}cvs/user-1/%E0%A4%A.pdf`],
+  ])("returns null for %s", (_label, url) => {
+    expect(storagePathFromPublicUrl(url)).toBeNull();
+  });
+});
+
+describe("deleteFile path guard", () => {
+  const mockRemove = jest.fn();
+  beforeEach(() => {
+    mockFrom.mockReset();
+    mockRemove.mockReset();
+    mockRemove.mockResolvedValue({ error: null });
+    mockFrom.mockReturnValue({ remove: mockRemove });
+  });
+
+  it("deletes a safe path", async () => {
+    await deleteFile("cvs/user-1/cv.pdf");
+    expect(mockRemove).toHaveBeenCalledWith(["cvs/user-1/cv.pdf"]);
+  });
+
+  it("throws for a parent segment and never calls Storage", async () => {
+    await expect(deleteFile("cvs/user-1/../user-2/cv.pdf")).rejects.toThrow(
+      /Invalid storage path/,
+    );
+    expect(mockFrom).not.toHaveBeenCalled();
   });
 });

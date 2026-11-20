@@ -264,7 +264,11 @@ describe("organization member routes and the last owner", () => {
       patch("user-b", "user-a", "member"),
     ]);
 
-    expect([ab.status, ba.status].sort()).toEqual([200, 400]);
+    // The second one runs after the first under the lock: its caller has just been demoted to
+    // member (403), or, the other way round, the same. Never both.
+    const ok = [ab.status, ba.status].filter((s) => s < 300);
+    expect(ok).toEqual([200]);
+    expect([ab.status, ba.status]).toContain(403);
     expect(owners()).toHaveLength(1);
   });
 

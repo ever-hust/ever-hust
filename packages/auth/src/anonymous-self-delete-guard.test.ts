@@ -128,8 +128,8 @@ describe("auth config", () => {
 
       expect(migrate).toHaveBeenCalledWith({}, "guest-1", "user-new");
       expect(deleteUser).toHaveBeenCalledWith("guest-1");
-      expect(migrate.mock.invocationCallOrder[0]).toBeLessThan(
-        deleteUser.mock.invocationCallOrder[0],
+      expect(migrate.mock.invocationCallOrder[0]!).toBeLessThan(
+        deleteUser.mock.invocationCallOrder[0]!,
       );
     });
 

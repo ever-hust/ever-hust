@@ -15,13 +15,12 @@
     "@ever-hust/supabase": "workspace:*",
     "ai": "^6.0.86",
     "mammoth": "^1.11.0",
-    "pdf-parse": "^2.4.5",
+    "unpdf": "^2.2.1",
     "zod": "^3.24.0"
   },
   "devDependencies": {
     "@ever-hust/typescript-config": "workspace:*",
     "@types/node": "^26.6.5",
-    "@types/pdf-parse": "^1.1.5",
     "typescript": "5.9.2"
   }
 }

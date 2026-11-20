@@ -5,6 +5,7 @@ import { db } from "@ever-hust/db/client";
 import * as schema from "@ever-hust/db/schema";
 import { anonymousSelfDeleteGuard } from "./anonymous-self-delete-guard";
 import { emailGreetingName } from "./email-greeting-name";
+import { linkAnonymousUser } from "./link-anonymous-user";
 import { migrateAnonymousUserData } from "./migrate-anonymous-user";
 import { getProviderCredentials } from "./providers";
 import { userAdditionalFields } from "./user-fields";
@@ -177,27 +178,25 @@ export const auth = betterAuth({
   // Anonymous "try it" sessions — frictionless trial from the marketing site
   // (hust.so). A guest gets a real session (generated <id>@hust.local email),
   // can use the AI chat immediately, and is prompted to sign up. On sign-up the
-  // plugin links the account and migrateAnonymousUserData carries their work
-  // over, organizations included, before the guest is removed.
+  // plugin links the account and linkAnonymousUser moves their work over,
+  // organizations included, in one transaction and deletes the guest only once
+  // that has committed. The plugin's own delete is off: it ran even when the
+  // move failed, and every table the guest owns cascades on that delete.
   // ---------------------------------------------------------------------------
   plugins: [
     anonymous({
       emailDomainName: "hust.local",
-      onLinkAccount: async ({ anonymousUser, newUser }) => {
-        try {
-          const pick = (v: { user?: { id?: string }; id?: string }) =>
-            v?.user?.id ?? v?.id;
-          const fromId = pick(anonymousUser as { user?: { id?: string }; id?: string });
-          const toId = pick(newUser as { user?: { id?: string }; id?: string });
-          if (!fromId || !toId) return;
-          await migrateAnonymousUserData(db, fromId, toId);
-        } catch (error) {
-          // Best-effort — never block sign-up if the migration fails.
-          console.error(
-            "[Auth] Failed to migrate anonymous user data on link:",
-            error instanceof Error ? error.message : error
-          );
-        }
+      disableDeleteAnonymousUser: true,
+      onLinkAccount: async ({ anonymousUser, newUser, ctx }) => {
+        await linkAnonymousUser(
+          { anonymousUser, newUser },
+          {
+            migrate: (fromId, toId) =>
+              migrateAnonymousUserData(db, fromId, toId),
+            deleteGuest: (guestId) =>
+              ctx.context.internalAdapter.deleteUser(guestId),
+          },
+        );
       },
     }),
   ],

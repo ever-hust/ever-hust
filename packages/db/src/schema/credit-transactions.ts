@@ -11,8 +11,9 @@ import { users } from "./users";
 /**
  * Append-only credit ledger. Balance = SUM(delta) for a user.
  * `delta` is in **credits** (1000 credits = $1): positive = grant/top-up,
- * negative = usage debit. Monthly grants are made idempotent per
- * (user, reason, periodKey) so a re-run can't double-grant.
+ * negative = usage debit. Monthly grants and Stripe top-ups are made
+ * idempotent per (user, reason, periodKey) so a re-run or a webhook retry
+ * can't double-grant.
  */
 export const creditTransactions = pgTable(
   "credit_transactions",
@@ -32,15 +33,19 @@ export const creditTransactions = pgTable(
     outputTokens: integer("output_tokens"),
     /** Cost in micro-USD (1e-6 USD) for auditing. */
     costMicroUsd: integer("cost_micro_usd"),
-    /** "YYYY-MM" for monthly-grant idempotency; null for usage/top-ups. */
+    /**
+     * Idempotency key: "YYYY-MM" for monthly grants, "stripe-checkout:<Checkout
+     * Session id>" for Stripe top-ups; null for usage and other grants.
+     */
     periodKey: text("period_key"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [
     index("credit_tx_user_idx").on(t.userId),
     index("credit_tx_user_created_idx").on(t.userId, t.createdAt),
-    // NULL periodKeys are distinct in Postgres, so usage/top-up rows are
-    // unconstrained; only monthly grants (non-null periodKey) are deduped.
+    // NULL periodKeys are distinct in Postgres, so usage rows are
+    // unconstrained; only rows with a key (monthly grants, Stripe top-ups)
+    // are deduped.
     unique("credit_tx_grant_unique").on(t.userId, t.reason, t.periodKey),
   ],
 );

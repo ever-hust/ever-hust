@@ -4,7 +4,7 @@ export const maxDuration = 30;
 import { db, users, subscriptions } from "@ever-hust/db";
 import { getStripe, parseWebhookEvent } from "@ever-hust/stripe";
 import { sendSubscriptionConfirmedEmail } from "@ever-hust/email";
-import { grantCredits } from "@ever-hust/ai";
+import { grantCredits, stripeTopUpKey } from "@ever-hust/ai";
 import { eq, and, ne } from "drizzle-orm";
 import { apiBadRequest, apiError, apiSuccess } from "../../../../lib/api-response";
 import { claimEventStatus, releaseEvent } from "../../../../lib/stripe-webhook-idempotency";
@@ -74,6 +74,7 @@ export async function POST(req: Request) {
   // which only understands subscription checkouts.
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as {
+      id?: string;
       metadata?: Record<string, string> | null;
       payment_status?: string;
     };
@@ -81,10 +82,24 @@ export async function POST(req: Request) {
     // Only Hust's own top-ups (marker set by createCreditCheckoutSession): the
     // Stripe account is shared by every Ever product.
     if (meta.type === "credits" && meta.app === "hust") {
+      let deduplicated = false;
       try {
         const amount = parseInt(meta.credits ?? "0", 10);
         if (session.payment_status === "paid" && meta.userId && Number.isFinite(amount) && amount > 0) {
-          await grantCredits(meta.userId, amount, "topup");
+          // The credit row is keyed by the Checkout Session (unique in the
+          // ledger), so it is written once per payment whatever happens to the
+          // claim: if the grant committed but this reply was lost, the release
+          // below or Stripe's retry can't grant it again.
+          const granted = await grantCredits(meta.userId, amount, "topup", {
+            idempotencyKey: stripeTopUpKey(session.id ?? event.id),
+          });
+          deduplicated = !granted;
+          if (deduplicated) {
+            console.warn(
+              "[stripe/webhook] Top-up already credited for this checkout session, skipped:",
+              event.id,
+            );
+          }
         }
       } catch (error) {
         console.error(
@@ -95,7 +110,11 @@ export async function POST(req: Request) {
         await releaseClaim();
         return apiError("Webhook handler failed");
       }
-      return apiSuccess({ received: true, credited: true });
+      return apiSuccess({
+        received: true,
+        credited: true,
+        ...(deduplicated ? { deduplicated: true } : {}),
+      });
     }
   }
 

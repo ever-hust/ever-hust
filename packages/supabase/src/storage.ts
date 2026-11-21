@@ -90,7 +90,41 @@ export function getPublicUrl(
 }
 
 /**
- * Delete a file from Supabase Storage.
+ * The storage path of a public URL that {@link getPublicUrl} built for
+ * `bucket`, e.g. `cvs/{userId}/{uuid}.pdf`; null when the URL is not a public
+ * object URL of that bucket or its path is unsafe (see assertSafeStoragePath).
+ */
+export function storagePathFromPublicUrl(
+  url: string | null | undefined,
+  bucket = DEFAULT_BUCKET,
+): string | null {
+  if (!url) return null;
+  // Read the raw string, not new URL(url).pathname: the URL parser would
+  // resolve a ".." (or "%2e%2e") segment into a different, valid-looking path
+  // instead of letting the check below refuse it.
+  const withoutQuery = url.split(/[?#]/, 1)[0] ?? "";
+  const marker = `/storage/v1/object/public/${bucket}/`;
+  const at = withoutQuery.indexOf(marker);
+  if (at === -1) return null;
+  let path: string;
+  try {
+    path = decodeURIComponent(withoutQuery.slice(at + marker.length));
+  } catch {
+    return null;
+  }
+  if (!path) return null;
+  try {
+    assertSafeStoragePath(path);
+  } catch {
+    return null;
+  }
+  return path;
+}
+
+/**
+ * Delete a file from Supabase Storage. Logs (does not throw) when Storage
+ * refuses; throws before any network call on an unsafe path, like
+ * {@link uploadFile}.
  *
  * @param path   - Storage path
  * @param bucket - Storage bucket name
@@ -99,6 +133,7 @@ export async function deleteFile(
   path: string,
   bucket = DEFAULT_BUCKET,
 ): Promise<void> {
+  assertSafeStoragePath(path);
   const supabase = getSupabaseServer();
   const { error } = await supabase.storage.from(bucket).remove([path]);
   if (error) {

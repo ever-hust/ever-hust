@@ -35,6 +35,7 @@ jest.mock("./migrate-anonymous-user", () => ({
 }));
 
 import { anonymousSelfDeleteGuard } from "./anonymous-self-delete-guard";
+import { migrateAnonymousUserData } from "./migrate-anonymous-user";
 import { auth } from "./index";
 
 type GuardContext = Parameters<typeof anonymousSelfDeleteGuard>[0];
@@ -84,11 +85,64 @@ describe("auth config", () => {
     expect(options.hooks?.before).toBe(anonymousSelfDeleteGuard);
   });
 
-  it("keeps the anonymous plugin's guest delete after linking on", () => {
+  // The plugin's own delete ran after onLinkAccount even when the move had failed, and every
+  // table the guest owns cascades on it. It is off; onLinkAccount deletes the guest itself, and
+  // only once the move has committed.
+  it("turns the plugin's own guest delete off", () => {
     const anonymous = options.plugins?.find((p) => p.id === "anonymous");
     expect(anonymous).toBeDefined();
-    // disableDeleteAnonymousUser would also stop the plugin from removing the guest once its
-    // work has moved to the account it signed up with.
-    expect(anonymous?.options?.disableDeleteAnonymousUser).toBeUndefined();
+    expect(anonymous?.options?.disableDeleteAnonymousUser).toBe(true);
+  });
+
+  describe("onLinkAccount", () => {
+    type OnLinkAccount = (data: {
+      anonymousUser: unknown;
+      newUser: unknown;
+      ctx: unknown;
+    }) => Promise<void>;
+    const onLinkAccount = () =>
+      options.plugins?.find((p) => p.id === "anonymous")?.options
+        ?.onLinkAccount as OnLinkAccount;
+    const migrate = migrateAnonymousUserData as jest.Mock;
+    const deleteUser = jest.fn();
+    const link = () =>
+      onLinkAccount()({
+        anonymousUser: { user: { id: "guest-1", isAnonymous: true } },
+        newUser: { user: { id: "user-new", isAnonymous: false } },
+        ctx: { context: { internalAdapter: { deleteUser } } },
+      });
+    let errorSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      migrate.mockReset();
+      deleteUser.mockReset();
+      errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    });
+    afterEach(() => errorSpy.mockRestore());
+
+    it("moves the guest's work, then deletes the guest", async () => {
+      migrate.mockResolvedValue(undefined);
+      deleteUser.mockResolvedValue(undefined);
+
+      await expect(link()).resolves.toBeUndefined();
+
+      expect(migrate).toHaveBeenCalledWith({}, "guest-1", "user-new");
+      expect(deleteUser).toHaveBeenCalledWith("guest-1");
+      expect(migrate.mock.invocationCallOrder[0]!).toBeLessThan(
+        deleteUser.mock.invocationCallOrder[0]!,
+      );
+    });
+
+    it("keeps the guest and lets the sign-in through when the move fails", async () => {
+      migrate.mockRejectedValue(new Error("connection lost"));
+
+      await expect(link()).resolves.toBeUndefined();
+
+      expect(deleteUser).not.toHaveBeenCalled();
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining("guest-1"),
+        "connection lost",
+      );
+    });
   });
 });

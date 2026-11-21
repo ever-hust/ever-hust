@@ -19,11 +19,10 @@ export const DELETE_ANONYMOUS_USER_REFUSED =
  * guest deletes their account through DELETE /api/user/account instead, and
  * lets every other auth endpoint through.
  *
- * This stops only the endpoint. The plugin still removes the guest after
- * linking it to a real account (sign-in, sign-up and OAuth callbacks), which it
- * does through the internal adapter once migrateAnonymousUserData has moved
- * the guest's organizations. That is why the plugin's
- * disableDeleteAnonymousUser option is not used: it turns that delete off too.
+ * The plugin's disableDeleteAnonymousUser option is on as well (it also
+ * refuses this endpoint, with 400), but it is set for the guest delete after
+ * sign-up: linkAnonymousUser deletes the guest itself, only once its work has
+ * moved. This hook keeps the endpoint refused with a clear 403 either way.
  */
 export const anonymousSelfDeleteGuard = createAuthMiddleware(async (ctx) => {
   if (ctx.path === DELETE_ANONYMOUS_USER_PATH) {

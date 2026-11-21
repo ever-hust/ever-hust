@@ -32,9 +32,12 @@ describe("extractTextFromPDF", () => {
   });
 
   it("rejects bytes that are not a PDF", async () => {
+    // Matched by message, not with toThrow(): PDF.js runs in Node's own realm
+    // here (see tests/jest/unpdf.cjs), so its InvalidPDFException is not an
+    // instance of the Error class the Jest sandbox sees.
     await expect(
       extractTextFromPDF(Buffer.from("not a pdf at all, just text")),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ message: expect.stringContaining("Invalid PDF") });
   });
 });
 

@@ -66,7 +66,9 @@ export async function extractTextFromPDF(buffer: Buffer): Promise<string> {
     const { text } = await extractText(pdf, { mergePages: true });
     return text;
   } finally {
-    await pdf.destroy().catch(() => {});
+    // PDF.js 5 has no PDFDocumentProxy.destroy(): the loading task owns the
+    // document and its worker, and destroying it frees both.
+    await pdf.loadingTask.destroy().catch(() => {});
   }
 }
 

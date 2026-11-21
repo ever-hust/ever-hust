@@ -61,6 +61,12 @@ interface OrchestratorOptions {
   meterCredits?: boolean;
   /** Set by the model wrapper when a free fallback model answered (see credit-fallback.ts). */
   fallbackState?: FallbackState;
+  /** The member's organization AI config: custom prompt, appended to the base prompt. */
+  orgSystemPrompt?: string;
+  /** The member's organization AI config: sampling temperature. */
+  temperature?: number;
+  /** The member's organization AI config: max tokens per model response. */
+  maxOutputTokens?: number;
 }
 
 export async function createOrchestratorStream({
@@ -71,15 +77,28 @@ export async function createOrchestratorStream({
   modelKey,
   meterCredits = false,
   fallbackState,
+  orgSystemPrompt,
+  temperature,
+  maxOutputTokens,
 }: OrchestratorOptions): Promise<StreamTextResult<any, any>> {
   // Fetch system prompt from Langfuse (falls back to hardcoded default)
-  const { text: systemPrompt, langfusePrompt } =
+  const { text: basePrompt, langfusePrompt } =
     await getOrchestratorPrompt();
+
+  // An org admin's custom prompt is added after the base prompt, never in
+  // place of it, so the tool and safety instructions still apply.
+  const orgInstructions = orgSystemPrompt?.trim();
+  const systemPrompt = orgInstructions
+    ? `${basePrompt}\n\nOrganization instructions:\n${orgInstructions}`
+    : basePrompt;
 
   return streamText({
     model,
     system: systemPrompt,
     messages,
+    // Org sampling settings; left out when unset so the provider default applies.
+    ...(temperature != null ? { temperature } : {}),
+    ...(maxOutputTokens != null ? { maxOutputTokens } : {}),
     // Meter credit usage for platform (Hust) model calls. BYOK calls use the
     // user's own key and are not charged. Never throws into the stream.
     onFinish: meterCredits

@@ -8,6 +8,7 @@ import {
   isValidReferralCode,
   urlBase64ToUint8Array,
   extractMessageText,
+  parseHiddenJobIds,
 } from "../hook-utils";
 
 // ── toggleSetMember ─────────────────────────────────────────────────────
@@ -465,5 +466,41 @@ describe("extractMessageText", () => {
       parts: [{ type: "text", text: "From parts" }],
     };
     expect(extractMessageText(message)).toBeNull();
+  });
+});
+
+// ── parseHiddenJobIds ───────────────────────────────────────────────────
+
+describe("parseHiddenJobIds", () => {
+  it("reads the top-level shape that GET /api/user/hidden-jobs returns", () => {
+    const result = parseHiddenJobIds({ hiddenJobIds: [3, 5] });
+    expect(result).toEqual(new Set([3, 5]));
+  });
+
+  it("also reads the enveloped { data: { hiddenJobIds } } shape", () => {
+    const result = parseHiddenJobIds({ data: { hiddenJobIds: [7, 9] } });
+    expect(result).toEqual(new Set([7, 9]));
+  });
+
+  it("keeps only positive integers", () => {
+    const result = parseHiddenJobIds({
+      hiddenJobIds: [1, null, "2", -3, 0, 4.5, Number.NaN, Infinity, 6],
+    });
+    expect(result).toEqual(new Set([1, 6]));
+  });
+
+  it("returns an empty Set for a non-object input", () => {
+    expect(parseHiddenJobIds(null).size).toBe(0);
+    expect(parseHiddenJobIds(undefined).size).toBe(0);
+    expect(parseHiddenJobIds("hiddenJobIds").size).toBe(0);
+    expect(parseHiddenJobIds(42).size).toBe(0);
+    expect(parseHiddenJobIds([1, 2]).size).toBe(0);
+  });
+
+  it("returns an empty Set when hiddenJobIds is missing or not an array", () => {
+    expect(parseHiddenJobIds({}).size).toBe(0);
+    expect(parseHiddenJobIds({ hiddenJobIds: "1,2" }).size).toBe(0);
+    expect(parseHiddenJobIds({ data: null }).size).toBe(0);
+    expect(parseHiddenJobIds({ data: { hiddenJobIds: 3 } }).size).toBe(0);
   });
 });

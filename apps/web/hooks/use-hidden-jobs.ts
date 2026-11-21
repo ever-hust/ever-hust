@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { parseHiddenJobIds } from "../lib/hook-utils";
 
 /**
  * Hook to manage hidden jobs for the current user.
@@ -16,9 +17,10 @@ export function useHiddenJobs() {
       try {
         const res = await fetch("/api/user/hidden-jobs");
         if (res.ok) {
-          const data = await res.json();
-          if (data.data?.hiddenJobIds) {
-            setHiddenJobIds(new Set(data.data.hiddenJobIds));
+          const savedIds = parseHiddenJobIds(await res.json());
+          if (savedIds.size > 0) {
+            // Merge, so a job hidden while this request was in flight stays hidden
+            setHiddenJobIds((prev) => new Set([...prev, ...savedIds]));
           }
         }
       } catch {

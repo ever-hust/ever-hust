@@ -1,4 +1,3 @@
-import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateObject } from "ai";
@@ -49,14 +48,27 @@ export const SUPPORTED_CV_EXTENSIONS = new Set(["pdf", "docx", "txt"]);
 
 /**
  * Extract text from a PDF buffer.
+ *
+ * unpdf is a serverless build of PDF.js: it needs no canvas package and no DOM
+ * globals (DOMMatrix, ImageData, Path2D) to read text. pdf-parse loaded the
+ * Node build of pdfjs-dist, which needs the native @napi-rs/canvas package to
+ * define DOMMatrix; the Next.js standalone image never contained it, so every
+ * route that imported this package failed to load ("DOMMatrix is not defined").
+ *
+ * It is imported here, on first use, so loading this module (and the routes
+ * that import it) never evaluates PDF.js.
  */
 export async function extractTextFromPDF(buffer: Buffer): Promise<string> {
-  const parser = new PDFParse({ data: buffer });
+  const { extractText, getDocumentProxy } = await import("unpdf");
+  // A copy: PDF.js may take over (detach) the bytes it is given.
+  const pdf = await getDocumentProxy(new Uint8Array(buffer));
   try {
-    const result = await parser.getText();
-    return result.text;
+    const { text } = await extractText(pdf, { mergePages: true });
+    return text;
   } finally {
-    await parser.destroy().catch(() => {});
+    // PDF.js 5 has no PDFDocumentProxy.destroy(): the loading task owns the
+    // document and its worker, and destroying it frees both.
+    await pdf.loadingTask.destroy().catch(() => {});
   }
 }
 

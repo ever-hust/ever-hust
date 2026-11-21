@@ -27,6 +27,8 @@ const workspaceModuleMapper: Record<string, string> = {
   "^@ever-hust/triggers(.*)$": `${rootDir}/packages/triggers/src$1`,
   // ESM .js → .ts resolution
   "^(\\.{1,2}/.*)\\.js$": "$1",
+  // unpdf is ESM-only: load the real package through Node's loader (see the file).
+  "^unpdf$": `${rootDir}/tests/jest/unpdf.cjs`,
 };
 
 const sharedConfig = {
